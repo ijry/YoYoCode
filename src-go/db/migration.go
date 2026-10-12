@@ -54,13 +54,17 @@ func (d *Database) migrate() error {
 			deleted_at TEXT,
 			title_locked INTEGER DEFAULT 0,
 			pinned_at TEXT,
-			kind TEXT DEFAULT 'agent',
+			kind TEXT DEFAULT 'regular',
 			tags TEXT,
 			branch_tag TEXT,
 			last_message_at TEXT
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_conversation_folder_id ON conversation(folder_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_conversation_parent_id ON conversation(parent_id);`,
+		// Older builds left `kind` at a placeholder default of 'agent'. Upstream's
+		// ConversationKind is regular|chat|loop|delegate, and the client groups
+		// the sidebar by it, so normalize the stale rows. Idempotent.
+		`UPDATE conversation SET kind = 'regular' WHERE kind IS NULL OR kind = 'agent';`,
 		// 4. conversation_tag (upstream entities/conversation_tag.rs)
 		`CREATE TABLE IF NOT EXISTS conversation_tag (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

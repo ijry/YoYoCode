@@ -9,6 +9,7 @@ package handlers_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -490,5 +491,123 @@ func TestUpdateSystemLanguageSettingsContract(t *testing.T) {
 	})
 	if odd["mode"] != "system" {
 		t.Fatalf("unknown mode should normalize to system, got %v", odd["mode"])
+	}
+}
+
+// TestListAllConversationsFilters locks upstream's filter semantics for the
+// route the sidebar list is built from. Each filter is asserted against a small
+// fixture so a dropped one shows up as an over-broad result.
+func TestListAllConversationsFilters(t *testing.T) {
+	srv := newTestServer(t)
+	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
+	folderID := folder["id"]
+
+	mk := func(title, agentType, status string) any {
+		t.Helper()
+		_, conv := call(t, srv, "create_conversation", map[string]any{
+			"folderId": folderID, "agentType": agentType, "title": title, "status": status,
+		})
+		return conv["id"]
+	}
+	mk("fix the parser", "claude_code", "in_progress")
+	mk("add a parser test", "codex", "completed")
+	mk("unrelated chore", "claude_code", "completed")
+
+	callList := func(body map[string]any) []any {
+		t.Helper()
+		code, arr := callArr(t, srv, "list_all_conversations", body)
+		if code != 200 {
+			t.Fatalf("list_all_conversations %d: %v", code, arr)
+		}
+		return arr
+	}
+
+	if got := len(callList(map[string]any{})); got != 3 {
+		t.Fatalf("unfiltered = %d rows, want 3", got)
+	}
+
+	// search is a title substring.
+	if got := callList(map[string]any{"search": "parser"}); len(got) != 2 {
+		t.Errorf("search=parser = %d rows, want 2", len(got))
+	}
+	if got := callList(map[string]any{"search": "nothing matches"}); len(got) != 0 {
+		t.Errorf("search with no hit = %d rows, want 0", len(got))
+	}
+
+	// agentType.
+	if got := callList(map[string]any{"agentType": "codex"}); len(got) != 1 {
+		t.Errorf("agentType=codex = %d rows, want 1", len(got))
+	}
+
+	// status, and the silent-ignore of an unparseable value.
+	if got := callList(map[string]any{"status": "completed"}); len(got) != 2 {
+		t.Errorf("status=completed = %d rows, want 2", len(got))
+	}
+	if got := callList(map[string]any{"status": "not-a-status"}); len(got) != 3 {
+		t.Errorf("an unparseable status must be ignored, got %d rows", len(got))
+	}
+
+	// The default order is updated_at DESC and "oldest" flips it. Timestamps can
+	// tie within the same second, so assert against the returned values rather
+	// than assuming insertion order.
+	descending := func(arr []any) bool {
+		for i := 1; i < len(arr); i++ {
+			if fmt.Sprintf("%v", node(t, arr[i-1])["updated_at"]) <
+				fmt.Sprintf("%v", node(t, arr[i])["updated_at"]) {
+				return false
+			}
+		}
+		return true
+	}
+	ascending := func(arr []any) bool {
+		for i := 1; i < len(arr); i++ {
+			if fmt.Sprintf("%v", node(t, arr[i-1])["updated_at"]) >
+				fmt.Sprintf("%v", node(t, arr[i])["updated_at"]) {
+				return false
+			}
+		}
+		return true
+	}
+	if got := callList(map[string]any{}); !descending(got) {
+		t.Errorf("default order should be updated_at DESC: %v", got)
+	}
+	if got := callList(map[string]any{"sortBy": "oldest"}); !ascending(got) {
+		t.Errorf("sortBy=oldest should be updated_at ASC: %v", got)
+	}
+
+	// folderIds wins over the "every live folder" default.
+	if got := callList(map[string]any{"folderIds": []any{folderID}}); len(got) != 3 {
+		t.Errorf("explicit folderIds = %d rows, want 3", len(got))
+	}
+	if got := callList(map[string]any{"folderIds": []any{999999}}); len(got) != 0 {
+		t.Errorf("unknown folderIds = %d rows, want 0", len(got))
+	}
+
+	// Closing the folder hides its conversations from the unfiltered list —
+	// an absent folderIds means "every folder that still exists".
+	if _, err := call(t, srv, "remove_folder_from_history", map[string]any{"path": folder["path"]}); err == nil {
+		t.Log("folder closed")
+	}
+	if got := callList(map[string]any{}); len(got) != 0 {
+		t.Errorf("closed folder should hide its conversations, got %d rows", len(got))
+	}
+}
+
+// TestConversationKindValues locks the ConversationKind values the client
+// groups by: a normal conversation is `regular`, a chat is `chat` — not the
+// placeholder 'agent' an earlier build left in the column default.
+func TestConversationKindValues(t *testing.T) {
+	srv := newTestServer(t)
+	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
+	_, conv := call(t, srv, "create_conversation", map[string]any{
+		"folderId": folder["id"], "agentType": "claude_code", "title": "kind probe",
+	})
+	_, detail := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": conv["id"]})
+	summary, _ := detail["summary"].(map[string]any)
+	if summary == nil {
+		t.Fatalf("no summary: %v", detail)
+	}
+	if got := summary["kind"]; got != "regular" {
+		t.Errorf("create_conversation kind = %v, want regular", got)
 	}
 }

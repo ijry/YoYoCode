@@ -147,6 +147,33 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（契约审计第二批：会话列表筛选/排序 + summary 字段对齐）
+
+- **`list_all_conversations` 四个筛选/排序参数接进来了**（此前被忽略，客户端列表的
+  搜索/筛选/排序全部失效）。逐项对齐上游 `conversation_service::list_all`：
+  过滤全部下推 SQL，`search` 是标题子串，`status` 只在**能解析成已知状态时**生效
+  （解析不了静默忽略，不报错），`sortBy=oldest` 升序、其余降序。
+  另外两条上游语义此前也没有：**`kind != 'loop'`**（loop-engineering 跑次不进列表）与
+  **默认排除子会话**（`parent_id IS NULL`，除非 `includeChildren`），以及
+  `folderIds` 为空时等于「所有**还活着**的文件夹」——已删除文件夹里的会话仍隐藏。
+- **`DbConversationSummary` 字段补齐**：此前只输出 11 个字段，缺 `title_locked`、
+  `kind`、`child_count`、`pinned_at`；且 `title`/`model`/`git_branch`/`external_id`
+  为 NULL 时输出 `""` 而上游是 `null`（客户端区别「无标题」与「标题为空」）；
+  `pinned_at` 恒在场（客户端按 `string | null` 读）。统一抽出 `conversationSummaryColumns`
+  + `scanConversationSummary`（`rowScanner` 同时服务 list 与单行查询），
+  `child_count` 用子查询算（上游 `fill_summary_extras` 同义）。
+- **修一个隐藏的值漂移**：`conversation.kind` 的列默认值是占位的 `'agent'`，
+  而 `create_conversation` 从不写这一列 → 新会话落到 `'agent'`，上游的取值是
+  `regular|chat|loop|delegate`，客户端按它分组。改为显式写 `'regular'`，
+  并加一条幂等迁移把历史 `agent`/NULL 行归一成 `regular`（列默认值同步改）。
+  `create_chat_conversation` 本来就写 `'chat'`，不变。
+- 测试：`TestListAllConversationsFilters`（逐筛选 + 排序 + 关闭文件夹隐藏）、
+  `TestConversationKindValues`。契约测试文件更名为 `routes_contract_test.go`（已不止文件路由）。
+- 修测试自身的一个坏假设：三条会话在同一秒内创建、`updated_at` 相同，
+  SQLite 对相同键排序不保证稳定 —— 排序断言改为**按返回的 `updated_at` 值**校验。
+- 审计脚本复核：18 → 17 处不一致（`list_all_conversations` 已消）。
+- gofmt / go build ./... / go vet ./... / 契约测试全绿。
+
 ### 2026-10-12（契约审计：P0 参数名全量比对，修 3 处真问题）
 
 - 新增 `scripts/audit_contract.py`：从上游 handler 源解析每个 P0 路由的**参数结构**（含 serde

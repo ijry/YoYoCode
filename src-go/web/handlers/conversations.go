@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"strings"
 
 	"yoyocode/src-go/db"
 	"yoyocode/src-go/web"
@@ -20,10 +19,14 @@ func RegisterConversations(reg *Registry) {
 		return listConversations(d, folderID), nil
 	})
 	reg.web.Register("list_all_conversations", func(c *web.Context) (any, error) {
-		d := stateDB(c)
-		folderIDs := int64Slice(c.Body["folderIds"], c.Body["folder_ids"])
-		agentType := strVal(c.Body["agentType"], c.Body["agent_type"])
-		return listAllConversations(d, folderIDs, agentType), nil
+		return listAllConversations(stateDB(c), listAllOptions{
+			folderIDs:       int64Slice(c.Body["folderIds"], c.Body["folder_ids"]),
+			agentType:       strVal(c.Body["agentType"], c.Body["agent_type"]),
+			search:          strVal(c.Body["search"]),
+			sortBy:          strVal(c.Body["sortBy"], c.Body["sort_by"]),
+			status:          strVal(c.Body["status"]),
+			includeChildren: GetBool(c, "includeChildren", "include_children"),
+		}), nil
 	})
 	reg.web.Register("get_conversation", func(c *web.Context) (any, error) {
 		d := stateDB(c)
@@ -188,43 +191,72 @@ func strVal(values ...any) string {
 
 // listConversations mirrors upstream list_conversations_core returning
 // DbConversationSummary[] — the mobile "conversations" tab for a folder.
-func listConversations(d *db.Database, folderID int64) []map[string]any {
-	if d == nil || d.Conn == nil {
-		return []map[string]any{}
-	}
-	rows, err := d.Conn.Query(
-		`SELECT id, title, agent_type, status, model, git_branch, external_id, message_count,
-		        created_at, updated_at, last_message_at, folder_id, parent_id
-		 FROM conversation WHERE deleted_at IS NULL AND folder_id = ?
-		 ORDER BY COALESCE(last_message_at, updated_at) DESC`, folderID)
-	if err != nil {
-		return []map[string]any{}
-	}
-	defer rows.Close()
-	return scanConversationSummaries(rows)
+
+// listAllOptions is the upstream ListAllConversationsParams, resolved.
+type listAllOptions struct {
+	folderIDs       []int64
+	agentType       string
+	search          string
+	sortBy          string
+	status          string
+	includeChildren bool
 }
 
-func listAllConversations(d *db.Database, folderIDs []int64, agentType string) []map[string]any {
+// conversationStatuses are upstream's ConversationStatus values. A `status`
+// filter that is not one of these is ignored rather than rejected, matching
+// upstream's `if let Ok(...)` around the deserialization.
+var conversationStatuses = map[string]bool{
+	"in_progress":    true,
+	"pending_review": true,
+	"completed":      true,
+	"cancelled":      true,
+}
+
+// listAllConversations mirrors upstream db::service::conversation_service::list_all.
+// Every filter is applied in SQL so ordering stays server-side:
+//
+//   - loop-engineering runs never surface here (their entry point is the loops
+//     workbench);
+//   - delegation children are hidden unless includeChildren is set;
+//   - an absent/empty folderIds means "every folder that still exists", not
+//     "every folder" — conversations in a removed folder stay hidden;
+//   - search is a substring match on the title;
+//   - sortBy "oldest" orders by updated_at ascending, anything else descending.
+func listAllConversations(d *db.Database, opts listAllOptions) []map[string]any {
 	if d == nil || d.Conn == nil {
 		return []map[string]any{}
 	}
-	query := `SELECT id, title, agent_type, status, model, git_branch, external_id, message_count,
-	       created_at, updated_at, last_message_at, folder_id, parent_id
-	 FROM conversation WHERE deleted_at IS NULL`
+	query := `SELECT ` + conversationSummaryColumns + `
+	 FROM conversation c WHERE c.deleted_at IS NULL AND COALESCE(c.kind, 'regular') != 'loop'`
 	var args []any
-	if len(folderIDs) > 0 {
-		placeholders := make([]string, len(folderIDs))
-		for i, id := range folderIDs {
-			placeholders[i] = "?"
+	if !opts.includeChildren {
+		query += " AND c.parent_id IS NULL"
+	}
+	if len(opts.folderIDs) > 0 {
+		query += " AND c.folder_id IN (" + placeholders(len(opts.folderIDs)) + ")"
+		for _, id := range opts.folderIDs {
 			args = append(args, id)
 		}
-		query += " AND folder_id IN (" + strings.Join(placeholders, ", ") + ")"
+	} else {
+		query += " AND c.folder_id IN (SELECT id FROM folder WHERE deleted_at IS NULL)"
 	}
-	if agentType != "" {
-		query += " AND agent_type = ?"
-		args = append(args, agentType)
+	if opts.agentType != "" {
+		query += " AND c.agent_type = ?"
+		args = append(args, opts.agentType)
 	}
-	query += " ORDER BY COALESCE(last_message_at, updated_at) DESC"
+	if opts.search != "" {
+		query += " AND c.title LIKE ?"
+		args = append(args, "%"+opts.search+"%")
+	}
+	if opts.status != "" && conversationStatuses[opts.status] {
+		query += " AND c.status = ?"
+		args = append(args, opts.status)
+	}
+	if opts.sortBy == "oldest" {
+		query += " ORDER BY c.updated_at ASC"
+	} else {
+		query += " ORDER BY c.updated_at DESC"
+	}
 	rows, err := d.Conn.Query(query, args...)
 	if err != nil {
 		return []map[string]any{}
@@ -236,68 +268,105 @@ func listAllConversations(d *db.Database, folderIDs []int64, agentType string) [
 func scanConversationSummaries(rows *sql.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
-		var (
-			id, messageCount, folderID   int64
-			parentID                     sql.NullInt64
-			title, updatedAt             sql.NullString
-			lastMessageAt                sql.NullString
-			model, gitBranch, externalID sql.NullString
-			agentType, status, createdAt string
-		)
-		if err := rows.Scan(&id, &title, &agentType, &status, &model, &gitBranch, &externalID,
-			&messageCount, &createdAt, &updatedAt, &lastMessageAt, &folderID, &parentID); err != nil {
-			continue
+		if rec, ok := scanConversationSummary(rows); ok {
+			out = append(out, rec)
 		}
-		rec := map[string]any{
-			"id":              id,
-			"folder_id":       folderID,
-			"title":           title.String,
-			"agent_type":      agentType,
-			"status":          status,
-			"model":           model.String,
-			"git_branch":      gitBranch.String,
-			"external_id":     externalID.String,
-			"message_count":   messageCount,
-			"created_at":      createdAt,
-			"updated_at":      updatedAt.String,
-			"last_message_at": lastMessageAt.String,
-		}
-		if parentID.Valid {
-			rec["parent_id"] = parentID.Int64
-		}
-		out = append(out, rec)
 	}
 	return out
 }
 
+// conversationSummaryColumns is the shared SELECT list for a conversation
+// summary, in the order scanConversationSummary expects. The table must be
+// aliased `c`. `child_count` is computed rather than stored — upstream's
+// fill_summary_extras does the same, with one aggregate over the returned set.
+const conversationSummaryColumns = `c.id, c.folder_id, c.title, c.agent_type, c.status, c.model,
+	c.git_branch, c.external_id, c.message_count, c.created_at, c.updated_at, c.last_message_at,
+	c.parent_id, c.kind, c.title_locked, c.pinned_at,
+	(SELECT COUNT(*) FROM conversation cc WHERE cc.parent_id = c.id AND cc.deleted_at IS NULL)`
+
+// rowScanner is the common slice of *sql.Row and *sql.Rows, so one scanner
+// serves both the list queries and the single-row lookup.
+type rowScanner interface{ Scan(dest ...any) error }
+
+// nullableString maps a NULL column to JSON null and a value to its string,
+// matching upstream's Option<String>. An empty string would be a different
+// value to the client, which distinguishes "untitled" from "titled empty".
+func nullableString(v sql.NullString) any {
+	if !v.Valid {
+		return nil
+	}
+	return v.String
+}
+
+// scanConversationSummary builds upstream's DbConversationSummary.
+// `pinned_at` is always present (null when unset) so the client's
+// `string | null` type holds; `parent_id` is omitted when absent, as upstream
+// skips it.
+func scanConversationSummary(s rowScanner) (map[string]any, bool) {
+	var (
+		id, messageCount, folderID, childCount int64
+		titleLocked                            int64
+		parentID                               sql.NullInt64
+		title, model, gitBranch, externalID    sql.NullString
+		kind, pinnedAt, lastMessageAt          sql.NullString
+		updatedAt                              sql.NullString
+		agentType, status, createdAt           string
+	)
+	if err := s.Scan(&id, &folderID, &title, &agentType, &status, &model, &gitBranch, &externalID,
+		&messageCount, &createdAt, &updatedAt, &lastMessageAt, &parentID, &kind, &titleLocked,
+		&pinnedAt, &childCount); err != nil {
+		return nil, false
+	}
+	rec := map[string]any{
+		"id":              id,
+		"folder_id":       folderID,
+		"title":           nullableString(title),
+		"title_locked":    titleLocked != 0,
+		"agent_type":      agentType,
+		"status":          status,
+		"kind":            strVal(kind.String, "regular"),
+		"model":           nullableString(model),
+		"git_branch":      nullableString(gitBranch),
+		"external_id":     nullableString(externalID),
+		"message_count":   messageCount,
+		"child_count":     childCount,
+		"created_at":      createdAt,
+		"updated_at":      updatedAt.String,
+		"pinned_at":       nullableString(pinnedAt),
+		"last_message_at": lastMessageAt.String,
+	}
+	if parentID.Valid {
+		rec["parent_id"] = parentID.Int64
+	}
+	return rec, true
+}
+
+// listConversations lists one folder's conversations, newest activity first.
+func listConversations(d *db.Database, folderID int64) []map[string]any {
+	if d == nil || d.Conn == nil {
+		return []map[string]any{}
+	}
+	rows, err := d.Conn.Query(
+		`SELECT `+conversationSummaryColumns+`
+		 FROM conversation c WHERE c.deleted_at IS NULL AND c.folder_id = ?
+		 ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC`, folderID)
+	if err != nil {
+		return []map[string]any{}
+	}
+	defer rows.Close()
+	return scanConversationSummaries(rows)
+}
+
+// getConversation reads one conversation as upstream's DbConversationSummary.
 func getConversation(d *db.Database, id int64) (map[string]any, error) {
 	if d == nil || d.Conn == nil {
 		return nil, web.ErrDatabase("db unavailable")
 	}
 	row := d.Conn.QueryRow(
-		`SELECT id, folder_id, title, agent_type, status, model, git_branch, external_id, parent_id, message_count, created_at, updated_at FROM conversation WHERE id = ? AND deleted_at IS NULL`, id)
-	var (
-		convID, folderID, messageCount int64
-		parentID                       sql.NullInt64
-		title                          sql.NullString
-		model, gitBranch, externalID   sql.NullString
-		agentType, status              string
-		createdAt, updatedAt           sql.NullString
-	)
-	err := row.Scan(&convID, &folderID, &title, &agentType, &status, &model, &gitBranch, &externalID, &parentID, &messageCount, &createdAt, &updatedAt)
-	if err == sql.ErrNoRows {
+		`SELECT `+conversationSummaryColumns+` FROM conversation c WHERE c.id = ? AND c.deleted_at IS NULL`, id)
+	rec, ok := scanConversationSummary(row)
+	if !ok {
 		return nil, web.ErrNotFound("conversation not found")
-	}
-	if err != nil {
-		return nil, web.ErrDatabase(err.Error())
-	}
-	rec := map[string]any{
-		"id": convID, "folder_id": folderID, "title": title.String, "agent_type": agentType,
-		"status": status, "model": model.String, "git_branch": gitBranch.String, "external_id": externalID.String,
-		"message_count": messageCount, "created_at": createdAt.String, "updated_at": updatedAt.String,
-	}
-	if parentID.Valid {
-		rec["parent_id"] = parentID.Int64
 	}
 	return rec, nil
 }

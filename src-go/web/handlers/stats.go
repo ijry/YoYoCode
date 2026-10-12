@@ -28,8 +28,8 @@ func createConversation(d *db.Database, body map[string]any) (map[string]any, er
 	model := strVal(body["model"])
 	now := nowRFC3339()
 	res, err := d.Conn.Exec(
-		`INSERT INTO conversation (folder_id, title, agent_type, status, model, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?)`, folderID, title, agentType, status, model, now, now)
+		`INSERT INTO conversation (folder_id, title, agent_type, status, model, kind, created_at, updated_at)
+		 VALUES (?,?,?,?,?,'regular',?,?)`, folderID, title, agentType, status, model, now, now)
 	if err != nil {
 		return nil, web.ErrDatabase(err.Error())
 	}
