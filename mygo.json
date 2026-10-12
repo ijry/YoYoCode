@@ -1,0 +1,7 @@
+{
+  "name": "YoYoCode",
+  "identifier": "net.spacering.yoyocode",
+  "version": "0.1.0",
+  "main": "./cmd/yoyocode",
+  "out": "build/app"
+}
