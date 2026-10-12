@@ -214,6 +214,8 @@ func Emit(c *web.Context, channel string, payload any) {
 
 // ─── Response helpers ──────────────────────────────────────────────────────
 
-// EmptyResult is what upstream returns for handlers declared `Json<()>`: an
-// empty JSON object with 200.
-func EmptyResult() map[string]any { return map[string]any{} }
+// EmptyResult is what upstream returns for handlers declared `Result<Json<()>>`:
+// the body is literally `null`, NOT `{}`. Serde writes the unit type as null,
+// and the router already maps a nil result onto that — so this must stay nil
+// rather than an empty map, or every such handler ships the wrong JSON.
+func EmptyResult() any { return nil }

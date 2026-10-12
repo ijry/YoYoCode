@@ -147,6 +147,30 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-12（契约修复：文件/文件夹 P0 路由对齐上游）
+
+审计 `get_file_tree` 时发现一批 P0 路由的**线格式**与上游不一致 —— 客户端按自己的形状解析，
+行为测试全绿也照样断。逐条对齐，并加回归测试 `src-go/web/handlers/file_routes_contract_test.go`：
+
+| 路由 | 原实现（错） | 现在（对齐上游） |
+|---|---|---|
+| `get_file_tree` | 参数 `{folderId, depth, showHidden}`；返回扁平 `{entries:[{path,name,type}]}` | 参数 `{path, maxDepth?}`；返回**嵌套** `FileTreeNode[]`（`kind: file\|dir`、`name`、`path` 相对正斜杠、dir 的 `children` 恒在、`symlink` 仅 true 时出现）；忽略 `.git`/`__pycache__`/`.DS_Store`；符号链接目录报空 dir；不可读项跳过；同级 dirs 先、按名小写排序 |
+| `read_file_preview` | 参数只有 `{path}`（当绝对路径用）；返回 `{content, truncated, size}` 且 200KB 截断 | 参数 `{rootPath, path}`（相对路径经 `resolveTreePath`）；返回 `{path, content}`，全量读取（50MB 上限）、前 2KiB 有 NUL 判为二进制 |
+| `read_file_base64` | 参数 `{path}`；返回 `{data, size}` | 参数 `{path`(绝对)`, maxBytes?}`；返回**裸 base64 字符串**；maxBytes 默认 20MB、clamp 到 [4KiB, 100MB]，超限报 invalid_input 且 detail 带 `max_bytes=N` |
+| `save_file_copy` | `ErrNotImplemented` 空实现（清单却标成已实现） | 真实现：同目录写副本 `<stem>.local.<ext>` → `.local.N.<ext>`；符号链接源拒绝；返回 FileSaveResult |
+| `list_directory_entries` | 返回 `{name, type}` 且把文件也列出来 | 只列**子目录**、跳过隐藏目录、返回 `{name, path, hasChildren}`；非目录报 io_error |
+| `remove_folder_from_history` | 收 `{folderId}`、返回 `{ok:true}` | 收 `{path}`（folderId 仍作内部便捷回退）、返回 `null` |
+| `add_folder_to_history` | 返回 `{id, name, path}` | 补 `last_opened_at`（FolderHistoryEntry）；id 改为按 path 回读（upsert 命中已有行时 LastInsertId 不可靠） |
+| `EmptyResult()` | 返回 `{}` | 返回 `nil`（上游 `Result<Json<()>>` 序列化为 `null`）—— 影响 43 处 handler |
+
+- 顺带核对、**本就正确未改**：`list_directory_with_files`（`DirectoryItem` 是 camelCase，`hasChildren` 为任意非隐藏子项）、
+  `list_workspace_files`、`create_directory`（`{parentPath, name}`），以及 files.go 里那批已读 `rootPath` 的路由。
+- 复用而非重复声明：`fileBase64DefaultMaxBytes`/`fileBase64MaxBytes`（git_show_base64.go）、
+  `fileTreeIgnoredDirs`、`entryKind`（workspace_file_list.go）。
+- 测试：7 个契约测试锁定线格式（含 `read_file_base64` 的裸串、`EmptyResult` 的 `null`、
+  `get_file_tree` 的嵌套形状与排序、符号链接目录）。
+- gofmt / go build ./... / go vet ./... / go test ./... 全绿（handlers 277s）。
+
 ### 2026-10-12（品牌清理：仓库内不再出现上游品牌名）
 
 - **目标**：提交内容里不出现上游品牌名，一律用「上游」指代；唯一说明上游是谁的地方放在本地忽略目录。
