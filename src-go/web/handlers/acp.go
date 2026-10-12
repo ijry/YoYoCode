@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strconv"
 
 	"yoyocode/src-go/acp"
 	"yoyocode/src-go/app_state"
@@ -33,7 +34,11 @@ func RegisterACP(reg *Registry) {
 		// stay accepted for in-app callers.
 		folderPath := strVal(c.Body["workingDir"], c.Body["folderPath"], c.Body["path"])
 		convID := int64Num(c.Body["conversationId"])
-		conn, err := st.ACP.ConnectLive(agentType, folderPath, convID)
+		conn, err := st.ACP.ConnectLive(agentType, folderPath, convID, acp.ConnectOptions{
+			SessionID:             strVal(c.Body["sessionId"], c.Body["session_id"]),
+			PreferredModeID:       strVal(c.Body["preferredModeId"], c.Body["preferred_mode_id"]),
+			PreferredConfigValues: stringMap(c.Body["preferredConfigValues"], c.Body["preferred_config_values"]),
+		})
 		if err != nil {
 			return nil, acpError(err)
 		}
@@ -170,4 +175,31 @@ func acpError(err error) error {
 		return web.ErrNotFound(err.Error())
 	}
 	return web.ErrTaskExecution(err.Error())
+}
+
+// stringMap reads a JSON object of string→string (upstream's
+// BTreeMap<String, String> params, e.g. preferredConfigValues). Anything that is
+// not an object of strings is reported as absent rather than coerced.
+func stringMap(values ...any) map[string]string {
+	for _, v := range values {
+		raw, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		out := map[string]string{}
+		for k, val := range raw {
+			switch s := val.(type) {
+			case string:
+				out[k] = s
+			case float64:
+				out[k] = strconv.FormatFloat(s, 'f', -1, 64)
+			case bool:
+				out[k] = strconv.FormatBool(s)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return nil
 }

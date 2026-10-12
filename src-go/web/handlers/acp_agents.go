@@ -111,9 +111,23 @@ func RegisterACPAgents(reg *Registry) {
 	})
 
 	reg.Register("acp_set_config_option", func(c *web.Context) (any, error) {
-		// Forward to the live session's config-option channel. The ACP config
-		// option protocol isn't modeled yet, so this is a no-op ack today —
-		// the session keeps its current options. (Faithful shape: returns null.)
+		st := c.State.(*appstate.AppState)
+		connID := strVal(c.Body["connectionId"], c.Body["connection_id"])
+		configID := strVal(c.Body["configId"], c.Body["config_id"])
+		valueID := strVal(c.Body["valueId"], c.Body["value_id"])
+		if connID == "" {
+			return nil, web.ErrInvalidInput("connectionId required")
+		}
+		if configID == "" {
+			return nil, web.ErrInvalidInput("configId required")
+		}
+		// Upstream decides the encoding from the option's advertised kind; this
+		// build has no option registry yet, so the boolean discriminator is
+		// inferred from the value — the selectors only ever emit "true"/"false"
+		// for a boolean.
+		if err := st.ACP.SetConfigOption(connID, configID, valueID); err != nil {
+			return nil, acpError(err)
+		}
 		return nil, nil
 	})
 

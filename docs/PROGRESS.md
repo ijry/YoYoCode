@@ -147,6 +147,26 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-12（续：ACP 控制方法 —— preferredModeId/preferredConfigValues + acp_set_config_option 落地）
+
+- **`acp_connect` 现在应用用户选的模式与配置**（`preferredModeId` / `preferredConfigValues`，对齐上游
+  `AcpConnectParams`）。新增 `acp.ConnectOptions`，`ConnectLive` 在握手建立后依次应用
+  mode → config values（`applyConnectPreferences`，确定性顺序 `sortedKeys`），失败非致命（会话已起、模式不兼容不应让 connect 失败）。
+- **`acp_set_config_option` 从空实现变为真实现**：读 `connectionId`/`configId`/`valueId` →
+  `Manager.SetConfigOption` → `session/set_config_option`。线格式严格对齐上游
+  `encode_config_option_value` 的 `boolean_values_carry_a_type_discriminator` 测试：字符串选项原样透传、
+  布尔选项带 `"type":"boolean"` 且 value 为**真布尔**（`"true"`/`"false"` 都识别并转成 bool）。
+- 新增 ACP 层单测 `TestAgentSessionSetModeAndConfigOption`：锁
+  `session/set_mode`（`{sessionId, modeId}`）与 `session/set_config_option`
+  （字符串无 type、布尔带 `type:"boolean"`+真布尔）的**线格式**。
+- 顺带补 `Manager.SetMode` / `Manager.SetConfigOption`（`acpControlTimeout=30s`）与
+  `AgentSession.SetMode` / `SetConfigOption`（本地再 emit 一个 `mode_changed` / `config_option_changed` 即时反馈）。
+- `acp_connect` 改读 client 字段 `workingDir`（原 `folderPath`），并兼容 `sessionId` / `preferred_mode_id` 等 snake 别名；
+  `preferredConfigValues` 经新增 `stringMap` 助手解析（对象内 string/float64/bool 都收）。
+- `go build ./...` / `go vet ./...` / `go test ./...` 全绿（ACP 5s、handlers 281s）。
+- **未做（已确认，需更大子系统）**：`acp_describe_agent_options` 仍是空实现 —— 它需要
+  「探测/瞬态连接」能力（临时 spawn agent 问其支持的 modes/config options 再丢弃），本机尚未移植该探针子系统，标记为 deferred。
+
 ### 2026-10-13（契约审计第二批：会话列表筛选/排序 + summary 字段对齐）
 
 - **`list_all_conversations` 四个筛选/排序参数接进来了**（此前被忽略，客户端列表的

@@ -206,3 +206,80 @@ func TestAgentSessionPermissionResolve(t *testing.T) {
 		t.Fatal("agent never got permission outcome")
 	}
 }
+
+// TestAgentSessionSetModeAndConfigOption pins the ACP payloads the two control
+// methods put on the wire. Upstream's own tests assert these shapes (see its
+// boolean_values_carry_a_type_discriminator), and an agent that receives a
+// differently-shaped request just ignores it — so a green "no error" test would
+// hide a broken payload.
+func TestAgentSessionSetModeAndConfigOption(t *testing.T) {
+	client, agent, done := pipePair(t)
+	defer done()
+	agent.HandleRequest("initialize", func(json.RawMessage) (any, error) {
+		return map[string]any{"protocolVersion": ACPProtocolVersion}, nil
+	})
+	agent.HandleRequest("session/new", func(json.RawMessage) (any, error) {
+		return map[string]any{"sessionId": "sess-1"}, nil
+	})
+
+	type captured struct {
+		method string
+		params map[string]any
+	}
+	seen := make(chan captured, 4)
+	record := func(method string) func(json.RawMessage) (any, error) {
+		return func(p json.RawMessage) (any, error) {
+			var m map[string]any
+			_ = json.Unmarshal(p, &m)
+			seen <- captured{method, m}
+			// The agent answers with the option list it adopted.
+			return map[string]any{"configOptions": []any{}}, nil
+		}
+	}
+	agent.HandleRequest("session/set_mode", record("session/set_mode"))
+	agent.HandleRequest("session/set_config_option", record("session/set_config_option"))
+
+	sess := NewAgentSession(client, NewSessionState("sess-1"), "claude_code")
+	if err := sess.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sess.NewSession(context.Background(), t.TempDir(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sess.SetMode(context.Background(), "auto"); err != nil {
+		t.Fatalf("SetMode: %v", err)
+	}
+	got := <-seen
+	if got.method != "session/set_mode" || got.params["sessionId"] != "sess-1" || got.params["modeId"] != "auto" {
+		t.Fatalf("set_mode payload = %v", got.params)
+	}
+
+	// A string option rides the value verbatim, with no type discriminator.
+	if err := sess.SetConfigOption(context.Background(), "model", "anthropic/sonnet", false); err != nil {
+		t.Fatalf("SetConfigOption: %v", err)
+	}
+	got = <-seen
+	if got.method != "session/set_config_option" || got.params["configId"] != "model" ||
+		got.params["value"] != "anthropic/sonnet" {
+		t.Fatalf("set_config_option payload = %v", got.params)
+	}
+	if _, present := got.params["type"]; present {
+		t.Fatalf("a string option must not carry the boolean discriminator: %v", got.params)
+	}
+
+	// A boolean option carries `"type":"boolean"` AND a real boolean, which is
+	// what upstream's type discriminator test pins.
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"true", true}, {"false", false}} {
+		if err := sess.SetConfigOption(context.Background(), "auto_approve", tc.value, true); err != nil {
+			t.Fatalf("SetConfigOption(%s): %v", tc.value, err)
+		}
+		got = <-seen
+		if got.params["type"] != "boolean" || got.params["value"] != tc.want {
+			t.Fatalf("boolean %s wired as %v", tc.value, got.params)
+		}
+	}
+}

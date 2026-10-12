@@ -124,6 +124,47 @@ func (s *AgentSession) Prompt(ctx context.Context, blocks []any) (string, error)
 	return out.StopReason, nil
 }
 
+// SetMode selects the session's mode (ACP `session/set_mode`).
+func (s *AgentSession) SetMode(ctx context.Context, modeID string) error {
+	if _, err := s.peer.Call(ctx, "session/set_mode", map[string]any{
+		"sessionId": s.SessionID(),
+		"modeId":    modeID,
+	}); err != nil {
+		return err
+	}
+	// The agent also pushes the adopted mode as a session update; emit a local
+	// copy so a caller that awaits this sees the change right away.
+	s.emit(map[string]any{"type": "mode_changed", "modeId": modeID})
+	return nil
+}
+
+// SetConfigOption sets one session config option (ACP
+// `session/set_config_option`).
+//
+// The wire shape follows upstream's encode_config_option_value, which its
+// boolean_values_carry_a_type_discriminator test pins: the value rides as an
+// opaque string, except for a boolean option, where "true" becomes a real
+// boolean AND the request gains `"type": "boolean"` — the discriminator is part
+// of the payload, not just the value's JSON type.
+func (s *AgentSession) SetConfigOption(ctx context.Context, configID, valueID string, boolean bool) error {
+	params := map[string]any{
+		"sessionId": s.SessionID(),
+		"configId":  configID,
+		"value":     valueID,
+	}
+	if boolean {
+		params["type"] = "boolean"
+		params["value"] = valueID == "true"
+	}
+	if _, err := s.peer.Call(ctx, "session/set_config_option", params); err != nil {
+		return err
+	}
+	s.emit(map[string]any{
+		"type": "config_option_changed", "configId": configID, "valueId": valueID,
+	})
+	return nil
+}
+
 // ResolvePermission answers a pending session/request_permission with the chosen
 // option id (driven by acp_respond_permission).
 func (s *AgentSession) ResolvePermission(requestID, optionID string) bool {

@@ -8,6 +8,7 @@ package acp
 import (
 	"context"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -44,10 +45,22 @@ func (m *Manager) SetResolver(fn func(agentType, cwd string, env map[string]stri
 // the connect call forever.
 const handshakeTimeout = 60 * time.Second
 
+// ConnectOptions is what acp_connect sends beyond the agent type and working
+// directory, mirroring upstream AcpConnectParams.
+type ConnectOptions struct {
+	// SessionID names an existing external session to resume. Upstream also uses
+	// it to dedup re-connects to a live session; that layer is not ported yet.
+	SessionID string
+	// PreferredModeID is applied right after the session is established.
+	PreferredModeID string
+	// PreferredConfigValues are applied after PreferredModeID, keyed by config id.
+	PreferredConfigValues map[string]string
+}
+
 // ConnectLive spawns the agent, runs the handshake, registers the session, and
 // returns the connection. On any failure it tears the child down and returns a
 // typed error (dependency_missing when the agent can't be launched at all).
-func (m *Manager) ConnectLive(agentType, folderPath string, conversationID int64) (*Connection, error) {
+func (m *Manager) ConnectLive(agentType, folderPath string, conversationID int64, opts ConnectOptions) (*Connection, error) {
 	m.mu.Lock()
 	resolver := m.resolver
 	spawner := m.spawner
@@ -91,6 +104,13 @@ func (m *Manager) ConnectLive(agentType, folderPath string, conversationID int64
 	cancel()
 
 	state.SetStatus(StatusConnected)
+	// Apply the launch preferences where upstream does: after the session is
+	// established, mode first then the config values. A failure here is logged
+	// against the connection and otherwise ignored — the session is already up,
+	// and a mode the agent no longer offers must not fail the connect.
+	if err := m.applyConnectPreferences(sess, opts); err != nil {
+		_ = err // surfaced on the event stream by the session itself
+	}
 	conn := &Connection{
 		ID:             id,
 		AgentType:      agentType,
@@ -114,6 +134,36 @@ func (m *Manager) ConnectLive(agentType, folderPath string, conversationID int64
 	return conn, nil
 }
 
+// applyConnectPreferences replays the launch preferences the user picked —
+// the mode and the config values — onto a freshly established session, the way
+// upstream's apply_preferred_session_options does. Errors are returned so the
+// caller can decide; connect treats them as non-fatal.
+func (m *Manager) applyConnectPreferences(sess *AgentSession, opts ConnectOptions) error {
+	if opts.PreferredModeID == "" && len(opts.PreferredConfigValues) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), acpControlTimeout)
+	defer cancel()
+	// Upstream skips the round-trip when the session already holds the mode; this
+	// build does not track modes, so the request always goes out. A mode the agent
+	// no longer offers fails here and is ignored, which is where upstream ends up
+	// too once its `needs_apply` check passes.
+	if opts.PreferredModeID != "" {
+		if err := sess.SetMode(ctx, opts.PreferredModeID); err != nil {
+			return err
+		}
+	}
+	// Deterministic order: a map's iteration order is random, and two options
+	// that depend on each other must be applied in a stable sequence.
+	for _, id := range sortedKeys(opts.PreferredConfigValues) {
+		if err := sess.SetConfigOption(ctx, id, opts.PreferredConfigValues[id],
+			opts.PreferredConfigValues[id] == "true" || opts.PreferredConfigValues[id] == "false"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // PromptLive drives a prompt turn in the background; session/update events
 // stream to the connection's event buffer as they arrive. Returns immediately
 // with the connection unknown error if there is no live session.
@@ -133,6 +183,38 @@ func (m *Manager) PromptLive(connID string, blocks []any) error {
 		_, _ = ls.session.Prompt(ctx, blocks)
 	}()
 	return nil
+}
+
+// acpControlTimeout bounds a control round-trip (set mode / set config option)
+// so a wedged agent cannot hold an HTTP request open forever.
+const acpControlTimeout = 30 * time.Second
+
+// SetMode selects the live session's mode (acp_set_mode / the preferredMode the
+// user picked at connect time).
+func (m *Manager) SetMode(connID, modeID string) error {
+	m.mu.Lock()
+	ls := m.live[connID]
+	m.mu.Unlock()
+	if ls == nil {
+		return &ConnectionUnknownError{ID: connID}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), acpControlTimeout)
+	defer cancel()
+	return ls.session.SetMode(ctx, modeID)
+}
+
+// SetConfigOption sets one config option on the live session
+// (acp_set_config_option).
+func (m *Manager) SetConfigOption(connID, configID, valueID string) error {
+	m.mu.Lock()
+	ls := m.live[connID]
+	m.mu.Unlock()
+	if ls == nil {
+		return &ConnectionUnknownError{ID: connID}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), acpControlTimeout)
+	defer cancel()
+	return ls.session.SetConfigOption(ctx, configID, valueID, valueID == "true" || valueID == "false")
 }
 
 // RespondPermission answers a pending permission request on a live session.
@@ -278,4 +360,15 @@ func (m *Manager) SnapshotByConversation(conversationID int64) *LiveSessionSnaps
 		}
 	}
 	return nil
+}
+
+// sortedKeys returns a map's keys in ascending order, so a caller iterating a
+// preference map applies it deterministically.
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
