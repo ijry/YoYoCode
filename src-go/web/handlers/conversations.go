@@ -38,9 +38,18 @@ func RegisterConversations(reg *Registry) {
 		return computeFolders(d), nil
 	})
 	reg.web.Register("get_folder_conversation", func(c *web.Context) (any, error) {
-		d := stateDB(c)
-		folderID := int64Num(c.Body["folderId"])
-		return getFolderConversation(d, folderID), nil
+		// Upstream's params are {conversationId, tailTurns?, fromIndex?} and it
+		// answers with the conversation DETAIL (summary + a windowed turn
+		// slice) — not a folder. folderId stays accepted for in-app callers.
+		convID := intVal(c.Body["conversationId"], c.Body["conversation_id"])
+		if convID <= 0 {
+			convID = intVal(c.Body["folderId"], c.Body["folder_id"])
+		}
+		if convID <= 0 {
+			return nil, web.ErrInvalidInput("conversationId required")
+		}
+		return getFolderConversation(stateDB(c), convID,
+			int(int64Num(c.Body["tailTurns"])), int(int64Num(c.Body["fromIndex"])))
 	})
 	reg.web.Register("create_conversation", func(c *web.Context) (any, error) {
 		d := stateDB(c)
@@ -293,17 +302,44 @@ func getConversation(d *db.Database, id int64) (map[string]any, error) {
 	return rec, nil
 }
 
-func getFolderConversation(d *db.Database, folderID int64) map[string]any {
-	if d == nil || d.Conn == nil {
-		return nil
+// getFolderConversation mirrors upstream commands::get_folder_conversation_with_live_core:
+// the conversation's summary plus its turns, sliced to the requested window.
+// `tailTurns` and `fromIndex` are mutually exclusive (upstream rejects both);
+// either one turns on the window metadata, whose presence is what tells the
+// client to merge a page into its transcript instead of replacing it.
+//
+// Upstream's DbConversationDetail also carries session_stats, a transcript
+// watermark and in-flight turn ids. All of those are `skip_serializing_if`
+// optional upstream, so leaving them out stays wire-legal.
+func getFolderConversation(d *db.Database, convID int64, tailTurns, fromIndex int) (map[string]any, error) {
+	if tailTurns > 0 && fromIndex > 0 {
+		return nil, web.ErrInvalidInput("tailTurns and fromIndex are mutually exclusive")
 	}
-	var (
-		id         int64
-		name, path string
-	)
-	err := d.Conn.QueryRow(`SELECT id, name, path FROM folder WHERE id = ? AND deleted_at IS NULL`, folderID).Scan(&id, &name, &path)
+	summary, err := getConversation(d, convID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return map[string]any{"id": id, "name": name, "path": path}
+	turns := loadConversationTurns(d, convID)
+	offset := 0
+	switch {
+	case tailTurns > 0 && tailTurns < len(turns):
+		offset = len(turns) - tailTurns
+	case fromIndex > 0:
+		offset = fromIndex
+		if offset > len(turns) {
+			offset = len(turns)
+		}
+	}
+	page := make([]any, 0, len(turns)-offset)
+	for _, t := range turns[offset:] {
+		page = append(page, t.raw)
+	}
+	out := map[string]any{"summary": summary, "turns": page}
+	if tailTurns > 0 || fromIndex > 0 {
+		meta := computeWindowMeta(turns, offset)
+		out["turns_offset"] = meta.offset
+		out["turns_total"] = meta.total
+		out["assistant_turns_before_offset"] = meta.assistantBefore
+	}
+	return out, nil
 }

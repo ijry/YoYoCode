@@ -3,7 +3,7 @@ package handlers
 // Mirror upstream web/handlers/system_settings.rs — get/update language
 // settings (public for the login page, like upstream).
 import (
-	"strings"
+	"encoding/json"
 
 	"yoyocode/src-go/db"
 	"yoyocode/src-go/web"
@@ -11,8 +11,9 @@ import (
 
 const layoutKey = "system_language_settings"
 
-// getLangSettings reads persisted language settings from app_metadata; falls
-// back to a sane default (zh-CN) when unset.
+// getLangSettings reads the persisted SystemLanguageSettings {mode, language}
+// from app_metadata, defaulting the way upstream's `#[serde(default)]` does.
+// LanguageMode is snake_case on the wire: "system" | "manual".
 func getLangSettings(d *db.Database) map[string]any {
 	value := ""
 	if d != nil && d.Conn != nil {
@@ -20,25 +21,19 @@ func getLangSettings(d *db.Database) map[string]any {
 			`SELECT value FROM app_metadata WHERE key = ? AND deleted_at IS NULL`, layoutKey,
 		).Scan(&value)
 	}
-	settings := map[string]any{}
+	stored := map[string]any{}
 	if value != "" {
-		indent := strings.Index(value, "{")
-		if indent >= 0 {
-			value = value[indent:]
-		}
-		_ = JSONUnmarshalFirst(value, settings)
+		_ = json.Unmarshal([]byte(value), &stored)
 	}
-	if _, ok := settings["language"]; !ok {
-		settings["language"] = "zh-CN"
+	mode, _ := stored["mode"].(string)
+	if mode != "manual" {
+		mode = "system"
 	}
-	lang := settings["language"]
-	delete(settings, "language")
-	// serialize back with snake_case rename: upstream returns { language } etc.
-	out := map[string]any{"language": lang}
-	for k, v := range settings {
-		out[k] = v
+	lang, _ := stored["language"].(string)
+	if lang == "" {
+		lang = "zh-CN"
 	}
-	return out
+	return map[string]any{"mode": mode, "language": lang}
 }
 
 func RegisterSystemSettings(reg *Registry) {
@@ -49,20 +44,27 @@ func RegisterSystemSettings(reg *Registry) {
 	})
 	reg.web.Register("update_system_language_settings", func(c *web.Context) (any, error) {
 		d := stateDB(c)
-		lang, _ := c.Body["language"].(string)
-		if lang == "" {
-			lang = "zh-CN"
+		// Upstream's shape is {settings: {mode, language}} and it answers with
+		// the same object. The flat fields stay accepted for in-app callers.
+		in, _ := c.Body["settings"].(map[string]any)
+		mode := strVal(in["mode"], c.Body["mode"], "system")
+		if mode != "manual" {
+			mode = "system"
 		}
-		settings := `{"language":"` + lang + `"}`
+		settings := map[string]any{
+			"mode":     mode,
+			"language": strVal(in["language"], c.Body["language"], "zh-CN"),
+		}
+		raw, _ := json.Marshal(settings)
 		now := nowRFC3339()
-		_, err := d.Conn.Exec(
+		if _, err := d.Conn.Exec(
 			`INSERT INTO app_metadata (key, value, created_at, updated_at) VALUES (?,?,?,?)
 			 ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
-			layoutKey, settings, now, now,
-		)
-		if err != nil {
+			layoutKey, string(raw), now, now,
+		); err != nil {
 			return nil, web.ErrIO(err.Error())
 		}
-		return map[string]any{"ok": true}, nil
+		Emit(c, "app://language-settings-updated", settings)
+		return settings, nil
 	})
 }

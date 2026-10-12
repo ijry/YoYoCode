@@ -400,3 +400,95 @@ func TestFolderHistoryContract(t *testing.T) {
 		t.Errorf("remove without a path status = %d, want 400", code)
 	}
 }
+
+// TestGetFolderConversationContract locks the route's real semantics: it takes
+// a CONVERSATION id (not a folder) and answers with the conversation detail —
+// summary + turns — optionally windowed by tailTurns/fromIndex.
+func TestGetFolderConversationContract(t *testing.T) {
+	srv := newTestServer(t)
+	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
+	_, conv := call(t, srv, "create_conversation", map[string]any{
+		"folderId": folder["id"], "agentType": "claude_code", "title": "detail probe",
+	})
+	convID := conv["id"]
+
+	code, out := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": convID})
+	if code != 200 {
+		t.Fatalf("status %d: %v", code, out)
+	}
+	summary, ok := out["summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("summary missing: %v", out)
+	}
+	if summary["id"] != convID || summary["title"] != "detail probe" {
+		t.Fatalf("summary = %v", summary)
+	}
+	if _, ok := out["turns"].([]any); !ok {
+		t.Fatalf("turns must be an array: %v", out["turns"])
+	}
+	// No window requested → no window metadata (its absence is how the client
+	// knows this is a full response).
+	for _, k := range []string{"turns_offset", "turns_total", "assistant_turns_before_offset"} {
+		if _, present := out[k]; present {
+			t.Errorf("unwindowed response should omit %q: %v", k, out)
+		}
+	}
+
+	// tailTurns turns the metadata on.
+	_, win := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": convID, "tailTurns": 5})
+	for _, k := range []string{"turns_offset", "turns_total", "assistant_turns_before_offset"} {
+		if _, present := win[k]; !present {
+			t.Errorf("windowed response is missing %q: %v", k, win)
+		}
+	}
+
+	// Both selectors at once is invalid, as upstream has it.
+	if code, _ := call(t, srv, "get_folder_conversation", map[string]any{
+		"conversationId": convID, "tailTurns": 5, "fromIndex": 1,
+	}); code != 400 {
+		t.Errorf("both selectors status = %d, want 400", code)
+	}
+	if code, _ := call(t, srv, "get_folder_conversation", map[string]any{}); code != 400 {
+		t.Errorf("no conversationId status = %d, want 400", code)
+	}
+	if code, _ := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": 999999}); code != 404 {
+		t.Errorf("unknown conversation status = %d, want 404", code)
+	}
+}
+
+// TestUpdateSystemLanguageSettingsContract locks upstream's envelope: the body
+// is {settings: {mode, language}} and the same object comes back. The first
+// implementation read a flat top-level `language`, so the client's write was
+// silently dropped and the language never changed.
+func TestUpdateSystemLanguageSettingsContract(t *testing.T) {
+	srv := newTestServer(t)
+
+	code, out := call(t, srv, "update_system_language_settings", map[string]any{
+		"settings": map[string]any{"mode": "manual", "language": "en"},
+	})
+	if code != 200 {
+		t.Fatalf("status %d: %v", code, out)
+	}
+	if out["mode"] != "manual" || out["language"] != "en" {
+		t.Fatalf("update should echo the settings, got %v", out)
+	}
+
+	_, got := call(t, srv, "get_system_language_settings", map[string]any{})
+	if got["mode"] != "manual" || got["language"] != "en" {
+		t.Fatalf("read-back = %v, want manual/en", got)
+	}
+
+	// mode defaults to `system` and an unknown mode normalizes to it.
+	_, def := call(t, srv, "update_system_language_settings", map[string]any{
+		"settings": map[string]any{"language": "ja"},
+	})
+	if def["mode"] != "system" {
+		t.Fatalf("mode should default to system, got %v", def["mode"])
+	}
+	_, odd := call(t, srv, "update_system_language_settings", map[string]any{
+		"settings": map[string]any{"mode": "nonsense", "language": "ja"},
+	})
+	if odd["mode"] != "system" {
+		t.Fatalf("unknown mode should normalize to system, got %v", odd["mode"])
+	}
+}

@@ -147,6 +147,42 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-12（契约审计：P0 参数名全量比对，修 3 处真问题）
+
+- 新增 `scripts/audit_contract.py`：从上游 handler 源解析每个 P0 路由的**参数结构**（含 serde
+  `rename_all` 归一）与响应类型，和我们 handler 实际读取的 body key 做集合比对，输出
+  「上游发但我们不读」（会**静默丢值**）与「我们读但上游不发」（多半是无害别名）两张清单。
+  脚本头记了已知局限（辅助函数经别的参数名取 body、共享 func 注册、故意忽略的可选参数），
+  结论需人工复核。
+- 逐条核实后，**确认为真并已修**的三处：
+  - **`acp_connect`**：客户端发 `workingDir`，我们只读 `folderPath`/`path` → **连接拿不到工作目录**。
+    已改为 `workingDir` 优先。
+  - **`get_folder_conversation`**：上游收 `{conversationId, tailTurns?, fromIndex?}`、返回**会话详情**
+    （summary + 窗口化 turns）；我们收 `folderId`、返回文件夹 `{id,name,path}` —— 语义完全不同。
+    已改为会话详情：复用 `getConversation` + `loadConversationTurns` + `computeWindowMeta`；
+    两个窗口选择器互斥（同时给 → 400）；**只有请求了窗口才带**
+    `turns_offset`/`turns_total`/`assistant_turns_before_offset`（它们的存在与否正是客户端判断
+    「分页合并」还是「整段替换」的依据）。
+  - **`update_system_language_settings`**：上游收 `{settings:{mode,language}}` 并回显同一对象；
+    我们读顶层 `language` → **语言设置永远写不进去**。已改为上游信封 + `mode` 归一
+    （snake_case：`system`|`manual`）+ 发 `app://language-settings-updated`。
+- 核实为**误报**（实现本就正确，是脚本识别不到）：`acp_prompt`（已支持 `blocks`）、
+  `acp_update_agent_env`（`GetRaw(c,"env")`）、`acp_update_agent_config`（`storeAgentConfigBlobs` 从 body 取）、
+  `forge_*`（经 `forgeAuthFromCtx(c, …)` 读 folderId）、`git_*`（经 `pathParam(c)`）、
+  `save_opened_tabs.expectedVersion`、`work_task_template_delete`（收 id 或 name）、
+  `update_conversation_*` 多收的 `id`（无害别名）。
+- 新增回归测试 `TestGetFolderConversationContract` / `TestUpdateSystemLanguageSettingsContract`。
+- **剩余待办（已确认、未修，按影响排序）**：
+  1. `list_all_conversations` 的 `search`/`sortBy`/`status`/`includeChildren` 被忽略（列表筛选/排序失效）；
+  2. `acp_connect` 的 `preferredModeId`/`preferredConfigValues` 未应用（用户选的模式/配置不生效）；
+  3. `acp_set_config_option`（`connectionId`/`configId`/`valueId`）与 `acp_describe_agent_options`
+     仍是空实现；
+  4. `create_conversation` 返回对象，上游是**裸 i32**（客户端两种都容忍，但应逐字对齐）；
+  5. `work_task_*` 的 `deleteWorktree`/`note`/`blocks`/`reason` 等可选参数未接；
+  6. `forge_tab_count` 的 `tab`/`filters`；`save_opened_tabs.origin`；
+     `acp_download_agent_binary` / `acp_prepare_npx_agent` 的 `version` 系列。
+- gofmt / go build ./... / go vet ./... / go test ./... 全绿（handlers 387s）。
+
 ### 2026-10-12（契约修复：文件/文件夹 P0 路由对齐上游）
 
 审计 `get_file_tree` 时发现一批 P0 路由的**线格式**与上游不一致 —— 客户端按自己的形状解析，

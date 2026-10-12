@@ -275,6 +275,18 @@ go vet ./...
 go test ./...
 ```
 
+### 契约审计（改 P0 路由前后都该跑）
+
+```bash
+python scripts/audit_contract.py
+```
+
+从上游 handler 源解析每个 P0 路由的参数结构与响应类型，和我们的 handler 实际读取的 body key
+比对，列出「上游发但我们不读」（会静默丢值）与「我们读但上游不发」（多半是无害别名）。
+**写一个 P0 handler 时，先去 `_upstream/ref` 读它的 `struct XxxParams` 与响应 struct** ——
+尤其注意有没有 `#[serde(rename_all = "camelCase")]`；只测行为会漏掉线格式错误
+（2026-10-12 就是这么发现 `get_file_tree`、`get_folder_conversation` 等一批的）。
+
 ### mygo 依赖
 
 mygo 是**普通 Go 模块依赖**（`require github.com/egoist/mygo v0.3.5`），

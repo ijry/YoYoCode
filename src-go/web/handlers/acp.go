@@ -29,7 +29,9 @@ func RegisterACP(reg *Registry) {
 		if agentType == "" {
 			return nil, web.ErrInvalidInput("agentType required")
 		}
-		folderPath := strVal(c.Body["folderPath"], c.Body["path"])
+		// The client sends `workingDir` (upstream's field name); folderPath/path
+		// stay accepted for in-app callers.
+		folderPath := strVal(c.Body["workingDir"], c.Body["folderPath"], c.Body["path"])
 		convID := int64Num(c.Body["conversationId"])
 		conn, err := st.ACP.ConnectLive(agentType, folderPath, convID)
 		if err != nil {
