@@ -73,6 +73,7 @@ type Shell struct {
 	fileDir        string            // Files route: current directory (workspace-relative)
 	fileSel        string            // Files route: selected file (workspace-relative)
 	diffSel        string            // Changes route: selected changed file (repo-relative)
+	detailTab      string            // Workspace main area tab: chat | files | changes | terminal
 	termID         string            // Terminal route: live PTY id ("" = none started)
 	termInput      string            // Terminal route: pending input line
 	loginToken     string            // login gate: token input

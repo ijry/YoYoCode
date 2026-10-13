@@ -15,7 +15,8 @@ func changesShellForTest(t *testing.T) *Shell {
 	t.Helper()
 	s := New(newBackendForTest(t))
 	s.stream = newStreamForTest()
-	s.workbench = "changes"
+	s.workbench = ""
+	s.detailTab = "changes"
 	s.selectedFolder = "1"
 	s.cache["appearance-mode"] = json.RawMessage(`{"mode":"light"}`)
 	s.cache["folders"] = json.RawMessage(`[{"id":1,"name":"demo","path":"/tmp/demo"}]`)
@@ -50,7 +51,7 @@ func TestChangesPanelEmptyAndNoFolder(t *testing.T) {
 	// No folder selected → a hint, no crash.
 	s := New(newBackendForTest(t))
 	s.stream = newStreamForTest()
-	s.workbench = "changes"
+	s.detailTab = "changes"
 	s.cache["appearance-mode"] = json.RawMessage(`{"mode":"light"}`)
 	tt := ui.NewTester(s.View, 1240, 820)
 	if !tt.HasText("Select a folder") {

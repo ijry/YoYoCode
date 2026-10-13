@@ -19,13 +19,14 @@ import (
 func (s *Shell) viewFiles(c *ui.Context) {
 	t := c.Theme()
 	root := s.folderPathByID(s.selectedFolder)
-	ui.Row(c.Key("files-head")).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Files").FontSize(22).Bold()
-		ui.Spacer(c)
-		if ui.Button(c.Key("files-refresh"), "Refresh").Clicked() && root != "" {
-			s.invalidate("ft:" + s.fileCurAbs(root))
-		}
-	})
+	if root != "" {
+		ui.Row(c.Key("files-head")).AlignItems(ui.Center).Children(func() {
+			ui.Spacer(c)
+			if ui.Button(c.Key("files-refresh"), "Refresh").Clicked() {
+				s.invalidate("ft:" + s.fileCurAbs(root))
+			}
+		})
+	}
 	if s.selectedFolder == "" || root == "" {
 		ui.Text(c, "Select a folder to browse its files.").FontSize(12).TextColor(t.TextMuted)
 		return

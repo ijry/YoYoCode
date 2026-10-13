@@ -17,8 +17,7 @@ import (
 func (s *Shell) viewTerminal(c *ui.Context) {
 	t := c.Theme()
 	root := s.folderPathByID(s.selectedFolder)
-	ui.Row(c.Key("term-head")).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Terminal").FontSize(22).Bold()
+	ui.Row(c.Key("term-head")).AlignItems(ui.Center).Children(func() {
 		ui.Spacer(c)
 		if s.termID != "" {
 			if ui.Button(c.Key("term-refresh"), "Refresh").Clicked() {

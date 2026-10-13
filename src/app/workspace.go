@@ -39,15 +39,6 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 				s.navRow(c, "nav-canvas", iconCanvas, "Canvas", s.workbench == "canvas", func() {
 					s.workbench = "canvas"
 				})
-				s.navRow(c, "nav-files", iconFolder, "Files", s.workbench == "files", func() {
-					s.workbench = "files"
-				})
-				s.navRow(c, "nav-changes", iconForge, "Changes", s.workbench == "changes", func() {
-					s.workbench = "changes"
-				})
-				s.navRow(c, "nav-term", iconWrench, "Terminal", s.workbench == "terminal", func() {
-					s.workbench = "terminal"
-				})
 				s.navRow(c, "nav-import", iconTasks, "Import sessions", s.workbench == "import-sessions", func() {
 					s.workbench = "import-sessions"
 				})
@@ -149,7 +140,7 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 				s.viewWorkbenchRoute(c, s.workbench)
 				return
 			}
-			s.viewConversationDetail(c)
+			s.viewDetailTabs(c)
 		})
 	})
 }
@@ -224,12 +215,6 @@ func (s *Shell) viewWorkbenchRoute(c *ui.Context, route string) {
 		s.viewTasks(c)
 	case "canvas":
 		s.viewCanvas(c)
-	case "files":
-		s.viewFiles(c)
-	case "changes":
-		s.viewChanges(c)
-	case "terminal":
-		s.viewTerminal(c)
 	case "import-sessions":
 		s.viewImportSessions(c)
 	case "project-boot":

@@ -17,16 +17,17 @@ import (
 func (s *Shell) viewChanges(c *ui.Context) {
 	t := c.Theme()
 	root := s.folderPathByID(s.selectedFolder)
-	ui.Row(c.Key("ch-head")).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Changes").FontSize(22).Bold()
-		ui.Spacer(c)
-		if ui.Button(c.Key("ch-refresh"), "Refresh").Clicked() && root != "" {
-			s.invalidate("gitstatus:" + root)
-			if s.diffSel != "" {
-				s.invalidate("gitdiff:" + s.diffSel)
+	if root != "" {
+		ui.Row(c.Key("ch-head")).AlignItems(ui.Center).Children(func() {
+			ui.Spacer(c)
+			if ui.Button(c.Key("ch-refresh"), "Refresh").Clicked() {
+				s.invalidate("gitstatus:" + root)
+				if s.diffSel != "" {
+					s.invalidate("gitdiff:" + s.diffSel)
+				}
 			}
-		}
-	})
+		})
+	}
 	if s.selectedFolder == "" || root == "" {
 		ui.Text(c, "Select a folder to see its git changes.").FontSize(12).TextColor(t.TextMuted)
 		return

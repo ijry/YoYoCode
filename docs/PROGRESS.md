@@ -134,7 +134,7 @@ go test ./...         → acp / app_error / web 全绿
 依赖为普通 Go 模块（`require github.com/egoist/mygo v0.3.5`，哈希在 go.sum），
 构建时经 git 拉取；`_upstream/*` 整目录忽略，仓库不携带上游源码。
 
-- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；文件浏览器 Files ✅；Git 变更 / diff ✅；**终端** ✅ 2026-10-13；标签栏 待做）
+- [x] `src/app/workspace` 主窗口（会话列表/详情 + composer；文件浏览器 Files；Git 变更 / diff；终端；**主区标签栏** ✅ 2026-10-13）
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
@@ -146,6 +146,19 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI：Workspace 主区标签栏 —— 收拢 Files / Changes / Terminal）
+
+- **`src/app/detail_tabs.go`（新增）**：Workspace 主区加 tab 条 —— `Chat | Files | Changes |
+  Terminal`（默认 Chat）。把上一批放在侧栏 nav 的 Files / Changes / Terminal 收拢进主区 tab，
+  更贴上游 `aux-panel-*` 模型；侧栏只留工作区级路由（New chat / Automations / To-dos /
+  Repositories / Canvas / Import sessions / Project boot）。
+- 三个子视图去掉各自的大标题（标题由 tab 承载），仅保留右侧动作按钮（Refresh / Kill）。
+- `app.go` 加 `detailTab`；`workspace.go` 详情区分发改调 `viewDetailTabs`，并移除三个 nav 行与
+  对应 workbench 路由分支。
+- 测试：新增 `detail_tabs_test.go`（tab 条存在 + 点击 Files 切换并渲染内容）；`files / changes /
+  terminal_test.go` 由 `workbench=` 改 `detailTab=`。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（30.9s）全绿。
 
 ### 2026-10-13（M5 UI：Workspace 终端面板 Terminal）
 

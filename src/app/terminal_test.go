@@ -15,7 +15,8 @@ func terminalShellForTest(t *testing.T, termID string) *Shell {
 	t.Helper()
 	s := New(newBackendForTest(t))
 	s.stream = newStreamForTest()
-	s.workbench = "terminal"
+	s.workbench = ""
+	s.detailTab = "terminal"
 	s.selectedFolder = "1"
 	s.termID = termID
 	s.cache["appearance-mode"] = json.RawMessage(`{"mode":"light"}`)
@@ -45,7 +46,7 @@ func TestTerminalPanelStartPrompt(t *testing.T) {
 func TestTerminalPanelNoFolder(t *testing.T) {
 	s := New(newBackendForTest(t))
 	s.stream = newStreamForTest()
-	s.workbench = "terminal"
+	s.detailTab = "terminal"
 	s.cache["appearance-mode"] = json.RawMessage(`{"mode":"light"}`)
 	tt := ui.NewTester(s.View, 1240, 820)
 	if !tt.HasText("Select a folder") {
