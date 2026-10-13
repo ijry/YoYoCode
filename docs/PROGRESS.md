@@ -147,6 +147,23 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：acp pi 配置 —— load / update）
+
+- **`src-go/web/handlers/acp_pi.go` 扩展**（`RegisterACPPi`）：
+  - **`acp_load_pi_config`**：读 pi 原生文件 → `PiConfigProjection{defaultProvider, defaultModel,
+    defaultThinkingLevel, authProviders, customProviders}`（camelCase）。`settings.json` / `auth.json` /
+    `models.json` 缺失或损坏 → None / 空（不报错）。
+  - **`acp_update_pi_config`**：校验（provider / model 非空、apiKey 不含换行）→ 合并写 `settings.json`
+    （defaultProvider / defaultModel / defaultThinkingLevel）→ 有 apiKey 写 `auth.json`
+    （`{provider:{type:"api_key",key}}`）→ 有 customBaseUrl 写 `models.json`（`providers[provider]`
+    的 baseUrl / api + upsert 模型）。
+  - `piSettingsDir`：`PI_CODING_AGENT_DIR`（`~` 展开）否则 `~/.pi/agent`；**相对目录拒绝**（对齐上游）。
+  - `applyPiCustomModel`：upsert 模型 + 写 reasoning / thinkingLevelMap（**仅 pi 已知 7 级**，
+    未知丢弃；空 map 删键）。
+- 测试：`acp_pi_config_test.go`（写→读 round-trip、未知 thinking level 丢弃、校验、相对目录拒绝）。
+- 清单：**523 / 已实现 482 / 缺 41**（P0 128/128）。
+- `go build ./...` / `go vet` / `go test ./src-go/web/handlers -run Acp` 全绿。
+
 ### 2026-10-13（完整复刻：清单校准 + acp_validate_pi_command）
 
 - **清单生成器校准（2 处误报）**：`scripts/gen_inventory.js` 此前只匹配 `Register` / `RegisterPublic`，
