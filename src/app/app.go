@@ -233,6 +233,9 @@ func (s *Shell) View(c *ui.Context) {
 	t := c.Theme()
 	// Window = content row on top of a slim status bar (upstream's bottom chrome).
 	ui.Column(c).Fill().Children(func() {
+		// Computer-use strip, pinned above the content while anything is shared
+		// (a no-op on a backend that refuses computer use).
+		s.viewComputerIndicator(c)
 		ui.Row(c.Key("body")).Grow(1).Children(func() {
 			// Left navigation rail.
 			ui.Column(c.Key("nav")).Width(186).FillHeight().Background(t.Surface).Padding(12).Gap(10).Children(func() {

@@ -138,14 +138,35 @@ go test ./...         → acp / app_error / web 全绿
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
-- [ ] `src/app/login`
+- [x] `src/app/login`（token 门；桌面版恒有 token，等价上游 `isDesktop()` 跳过）✅ 2026-10-13
 - [ ] `src/app/project-boot`
 - [ ] `src/app/import-sessions`
-- [ ] `src/app/computer-indicator` / `computer-marker`
+- [~] `src/app/computer-indicator` / `computer-marker`（indicator 条已接契约 ✅ 2026-10-13；marker 单窗口无对应实现，见日志）
 
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI 补齐第二/三块：login 门 + /api/health 鉴权修复 + computer 指示条）
+
+- **真实鉴权 bug 修复**：`/api/health` 此前注册为 **public**（`RegisterPublic`，恒 200）。
+  上游把它挂在**受保护**路由上（`src-tauri/src/web/router.rs` 的 `require_token` 中间件；
+  `public_api` 只含 `get_system_language_settings` / `workspace_download` / `backup_download` /
+  `office-watch-proxy` 四条）—— login 页正是靠 `/api/health` 的 **401** 判定 token 无效。
+  public 会让**任何 token 都通过**。改为 `reg.Register`（鉴权），新增
+  `TestHealthRequiresToken`（无 / 错 token → 401、正确 → 200）。
+- **`src/app/login.go`（login 门）**：品牌 + token 输入 + Connect + 提示；`probeHealth` 探
+  `/api/health` 校验 token（与上游 login 同款：200 有效 / 401 无效）。`Shell.View` 在
+  `s.B.Token == ""` 时渲染该门 —— 桌面版恒有 in-process token，等价上游 `isDesktop()` 跳过。
+  测试 `login_test.go`：tokenless → 渲染门且 workspace 隐藏；probe 200 / 401 / 空。
+- **`src/app/computer.go`（computer-indicator）**：把上游的 computer-use 指示条折进单窗口，
+  作为内容区顶部的条（`Shell.View` 顶部）：状态点（紫 = read / 红 = control）+ 摘要 + Stop。
+  **只在 `computer_available=true` 且 `computer_shared_state` 有共享窗口时才显示**；端口后端
+  `computer_*` 除 `computer_available` 外全是 `computerRefused` 桩且 `available=false`，故此处恒隐藏
+  （与 Settings → Computer Use 报的「不可用」一致）。**computer-marker 不做**：它是独立透明窗口、
+  需定位到屏幕落点，单窗口无对应实现（已在文件注释说明）。测试 `computer_test.go`：不可用隐藏 /
+  有共享显示 / 无共享隐藏。
+- `go build ./...` / `go vet` / `go test ./src/app`（14.1s）全绿。
 
 ### 2026-10-13（M5 UI 补齐第一块：pet-panel 会话面板接真实数据）
 
