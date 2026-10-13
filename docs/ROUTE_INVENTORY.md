@@ -18,7 +18,7 @@
 - [x] `/health` **[P0]**
 - [x] `/ws/events` `get`
 
-## acp — 49/75 · P0 17/17
+## acp — 50/75 · P0 17/17
 
 - [x] `/acp_get_agent_status` **[P0]**
 - [x] `/acp_list_agents` **[P0]**
@@ -53,7 +53,7 @@
 - [ ] `/acp_cursor_list_models`
 - [ ] `/acp_qoder_auth_status`
 - [ ] `/acp_update_kimi_code_config`
-- [ ] `/acp_fetch_kimi_models`
+- [x] `/acp_fetch_kimi_models`
 - [x] `/acp_update_pi_config`
 - [x] `/acp_load_pi_config`
 - [ ] `/acp_list_pi_model_capabilities`
@@ -679,13 +679,13 @@
 
 ## 汇总
 
-- 全部路由：482/523
+- 全部路由：483/523
 - P0（mcode-app 依赖）：128/128
 
 | 模块 | 已实现 | P0 进度 |
 |---|---|---|
 | (inline) | 2/2 | 1/1 |
-| acp | 49/75 | 17/17 |
+| acp | 50/75 | 17/17 |
 | app_update | 4/4 | — |
 | automation | 11/11 | — |
 | background | 6/6 | — |

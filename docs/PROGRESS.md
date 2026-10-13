@@ -147,6 +147,19 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：acp_fetch_kimi_models）
+
+- **`src-go/web/handlers/acp_kimi.go`（新增，`RegisterACPKimi`）**：`acp_fetch_kimi_models` ——
+  OpenAI 兼容的 `GET <base_url>/models`（Bearer key，20s 超时）→ 排序去重后的 id 列表；
+  非 2xx 时透出 provider 自己的 `error.message`（否则 "request rejected"）；base URL / api key
+  为空时分别报错。doubles as 一键连接测试。
+- 测试 `acp_kimi_test.go`：模型列表（排序 + 去重 + 跳过无 id 项）、401 错误透传、必填校验。
+- 清单：**523 / 已实现 483 / 缺 40**（P0 128/128）。
+- `go build ./...` / `go vet` / `go test ./src-go/web/handlers -run Acp` 全绿。
+- **注**：hermes（`~/.hermes/config.yaml` YAML + `.env` + 权限收紧）与 kimi 配置写入
+  （`config.toml` TOML + staleness 刷新）需各自的 YAML/TOML 合并模块（依赖已就绪：
+  `gopkg.in/yaml.v3` / `pelletier/go-toml/v2`），留作后续专门批次。
+
 ### 2026-10-13（完整复刻：acp pi 配置 —— load / update）
 
 - **`src-go/web/handlers/acp_pi.go` 扩展**（`RegisterACPPi`）：
