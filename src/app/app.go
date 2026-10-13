@@ -72,6 +72,7 @@ type Shell struct {
 	petTab         string            // Pet section: sessions | sprite
 	fileDir        string            // Files route: current directory (workspace-relative)
 	fileSel        string            // Files route: selected file (workspace-relative)
+	diffSel        string            // Changes route: selected changed file (repo-relative)
 	loginToken     string            // login gate: token input
 	loginErr       string            // login gate: last probe error
 	newSkillID     string            // Settings → Skills: new custom-skill id input

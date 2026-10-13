@@ -134,7 +134,7 @@ go test ./...         → acp / app_error / web 全绿
 依赖为普通 Go 模块（`require github.com/egoist/mygo v0.3.5`，哈希在 go.sum），
 构建时经 git 拉取；`_upstream/*` 整目录忽略，仓库不携带上游源码。
 
-- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；**文件浏览器 Files** ✅ 2026-10-13；标签 / diff / 终端 待做）
+- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；文件浏览器 Files ✅；**Git 变更 / diff** ✅ 2026-10-13；标签 / 终端 待做）
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
@@ -146,6 +146,17 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI：Workspace Git 变更 / diff 面板 Changes）
+
+- **`src/app/changes.go`（新增）**：Workspace 新增「Changes」工作台路由（侧栏 nav 行），展示所选
+  文件夹的工作树变更 + 选中文件的 diff。数据走**已移植**的后端：`git_status({path})`（porcelain v1 →
+  `[{status, file}]`）、`git_diff({path, file})`（返回裸 diff 字符串）。状态码配色：untracked/added
+  绿、deleted 红、modified/renamed 琥珀。上游对应 `aux-panel-git-changes-tab`（2121 行），本端口为
+  **只读紧凑子集**（不含 stage/unstage/discard/commit）。
+- `app.go` 加 `diffSel` 字段；`workspace.go` 加 nav 行 + `viewWorkbenchRoute` 分发。
+- 测试 `changes_test.go`：列变更、点文件看 diff、未选文件夹的提示。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（25.2s）全绿。
 
 ### 2026-10-13（M5 UI：Workspace 文件浏览器 Files 面板）
 
