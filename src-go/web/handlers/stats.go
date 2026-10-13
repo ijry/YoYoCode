@@ -8,9 +8,13 @@ import (
 )
 
 // createConversation inserts a conversation for an agent session.
-func createConversation(d *db.Database, body map[string]any) (map[string]any, error) {
+// createConversation mirrors upstream's `create_conversation`, which returns the
+// new conversation id as a bare Json<i32> (not an object). So we return the
+// int64 id directly — the mcode-app client reads it the same way it reads
+// upstream's number.
+func createConversation(d *db.Database, body map[string]any) (int64, error) {
 	if d == nil || d.Conn == nil {
-		return nil, web.ErrDatabase("db unavailable")
+		return 0, web.ErrDatabase("db unavailable")
 	}
 	folderID := int64Num(body["folderId"])
 	if folderID == 0 {
@@ -31,10 +35,10 @@ func createConversation(d *db.Database, body map[string]any) (map[string]any, er
 		`INSERT INTO conversation (folder_id, title, agent_type, status, model, kind, created_at, updated_at)
 		 VALUES (?,?,?,?,?,'regular',?,?)`, folderID, title, agentType, status, model, now, now)
 	if err != nil {
-		return nil, web.ErrDatabase(err.Error())
+		return 0, web.ErrDatabase(err.Error())
 	}
 	id, _ := res.LastInsertId()
-	return getConversation(d, id)
+	return id, nil
 }
 
 // computeFolders aggregates non-deleted conversations into FolderInfo records,

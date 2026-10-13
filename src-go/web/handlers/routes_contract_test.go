@@ -380,10 +380,10 @@ func TestFolderHistoryContract(t *testing.T) {
 	}
 
 	// A conversation mutation upstream declares Json<()> must be `null`.
-	_, conv := call(t, srv, "create_conversation", map[string]any{
+	_, cid := callRaw(t, srv, "create_conversation", map[string]any{
 		"folderId": folder["id"], "agentType": "claude_code",
 	})
-	upd, _ := jsonBody(map[string]any{"conversationId": conv["id"], "title": "renamed"})
+	upd, _ := jsonBody(map[string]any{"conversationId": cid, "title": "renamed"})
 	if code, raw := rawPost(t, srv, "update_conversation_title", upd); code != 200 || strings.TrimSpace(raw) != "null" {
 		t.Fatalf("update_conversation_title = %d %q, want 200 null", code, raw)
 	}
@@ -408,10 +408,9 @@ func TestFolderHistoryContract(t *testing.T) {
 func TestGetFolderConversationContract(t *testing.T) {
 	srv := newTestServer(t)
 	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
-	_, conv := call(t, srv, "create_conversation", map[string]any{
+	_, convID := callRaw(t, srv, "create_conversation", map[string]any{
 		"folderId": folder["id"], "agentType": "claude_code", "title": "detail probe",
 	})
-	convID := conv["id"]
 
 	code, out := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": convID})
 	if code != 200 {
@@ -504,10 +503,10 @@ func TestListAllConversationsFilters(t *testing.T) {
 
 	mk := func(title, agentType, status string) any {
 		t.Helper()
-		_, conv := call(t, srv, "create_conversation", map[string]any{
+		_, cid := callRaw(t, srv, "create_conversation", map[string]any{
 			"folderId": folderID, "agentType": agentType, "title": title, "status": status,
 		})
-		return conv["id"]
+		return cid
 	}
 	mk("fix the parser", "claude_code", "in_progress")
 	mk("add a parser test", "codex", "completed")
@@ -599,15 +598,39 @@ func TestListAllConversationsFilters(t *testing.T) {
 func TestConversationKindValues(t *testing.T) {
 	srv := newTestServer(t)
 	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
-	_, conv := call(t, srv, "create_conversation", map[string]any{
+	_, cid := callRaw(t, srv, "create_conversation", map[string]any{
 		"folderId": folder["id"], "agentType": "claude_code", "title": "kind probe",
 	})
-	_, detail := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": conv["id"]})
+	_, detail := call(t, srv, "get_folder_conversation", map[string]any{"conversationId": cid})
 	summary, _ := detail["summary"].(map[string]any)
 	if summary == nil {
 		t.Fatalf("no summary: %v", detail)
 	}
 	if got := summary["kind"]; got != "regular" {
 		t.Errorf("create_conversation kind = %v, want regular", got)
+	}
+}
+
+// TestCreateConversationReturnsBareID locks the upstream wire shape: the command
+// answers a bare Json<i32> (the new conversation id), NOT an object. Our earlier
+// port returned the full DbConversationSummary, which the mobile client tolerates
+// but is not what upstream sends.
+func TestCreateConversationReturnsBareID(t *testing.T) {
+	srv := newTestServer(t)
+	_, folder := call(t, srv, "add_folder_to_history", map[string]any{"path": t.TempDir()})
+	fid := folder["id"]
+
+	code, id := callRaw(t, srv, "create_conversation", map[string]any{
+		"folderId": fid, "agentType": "claude_code", "title": "bare id probe",
+	})
+	if code != 200 {
+		t.Fatalf("create_conversation status %d: %v", code, id)
+	}
+	n, ok := id.(float64)
+	if !ok {
+		t.Fatalf("create_conversation returned %T %v, want a bare number", id, id)
+	}
+	if n <= 0 {
+		t.Fatalf("create_conversation id = %v, want > 0", n)
 	}
 }

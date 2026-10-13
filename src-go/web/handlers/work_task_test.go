@@ -4,7 +4,10 @@ package handlers_test
 // + per-folder settings round-trip + templates upsert, through the real Router
 // and a real on-disk SQLite DB. A column/shape drift fails here.
 
-import "testing"
+import (
+	"net/http/httptest"
+	"testing"
+)
 
 func TestWorkTaskBoard(t *testing.T) {
 	srv := newTestServer(t)
@@ -199,4 +202,93 @@ func TestWorkTaskBoard(t *testing.T) {
 	if len(arr) != 0 {
 		t.Fatalf("work_task_list after delete len %d", len(arr))
 	}
+}
+
+// TestWorkTaskOptionalParamsCaptured locks that the work_task_* lifecycle
+// commands accept the optional params upstream's clients send (note / blocks /
+// allow_duplicate_source / reason / delete_worktree / pr_title / draft) and keep
+// them on the event timeline instead of silently dropping them. The git
+// worktree teardown these flags ultimately drive is a subsystem not yet ported,
+// but the data must not vanish on the wire.
+func TestWorkTaskOptionalParamsCaptured(t *testing.T) {
+	srv := newTestServer(t)
+	proj := t.TempDir()
+	_, det := call(t, srv, "open_folder", map[string]any{"path": proj})
+	fid := det["id"]
+
+	_, task := call(t, srv, "work_task_create", map[string]any{
+		"draft": map[string]any{"folderId": fid, "title": "retry me"},
+	})
+	tid := task["id"].(float64)
+
+	// work_task_retry: note / blocks / allow_duplicate_source.
+	if code, _ := call(t, srv, "work_task_retry", map[string]any{
+		"id": tid,
+		"note": "try again",
+		"blocks": []any{map[string]any{"type": "text", "text": "hi"}},
+		"allowDuplicateSource": true,
+	}); code != 200 {
+		t.Fatalf("work_task_retry status %d", code)
+	}
+	rp := eventPayloadMap(t, lastWorkTaskEvent(t, srv, tid, "retried"))
+	if rp["note"] != "try again" {
+		t.Fatalf("retry note not captured: %v", rp)
+	}
+	if _, ok := rp["blocks"]; !ok {
+		t.Fatalf("retry blocks not captured: %v", rp)
+	}
+	if rp["allow_duplicate_source"] != true {
+		t.Fatalf("retry allow_duplicate_source not captured: %v", rp)
+	}
+
+	// work_task_cancel: reason / delete_worktree.
+	if code, _ := call(t, srv, "work_task_cancel", map[string]any{
+		"id": tid, "reason": "no longer needed", "deleteWorktree": true,
+	}); code != 200 {
+		t.Fatalf("work_task_cancel status %d", code)
+	}
+	cp := eventPayloadMap(t, lastWorkTaskEvent(t, srv, tid, "canceled"))
+	if cp["reason"] != "no longer needed" {
+		t.Fatalf("cancel reason not captured: %v", cp)
+	}
+	if cp["delete_worktree"] != true {
+		t.Fatalf("cancel delete_worktree not captured: %v", cp)
+	}
+
+	// work_task_deliver_pr: pr_title / draft.
+	if code, _ := call(t, srv, "work_task_deliver_pr", map[string]any{
+		"id": tid, "prTitle": "My PR", "draft": true,
+	}); code != 200 {
+		t.Fatalf("work_task_deliver_pr status %d", code)
+	}
+	dp := eventPayloadMap(t, lastWorkTaskEvent(t, srv, tid, "delivered_pr"))
+	if dp["pr_title"] != "My PR" {
+		t.Fatalf("deliver pr_title not captured: %v", dp)
+	}
+	if dp["draft"] != true {
+		t.Fatalf("deliver draft not captured: %v", dp)
+	}
+}
+
+// lastWorkTaskEvent returns the most recent event of the given kind for a task
+// (work_task_events streams newest-first).
+func lastWorkTaskEvent(t *testing.T, srv *httptest.Server, tid float64, kind string) map[string]any {
+	t.Helper()
+	_, arr := callArr(t, srv, "work_task_events", map[string]any{"taskId": tid})
+	for _, e := range arr {
+		if m, ok := e.(map[string]any); ok && m["kind"] == kind {
+			return m
+		}
+	}
+	t.Fatalf("no work_task_event kind=%s for task %v", kind, tid)
+	return nil
+}
+
+func eventPayloadMap(t *testing.T, ev map[string]any) map[string]any {
+	t.Helper()
+	p, ok := ev["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("event payload not a map: %v", ev)
+	}
+	return p
 }

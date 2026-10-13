@@ -167,6 +167,25 @@ go test ./...         → acp / app_error / web 全绿
 - **未做（已确认，需更大子系统）**：`acp_describe_agent_options` 仍是空实现 —— 它需要
   「探测/瞬态连接」能力（临时 spawn agent 问其支持的 modes/config options 再丢弃），本机尚未移植该探针子系统，标记为 deferred。
 
+### 2026-10-13（契约审计第三批：create_conversation 裸 i32 + work_task_* 可选参数）
+
+- **`create_conversation` 现在返回裸 i32**（对齐上游 `Result<Json<i32>>`），不再是
+  `DbConversationSummary` 对象。客户端两种都容忍，但逐字对齐上游线格式。
+  - `createConversation` 返回类型 `(map[string]any,error)` → `(int64,error)`；注册处用 `id, err := createConversation(...)` 再 `return id, nil`。
+  - 测试层新增 `callRaw` 助手（解码为 `any`，支持裸标量）；5 个原本读 `conv["id"]` 的测试改走 `callRaw` 取回 id。
+  - 新增契约测试 `TestCreateConversationReturnsBareID` 锁定「返回值是数字而非对象」。
+- **`work_task_*` 生命周期命令现在接住上游发来的可选参数**（此前静默丢弃）：
+  `work_task_retry`(note/blocks/allowDuplicateSource)、`work_task_return`(feedback/intent/blocks)、
+  `work_task_cancel`(reason/deleteWorktree)、`work_task_complete`(deleteWorktree)、
+  `work_task_delete`(deleteWorktree)、`work_task_merge`(message/deleteWorktree/instructions)、
+  `work_task_deliver_pr`(prTitle/draft/deleteWorktree)。
+  - 实现：给 `registerWorkTaskTransition` 的闭包加 `*web.Context` 形参；这些参数落到
+    `work_task_event.payload`（JSON，保留数据），`eventPayload` 空 map 时返回 nil 与上游一致。
+  - **副作用 deferred（非线格式问题）**：git worktree 拆除、PR 投递、merge agent、forge
+    复活守卫等子系统本机尚未移植，对应行为未执行；但客户端发来的字段不再丢。
+  - 新增 `TestWorkTaskOptionalParamsCaptured` 锁定 retry/cancel/deliver_pr 的参数进了事件 payload。
+- `go build` / `go vet` / 相关 `go test` 全绿。`go test ./src-go/web/handlers/` 全绿。
+
 ### 2026-10-13（契约审计第二批：会话列表筛选/排序 + summary 字段对齐）
 
 - **`list_all_conversations` 四个筛选/排序参数接进来了**（此前被忽略，客户端列表的
@@ -219,15 +238,15 @@ go test ./...         → acp / app_error / web 全绿
   `save_opened_tabs.expectedVersion`、`work_task_template_delete`（收 id 或 name）、
   `update_conversation_*` 多收的 `id`（无害别名）。
 - 新增回归测试 `TestGetFolderConversationContract` / `TestUpdateSystemLanguageSettingsContract`。
-- **剩余待办（已确认、未修，按影响排序）**：
-  1. `list_all_conversations` 的 `search`/`sortBy`/`status`/`includeChildren` 被忽略（列表筛选/排序失效）；
-  2. `acp_connect` 的 `preferredModeId`/`preferredConfigValues` 未应用（用户选的模式/配置不生效）；
-  3. `acp_set_config_option`（`connectionId`/`configId`/`valueId`）与 `acp_describe_agent_options`
-     仍是空实现；
-  4. `create_conversation` 返回对象，上游是**裸 i32**（客户端两种都容忍，但应逐字对齐）；
-  5. `work_task_*` 的 `deleteWorktree`/`note`/`blocks`/`reason` 等可选参数未接；
-  6. `forge_tab_count` 的 `tab`/`filters`；`save_opened_tabs.origin`；
-     `acp_download_agent_binary` / `acp_prepare_npx_agent` 的 `version` 系列。
+- **剩余待办（审计基线，已逐项处理）**：
+  1. ✅ `list_all_conversations` 的 `search`/`sortBy`/`status`/`includeChildren` —— 已修（`bbd839c`）。
+  2. ✅ `acp_connect` 的 `preferredModeId`/`preferredConfigValues` —— 已修（`317da0a`）。
+  3. 🟡 `acp_set_config_option` ✅ 已做（`317da0a`）；`acp_describe_agent_options` 仍空实现
+     （需探针/瞬态连接子系统，deferred）。
+  4. ✅ `create_conversation` 返回**裸 i32** —— 已修（对齐上游 `Json<i32>`，见下「契约审计第三批」）。
+  5. ✅ `work_task_*` 的 `deleteWorktree`/`note`/`blocks`/`reason`/`prTitle`/`draft`/`message`/`instructions`/`allowDuplicateSource`
+     —— 已接（落到事件 payload；git worktree 拆除等子系统未移植，副作用 deferred，见下）。
+  6. ⬜ `forge_tab_count` 的 `tab`/`filters`；`save_opened_tabs.origin`；`acp_*_binary` 的 `version` —— 未做。
 - gofmt / go build ./... / go vet ./... / go test ./... 全绿（handlers 387s）。
 
 ### 2026-10-12（契约修复：文件/文件夹 P0 路由对齐上游）

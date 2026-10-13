@@ -305,7 +305,14 @@ func RegisterWorkTask(reg *Registry) {
 		if e != nil {
 			return nil, e
 		}
+		// Upstream DeleteParams: delete_worktree. Record the intent (git teardown
+		// subsystem not ported) so it isn't silently dropped.
+		p := map[string]any{}
+		if v, ok := c.Body["deleteWorktree"]; ok {
+			p["delete_worktree"] = v
+		}
 		_, _ = d.Conn.Exec(`UPDATE work_task SET deleted_at = ? WHERE id = ?`, nowRFC3339(), id)
+		appendWorkTaskEvent(d, id, "deleted", "user", eventPayload(p))
 		Emit(c, "work_task://changed", map[string]any{"task_id": id})
 		return nil, nil
 	})
@@ -341,34 +348,69 @@ func RegisterWorkTask(reg *Registry) {
 	})
 
 	// ── lifecycle transitions (board state machine) ──
-	registerWorkTaskTransition(reg, "work_task_start", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_start", func(d *db.Database, id int64, _ *web.Context) {
 		bumpRun(d, id)
 		setWorkTaskStatus(d, id, "running", map[string]any{"started_at": nowRFC3339(), "failure_reason": nil, "last_error": nil})
 		appendWorkTaskEvent(d, id, "started", "user", nil)
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_retry", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_retry", func(d *db.Database, id int64, c *web.Context) {
 		bumpRun(d, id)
 		setWorkTaskStatus(d, id, "running", map[string]any{"failure_reason": nil, "last_error": nil, "finished_at": nil, "settled_at": nil})
-		appendWorkTaskEvent(d, id, "retried", "user", nil)
+		// Upstream RestartParams: note / blocks / allow_duplicate_source. Captured on
+		// the event so the data the client sent is never silently dropped (upstream
+		// feeds them to the worktree spawn / forge-resurrection guard).
+		p := map[string]any{}
+		if v := strVal(c.Body["note"]); v != "" {
+			p["note"] = v
+		}
+		if v, ok := c.Body["blocks"]; ok {
+			p["blocks"] = v
+		}
+		if GetBool(c, "allowDuplicateSource", "allow_duplicate_source") {
+			p["allow_duplicate_source"] = true
+		}
+		appendWorkTaskEvent(d, id, "retried", "user", eventPayload(p))
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_requeue", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_requeue", func(d *db.Database, id int64, _ *web.Context) {
 		setWorkTaskStatus(d, id, "queued", nil)
 		appendWorkTaskEvent(d, id, "requeued", "user", nil)
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_return", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_return", func(d *db.Database, id int64, c *web.Context) {
 		bumpRun(d, id)
 		setWorkTaskStatus(d, id, "running", map[string]any{"settled_at": nil})
-		appendWorkTaskEvent(d, id, "returned", "user", nil)
+		// Upstream ReturnParams: feedback (required), intent?, blocks?.
+		p := map[string]any{"feedback": strVal(c.Body["feedback"])}
+		if v, ok := c.Body["intent"].(string); ok && v != "" {
+			p["intent"] = v
+		}
+		if v, ok := c.Body["blocks"]; ok {
+			p["blocks"] = v
+		}
+		appendWorkTaskEvent(d, id, "returned", "user", p)
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_cancel", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_cancel", func(d *db.Database, id int64, c *web.Context) {
 		setWorkTaskStatus(d, id, "canceled", map[string]any{"finished_at": nowRFC3339(), "settled_at": nowRFC3339()})
-		appendWorkTaskEvent(d, id, "canceled", "user", nil)
+		// Upstream CancelParams: reason?, delete_worktree. The worktree teardown is a
+		// git subsystem not yet ported; record the intent so it isn't dropped.
+		p := map[string]any{}
+		if v := strVal(c.Body["reason"]); v != "" {
+			p["reason"] = v
+		}
+		if v, ok := c.Body["deleteWorktree"]; ok {
+			p["delete_worktree"] = v
+		}
+		appendWorkTaskEvent(d, id, "canceled", "user", eventPayload(p))
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_complete", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_complete", func(d *db.Database, id int64, c *web.Context) {
 		setWorkTaskStatus(d, id, "done", map[string]any{"completion_kind": "accepted_without_merge", "finished_at": nowRFC3339(), "settled_at": nowRFC3339()})
-		appendWorkTaskEvent(d, id, "completed", "user", nil)
+		// Upstream CompleteParams: delete_worktree (git teardown deferred).
+		p := map[string]any{}
+		if v, ok := c.Body["deleteWorktree"]; ok {
+			p["delete_worktree"] = v
+		}
+		appendWorkTaskEvent(d, id, "completed", "user", eventPayload(p))
 	}, nil)
-	registerWorkTaskTransition(reg, "work_task_merge_unqueue", func(d *db.Database, id int64) {
+	registerWorkTaskTransition(reg, "work_task_merge_unqueue", func(d *db.Database, id int64, _ *web.Context) {
 		_, _ = d.Conn.Exec(`UPDATE work_task SET pending_merge = NULL, updated_at = ? WHERE id = ?`, nowRFC3339(), id)
 		appendWorkTaskEvent(d, id, "merge_unqueued", "user", nil)
 	}, nil)
@@ -401,8 +443,19 @@ func RegisterWorkTask(reg *Registry) {
 		if e != nil {
 			return nil, e
 		}
+		// Upstream MergeParams: message?, delete_worktree, instructions?.
+		p := map[string]any{}
+		if v := strVal(c.Body["message"]); v != "" {
+			p["message"] = v
+		}
+		if v, ok := c.Body["deleteWorktree"]; ok {
+			p["delete_worktree"] = v
+		}
+		if v := strVal(c.Body["instructions"]); v != "" {
+			p["instructions"] = v
+		}
 		setWorkTaskStatus(d, id, "done", map[string]any{"completion_kind": "merged", "finished_at": nowRFC3339(), "settled_at": nowRFC3339()})
-		appendWorkTaskEvent(d, id, "merged", "user", nil)
+		appendWorkTaskEvent(d, id, "merged", "user", eventPayload(p))
 		Emit(c, "work_task://changed", map[string]any{"task_id": id})
 		return true, nil
 	})
@@ -416,8 +469,19 @@ func RegisterWorkTask(reg *Registry) {
 		if e != nil {
 			return nil, e
 		}
+		// Upstream DeliverPrParams: pr_title?, draft, delete_worktree?.
+		p := map[string]any{}
+		if v := strVal(c.Body["prTitle"], c.Body["pr_title"]); v != "" {
+			p["pr_title"] = v
+		}
+		if GetBool(c, "draft") {
+			p["draft"] = true
+		}
+		if v, ok := c.Body["deleteWorktree"]; ok {
+			p["delete_worktree"] = v
+		}
 		setWorkTaskStatus(d, id, "done", map[string]any{"completion_kind": "delivered_pr", "finished_at": nowRFC3339(), "settled_at": nowRFC3339()})
-		appendWorkTaskEvent(d, id, "delivered_pr", "user", nil)
+		appendWorkTaskEvent(d, id, "delivered_pr", "user", eventPayload(p))
 		Emit(c, "work_task://changed", map[string]any{"task_id": id})
 		return "", nil
 	})
@@ -483,8 +547,10 @@ func RegisterWorkTask(reg *Registry) {
 	registerWorkTaskTemplates(reg)
 }
 
-// registerWorkTaskTransition wires a {id}→status handler returning null.
-func registerWorkTaskTransition(reg *Registry, cmd string, fn func(d *db.Database, id int64), _ any) {
+// registerWorkTaskTransition wires a {id}→status handler returning null. The
+// transition closure also receives the request context so it can read the
+// optional params the client may send (note / reason / blocks / delete_worktree…).
+func registerWorkTaskTransition(reg *Registry, cmd string, fn func(d *db.Database, id int64, c *web.Context), _ any) {
 	reg.Register(cmd, func(c *web.Context) (any, error) {
 		d, err := requireDB(c)
 		if err != nil {
@@ -497,10 +563,19 @@ func registerWorkTaskTransition(reg *Registry, cmd string, fn func(d *db.Databas
 		if _, err := workTaskByID(d, id); err != nil {
 			return nil, err
 		}
-		fn(d, id)
+		fn(d, id, c)
 		Emit(c, "work_task://changed", map[string]any{"task_id": id})
 		return nil, nil
 	})
+}
+
+// eventPayload returns nil when the map is empty, so appendWorkTaskEvent stores a
+// NULL payload — matching upstream, which omits the payload for param-less calls.
+func eventPayload(m map[string]any) any {
+	if len(m) == 0 {
+		return nil
+	}
+	return m
 }
 
 func setWorkTaskStatus(d *db.Database, id int64, status string, extra map[string]any) {

@@ -85,6 +85,24 @@ func callArr(t *testing.T, srv *httptest.Server, cmd string, payload map[string]
 	return resp.StatusCode, out
 }
 
+// callRaw is like call but decodes the response body into any (not a map), so it
+// works for endpoints that return a bare scalar (e.g. create_conversation → i32).
+func callRaw(t *testing.T, srv *httptest.Server, cmd string, payload map[string]any) (int, any) {
+	t.Helper()
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/"+cmd, bytes.NewReader(body))
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("authorization", "Bearer tok")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s: %v", cmd, err)
+	}
+	defer resp.Body.Close()
+	var out any
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
 func callBool(t *testing.T, srv *httptest.Server, cmd string, payload map[string]any) (int, bool) {
 	t.Helper()
 	body, _ := json.Marshal(payload)
@@ -249,11 +267,10 @@ func TestConversationMutations(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("add folder %d", status)
 	}
-	status, conv := call(t, srv, "create_conversation", map[string]any{"folderId": 1, "agentType": "claude_code", "title": "orig"})
+	status, cid := callRaw(t, srv, "create_conversation", map[string]any{"folderId": 1, "agentType": "claude_code", "title": "orig"})
 	if status != 200 {
-		t.Fatalf("create conv %d: %v", status, conv)
+		t.Fatalf("create conv %d: %v", status, cid)
 	}
-	cid := conv["id"]
 
 	status, _ = call(t, srv, "update_conversation_title", map[string]any{"conversationId": cid, "title": "renamed"})
 	if status != 200 {

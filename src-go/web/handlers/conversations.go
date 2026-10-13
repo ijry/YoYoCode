@@ -56,7 +56,11 @@ func RegisterConversations(reg *Registry) {
 	})
 	reg.web.Register("create_conversation", func(c *web.Context) (any, error) {
 		d := stateDB(c)
-		return createConversation(d, c.Body)
+		id, err := createConversation(d, c.Body)
+		if err != nil {
+			return nil, err
+		}
+		return id, nil
 	})
 	reg.web.Register("update_conversation_title", func(c *web.Context) (any, error) {
 		d := stateDB(c)

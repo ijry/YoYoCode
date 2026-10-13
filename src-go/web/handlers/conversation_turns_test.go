@@ -13,13 +13,12 @@ func TestConversationTurnsPage(t *testing.T) {
 	fid := det["id"]
 
 	// a real conversation to query.
-	code, conv := call(t, srv, "create_conversation", map[string]any{
+	code, cid := callRaw(t, srv, "create_conversation", map[string]any{
 		"folderId": fid, "agentType": "codex", "title": "T",
 	})
 	if code != 200 {
-		t.Fatalf("create_conversation %d: %v", code, conv)
+		t.Fatalf("create_conversation %d: %v", code, cid)
 	}
-	cid := conv["id"]
 
 	// missing id → invalid_input.
 	if code, out := call(t, srv, "get_folder_conversation_turns", map[string]any{"beforeIndex": 0, "limit": 50}); code != 400 || out["code"] != "invalid_input" {

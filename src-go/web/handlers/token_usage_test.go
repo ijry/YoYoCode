@@ -13,8 +13,8 @@ func TestTokenUsageReport(t *testing.T) {
 	proj := t.TempDir()
 	_, det := call(t, srv, "open_folder", map[string]any{"path": proj})
 	fid := int64(det["id"].(float64))
-	_, conv := call(t, srv, "create_conversation", map[string]any{"folderId": fid, "agentType": "codex", "title": "Session A"})
-	cid := int64(conv["id"].(float64))
+	_, rawCID := callRaw(t, srv, "create_conversation", map[string]any{"folderId": fid, "agentType": "codex", "title": "Session A"})
+	cid := int64(rawCID.(float64))
 
 	// Seed three usage facts on two days, two models.
 	ins := func(occurred, model string, in, out, total int64) {

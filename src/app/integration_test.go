@@ -42,16 +42,18 @@ func TestBackendConversationLifecycle(t *testing.T) {
 	_ = json.Unmarshal(raw, &folder)
 	folderID := folder["id"]
 
-	// Create a conversation.
+	// Create a conversation. create_conversation mirrors upstream and returns the
+	// new id as a bare number (Json<i32>), not an object.
 	raw, err = b.raw("create_conversation", map[string]any{"folderId": folderID, "agentType": "claude_code"})
 	if err != nil {
 		t.Fatalf("create_conversation: %v", err)
 	}
-	var cv map[string]any
-	_ = json.Unmarshal(raw, &cv)
-	convID := cv["id"]
-	if convID == nil {
-		t.Fatalf("no conversation id: %v", cv)
+	var convID float64
+	if err := json.Unmarshal(raw, &convID); err != nil {
+		t.Fatalf("create_conversation not a bare id: %v", err)
+	}
+	if convID == 0 {
+		t.Fatalf("no conversation id: %v", raw)
 	}
 
 	// Rename it.

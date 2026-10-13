@@ -10,8 +10,7 @@ func TestCanvasBoardsAndNodes(t *testing.T) {
 	proj := t.TempDir()
 	_, det := call(t, srv, "open_folder", map[string]any{"path": proj})
 	fid := det["id"]
-	_, conv := call(t, srv, "create_conversation", map[string]any{"folderId": fid, "agentType": "codex", "title": "C"})
-	cid := conv["id"]
+	_, cid := callRaw(t, srv, "create_conversation", map[string]any{"folderId": fid, "agentType": "codex", "title": "C"})
 
 	// empty board list.
 	_, boards := callArr(t, srv, "canvas_list_boards", map[string]any{})
