@@ -213,8 +213,10 @@ func str(m map[string]any, k string) string {
 	return ""
 }
 
-// View is the root view: a top-level sidebar (Workspace / Settings / Pet) and
-// the active section's page. Mirrors the upstream shell that hosts src/app.
+// View is the root view. There is deliberately NO outer navigation rail: the
+// leftmost column IS the workspace sidebar (upstream's IA — its left column is
+// the conversation list, and Settings / the pet are separate routes there).
+// The single-window build surfaces those two on the bottom chrome instead.
 func (s *Shell) View(c *ui.Context) {
 	// Unauthenticated: show the login gate (upstream src/app/login). The desktop
 	// build always boots with an in-process token, so — exactly like upstream's
@@ -238,28 +240,12 @@ func (s *Shell) View(c *ui.Context) {
 	c.SetTheme(resolveTheme(s.appearanceMode)) // upstream neutral light/dark palette
 	s.svc = c.Services()
 	s.ensureStream()
-	t := c.Theme()
 	// Window = content row on top of a slim status bar (upstream's bottom chrome).
 	ui.Column(c).Fill().Children(func() {
 		// Computer-use strip, pinned above the content while anything is shared
 		// (a no-op on a backend that refuses computer use).
 		s.viewComputerIndicator(c)
 		ui.Row(c.Key("body")).Grow(1).Children(func() {
-			// Left navigation rail.
-			ui.Column(c.Key("nav")).Width(186).FillHeight().Background(t.Surface).Padding(12).Gap(10).Children(func() {
-				ui.Row(c.Key("brand")).Gap(8).AlignItems(ui.Center).Children(func() {
-					if iconWorkspace != nil {
-						ui.Icon(c, iconWorkspace).Width(18).Height(18).TextColor(t.Text)
-					}
-					ui.Text(c, "YoYoCode").FontSize(16).Bold()
-				})
-				ui.Sidebar(c, &s.section, func() {
-					ui.SidebarItem(c, "workspace", iconWorkspace, "Workspace")
-					ui.SidebarItem(c, "settings", iconSettings, "Settings")
-					ui.SidebarItem(c, "pet", iconPet, "Pet")
-				}).Grow(1)
-			})
-			ui.Divider(c)
 			ui.Column(c.Key("page")).Grow(1).FillHeight().Children(func() {
 				switch s.section {
 				case "settings":
@@ -277,7 +263,9 @@ func (s *Shell) View(c *ui.Context) {
 }
 
 // viewStatusBar is the slim bottom chrome: a liveness dot + backend address on
-// the left, product/version on the right — modeled on upstream's status bar.
+// the left, the section switcher and product/version on the right — modeled on
+// upstream's status bar. The section switcher is the single-window stand-in for
+// the separate settings / pet routes upstream opens.
 func (s *Shell) viewStatusBar(c *ui.Context) {
 	t := c.Theme()
 	connected := s.stream != nil && s.stream.isReady()
@@ -292,6 +280,43 @@ func (s *Shell) viewStatusBar(c *ui.Context) {
 		ui.Text(c, label).FontSize(11).TextColor(t.TextMuted)
 		ui.Text(c, s.B.URL).FontSize(11).TextColor(t.TextMuted)
 		ui.Spacer(c)
+		// The two full-screen routes upstream opens as SEPARATE windows (never
+		// sidebar rows) are listed here in the single-window build.
+		for _, item := range []struct{ route, label string }{
+			{"import-sessions", "Import sessions"},
+			{"project-boot", "Project boot"},
+		} {
+			active := s.section == "workspace" && s.workbench == item.route
+			var clicked bool
+			if active {
+				clicked = ui.PrimaryButton(c.Key("sb-route-"+item.route), item.label).Clicked()
+			} else {
+				clicked = ui.Button(c.Key("sb-route-"+item.route), item.label).Clicked()
+			}
+			if clicked {
+				s.section = "workspace"
+				s.workbench = item.route
+			}
+		}
+		ui.Divider(c)
+		// Section switcher: the single-window stand-in for the separate
+		// settings / pet routes upstream opens.
+		for _, item := range []struct{ id, label string }{
+			{"workspace", "Workspace"},
+			{"settings", "Settings"},
+			{"pet", "Pet"},
+		} {
+			active := s.section == item.id
+			var clicked bool
+			if active {
+				clicked = ui.PrimaryButton(c.Key("sb-"+item.id), item.label).Clicked()
+			} else {
+				clicked = ui.Button(c.Key("sb-"+item.id), item.label).Clicked()
+			}
+			if clicked {
+				s.section = item.id
+			}
+		}
 		ui.Text(c, "YoYoCode v0.1.0").FontSize(11).TextColor(t.TextMuted)
 	})
 }

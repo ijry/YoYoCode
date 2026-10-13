@@ -18,10 +18,15 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 	folders := asList(s.ensure("folders", "list_all_folder_details", nil))
 
 	ui.Row(c).Fill().Children(func() {
-		// One Surface sidebar: a fixed nav block on top, then folders, then the
-		// conversation list (growing). Mirrors upstream's sidebar IA.
+		// One Surface sidebar: a fixed nav block on top, then the conversation
+		// list (growing), then the folder list. Mirrors upstream's sidebar IA —
+		// note the folders come LAST there (已置顶 → 最近 → 文件夹).
 		ui.Column(c.Key("ws-side")).Width(290).FillHeight().Background(t.Surface).Children(func() {
-			// Fixed nav block: New chat (primary action) + route rows.
+			// Fixed nav block: New chat (primary action) + the route rows
+			// upstream's sidebar carries — and only those. import-sessions /
+			// project-boot open as SEPARATE windows upstream, never as sidebar
+			// rows, so they live on the bottom chrome in this single-window
+			// build instead.
 			ui.Column(c.Key("ws-nav")).PaddingX(10).PaddingY(10).Gap(2).Children(func() {
 				s.navRow(c, "nav-newchat", iconNewChat, "New chat", false, func() {
 					s.workbench = ""
@@ -39,18 +44,50 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 				s.navRow(c, "nav-canvas", iconCanvas, "Canvas", s.workbench == "canvas", func() {
 					s.workbench = "canvas"
 				})
-				s.navRow(c, "nav-import", iconTasks, "Import sessions", s.workbench == "import-sessions", func() {
-					s.workbench = "import-sessions"
-				})
-				s.navRow(c, "nav-boot", iconWorkspace, "Project boot", s.workbench == "project-boot", func() {
-					s.workbench = "project-boot"
-				})
 			})
 			ui.Divider(c)
-			// Folders section.
+			// Conversations section (grows to fill the middle of the sidebar).
+			ui.Column(c.Key("ws-convs")).Grow(1).Padding(12).Gap(4).Children(func() {
+				if s.selectedFolder == "" {
+					ui.Text(c, "Select a folder").FontSize(12).TextColor(t.TextMuted)
+					return
+				}
+				convKey := "convs:" + s.selectedFolder
+				convs := asList(s.ensure(convKey, "list_conversations", map[string]any{"folderId": numOrString(s.selectedFolder)}))
+				// Split into pinned and the rest, mirroring upstream's Pinned
+				// (always-on-top) + Recent sections.
+				var pinned, rest []map[string]any
+				for _, cv := range convs {
+					if isPinned(cv) {
+						pinned = append(pinned, cv)
+					} else {
+						rest = append(rest, cv)
+					}
+				}
+				ui.Scroll(c).Grow(1).Children(func() {
+					ui.Column(c).Gap(1).Children(func() {
+						if len(convs) == 0 {
+							ui.Text(c, "No conversations").FontSize(12).TextColor(t.TextMuted)
+						}
+						if len(pinned) > 0 {
+							s.sectionHeader(c, "sec-pinned", iconPinned, "Pinned")
+							for _, cv := range pinned {
+								s.convRow(c, cv)
+							}
+						}
+						s.sectionHeader(c, "sec-recent", iconChat, "Recent")
+						for _, cv := range rest {
+							s.convRow(c, cv)
+						}
+					})
+				})
+				s.viewNewConversation(c)
+			})
+			ui.Divider(c)
+			// Folders section, BELOW the conversations (upstream's order).
 			ui.Column(c.Key("ws-folders")).Padding(12).Gap(4).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "FOLDERS").FontSize(11).Bold().TextColor(t.TextMuted)
+					ui.Text(c, "Folders").FontSize(11).Bold().TextColor(t.TextMuted)
 					ui.Spacer(c)
 					if ui.Button(c.Key("ws-open"), "Open…").Clicked() {
 						s.openFolder()
@@ -66,7 +103,7 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 				} else {
 					// A content-sized column collapses a Grow(1) scroll to zero
 					// height, so the list caps itself with MaxHeight instead.
-					ui.Scroll(c.Key("ws-folder-list")).MaxHeight(220).Children(func() {
+					ui.Scroll(c.Key("ws-folder-list")).MaxHeight(180).Children(func() {
 						ui.Column(c).Gap(1).Children(func() {
 							for _, f := range folders {
 								id := fmt.Sprintf("%v", f["id"])
@@ -84,53 +121,6 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 						})
 					})
 				}
-			})
-			ui.Divider(c)
-			// Conversations section (grows to fill the rest of the sidebar).
-			ui.Column(c.Key("ws-convs")).Grow(1).Padding(12).Gap(4).Children(func() {
-				ui.Row(c).Children(func() {
-					ui.Text(c, "CONVERSATIONS").FontSize(11).Bold().TextColor(t.TextMuted)
-					ui.Spacer(c)
-					if s.selectedFolder != "" {
-						if ui.Button(c.Key("cv-reload"), "⟳").Clicked() {
-							s.invalidate("convs:" + s.selectedFolder)
-						}
-					}
-				})
-				if s.selectedFolder == "" {
-					ui.Text(c, "Select a folder").FontSize(12).TextColor(t.TextMuted)
-					return
-				}
-				convKey := "convs:" + s.selectedFolder
-				convs := asList(s.ensure(convKey, "list_conversations", map[string]any{"folderId": numOrString(s.selectedFolder)}))
-				// Split into pinned and the rest, mirroring upstream's Pinned
-				// (always-on-top) + Chats sections.
-				var pinned, rest []map[string]any
-				for _, cv := range convs {
-					if isPinned(cv) {
-						pinned = append(pinned, cv)
-					} else {
-						rest = append(rest, cv)
-					}
-				}
-				ui.Scroll(c).Grow(1).Children(func() {
-					ui.Column(c).Gap(1).Children(func() {
-						if len(convs) == 0 {
-							ui.Text(c, "No conversations").FontSize(12).TextColor(t.TextMuted)
-						}
-						if len(pinned) > 0 {
-							s.sectionHeader(c, "sec-pinned", iconPinned, "PINNED")
-							for _, cv := range pinned {
-								s.convRow(c, cv)
-							}
-							s.sectionHeader(c, "sec-chats", iconChat, "CHATS")
-						}
-						for _, cv := range rest {
-							s.convRow(c, cv)
-						}
-					})
-				})
-				s.viewNewConversation(c)
 			})
 		})
 		ui.Divider(c)
