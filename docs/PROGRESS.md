@@ -147,6 +147,17 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（M5 UI：Changes 面板补 stage / discard / commit 动作）
+
+- **`src/app/changes.go` 从只读变为可写**：diff 头加 `Stage`（`git_add_files({path, files:[file]})`）
+  与 `Discard`（`git_rollback_file({path, file})` —— revert 到 HEAD、untracked 则删除）；左列底部加
+  commit 框（消息输入 + `Commit all` → `git_commit({path, message, files:[…]})`）。
+- **Discard 是破坏性的 → 两步确认**：首次点击仅进入 `Confirm discard` / `Cancel` 状态，二次点击才执行。
+- 动作后 invalidate `gitstatus` / `gitdiff` 缓存并重绘；结果经 `actionMsg` 在 commit 框下方回显。
+- 测试：`TestChangesPanelListsAndDiffs` 增断言（Stage / Discard / Commit all）；新增
+  `TestChangesDiscardConfirmStep`（两步确认 + Cancel 取消，不触发后端）。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（32.0s）全绿。
+
 ### 2026-10-13（M5 UI：Workspace 主区标签栏 —— 收拢 Files / Changes / Terminal）
 
 - **`src/app/detail_tabs.go`（新增）**：Workspace 主区加 tab 条 —— `Chat | Files | Changes |
