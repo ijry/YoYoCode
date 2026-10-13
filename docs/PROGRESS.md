@@ -134,7 +134,7 @@ go test ./...         → acp / app_error / web 全绿
 依赖为普通 Go 模块（`require github.com/egoist/mygo v0.3.5`，哈希在 go.sum），
 构建时经 git 拉取；`_upstream/*` 整目录忽略，仓库不携带上游源码。
 
-- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；文件浏览器 Files ✅；**Git 变更 / diff** ✅ 2026-10-13；标签 / 终端 待做）
+- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；文件浏览器 Files ✅；Git 变更 / diff ✅；**终端** ✅ 2026-10-13；标签栏 待做）
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
@@ -146,6 +146,18 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI：Workspace 终端面板 Terminal）
+
+- **`src/app/terminal.go`（新增）**：Workspace 新增「Terminal」工作台路由（侧栏 nav 行）—— 在所选
+  文件夹里起一个 PTY（`terminal_spawn({workingDir})` → 裸 id）、显示其缓冲输出、单行输入发送
+  （`terminal_write` 追加 `\r`）、`Kill`（`terminal_kill`）。
+- **实时性**：终端输出走 `terminal://output/{id}` firehose 帧，**帧本身不带正文**（只触发重绘），
+  故正文取自 `terminal_snapshot` → `{alive,data,seq}`。在 `stream.go` 的 onChange 里，凡
+  `terminal://` 前缀的 channel 就 invalidate 当前终端的快照键，使其自动重取 —— 无需轮询。
+- `app.go` 加 `termID`/`termInput`；`workspace.go` 加 nav 行 + 路由分发。
+- 测试 `terminal_test.go`：快照渲染（含输出 + Send）、起始提示、未选文件夹提示（不真起 PTY）。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（29.2s）全绿。
 
 ### 2026-10-13（M5 UI：Workspace Git 变更 / diff 面板 Changes）
 

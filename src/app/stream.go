@@ -210,6 +210,17 @@ func (s *Shell) ensureStream() {
 		if connID != "" {
 			sh.invalidate("snapshot:" + connID)
 		}
+		// Live terminal output (terminal://output/{id} / terminal://exit/{id})
+		// carries no body on the firehose; refresh the active terminal's snapshot
+		// so its buffered text refetches.
+		if strings.HasPrefix(channel, "terminal://") {
+			sh.mu.Lock()
+			id := sh.termID
+			sh.mu.Unlock()
+			if id != "" {
+				sh.invalidate("term:" + id)
+			}
+		}
 		// A server-side conversation mutation (create/delete/title/status, incl.
 		// the agent's auto-title) refreshes the sidebar lists without a manual
 		// Refresh.

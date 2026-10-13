@@ -45,6 +45,9 @@ func (s *Shell) viewWorkspace(c *ui.Context) {
 				s.navRow(c, "nav-changes", iconForge, "Changes", s.workbench == "changes", func() {
 					s.workbench = "changes"
 				})
+				s.navRow(c, "nav-term", iconWrench, "Terminal", s.workbench == "terminal", func() {
+					s.workbench = "terminal"
+				})
 				s.navRow(c, "nav-import", iconTasks, "Import sessions", s.workbench == "import-sessions", func() {
 					s.workbench = "import-sessions"
 				})
@@ -225,6 +228,8 @@ func (s *Shell) viewWorkbenchRoute(c *ui.Context, route string) {
 		s.viewFiles(c)
 	case "changes":
 		s.viewChanges(c)
+	case "terminal":
+		s.viewTerminal(c)
 	case "import-sessions":
 		s.viewImportSessions(c)
 	case "project-boot":
