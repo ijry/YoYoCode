@@ -147,6 +147,31 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：pi 模型能力目录）
+
+- **`src-go/web/handlers/acp_pi_catalog.go`（新增）**：`acp_list_pi_model_capabilities` ——
+  直接问 pi 自己（与一次会话同款可执行文件与 agent dir），**不开 ACP 会话、不发 prompt、不联网**：
+  在一个**私有的空临时目录**里以 `--mode rpc --offline --no-session --no-extensions --no-skills
+  --no-prompt-templates --no-context-files --no-approve` 起 pi，写一行
+  `{"id":"yoyocode-models","type":"get_available_models"}`，逐行读响应直到匹配（12s 截止）。
+  - `--offline` 是刻意的：否则 RPC 模式会启动后台模型刷新去续期**已过期**的 OAuth 登录（轮换
+    refresh token），而它在 stdin EOF 时不等刷新完就退出 —— 这么短的查询会把轮换拦腰砍断。
+  - 路由 **infallible**：所有失败都映射为 `status`（`not_found`/`relative_path`/`failed`/
+    `timed_out`），面板据此措辞（「pi 没列这个模型」只有在 pi 真的回答过时才成立）。
+  - `piRuntimePathsAreStable`：相对命令或相对 agent dir 在每个 workspace 都指向不同文件，而本查询
+    没有 workspace → 直接判 `relative_path` 而不是猜。
+  - `resolvePiCommandIn`：路径命令相对 **cwd**（子进程的工作目录）解析；裸名走子进程的 PATH
+    （launch 设了就用它的，否则继承我们的）；**相对 PATH 条目（空条目 = cwd）锚定在 cwd** ——
+    因为那才是子进程查找的位置（上游注释：用 `which` 会拿我们自己的 cwd 去测，那是子进程永不搜索、
+    且服务器上可能别人可写的目录）。
+  - 线格式：`PiModelCapability` 是 **camelCase**（`thinkingLevelMap`，值为可空字符串；
+    缺省为 `{}` 而非 null）；`PiCatalogStatus` 是 **snake_case**；`models` 恒为 `[]`。
+- 测试：`acp_pi_catalog_internal_test.go`（9 例：RPC 应答解析 6 分支、命令/agent dir 解析、
+  路径判定、稳定性门、命令解析（cwd 锚定/相对 PATH/空 PATH/未找到）、**端到端假 pi**
+  （成功/拒绝/`relative_path`/`not_found`/超时））+ `acp_pi_catalog_test.go`（1 例线格式）。
+- 清单：**523 / 已实现 493 / 缺 30**（P0 128/128）。
+- `go build ./...` · `go vet` · `go test ./src-go/acp` · 相关 handlers 子集全绿。
+
 ### 2026-10-13（完整复刻：cursor / qoder 鉴权探针）
 
 - **`src-go/acp/probe_binaries.go`（新增）**：`FindBestCachedBinary(cacheRoot, agent)` ——
