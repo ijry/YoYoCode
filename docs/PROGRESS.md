@@ -134,7 +134,7 @@ go test ./...         → acp / app_error / web 全绿
 依赖为普通 Go 模块（`require github.com/egoist/mygo v0.3.5`，哈希在 go.sum），
 构建时经 git 拉取；`_upstream/*` 整目录忽略，仓库不携带上游源码。
 
-- [ ] `src/app/workspace` 主窗口（会话列表 / 标签 / 文件树 / diff / 终端）
+- [~] `src/app/workspace` 主窗口（会话列表/详情 + composer ✅；**文件浏览器 Files** ✅ 2026-10-13；标签 / diff / 终端 待做）
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
@@ -146,6 +146,19 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI：Workspace 文件浏览器 Files 面板）
+
+- **`src/app/files.go`（新增）**：Workspace 新增「Files」工作台路由（侧栏 nav 行），实现文件夹文件浏览器
+  —— 面包屑目录浏览（点目录进入、`◂` 返回上一层）+ 右侧预览。数据走**已移植**的后端：
+  `get_file_tree({path, maxDepth:1})` 逐层惰性加载（避免整棵树 / 大仓爆炸）、
+  `read_file_preview({rootPath, path})` 读选中文件。上游对应 `aux-panel-file-tree-tab` +
+  `components/files/*`（3678 + 2165 + 545 行），本端口为紧凑子集（不含重命名 / 移动 / 上传 /
+  git-changes 标签）。
+- `app.go` 加 `fileDir` / `fileSel` 字段；`workspace.go` 加 nav 行 + `viewWorkbenchRoute` 分发。
+- 测试 `files_test.go`：列目录、点文件预览、点目录进入 + 返回上一层。
+- 顺带：`src-go/web/handlers/work_task_test.go` 的存量 gofmt 对齐问题一并修掉（纯格式）。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（22.3s）全绿。
 
 ### 2026-10-13（M5 UI 补齐第四块：project-boot / import-sessions 占位 —— 五项收官）
 

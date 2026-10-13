@@ -68,8 +68,10 @@ type Shell struct {
 	renameText     string
 	skillsAgent    string            // Settings → Skills: selected agent wire type
 	skillsScope    string            // "global" | "project"
-	workbench      string            // "" (conversations) | automations | tasks | forge | canvas
+	workbench      string            // "" (conversations) | automations | tasks | forge | canvas | files | …
 	petTab         string            // Pet section: sessions | sprite
+	fileDir        string            // Files route: current directory (workspace-relative)
+	fileSel        string            // Files route: selected file (workspace-relative)
 	loginToken     string            // login gate: token input
 	loginErr       string            // login gate: last probe error
 	newSkillID     string            // Settings → Skills: new custom-skill id input
