@@ -70,6 +70,8 @@ type Shell struct {
 	skillsScope    string            // "global" | "project"
 	workbench      string            // "" (conversations) | automations | tasks | forge | canvas
 	petTab         string            // Pet section: sessions | sprite
+	loginToken     string            // login gate: token input
+	loginErr       string            // login gate: last probe error
 	newSkillID     string            // Settings → Skills: new custom-skill id input
 	agentVer       map[string]string // Settings → Agents: last detected installed version
 	agentLatest    map[string]string // Settings → Agents: latest available (when newer)
@@ -206,6 +208,16 @@ func str(m map[string]any, k string) string {
 // View is the root view: a top-level sidebar (Workspace / Settings / Pet) and
 // the active section's page. Mirrors the upstream shell that hosts src/app.
 func (s *Shell) View(c *ui.Context) {
+	// Unauthenticated: show the login gate (upstream src/app/login). The desktop
+	// build always boots with an in-process token, so — exactly like upstream's
+	// `isDesktop()` skip — the gate never shows there; it is the surface for a
+	// tokenless (remote/web) boot.
+	if s.B.Token == "" {
+		s.svc = c.Services()
+		c.SetTheme(resolveTheme(s.appearanceMode))
+		s.viewLogin(c)
+		return
+	}
 	// Resolve the appearance mode from the backend (cached one-shot fetch;
 	// defaults to system=light until it arrives) and apply the matching theme.
 	if raw := s.ensure("appearance-mode", "get_appearance_mode", nil); raw != nil {
