@@ -223,9 +223,9 @@ func TestWorkTaskOptionalParamsCaptured(t *testing.T) {
 
 	// work_task_retry: note / blocks / allow_duplicate_source.
 	if code, _ := call(t, srv, "work_task_retry", map[string]any{
-		"id": tid,
-		"note": "try again",
-		"blocks": []any{map[string]any{"type": "text", "text": "hi"}},
+		"id":                   tid,
+		"note":                 "try again",
+		"blocks":               []any{map[string]any{"type": "text", "text": "hi"}},
 		"allowDuplicateSource": true,
 	}); code != 200 {
 		t.Fatalf("work_task_retry status %d", code)
