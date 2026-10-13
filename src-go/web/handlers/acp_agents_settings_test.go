@@ -60,11 +60,16 @@ func TestAcpAgentSettingsAndStatus(t *testing.T) {
 		}
 	}
 
-	// download_agent_binary (binary agent) → dependency_missing (422).
+	// download_agent_binary (binary agent) → dependency_missing (422), even
+	// when the client sends a version pin (accepted, not silently dropped).
 	{
 		code, out := call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "cursor", "taskId": "t1"})
 		if code != 422 || out["code"] != "dependency_missing" {
 			t.Fatalf("expected 422 dependency_missing, got %d %v", code, out)
+		}
+		code, out = call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "cursor", "taskId": "t1", "version": "1.2.3"})
+		if code != 422 || out["code"] != "dependency_missing" {
+			t.Fatalf("expected 422 dependency_missing with version pin, got %d %v", code, out)
 		}
 	}
 

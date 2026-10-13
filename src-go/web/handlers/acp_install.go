@@ -27,6 +27,12 @@ func RegisterACPInstall(reg *Registry) {
 		}
 		agentType := strVal(c.Body["agentType"], c.Body["agent_type"])
 		taskID := strVal(c.Body["taskId"], c.Body["task_id"])
+		// Upstream AcpPrepareNpxAgentParams: registry_version / version pin the
+		// package; clean_first wipes the npx cache first (we have no cache to
+		// wipe, so it's a no-op here, but accepted to stay wire-compatible).
+		registryVer := strVal(c.Body["registryVersion"], c.Body["registry_version"])
+		pinVer := strVal(c.Body["version"])
+		_ = GetBool(c, "cleanFirst", "clean_first") // no cache to clear in this port
 		spec, ok := acp.LaunchSpecFor(agentType)
 		if !ok || spec.Kind != "npx" {
 			return nil, web.ErrInvalidInput("not an npx agent: " + agentType)
@@ -35,11 +41,18 @@ func RegisterACPInstall(reg *Registry) {
 			return nil, web.ErrDependencyMissing("npx (Node.js) is not installed")
 		}
 		emitAgentTask(c, taskID, agentType, "running", "")
+		// Resolve the package spec, honoring the client's pin when given.
+		pkg := spec.Package
+		if registryVer != "" {
+			pkg = spec.Package + "@" + registryVer
+		} else if pinVer != "" {
+			pkg = spec.Package + "@" + pinVer
+		}
 		// Prime the npx cache by resolving the package's bin once.
 		ctx, cancel := context.WithTimeout(context.Background(), agentInstallTimeout)
 		defer cancel()
-		out, runErr := runToolVersion(ctx, "npx", "-y", "-p", spec.Package, spec.Cmd, "--version")
-		version := registryVersion(spec.Package)
+		out, runErr := runToolVersion(ctx, "npx", "-y", "-p", pkg, spec.Cmd, "--version")
+		version := registryVersion(pkg)
 		if v := parseVersion(out); v != "" {
 			version = v
 		}
@@ -73,9 +86,16 @@ func RegisterACPInstall(reg *Registry) {
 	reg.Register("acp_download_agent_binary", func(c *web.Context) (any, error) {
 		// Binary agents (cursor/qoder/antigravity) need the per-platform
 		// download+cache subsystem, which is not yet ported. Report cleanly so
-		// the UI shows "install unavailable" rather than hanging.
+		// the UI shows "install unavailable" rather than hanging. The client's
+		// version pin is accepted (not silently dropped) but unused while the
+		// download subsystem is absent.
 		agentType := strVal(c.Body["agentType"], c.Body["agent_type"])
-		return nil, web.ErrDependencyMissing("binary agent install not available yet: " + agentType)
+		version := strVal(c.Body["version"])
+		msg := "binary agent install not available yet: " + agentType
+		if version != "" {
+			msg += " (requested version " + version + ")"
+		}
+		return nil, web.ErrDependencyMissing(msg)
 	})
 
 	reg.Register("acp_uninstall_agent", func(c *web.Context) (any, error) {

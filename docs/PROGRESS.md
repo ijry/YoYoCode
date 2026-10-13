@@ -186,6 +186,26 @@ go test ./...         → acp / app_error / web 全绿
   - 新增 `TestWorkTaskOptionalParamsCaptured` 锁定 retry/cancel/deliver_pr 的参数进了事件 payload。
 - `go build` / `go vet` / 相关 `go test` 全绿。`go test ./src-go/web/handlers/` 全绿。
 
+### 2026-10-13（契约审计第四批：剩余待办 #6 —— forge_tab_count / save_opened_tabs.origin / acp_*_binary version）
+
+- **`save_opened_tabs` 现读取 `origin`**（上游 `SaveOpenedTabsParams.origin`）：上游只把它用于
+  `emit_tabs_changed(emitter, version, tabs, origin)` 来给广播定作用域（发起视图可跳过自身回声），
+  **不持久化**。本端口在 `tabs://changed` 广播 payload 里带 `origin`（有值时才带，与上游一致），
+  返回体 `SaveTabsOutcome` 仍只有 `accepted`/`version`/`tabs`。
+- **`forge_tab_count` 现读取 `tab` 与 `filters`**（上游 `TabCountParams`）：`filters.accountId` 现在
+  驱动 `forgeAuthFromCtx`（与 list/comment 处理器一致）；`tab` 决定算哪个离屏计数。计数本身仍是诚实
+  的 `null` stub（GitHub 精确计数要 search API，列表已带 `has_next`，所以角标降级为不显示）——返回
+  `null` 对齐上游 `Json<Option<i64>>`。
+- **`acp_prepare_npx_agent` 接住 `registryVersion`/`version`/`cleanFirst`**（上游 `AcpPrepareNpxAgentParams`）：
+  `registryVersion` 或 `version` 拼进 npx `-p package@ver` 固定版本；`clean_first` 本端口无缓存可清，
+  接受但 no-op（记为 deferred 副作用）。`acp_download_agent_binary` 接住 `version`（仅进错误信息，
+  下载+缓存子系统未移植，仍干净报 `dependency_missing`）。
+- 测试：扩展 `TestAcpAgentSettingsAndStatus` 锁定 `acp_download_agent_binary` 带 `version` 仍 422
+  `dependency_missing`；`save_opened_tabs` / opened tabs CAS 测试已覆盖 `origin` 入参。
+- `go build` / `go vet` / 相关 `go test` 全绿。
+- **审计基线 6 项现已全部处理**。`acp_describe_agent_options` 仍是 deferred 空实现（需探针/瞬态连接
+  子系统），不在原 6 项内、单独标注。
+
 ### 2026-10-13（契约审计第二批：会话列表筛选/排序 + summary 字段对齐）
 
 - **`list_all_conversations` 四个筛选/排序参数接进来了**（此前被忽略，客户端列表的
@@ -246,7 +266,8 @@ go test ./...         → acp / app_error / web 全绿
   4. ✅ `create_conversation` 返回**裸 i32** —— 已修（对齐上游 `Json<i32>`，见下「契约审计第三批」）。
   5. ✅ `work_task_*` 的 `deleteWorktree`/`note`/`blocks`/`reason`/`prTitle`/`draft`/`message`/`instructions`/`allowDuplicateSource`
      —— 已接（落到事件 payload；git worktree 拆除等子系统未移植，副作用 deferred，见下）。
-  6. ⬜ `forge_tab_count` 的 `tab`/`filters`；`save_opened_tabs.origin`；`acp_*_binary` 的 `version` —— 未做。
+  6. ✅ `forge_tab_count` 的 `tab`/`filters`；`save_opened_tabs.origin`；`acp_*_binary` 的 `version`
+     —— 已接（见下「契约审计第四批」）。
 - gofmt / go build ./... / go vet ./... / go test ./... 全绿（handlers 387s）。
 
 ### 2026-10-12（契约修复：文件/文件夹 P0 路由对齐上游）

@@ -144,6 +144,11 @@ func RegisterOpenedTabs(reg *Registry) {
 			return nil, err
 		}
 		expected := GetInt(c, "expectedVersion", "expected_version")
+		// Upstream SaveOpenedTabsParams.origin: which view triggered the save.
+		// It is not persisted — it scopes the tabs://changed broadcast (the
+		// originating view can skip its own echo), exactly like upstream's
+		// emit_tabs_changed(emitter, version, tabs, origin).
+		origin := strVal(c.Body["origin"])
 		items := parseIncomingTabs(c.Body["items"])
 		current := tabsVersion(d)
 		if current != expected {
@@ -164,8 +169,13 @@ func RegisterOpenedTabs(reg *Registry) {
 			"version":  next,
 			"tabs":     listAllTabs(d),
 		}
-		// Mirror upstream: broadcast the new snapshot on the tabs side-channel.
-		Emit(c, "tabs://changed", snapshotPayload(listAllTabs(d), next))
+		// Mirror upstream: broadcast the new snapshot on the tabs side-channel,
+		// carrying origin so the originating view can skip its own echo.
+		emitPayload := map[string]any{"items": listAllTabs(d), "version": next}
+		if origin != "" {
+			emitPayload["origin"] = origin
+		}
+		Emit(c, "tabs://changed", emitPayload)
 		return out, nil
 	})
 }

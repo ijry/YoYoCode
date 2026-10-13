@@ -286,9 +286,16 @@ func RegisterForgeREST(reg *Registry) {
 	})
 
 	reg.Register("forge_tab_count", func(c *web.Context) (any, error) {
+		// Upstream TabCountParams: { folder_id, tab, filters }. tab selects which
+		// off-screen count to compute; filters is the CountFilters half (no page/
+		// order). We read both so the request shape matches and account_id drives
+		// auth — the same way the list/comment handlers pick their account.
+		filters, _ := c.Body["filters"].(map[string]any)
+		_ = strVal(c.Body["tab"]) // tab chooses the off-screen count; stub returns unknown
+		accountID := asString(pick(orEmpty(filters), "accountId", "account_id"))
 		// Honest "unknown": GitHub's accurate counts need the search API; the
 		// list already carries has_next, so the switcher degrades to no badge.
-		if _, err := forgeAuthFromCtx(c, ""); err != nil {
+		if _, err := forgeAuthFromCtx(c, accountID); err != nil {
 			return nil, err
 		}
 		return nil, nil
