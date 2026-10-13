@@ -13,6 +13,7 @@ func RegisterAll(reg *Registry) {
 	RegisterACPHermes(reg)
 	registerDeepSeekCatalog(reg)
 	registerACPCatalogs(reg)
+	registerACPAgentProbes(reg)
 	RegisterQuickMessages(reg)
 	RegisterConversationTags(reg)
 	RegisterOpenedTabs(reg)

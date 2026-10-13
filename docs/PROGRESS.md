@@ -147,6 +147,32 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：cursor / qoder 鉴权探针）
+
+- **`src-go/acp/probe_binaries.go`（新增）**：`FindBestCachedBinary(cacheRoot, agent)` ——
+  扫 `<cacheRoot>/agent-binaries/<agent>/<version>/<entry>`，按版本号（`VersionCompare`：
+  数字点分、缺位补 0、相同则比原串）从新到旧取第一个有可执行入口的版本；`VersionCompare` /
+  `parseVersionParts` / `ResolveSystemAgentBinary`（PATH 后 `~/.local/bin/<cmd>(.exe)`）。
+- **`src-go/web/handlers/acp_agent_probes.go`（新增）**：三条只读探针，**失败在体内以 `error`
+  上报、绝不作为请求失败**，且 `installed`/`logged_in` 保持诚实：
+  - `acp_qoder_auth_status`：跑 `qoder status -o json`（30s），扫到首个 `{` 再解析扁平对象
+    （`logged_in`/`username`/`email`/`user_type`/`version`/`allow_byok`——CLI 用 0/1 而非布尔）。
+  - `acp_cursor_auth_status`：跑 `cursor-agent status --format json`（20s），email 优先取嵌套
+    `userInfo.email` 再回落顶层；`credential_verified` 只把 CLI 自己的
+    `unable to fetch user details` 判为「登录在盘但没生效」，其余一律视为已验证（保守，避免
+    凭陌生输出凭空报登录问题）。
+  - `acp_cursor_list_models`：跑 `cursor-agent models`（30s），逐行解析
+    `<id> - <label> [(default)]`，剥 ANSI、跳过表头/散文行、按 CLI 顺序去重、返回默认 id。
+  - 探针 env：读 agent_setting `env_json`，叠加设置表单里的实时凭据；**关键变量总是物化**
+    （未设置则显式置空 ⇒ 子进程里移除），避免 dev shell 继承的旧凭据泄漏成假结果；
+    cursor 还恒定清空 `CURSOR_API_BASE_URL`（CLI 不支持自定义端点）。
+  - 线格式 **snake_case**（`is_authenticated`/`raw_status`/`credential_verified`/
+    `default_model`/`allow_byok`），与客户端类型一致。
+- 测试：`acp_agent_probes_internal_test.go`（12 例，含 models 解析/ANSI/凭据判定/env 叠加/
+  版本比较/缓存择优）+ `acp_agent_probes_test.go`（3 例，含线格式与「未安装」诚实上报）。
+- 清单：**523 / 已实现 492 / 缺 31**（P0 128/128）。
+- `go build ./...` · `go vet` · `go test ./src-go/acp` · 相关 handlers 子集全绿。
+
 ### 2026-10-13（完整复刻：opencode / codex 模型目录）
 
 - **新增 `src-go/assets/`（含 `embed.go`）**：把两份离线快照编译进二进制，镜像上游
