@@ -69,6 +69,7 @@ type Shell struct {
 	skillsAgent    string            // Settings → Skills: selected agent wire type
 	skillsScope    string            // "global" | "project"
 	workbench      string            // "" (conversations) | automations | tasks | forge | canvas
+	petTab         string            // Pet section: sessions | sprite
 	newSkillID     string            // Settings → Skills: new custom-skill id input
 	agentVer       map[string]string // Settings → Agents: last detected installed version
 	agentLatest    map[string]string // Settings → Agents: latest available (when newer)

@@ -137,7 +137,7 @@ go test ./...         → acp / app_error / web 全绿
 - [ ] `src/app/workspace` 主窗口（会话列表 / 标签 / 文件树 / diff / 终端）
 - [ ] `src/app/settings/*` 21 个子页
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
-- [ ] `src/app/pet` / `pet-panel`
+- [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
 - [ ] `src/app/login`
 - [ ] `src/app/project-boot`
 - [ ] `src/app/import-sessions`
@@ -146,6 +146,25 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI 补齐第一块：pet-panel 会话面板接真实数据）
+
+- **`src/app/pet` / `pet-panel` 第一块落地**：新增 `src/app/pet_panel.go`，`viewPetPanel` 渲染
+  `pet_list_active_sessions` 的实时活跃会话列表 —— 行 = agent 图标 + 标题 +（子代理时的
+  「sub-agent of · 父标题」）+ 状态点/文字（waiting / error / running）；排序沿用上游
+  `sessionSortRank`（waiting > error > running，需用户处理的排最前）；会话被权限阻塞时内联
+  `PanelPermissionCard`（选项按钮直接打 `acp_respond_permission` 到该连接的 `connectionId`）。
+- **Pet 段改为双标签**（`app.go` 加 `petTab` 字段）：Active sessions（真数据）+ Sprite（占位，
+  sprite / marketplace 后端为后续里程碑），镜像上游 `src/app/pet` 与 `src/app/pet-panel` 两条路由。
+- **点击行跳转**：`jumpToSession` 选中该会话的 folder / conversation 并切到 Workspace（单窗口版
+  上游 `focusConversation`）；委派子代理的行跳到委派它的父会话。
+- **后端盘点（决定其余 4 项形态）**：端口 `pet_*` 后端**已真实实现**（pet.go 358 行），
+  `pet_list_active_sessions` 返回忠实载荷形状但暂无会话（ACP 引擎尚未跟踪连接）→ 面板渲染诚实空态。
+  反之 `computer_*` 全是 `computerRefused` 桩（computer.go 68 行），`project_boot` / `import_sessions`
+  为 0 handler → 这三类只能先做占位。mygo 支持多窗口（`WindowOptions` 有 `Frameless`/`Hidden`/`X,Y`/
+  `BackgroundColor`，App 有 `OnWindowCreated`），上游那批独立窗口/悬浮层后续可按需做。
+- 测试 `src/app/pet_panel_test.go`：空态、行 + 状态胶囊 + 内联权限卡渲染、点击跳转、
+  排序（waiting > error > running）。`go build ./...` / `go vet ./src/app` / `go test ./src/app` 全绿。
 
 ### 2026-10-12（续：ACP 控制方法 —— preferredModeId/preferredConfigValues + acp_set_config_option 落地）
 
