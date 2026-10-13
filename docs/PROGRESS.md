@@ -147,6 +147,31 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（ACP 二进制下载+缓存 + 注册表两处错标修复）
+
+- **`acp_download_agent_binary` 从 `dependency_missing` 桩变为真实现**：
+  - 新增 `src-go/acp/binary_cache.go`：`EnsureAgentBinary(agentType, cacheRoot, version, progress)` ——
+    下载当前平台归档（http）→ 解压（zip / tar.gz，含 zip-slip 防护）→ 缓存到
+    `<dataDir>/agent-binaries/<agent>/<version>/` → 返回启动入口路径；已缓存则走快路径（不联网）。
+    自定义版本在**下载前**即拒绝（内建 agent 的 URL 不含版本模板，对齐上游 backstop）。
+  - `src-go/acp/registry.go`：加二进制分发元数据（cursor `2026.10.01-14929f9` / antigravity `1.3.0`，
+    各 6 平台 URL + 树内入口）、`CurrentPlatform()`、`BinaryDistFor()`、`CachedBinaryPath()`；
+    `ResolveSpawn` 的 binary 分支改为**从缓存解析**入口（配合 `acp.SetBinaryCacheRoot`，在
+    `appstate.Init` 里设为 dataDir）。
+  - `web/handlers/acp_install.go`：接上真实下载 + 任务进度事件（`acp-agent-task://`）+ `agents://changed`。
+- **注册表两处错标（上游权威）**：
+  - **qoder**：端口原标 `binary`，上游实为 **npx**（`@qoder-ai/qodercli@1.1.65`，cmd `qoder`，
+    args `--acp`）→ 改为 npx（Qoder 现能像其它 npx agent 一样装/跑，不再报 dependency_missing）。
+  - **open_code**：端口标 `npx`（`opencode@1.18.35`），上游实为 **binary**
+    （github.com/anomalyco/opencode releases）→ **本次未改**（改动会使其依赖下载子系统；待确认
+    npm 包是否真实存在后再定），已在 memory 记待办。
+- 测试：`src-go/acp/binary_cache_test.go`（平台映射、zip/tar.gz 解压、zip-slip 拒绝、缓存命中、
+  自定义版本拒绝、qoder 走 npx）；更新 `acp_agents_settings_test.go`（非二进制 agent → 400
+  invalid_input；自定义版本 → 500 external_command_failed，均不联网）。
+- 顺带修 `src-go/acp/{agent_options,session_state,probe_test}.go` 的 gofmt（探针批次遗留，当时漏查该目录）。
+- `go build ./...` / `go vet` / `go test ./src-go/acp` / `go test ./src-go/web/handlers -run Acp` /
+  `go test ./src/app` 全绿。
+
 ### 2026-10-13（M5 UI：Changes 面板补 stage / discard / commit 动作）
 
 - **`src/app/changes.go` 从只读变为可写**：diff 头加 `Stage`（`git_add_files({path, files:[file]})`）

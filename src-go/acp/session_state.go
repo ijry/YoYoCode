@@ -324,9 +324,9 @@ func (s *SessionState) AgentOptions() *AgentOptionsSnapshot {
 		cmds = []AvailableCommandInfo{}
 	}
 	return &AgentOptionsSnapshot{
-		Modes:             modes,
-		ConfigOptions:     opts,
-		AvailableCommands: cmds,
+		Modes:              modes,
+		ConfigOptions:      opts,
+		AvailableCommands:  cmds,
 		PromptCapabilities: pc,
 	}
 }

@@ -72,6 +72,9 @@ func Init(database *db.Database, dataDir string) *AppState {
 	st := Get()
 	st.DB = database
 	st.DataDir = dataDir
+	// Point the ACP binary cache at the data dir so ResolveSpawn can launch a
+	// downloaded binary agent (cursor/antigravity) without a request context.
+	acp.SetBinaryCacheRoot(dataDir)
 	st.Session = acp.NewSessionRegistry()
 	st.ACP = acp.NewManager(database, st.bc)
 	// Share the attach registry with the engine so a live agent session's

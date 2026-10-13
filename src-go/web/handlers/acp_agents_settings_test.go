@@ -60,16 +60,20 @@ func TestAcpAgentSettingsAndStatus(t *testing.T) {
 		}
 	}
 
-	// download_agent_binary (binary agent) → dependency_missing (422), even
-	// when the client sends a version pin (accepted, not silently dropped).
+	// download_agent_binary: a non-binary agent is rejected as invalid input.
 	{
-		code, out := call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "cursor", "taskId": "t1"})
-		if code != 422 || out["code"] != "dependency_missing" {
-			t.Fatalf("expected 422 dependency_missing, got %d %v", code, out)
+		code, out := call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "claude_code", "taskId": "t1"})
+		if code != 400 || out["code"] != "invalid_input" {
+			t.Fatalf("expected 400 invalid_input for an npx agent, got %d %v", code, out)
 		}
-		code, out = call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "cursor", "taskId": "t1", "version": "1.2.3"})
-		if code != 422 || out["code"] != "dependency_missing" {
-			t.Fatalf("expected 422 dependency_missing with version pin, got %d %v", code, out)
+	}
+	// A binary agent with a custom version is refused BEFORE any download (the
+	// built-ins publish no version-templated URL) → external_command_failed
+	// (500). No network is touched.
+	{
+		code, out := call(t, srv, "acp_download_agent_binary", map[string]any{"agentType": "cursor", "taskId": "t1", "version": "1.2.3"})
+		if code != 500 || out["code"] != "external_command_failed" {
+			t.Fatalf("expected 500 external_command_failed for a custom version, got %d %v", code, out)
 		}
 	}
 

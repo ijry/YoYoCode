@@ -1,5 +1,12 @@
 package acp
 
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+)
+
 // Built-in agent registry — the compile-time agent catalog, mirroring upstream
 // acp::registry (agent wire type, display name, registry id, distribution).
 // Availability/installed-version are resolved later by preflight; until the
@@ -40,7 +47,7 @@ var BuiltinAgents = []BuiltinAgent{
 	{"grok", "Grok", "xAI Grok Build agent", "grok-build", "npx", false, true, true},
 	{"cursor", "Cursor", "Cursor CLI agent", "cursor", "binary", false, true, false},
 	{"deepseek", "DeepSeek", "ACP wrapper for DeepSeek", "deepseek-acp", "npx", false, true, true},
-	{"qoder", "Qoder", "Qoder CLI agent", "qoder-cli", "binary", false, true, false},
+	{"qoder", "Qoder", "Qoder CLI agent", "qoder-cli", "npx", false, true, true},
 	{"antigravity", "Antigravity", "ACP wrapper for Antigravity", "antigravity-acp", "binary", false, true, false},
 }
 
@@ -121,7 +128,7 @@ var launchSpecs = map[string]LaunchSpec{
 	"grok":        {"npx", "@xai-official/grok@1.0.46", "grok", []string{"agent", "stdio"}},
 	"cursor":      {"binary", "", "cursor-agent", []string{"acp"}},
 	"deepseek":    {"npx", "deepseek-acp@0.9.0", "deepseek-acp", nil},
-	"qoder":       {"binary", "", "qoder", []string{"--acp"}},
+	"qoder":       {"npx", "@qoder-ai/qodercli@1.1.65", "qoder", []string{"--acp"}},
 	"antigravity": {"binary", "", "agy_acp_server", nil},
 }
 
@@ -149,7 +156,145 @@ func ResolveSpawn(agentType, cwd string, env map[string]string) (SpawnConfig, bo
 		args := []string{"--from", spec.Package, spec.Cmd}
 		args = append(args, spec.Args...)
 		return SpawnConfig{Command: "uvx", Args: args, Env: env, Cwd: cwd}, true
-	default: // binary — needs the download/cache layer
-		return SpawnConfig{}, false
+	default: // binary — resolve the cached download
+		if binaryCacheRoot == "" {
+			return SpawnConfig{}, false
+		}
+		bin := CachedBinaryPath(binaryCacheRoot, agentType, "")
+		if bin == "" {
+			return SpawnConfig{}, false
+		}
+		if _, err := os.Stat(bin); err != nil {
+			return SpawnConfig{}, false
+		}
+		return SpawnConfig{Command: bin, Args: spec.Args, Env: env, Cwd: cwd}, true
 	}
+}
+
+// ─── binary distributions ────────────────────────────────────────────────────
+
+// platformBinary is one platform's archive for a binary agent.
+type platformBinary struct {
+	url string
+	// entry is the launch path inside the extracted tree (relative, forward
+	// slashes). Empty means the archive is a single file named cmd.
+	entry string
+}
+
+// binaryDist is the download recipe for a binary agent (acp::registry
+// AgentDistribution::Binary). Only the current platform's entry is ever used.
+type binaryDist struct {
+	version string
+	cmd     string
+	args    []string
+	// dirTree: keep the whole archive tree (a bundled runtime / sibling
+	// executables); otherwise only the single cmd file is copied out.
+	dirTree   bool
+	platforms map[string]platformBinary
+}
+
+// binaryDists mirrors the upstream registry's binary distributions for the
+// built-in agents (URLs are repository constants, sha256 None for built-ins).
+var binaryDists = map[string]binaryDist{
+	"cursor": {
+		version: "2026.10.01-14929f9",
+		cmd:     "cursor-agent",
+		args:    []string{"acp"},
+		dirTree: true,
+		platforms: map[string]platformBinary{
+			"darwin-aarch64":  {"https://downloads.cursor.com/lab/2026.10.01-14929f9/darwin/arm64/agent-cli-package.tar.gz", "dist-package/cursor-agent"},
+			"darwin-x86_64":   {"https://downloads.cursor.com/lab/2026.10.01-14929f9/darwin/x64/agent-cli-package.tar.gz", "dist-package/cursor-agent"},
+			"linux-aarch64":   {"https://downloads.cursor.com/lab/2026.10.01-14929f9/linux/arm64/agent-cli-package.tar.gz", "dist-package/cursor-agent"},
+			"linux-x86_64":    {"https://downloads.cursor.com/lab/2026.10.01-14929f9/linux/x64/agent-cli-package.tar.gz", "dist-package/cursor-agent"},
+			"windows-aarch64": {"https://downloads.cursor.com/lab/2026.10.01-14929f9/windows/arm64/agent-cli-package.zip", "dist-package/cursor-agent.cmd"},
+			"windows-x86_64":  {"https://downloads.cursor.com/lab/2026.10.01-14929f9/windows/x64/agent-cli-package.zip", "dist-package/cursor-agent.cmd"},
+		},
+	},
+	"antigravity": {
+		version: "1.3.0",
+		cmd:     "agy_acp_server",
+		dirTree: true,
+		platforms: map[string]platformBinary{
+			"darwin-aarch64":  {"https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip", "agy_acp_server.par"},
+			"darwin-x86_64":   {"https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-x86_64.zip", "agy_acp_server.par"},
+			"linux-aarch64":   {"https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.3.0-linux-arm64.zip", "agy_acp_server.par"},
+			"linux-x86_64":    {"https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.3.0-linux-x86_64.zip", "agy_acp_server.par"},
+			"windows-aarch64": {"https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.3.0-windows-arm64.zip", "agy_acp_server.exe"},
+			"windows-x86_64":  {"https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.3.0-windows-x86_64.zip", "agy_acp_server.exe"},
+		},
+	},
+}
+
+// AgentBinary is the resolved download recipe for a binary agent on the current
+// platform.
+type AgentBinary struct {
+	Version string
+	Cmd     string
+	Args    []string
+	URL     string
+	// Entry is the launch path inside the extracted cache dir (relative,
+	// forward slashes); "" when the archive is a single file named Cmd.
+	Entry   string
+	DirTree bool
+}
+
+// CurrentPlatform maps the running OS/arch to the registry's platform key
+// (acp::registry::current_platform).
+func CurrentPlatform() string {
+	arch := "x86_64"
+	switch runtime.GOARCH {
+	case "arm64":
+		arch = "aarch64"
+	case "amd64":
+		arch = "x86_64"
+	default:
+		arch = runtime.GOARCH
+	}
+	switch runtime.GOOS {
+	case "darwin", "linux", "windows":
+		return runtime.GOOS + "-" + arch
+	}
+	return runtime.GOOS + "-" + arch
+}
+
+// BinaryDistFor resolves a binary agent's download recipe for the current
+// platform.
+func BinaryDistFor(agentType string) (AgentBinary, bool) {
+	d, ok := binaryDists[agentType]
+	if !ok {
+		return AgentBinary{}, false
+	}
+	p, ok := d.platforms[CurrentPlatform()]
+	if !ok {
+		return AgentBinary{}, false
+	}
+	// Antigravity passes `--uid=` on Linux only (an absl InitGoogle flag; the
+	// Windows build need not link it and an unknown flag is a hard error).
+	args := d.args
+	if agentType == "antigravity" && strings.HasPrefix(CurrentPlatform(), "linux-") {
+		args = []string{"--uid="}
+	}
+	return AgentBinary{Version: d.version, Cmd: d.cmd, Args: args, URL: p.url, Entry: p.entry, DirTree: d.dirTree}, true
+}
+
+// CachedBinaryPath is where a binary agent's launch entry lives in the cache
+// (cacheRoot/agent-binaries/<agent>/<version>/<entry>); "" if the agent has no
+// binary recipe on this platform.
+func CachedBinaryPath(cacheRoot, agentType, version string) string {
+	d, ok := binaryDists[agentType]
+	if !ok {
+		return ""
+	}
+	p, ok := d.platforms[CurrentPlatform()]
+	if !ok {
+		return ""
+	}
+	if strings.TrimSpace(version) == "" {
+		version = d.version
+	}
+	entry := p.entry
+	if entry == "" {
+		entry = d.cmd
+	}
+	return filepath.Join(cacheRoot, "agent-binaries", agentType, version, filepath.FromSlash(entry))
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"yoyocode/src-go/acp"
+	appstate "yoyocode/src-go/app_state"
 	"yoyocode/src-go/web"
 )
 
@@ -84,18 +85,31 @@ func RegisterACPInstall(reg *Registry) {
 	})
 
 	reg.Register("acp_download_agent_binary", func(c *web.Context) (any, error) {
-		// Binary agents (cursor/qoder/antigravity) need the per-platform
-		// download+cache subsystem, which is not yet ported. Report cleanly so
-		// the UI shows "install unavailable" rather than hanging. The client's
-		// version pin is accepted (not silently dropped) but unused while the
-		// download subsystem is absent.
+		// Binary agents (cursor/antigravity) download a per-platform archive,
+		// extract it into the cache and launch the entry. The client's version
+		// pin is honored only when it templates the pinned URL (the built-ins do
+		// not), matching upstream's backstop.
 		agentType := strVal(c.Body["agentType"], c.Body["agent_type"])
 		version := strVal(c.Body["version"])
-		msg := "binary agent install not available yet: " + agentType
-		if version != "" {
-			msg += " (requested version " + version + ")"
+		taskID := strVal(c.Body["taskId"], c.Body["task_id"])
+		if _, ok := acp.BinaryDistFor(agentType); !ok {
+			return nil, web.ErrInvalidInput("not a binary agent: " + agentType)
 		}
-		return nil, web.ErrDependencyMissing(msg)
+		cacheRoot := ""
+		if st, ok := c.State.(*appstate.AppState); ok && st != nil {
+			cacheRoot = st.DataDir
+		}
+		emitAgentTask(c, taskID, agentType, "running", "")
+		path, err := acp.EnsureAgentBinary(agentType, cacheRoot, version, func(msg string) {
+			emitAgentTask(c, taskID, agentType, "running", msg)
+		})
+		if err != nil {
+			emitAgentTask(c, taskID, agentType, "error", err.Error())
+			return nil, web.ErrExternalCommand("download failed").WithDetail(err.Error())
+		}
+		emitAgentTask(c, taskID, agentType, "done", path)
+		Emit(c, "agents://changed", map[string]any{})
+		return path, nil
 	})
 
 	reg.Register("acp_uninstall_agent", func(c *web.Context) (any, error) {

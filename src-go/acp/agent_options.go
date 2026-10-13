@@ -31,14 +31,14 @@ type SessionConfigSelectOptionInfo struct {
 
 // SessionConfigSelectGroupInfo groups select options (e.g. by provider).
 type SessionConfigSelectGroupInfo struct {
-	Group   string                         `json:"group"`
-	Name    string                         `json:"name"`
+	Group   string                          `json:"group"`
+	Name    string                          `json:"name"`
 	Options []SessionConfigSelectOptionInfo `json:"options"`
 }
 
 // SessionConfigSelectInfo is the select variant of a config option's value.
 type SessionConfigSelectInfo struct {
-	CurrentValue string                         `json:"currentValue"`
+	CurrentValue string                          `json:"currentValue"`
 	Options      []SessionConfigSelectOptionInfo `json:"options"`
 	Groups       []SessionConfigSelectGroupInfo  `json:"groups"`
 }
@@ -54,9 +54,9 @@ type SessionConfigBooleanInfo struct {
 // so we keep the two variants behind pointers and render the inline variant
 // shape on marshal / decode it on unmarshal.
 type SessionConfigKindInfo struct {
-	Type    string                     `json:"type"`
-	Select  *SessionConfigSelectInfo   `json:"-"`
-	Boolean *SessionConfigBooleanInfo  `json:"-"`
+	Type    string                    `json:"type"`
+	Select  *SessionConfigSelectInfo  `json:"-"`
+	Boolean *SessionConfigBooleanInfo `json:"-"`
 }
 
 // MarshalJSON renders the inline tagged-union shape upstream produces:
@@ -80,10 +80,10 @@ func (k SessionConfigKindInfo) MarshalJSON() ([]byte, error) {
 			s = &SessionConfigSelectInfo{}
 		}
 		return json.Marshal(struct {
-			Type          string                        `json:"type"`
-			CurrentValue  string                        `json:"currentValue"`
-			Options       []SessionConfigSelectOptionInfo `json:"options"`
-			Groups        []SessionConfigSelectGroupInfo  `json:"groups"`
+			Type         string                          `json:"type"`
+			CurrentValue string                          `json:"currentValue"`
+			Options      []SessionConfigSelectOptionInfo `json:"options"`
+			Groups       []SessionConfigSelectGroupInfo  `json:"groups"`
 		}{Type: "select", CurrentValue: s.CurrentValue, Options: s.Options, Groups: s.Groups})
 	}
 }
@@ -119,12 +119,12 @@ func (k *SessionConfigKindInfo) UnmarshalJSON(data []byte) error {
 
 // SessionConfigOptionInfo is one configurable option the agent advertises.
 type SessionConfigOptionInfo struct {
-	ID              string                `json:"id"`
-	Name            string                `json:"name"`
-	Description     *string               `json:"description,omitempty"`
-	Category        *string               `json:"category,omitempty"`
-	Kind            SessionConfigKindInfo `json:"kind"`
-	RecommendedValue *string              `json:"recommendedValue,omitempty"`
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Description      *string               `json:"description,omitempty"`
+	Category         *string               `json:"category,omitempty"`
+	Kind             SessionConfigKindInfo `json:"kind"`
+	RecommendedValue *string               `json:"recommendedValue,omitempty"`
 }
 
 // AvailableCommandInfo is one slash command the agent advertised.
@@ -156,8 +156,8 @@ type SessionLastError struct {
 // Mirrors upstream AgentOptionsSnapshot: modes / promptCapabilities are omitted
 // when absent (Option<_>), configOptions / availableCommands are always arrays.
 type AgentOptionsSnapshot struct {
-	Modes             *SessionModeStateInfo    `json:"modes,omitempty"`
-	ConfigOptions     []SessionConfigOptionInfo `json:"configOptions"`
-	AvailableCommands []AvailableCommandInfo    `json:"availableCommands"`
-	PromptCapabilities *PromptCapabilitiesInfo  `json:"promptCapabilities,omitempty"`
+	Modes              *SessionModeStateInfo     `json:"modes,omitempty"`
+	ConfigOptions      []SessionConfigOptionInfo `json:"configOptions"`
+	AvailableCommands  []AvailableCommandInfo    `json:"availableCommands"`
+	PromptCapabilities *PromptCapabilitiesInfo   `json:"promptCapabilities,omitempty"`
 }

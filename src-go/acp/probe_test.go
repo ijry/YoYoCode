@@ -76,7 +76,7 @@ func probeAgent(agent *Peer, modes, config, commands, prompts bool) {
 			_ = agent.Notify("session/update", map[string]any{
 				"sessionId": sid,
 				"update": map[string]any{
-					"sessionUpdate":    "prompt_capabilities",
+					"sessionUpdate":      "prompt_capabilities",
 					"promptCapabilities": map[string]any{"image": true, "audio": false, "embeddedContext": true},
 				},
 			})
