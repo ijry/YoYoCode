@@ -147,6 +147,37 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：pi 项目信任 4 条）
+
+- **`src-go/web/handlers/acp_pi_trust.go`（新增）**：
+  - `acp_pi_project_trust_state`：某 workspace 的生效信任态 `{workspace, resources, decision,
+    decidedAt, trustFile, acknowledged}`（camelCase）。`resources` = 仓库自带的 pi 资源
+    （`.pi/{settings.json,extensions,skills,prompts,themes,SYSTEM.md,APPEND_SYSTEM.md}` 里存在的 +
+    从 cwd 向上找的 `.agents/skills`，**排除用户自己的 `~/.agents/skills`**）；
+    `extensions`/`settings.json` 标 `executesCode: true`（前者是 pi 启动即执行的 JS/TS 模块，
+    后者能装项目包）。`decision`/`decidedAt` = 沿 cwd 向上找到的**第一个布尔条目**
+    （`null` 不停walk，这正是「清掉本目录决策、交给祖先」的机制）。
+  - `acp_pi_set_project_trust`：**唯一**写入 pi `trust.json` 的地方，只由用户操作触发。
+    `trusted: true/false` 写该目录的判决；缺省/null 删除本目录条目（撤回，回落到祖先/pi 默认）。
+  - `acp_pi_acknowledge_project_trust`：只写**我们自己的** `pi-project-trust-ack.json`
+    （`<dataDir>/`），pi 的文件一字不动 —— 授权本身没变，只是记录「用户看过了」。
+  - `acp_pi_list_trust_entries`：pi `trust.json` 里所有布尔判决（按路径排序），供设置页复核；
+    `null` 是「无决策」，不列出也不自动清理（清理会静默撤销用户自己的批准）。
+- **关键协议**：pi 用 `proper-lockfile` 的**目录锁**（`<trust.json>.lock`，`mkdir` 原子创建）保护该文件，
+  且它自己的读也持锁。故写入前照做：10 次尝试、每次间隔 20ms、锁目录 mtime 超过 10s 视为崩溃遗留并
+  接管；另有**进程内互斥**（审批横幅与设置页撤回按钮可能同时写，读-改-写会互相覆盖）。
+  **绝不覆盖解析不了的 `trust.json`**（那是用户在 pi 里做的决策），报错让用户自己修。
+- **路径规则**：`piCanonicalPath` 镜像 Node 的 `realpathSync`（绝对 + 解符号链接，并去掉 Windows 的
+  `\\?\` 前缀 —— Node 从不产出该形式，留着会生成 pi 匹配不到的键）；`piAgentDirInWorkspace` 把相对
+  agent dir 锚定在 workspace（pi-acp 以 session workspace 为 cwd）。
+- **顺带修正**：`acp_load_pi_config` / `acp_update_pi_config` 此前用只读进程 env 的 `piSettingsDir()`；
+  改为 `piSettingsDirFromDB(d)`（叠加 per-agent `env_json` 的 `PI_CODING_AGENT_DIR`）—— 否则 BYO-pi
+  用户（把 agent dir 存在 env_json 里）会写错目录。删掉了旧的 `piSettingsDir()`。
+- 测试：`acp_pi_trust_internal_test.go`（11 例）+ `acp_pi_trust_test.go`（4 例，含 grant/decline/revoke、
+  授权真的落到 trust.json、ack 不动 pi 的文件、camelCase 线格式）。
+- 清单：**523 / 已实现 497 / 缺 26**（P0 128/128）。
+- `go build ./...` · `go vet` · 相关 handlers 子集全绿。
+
 ### 2026-10-13（完整复刻：pi 模型能力目录）
 
 - **`src-go/web/handlers/acp_pi_catalog.go`（新增）**：`acp_list_pi_model_capabilities` ——

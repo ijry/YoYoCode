@@ -15,6 +15,7 @@ func RegisterAll(reg *Registry) {
 	registerACPCatalogs(reg)
 	registerACPAgentProbes(reg)
 	registerACPPiCatalog(reg)
+	registerACPPiTrust(reg)
 	RegisterQuickMessages(reg)
 	RegisterConversationTags(reg)
 	RegisterOpenedTabs(reg)

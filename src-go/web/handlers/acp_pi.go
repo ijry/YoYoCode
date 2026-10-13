@@ -7,7 +7,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,7 +44,11 @@ func RegisterACPPi(reg *Registry) {
 	// acp_load_pi_config: read pi's native files into a projection. Never errors
 	// on absent/malformed files (all-None / empty lists).
 	reg.Register("acp_load_pi_config", func(c *web.Context) (any, error) {
-		dir, err := piSettingsDir()
+		d, err := requireDB(c)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := piSettingsDirFromDB(d)
 		if err != nil {
 			return nil, web.ErrTaskExecution(err.Error())
 		}
@@ -71,7 +74,11 @@ func RegisterACPPi(reg *Registry) {
 		customBase := strings.TrimSpace(strVal(c.Body["customBaseUrl"], c.Body["custom_base_url"]))
 		customAPI := strings.TrimSpace(strVal(c.Body["customApi"], c.Body["custom_api"]))
 
-		dir, err := piSettingsDir()
+		d, err := requireDB(c)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := piSettingsDirFromDB(d)
 		if err != nil {
 			return nil, web.ErrTaskExecution(err.Error())
 		}
@@ -128,18 +135,6 @@ func RegisterACPPi(reg *Registry) {
 // expansion, else ~/.pi/agent) and refuses a relative one: a relative dir names
 // a different directory in every workspace, so there is no single profile the
 // settings page could read or write.
-func piSettingsDir() (string, error) {
-	home := mcpHome()
-	dir := filepath.Join(home, ".pi", "agent")
-	if v := strings.TrimSpace(os.Getenv("PI_CODING_AGENT_DIR")); v != "" {
-		dir = expandHomePrefix(v, home)
-	}
-	if !filepath.IsAbs(dir) {
-		return "", fmt.Errorf("pi agent directory must be absolute or start with ~/ before editing native settings (this agent's pi uses %q, relative to each workspace)", dir)
-	}
-	return dir, nil
-}
-
 // loadPiConfigAt reads pi's native files into the settings projection.
 func loadPiConfigAt(dir string) map[string]any {
 	settings := readJSONObjectOrEmpty(filepath.Join(dir, "settings.json"))
