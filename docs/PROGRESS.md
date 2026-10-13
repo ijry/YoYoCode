@@ -147,6 +147,29 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：deepseek model catalog）
+
+- **`src-go/web/handlers/acp_deepseek_catalog.go`（新增）**：`acp_load_deepseek_model_catalog` ——
+  读 `$DSH_HOME/settings.yaml`（默认 `~/.dsh`）的 `llm-deepseek.models`，投影为
+  `DeepSeekModelCatalog{path, exists, configured, models, error, invalid}`（camelCase，`error`/
+  `invalid` 恒为 null 而非缺键）。文件缺失/无该键 → 继承内置默认（`deepseek-flash` 带图像预算
+  640000 + `in-history`、`deepseek-v4-pro` 纯文本）；文档可读但 agent 会拒的列表 → `invalid`；
+  不可理解的文档（未知字段/非 mapping）→ `error` 且不提供保存。
+- **`acp_update_deepseek_model_catalog`** —— 按 adapter 自身 `resolveModels` 规则校验（id 唯一非空、
+  数值字段 >0 且 ≤ JS safe integer、像素预算为数字或 `"low"`、`imageDetail` 已废弃即拒、modality
+  仅 text/image 不重复、`systemPromptUpdate` 仅 `in-history`、纯文本条目不得声明图像限制），再
+  **逐行文本拼接**替换/插入/删除该键：块外的每一个字节原样保留（注释、空行、其它插件段落），
+  拼完 re-parse 并逐字段比对（`verifyPatch`）才允许写入。空/缺列表 → 删除该键（只剩它时连
+  section 头一起删，避免 NULL section 被 settings 服务拒绝）。
+- **`src-go/web/handlers/acp_deepseek_splice.go`（新增）**：注释保持型块拼接 + 原子写 ——
+  兄弟临时文件（`O_EXCL`、唯一名）→ `chmod`/`fsync` → `rename` 覆盖；先解析符号链接链
+  （最多 8 跳）以便重命名落在真实文件上；已存在文档保留其 mode 去掉 world 位，新建为 0600。
+- 测试：`acp_deepseek_catalog_test.go`（10 例：继承默认、configured、invalid/error 上报、
+  插入保注释、替换保兄弟键、清空丢 section 头、校验 7 例、inline 拒绝、符号链接跟随 + 无残留
+  tmp、线格式 key/null）。
+- 清单：**523 / 已实现 487 / 缺 36**（P0 128/128）。
+- `go build ./...` · `go vet` · `go test ./src-go/web/handlers -run DeepSeekCatalog` 全绿。
+
 ### 2026-10-13（完整复刻：hermes + kimi 配置写入）
 
 - **`src-go/web/handlers/acp_kimi_config.go`（新增）**：`acp_update_kimi_code_config` ——
