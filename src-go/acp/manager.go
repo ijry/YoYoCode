@@ -40,6 +40,11 @@ type Manager struct {
 	live     map[string]*liveSession
 	spawner  func(SpawnConfig) (*AgentProcess, error)
 	resolver func(agentType, cwd string, env map[string]string) (SpawnConfig, bool)
+	// probeLocks serializes concurrent probes per agent type (upstream's
+	// probe_locks). Different agent types still probe in parallel; the same
+	// agent type is bounded to one in-flight probe so rapid settings-UI clicks
+	// fan out to a single real CLI process instead of one per click.
+	probeLocks sync.Map
 }
 
 // Connection is one live agent session.

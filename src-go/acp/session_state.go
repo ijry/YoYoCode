@@ -129,6 +129,16 @@ type SessionState struct {
 	PendingQuestion    *PendingQuestionState
 	PendingUserMessage *PendingUserMessage
 
+	// Selector catalog populated by session/update events during a probe or a
+	// live session's handshake. Mirrors upstream SessionState's
+	// modes/config_options/prompt_capabilities/available_commands/selectors_ready/last_error.
+	Modes              *SessionModeStateInfo
+	ConfigOptions      []SessionConfigOptionInfo
+	AvailableCommands  []AvailableCommandInfo
+	PromptCapabilities *PromptCapabilitiesInfo
+	SelectorsReady     bool
+	LastError          *SessionLastError
+
 	// EventSeq is the high-water mark; the next emitted envelope takes
 	// EventSeq+1 and every `event` frame delivered after a snapshot/replay
 	// carries seq > the value the client was given.
@@ -221,6 +231,103 @@ func (s *SessionState) SetConversation(conversationID, folderID *int64, external
 	s.FolderID = folderID
 	if externalID != "" {
 		s.ExternalID = externalID
+	}
+}
+
+// ─── Selector catalog (probe + live handshake) ──────────────────────────────
+
+// SetModes records the agent's mode catalog (session_modes event).
+func (s *SessionState) SetModes(m *SessionModeStateInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Modes = m
+}
+
+// SetConfigOptions records the agent's config option catalog
+// (session_config_options event).
+func (s *SessionState) SetConfigOptions(opts []SessionConfigOptionInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ConfigOptions = opts
+}
+
+// SetAvailableCommands records the agent's advertised slash commands
+// (available_commands event).
+func (s *SessionState) SetAvailableCommands(cmds []AvailableCommandInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.AvailableCommands = cmds
+}
+
+// SetPromptCapabilities records what the agent accepts in a prompt
+// (prompt_capabilities event).
+func (s *SessionState) SetPromptCapabilities(p *PromptCapabilitiesInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PromptCapabilities = p
+}
+
+// MarkSelectorsReady latches once when the agent signals its initial selector
+// set is complete (selectors_ready event). The probe waits on this before
+// snapshotting.
+func (s *SessionState) MarkSelectorsReady() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.SelectorsReady = true
+}
+
+// SetLastError captures the agent's own error text (error event), surfaced by
+// the probe path when the handshake fails.
+func (s *SessionState) SetLastError(e *SessionLastError) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.LastError = e
+}
+
+// IsSelectorsReady reports whether the agent has published its selectors.
+func (s *SessionState) IsSelectorsReady() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.SelectorsReady
+}
+
+// LastErrorSnapshot returns the captured agent error, if any.
+func (s *SessionState) LastErrorSnapshot() *SessionLastError {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.LastError
+}
+
+// AgentOptions returns a read-only snapshot of the modes + config options the
+// agent advertised — mirroring upstream AgentOptionsSnapshot /
+// SessionState::to_snapshot. Slices are always non-nil so the wire shape is a
+// JSON array (never null), matching upstream's Vec contract.
+func (s *SessionState) AgentOptions() *AgentOptionsSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var modes *SessionModeStateInfo
+	if s.Modes != nil {
+		cp := *s.Modes
+		modes = &cp
+	}
+	var pc *PromptCapabilitiesInfo
+	if s.PromptCapabilities != nil {
+		cp := *s.PromptCapabilities
+		pc = &cp
+	}
+	opts := s.ConfigOptions
+	if opts == nil {
+		opts = []SessionConfigOptionInfo{}
+	}
+	cmds := s.AvailableCommands
+	if cmds == nil {
+		cmds = []AvailableCommandInfo{}
+	}
+	return &AgentOptionsSnapshot{
+		Modes:             modes,
+		ConfigOptions:     opts,
+		AvailableCommands: cmds,
+		PromptCapabilities: pc,
 	}
 }
 

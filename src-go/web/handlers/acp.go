@@ -108,7 +108,19 @@ func RegisterACP(reg *Registry) {
 		return map[string]any{"installed": false}, nil
 	})
 	reg.web.Register("acp_describe_agent_options", func(c *web.Context) (any, error) {
-		return []map[string]any{}, nil
+		st := c.State.(*appstate.AppState)
+		agentType := strVal(c.Body["agentType"])
+		if agentType == "" {
+			return nil, web.ErrInvalidInput("agentType required")
+		}
+		// The client sends `workingDir` (upstream's field name); folderPath/path
+		// stay accepted for in-app callers.
+		workingDir := strVal(c.Body["workingDir"], c.Body["working_dir"], c.Body["folderPath"], c.Body["path"])
+		snap, err := st.ACP.ProbeAgentOptions(agentType, workingDir)
+		if err != nil {
+			return nil, acpError(err)
+		}
+		return snap, nil
 	})
 	reg.web.Register("acp_preflight", func(c *web.Context) (any, error) {
 		return map[string]any{"ok": true}, nil
@@ -173,6 +185,17 @@ func acpError(err error) error {
 	var unknown *acp.ConnectionUnknownError
 	if errors.As(err, &unknown) {
 		return web.ErrNotFound(err.Error())
+	}
+	// Probe-specific failures (timeout, or the agent's own handshake error)
+	// surface as external_command so the client can tell the user the agent
+	// process failed rather than the request being malformed.
+	var probeTimedOut *acp.ProbeTimedOutError
+	if errors.As(err, &probeTimedOut) {
+		return web.ErrExternalCommand(err.Error())
+	}
+	var probeAgent *acp.ProbeAgentError
+	if errors.As(err, &probeAgent) {
+		return web.ErrExternalCommand(err.Error())
 	}
 	return web.ErrTaskExecution(err.Error())
 }

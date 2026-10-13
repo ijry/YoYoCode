@@ -164,8 +164,7 @@ go test ./...         → acp / app_error / web 全绿
 - `acp_connect` 改读 client 字段 `workingDir`（原 `folderPath`），并兼容 `sessionId` / `preferred_mode_id` 等 snake 别名；
   `preferredConfigValues` 经新增 `stringMap` 助手解析（对象内 string/float64/bool 都收）。
 - `go build ./...` / `go vet ./...` / `go test ./...` 全绿（ACP 5s、handlers 281s）。
-- **未做（已确认，需更大子系统）**：`acp_describe_agent_options` 仍是空实现 —— 它需要
-  「探测/瞬态连接」能力（临时 spawn agent 问其支持的 modes/config options 再丢弃），本机尚未移植该探针子系统，标记为 deferred。
+- **未做（已确认，需更大子系统）**：`acp_describe_agent_options` 空实现已在 2026-10-13 第五批补齐（见下「ACP 探针子系统：`acp_describe_agent_options` 真实现」）。
 
 ### 2026-10-13（契约审计第三批：create_conversation 裸 i32 + work_task_* 可选参数）
 
@@ -203,8 +202,42 @@ go test ./...         → acp / app_error / web 全绿
 - 测试：扩展 `TestAcpAgentSettingsAndStatus` 锁定 `acp_download_agent_binary` 带 `version` 仍 422
   `dependency_missing`；`save_opened_tabs` / opened tabs CAS 测试已覆盖 `origin` 入参。
 - `go build` / `go vet` / 相关 `go test` 全绿。
-- **审计基线 6 项现已全部处理**。`acp_describe_agent_options` 仍是 deferred 空实现（需探针/瞬态连接
-  子系统），不在原 6 项内、单独标注。
+- **审计基线 6 项现已全部处理**。`acp_describe_agent_options` 已在 2026-10-13 第五批补齐（探针/瞬态连接
+  子系统已移植），不在原 6 项内、单独标注。
+
+### 2026-10-13（第五批：ACP 探针子系统 —— `acp_describe_agent_options` 真实现）
+
+- **`acp_describe_agent_options` 不再是空实现**：移植上游 `probe_agent_options` / `wait_for_session_options`
+  探针子系统，临时 spawn 一个 agent、跑 ACP 握手、等它发布初始 selectors（modes/config options），
+  读回只读快照后**立刻丢弃连接**（不进公开 registry，WS 客户端看不到探针流量）。
+  - 新增 `src-go/acp/agent_options.go`：全部 catalog 类型，字段名严格 camelCase 对齐上游
+    `serde(rename_all="camelCase")` 的线格式。关键点 `SessionConfigKindInfo` 是带 `tag="type"`
+    的 select/boolean 联合：Go 无法用一个字段承载两种 JSON 类型的 `currentValue`，故用
+    指针 + 自定义 `MarshalJSON`/`UnmarshalJSON` 渲染内联联合形态
+    （`{"type":"select","currentValue":"...","options":[...],"groups":[...]}` 与
+    `{"type":"boolean","currentValue":bool}`），并做往返测试锁定。
+  - `SessionState` 新增选择器目录字段 `Modes`/`ConfigOptions`/`AvailableCommands`/
+    `PromptCapabilities`/`SelectorsReady`/`LastError` + 线程安全 setter、`IsSelectorsReady`、
+    `LastErrorSnapshot`、`AgentOptions()`（切片永远非 nil → 线格式是 `[]` 而非 `null`）。
+  - `AgentSession.onSessionUpdate` 新增 6 路分发：`session_modes` / `session_config_options` /
+    `available_commands` / `prompt_capabilities` / `selectors_ready` / `error` → 落 state，
+    并经 `emitPassthrough` 保持原 WS 透传行为（探针连接未订阅，透传无副作用）。
+  - 新增 `src-go/acp/probe.go`：`Manager.ProbeAgentOptions(agentType, workingDir)` —— resolver 失败
+    映射 `AgentUnavailableError`（→ handler 422 `dependency_missing`）；瞬态 spawn+握手；**按
+    agent_type 串行**（per-agent `sync.Map` 锁，避免快速切 tab 一个 agent 起一堆 60s 进程）；
+    `waitForSessionOptions` 轮询 `selectors_ready` + 500ms grace 再快照；超时 → `ProbeTimedOutError`；
+    若握手期捕获到 agent 的 `error` 事件，优先返回 `ProbeAgentError`（agent 自己的报错文案）。
+  - handler `acp_describe_agent_options` 改为读 `agentType`/`workingDir` 调真实探针；失败映射：
+    `AgentUnavailableError`/`SpawnError` → `dependency_missing`，`ProbeTimedOutError`/
+    `ProbeAgentError` → `external_command`（其余 → `task_execution`）。返回体即 `AgentOptionsSnapshot`
+    对象（此前空实现返回 `[]`，已纠正——上游返回 `Json<AgentOptionsSnapshot>`）。
+- 测试：`src-go/acp/probe_test.go` 锁定
+  `TestProbeAgentOptionsWireShape`（camelCase、select/boolean 联合内联、modes/promptCapabilities 缺席时
+  省略、configOptions/availableCommands 永远数组）、`TestProbeAgentOptionsEmptyWhenNoOptions`（只发
+  selectors_ready → 干净空快照，非 null）、`TestProbeAgentOptionsTimesOut`（从不通告 ready →
+  `ProbeTimedOutError` 而非空快照）、`TestProbeAgentOptionsCapturesLastError`（agent 的 error 事件 →
+  `ProbeAgentError` 文案）。`go test ./acp/...` 与 `go test ./web/handlers/ -run Acp` 全绿。
+- `go build` / `go vet ./acp/...` 全绿。
 
 ### 2026-10-13（契约审计第二批：会话列表筛选/排序 + summary 字段对齐）
 
@@ -261,8 +294,8 @@ go test ./...         → acp / app_error / web 全绿
 - **剩余待办（审计基线，已逐项处理）**：
   1. ✅ `list_all_conversations` 的 `search`/`sortBy`/`status`/`includeChildren` —— 已修（`bbd839c`）。
   2. ✅ `acp_connect` 的 `preferredModeId`/`preferredConfigValues` —— 已修（`317da0a`）。
-  3. 🟡 `acp_set_config_option` ✅ 已做（`317da0a`）；`acp_describe_agent_options` 仍空实现
-     （需探针/瞬态连接子系统，deferred）。
+  3. 🟡 `acp_set_config_option` ✅ 已做（`317da0a`）；`acp_describe_agent_options` ✅ 已做
+     （探针/瞬态连接子系统已移植，见下「第五批」）。
   4. ✅ `create_conversation` 返回**裸 i32** —— 已修（对齐上游 `Json<i32>`，见下「契约审计第三批」）。
   5. ✅ `work_task_*` 的 `deleteWorktree`/`note`/`blocks`/`reason`/`prTitle`/`draft`/`message`/`instructions`/`allowDuplicateSource`
      —— 已接（落到事件 payload；git worktree 拆除等子系统未移植，副作用 deferred，见下）。

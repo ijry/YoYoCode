@@ -223,6 +223,48 @@ func (s *AgentSession) onSessionUpdate(params json.RawMessage) {
 			_ = json.Unmarshal(disc.Entries, &entries)
 		}
 		s.emit(map[string]any{"type": "plan_update", "entries": entries})
+	case "session_modes":
+		var m struct {
+			Modes SessionModeStateInfo `json:"modes"`
+		}
+		if json.Unmarshal(p.Update, &m) == nil {
+			s.state.SetModes(&m.Modes)
+		}
+		s.emitPassthrough(p.Update)
+	case "session_config_options":
+		var m struct {
+			ConfigOptions []SessionConfigOptionInfo `json:"configOptions"`
+		}
+		_ = json.Unmarshal(p.Update, &m)
+		s.state.SetConfigOptions(m.ConfigOptions)
+		s.emitPassthrough(p.Update)
+	case "available_commands":
+		var m struct {
+			Commands []AvailableCommandInfo `json:"commands"`
+		}
+		_ = json.Unmarshal(p.Update, &m)
+		s.state.SetAvailableCommands(m.Commands)
+		s.emitPassthrough(p.Update)
+	case "prompt_capabilities":
+		var m struct {
+			PromptCapabilities PromptCapabilitiesInfo `json:"promptCapabilities"`
+		}
+		if json.Unmarshal(p.Update, &m) == nil {
+			s.state.SetPromptCapabilities(&m.PromptCapabilities)
+		}
+		s.emitPassthrough(p.Update)
+	case "selectors_ready":
+		s.state.MarkSelectorsReady()
+		s.emitPassthrough(p.Update)
+	case "error":
+		var le struct {
+			Message string `json:"message"`
+			Code    string `json:"code"`
+			Details string `json:"details"`
+		}
+		_ = json.Unmarshal(p.Update, &le)
+		s.state.SetLastError(&SessionLastError{Message: le.Message, Code: le.Code, Details: le.Details})
+		s.emitPassthrough(p.Update)
 	default:
 		// Forward unknown updates verbatim under a passthrough event so no agent
 		// signal is silently dropped while the translation table grows.
@@ -294,6 +336,21 @@ func (s *AgentSession) emit(payload map[string]any) {
 		return
 	}
 	s.state.Emit(raw)
+}
+
+// emitPassthrough forwards a session/update to WS clients verbatim under the
+// acp_update envelope — this is exactly the prior default behavior (these
+// updates were previously unknown and fell through to passthrough). The
+// explicit selector cases above also reduce the same update into SessionState,
+// so the live path keeps broadcasting them while the probe reads them from
+// state without any registry subscription.
+func (s *AgentSession) emitPassthrough(update json.RawMessage) {
+	var raw map[string]any
+	if json.Unmarshal(update, &raw) != nil {
+		return
+	}
+	raw["type"] = "acp_update"
+	s.emit(raw)
 }
 
 // contentText pulls the text out of an ACP content block {type:"text", text}.
