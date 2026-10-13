@@ -147,6 +147,27 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：hermes + kimi 配置写入）
+
+- **`src-go/web/handlers/acp_kimi_config.go`（新增）**：`acp_update_kimi_code_config` ——
+  三种模式：`apikey`（写 `~/.kimi-code/config.toml` 的 managed provider/model 块 + 种下 gate
+  token）/ `login`（清 managed 块 + 只删「我们的」token）/ `raw`（校验 TOML 后原样写入 +
+  种 token）。managed 块用**本项目品牌**（provider `yoyocode`、alias `yoyocode-managed`、
+  gate token `yoyocode-local-gate`、标记 `_yoyocode_synthetic`），可识别可移除且不扰动用户手写
+  的 provider/model；`max_context_size` 恒写正数（kimi schema 缺它整个 model 块会被丢弃）。
+  reasoning：`capabilities` = thinking/always_thinking + image_in/video_in/tool_use，
+  `support_efforts` 去重，`default_effort` 不在列表内则丢弃。每次保存清 `KIMI_MODEL_*` env 覆盖。
+- **`src-go/web/handlers/acp_hermes_config.go`（新增）**：`acp_update_hermes_config` ——
+  structured 模式写 `~/.hermes/config.yaml` 的 `model:` 段（provider/default/base_url，按
+  `BaseUrlWrite`/`InlineApiKeyWrite` 语义；`custom` 的 key/base_url 内联，切换 provider 时清
+  `api_mode`），并把 provider 的 key/endpoint 镜像进 `~/.hermes/.env`（`patch_env_text` 保注释/
+  顺序、首个替换、去重、缺失则追加，含空值以遮蔽继承的进程 env）。raw 模式服务端强制不碰 `.env`。
+  含 39 项 provider 表、`ensure_hermes_home_secure`（新建才 chmod，容器/托管环境跳过）、
+  `write_hermes_secret_file`（新建 0600、已存在原地写、修复世界可读）。
+- 测试：`acp_kimi_config_test.go`（8 例）、`acp_hermes_config_test.go`（7 例）。
+- 清单：**523 / 已实现 485 / 缺 38**（P0 128/128）。
+- `go build ./...` · `go vet` · `go test ./src-go/web/handlers -run 'Acp|Kimi|Hermes'` 全绿。
+
 ### 2026-10-13（完整复刻：acp_fetch_kimi_models）
 
 - **`src-go/web/handlers/acp_kimi.go`（新增，`RegisterACPKimi`）**：`acp_fetch_kimi_models` ——

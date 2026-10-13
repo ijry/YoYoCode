@@ -29,6 +29,7 @@ func RegisterACPKimi(reg *Registry) {
 		}
 		return ids, nil
 	})
+	registerKimiConfig(reg)
 }
 
 // fetchKimiModels GETs <base_url>/models with the key as a Bearer token and
