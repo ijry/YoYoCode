@@ -147,6 +147,34 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：opencode / codex 模型目录）
+
+- **新增 `src-go/assets/`（含 `embed.go`）**：把两份离线快照编译进二进制，镜像上游
+  `src-tauri/resources/` 布局 —— `opencode/models-dev.json`（已归一化的 `[]CatalogProvider`，
+  778 KB）与 `codex/bundled-catalog.json`（`{"models":[...]}`，293 KB）。这是两个目录的
+  离线兜底，保证断网/无缓存时目录非空。**来源**：本机上游真实检出
+  `codeg-plus/src-tauri/resources/`（`_upstream/ref` 未含 `resources/`）。
+- **`src-go/acp/opencode_catalog.go`**：models.dev provider 目录 —— `NormalizeModelsDev`
+  （`{providerId:Provider}` → 精简 `CatalogProvider`，容错缺字段；provider 按 name 小写再 id
+  排序、models 按 id 排序；`openai`/`github-copilot`/`gitlab` 归 `oauth`，其余 `api`）、
+  `BundledCatalog`、`ProviderCatalog(dataDir, force)` 的 **live → cache → snapshot** 链
+  （4s 连接 / 12s 总超时，24h TTL；`env`/`models` 保证是 `[]` 而非 null）。
+  **线格式是 snake_case**（`auth_kind`/`tool_call`/`cost_in`/`cost_out`），与客户端
+  `OpenCodeCatalogProvider` 一致（该结构体刻意不带 camelCase rename）。
+- **`src-go/acp/codex_catalog_source.go`**：codex 官方目录 —— `parseCodexModels` 取
+  `models` 数组并按 **priority 升序稳定排序**（无 priority 排最后；`debug models --bundled`
+  自 0.159.1 起不是优先级序）、`RuntimeCatalog(dataDir, force)` 的 live → cache → snapshot 链、
+  `CachedOrBundledSnapshot`（同步、不派生子进程，供配置写入路径用）。live 侧用 node 自身
+  解析器定位 `codex-acp` 内嵌的 `@openai/codex`（不是 PATH 上的 codex），跑
+  `debug models --bundled`，15s 超时；npm 前缀取 `npm prefix -g`（1.5s）与
+  `<dataDir>/npm-global`。
+- **`src-go/web/handlers/acp_catalogs.go`**：两条路由（`forceRefresh` 可选）。两个上游都是
+  **infallible**（快照兜底），故都不报错。
+- 测试：`opencode_catalog_test.go`（9 例）+ `codex_catalog_source_test.go`（6 例）+
+  `acp_catalogs_test.go`（3 例，含 snake_case 线格式与缓存/优先级序）。
+- 清单：**523 / 已实现 489 / 缺 34**（P0 128/128）。
+- `go build ./...` · `go vet` · `go test ./src-go/acp` · `-run Catalog` 全绿。
+
 ### 2026-10-13（完整复刻：deepseek model catalog）
 
 - **`src-go/web/handlers/acp_deepseek_catalog.go`（新增）**：`acp_load_deepseek_model_catalog` ——
