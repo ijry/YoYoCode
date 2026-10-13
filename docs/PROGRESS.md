@@ -147,6 +147,21 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（ACP 二进制下载补齐：open_code 改回 binary + 兄弟可执行文件校验）
+
+- **open_code 错标修复**：上游 OpenCode 是 **binary**（github.com/anomalyco/opencode releases v1.18.35），
+  端口原标 npx `opencode@1.18.35` —— 而 **npm 上并无 `opencode` 包**
+  （registry.npmjs.org/opencode → `{"error":"Not found"}`），故该路径本就装不上。改为 binary：加进
+  `binaryDists`（单文件分发，`dirTree:false`、入口即 `opencode(.exe)`）。
+- **兄弟可执行文件（required_siblings）**：`binaryDist` 加 `siblingsUnix/Windows`；antigravity 声明
+  `localharness_external(.exe)`。新增 `installBinaryTree`：解压后**校验**入口 + 每个必需兄弟都在，
+  缺失即报错（避免装出一个「握手能通、一跑就报 Localharness not found」的坏 agent），并逐个 chmod 0755。
+- **单文件 Windows 命名**：`CachedBinaryPath` 对单文件分发在 Windows 用 `<cmd>.exe`（对齐上游 `bin_name`）。
+- 测试：`TestBinaryDistMetadata` 扩到 cursor/open_code/antigravity + 断言 antigravity 有兄弟、
+  open_code 是单文件；新增 `TestInstallBinaryTreeValidatesSiblings`（缺兄弟 → 报错；齐全 → 通过）。
+- `go build ./...` / `go vet` / `go test ./src-go/acp` / `go test ./src-go/web/handlers -run Acp` /
+  `go test ./src/app` 全绿。
+
 ### 2026-10-13（ACP 二进制下载+缓存 + 注册表两处错标修复）
 
 - **`acp_download_agent_binary` 从 `dependency_missing` 桩变为真实现**：

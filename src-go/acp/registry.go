@@ -36,7 +36,7 @@ type BuiltinAgent struct {
 var BuiltinAgents = []BuiltinAgent{
 	{"claude_code", "Claude Code", "ACP wrapper for Anthropic's Claude", "claude-acp", "npx", true, true, true},
 	{"codex", "Codex", "ACP wrapper for OpenAI's Codex CLI", "codex-acp", "npx", true, true, true},
-	{"open_code", "OpenCode", "The OpenCode agent", "opencode", "npx", false, true, true},
+	{"open_code", "OpenCode", "The OpenCode agent", "opencode", "binary", false, true, false},
 	{"gemini", "Gemini", "Google's Gemini CLI agent", "gemini", "npx", false, true, true},
 	{"open_claw", "OpenClaw", "ACP wrapper for OpenClaw", "openclaw-acp", "npx", false, true, true},
 	{"cline", "Cline", "The Cline coding agent", "cline", "npx", false, true, true},
@@ -120,7 +120,7 @@ var launchSpecs = map[string]LaunchSpec{
 	"gemini":      {"npx", "@google/gemini-cli@0.60.0", "gemini", []string{"--acp", "--skip-trust"}},
 	"open_claw":   {"npx", "openclaw@2026.9.8", "openclaw", []string{"acp"}},
 	"cline":       {"npx", "cline@3.0.68", "cline", []string{"--acp"}},
-	"open_code":   {"npx", "opencode@1.18.35", "opencode", []string{"acp"}},
+	"open_code":   {"binary", "", "opencode", []string{"acp"}},
 	"hermes":      {"npx", "hermes-agent@0.21.5", "hermes", []string{"acp"}},
 	"code_buddy":  {"npx", "@tencent-ai/codebuddy-code@2.161.4", "codebuddy", []string{"--acp"}},
 	"kimi_code":   {"npx", "@moonshot-ai/kimi-code@2.1.1", "kimi", []string{"acp"}},
@@ -189,8 +189,13 @@ type binaryDist struct {
 	args    []string
 	// dirTree: keep the whole archive tree (a bundled runtime / sibling
 	// executables); otherwise only the single cmd file is copied out.
-	dirTree   bool
-	platforms map[string]platformBinary
+	dirTree bool
+	// siblings are extra executables inside a dir-tree archive that must be
+	// present and executable (acp::registry BinaryDirEntry::required_siblings),
+	// by platform family.
+	siblingsUnix    []string
+	siblingsWindows []string
+	platforms       map[string]platformBinary
 }
 
 // binaryDists mirrors the upstream registry's binary distributions for the
@@ -210,10 +215,26 @@ var binaryDists = map[string]binaryDist{
 			"windows-x86_64":  {"https://downloads.cursor.com/lab/2026.10.01-14929f9/windows/x64/agent-cli-package.zip", "dist-package/cursor-agent.cmd"},
 		},
 	},
+	"open_code": {
+		version: "1.18.35",
+		cmd:     "opencode",
+		args:    []string{"acp"},
+		dirTree: false,
+		platforms: map[string]platformBinary{
+			"darwin-aarch64":  {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-darwin-arm64.zip", ""},
+			"darwin-x86_64":   {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-darwin-x64.zip", ""},
+			"linux-aarch64":   {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-linux-arm64.tar.gz", ""},
+			"linux-x86_64":    {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-linux-x64.tar.gz", ""},
+			"windows-aarch64": {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-windows-arm64.zip", ""},
+			"windows-x86_64":  {"https://github.com/anomalyco/opencode/releases/download/v1.18.35/opencode-windows-x64.zip", ""},
+		},
+	},
 	"antigravity": {
-		version: "1.3.0",
-		cmd:     "agy_acp_server",
-		dirTree: true,
+		version:         "1.3.0",
+		cmd:             "agy_acp_server",
+		dirTree:         true,
+		siblingsUnix:    []string{"localharness_external"},
+		siblingsWindows: []string{"localharness_external.exe"},
 		platforms: map[string]platformBinary{
 			"darwin-aarch64":  {"https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip", "agy_acp_server.par"},
 			"darwin-x86_64":   {"https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-x86_64.zip", "agy_acp_server.par"},
@@ -236,6 +257,9 @@ type AgentBinary struct {
 	// forward slashes); "" when the archive is a single file named Cmd.
 	Entry   string
 	DirTree bool
+	// Siblings are extra executables that must be present in a dir-tree archive
+	// (acp::registry required_siblings); empty for single-file agents.
+	Siblings []string
 }
 
 // CurrentPlatform maps the running OS/arch to the registry's platform key
@@ -274,7 +298,11 @@ func BinaryDistFor(agentType string) (AgentBinary, bool) {
 	if agentType == "antigravity" && strings.HasPrefix(CurrentPlatform(), "linux-") {
 		args = []string{"--uid="}
 	}
-	return AgentBinary{Version: d.version, Cmd: d.cmd, Args: args, URL: p.url, Entry: p.entry, DirTree: d.dirTree}, true
+	siblings := d.siblingsUnix
+	if runtime.GOOS == "windows" {
+		siblings = d.siblingsWindows
+	}
+	return AgentBinary{Version: d.version, Cmd: d.cmd, Args: args, URL: p.url, Entry: p.entry, DirTree: d.dirTree, Siblings: siblings}, true
 }
 
 // CachedBinaryPath is where a binary agent's launch entry lives in the cache
@@ -294,7 +322,11 @@ func CachedBinaryPath(cacheRoot, agentType, version string) string {
 	}
 	entry := p.entry
 	if entry == "" {
+		// Single-file archive: the file is named after cmd (+ .exe on Windows).
 		entry = d.cmd
+		if runtime.GOOS == "windows" {
+			entry += ".exe"
+		}
 	}
 	return filepath.Join(cacheRoot, "agent-binaries", agentType, version, filepath.FromSlash(entry))
 }

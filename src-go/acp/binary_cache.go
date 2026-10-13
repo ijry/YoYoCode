@@ -65,14 +65,31 @@ func EnsureAgentBinary(agentType, cacheRoot, versionOverride string, progress fu
 	}
 	defer os.Remove(archive)
 	report(progress, "extracting")
-	if err := extractArchive(archive, cacheDir); err != nil {
+	if err := installBinaryTree(archive, cacheDir, target, ab.Siblings); err != nil {
 		return "", err
 	}
+	return target, nil
+}
+
+// installBinaryTree extracts archive into cacheDir, then validates that the
+// launch entry (and every required sibling — e.g. Antigravity's
+// localharness_external) is present, and marks them executable.
+func installBinaryTree(archive, cacheDir, target string, siblings []string) error {
+	if err := extractArchive(archive, cacheDir); err != nil {
+		return err
+	}
 	if !fileExists(target) {
-		return "", fmt.Errorf("archive did not contain %s", filepath.Base(target))
+		return fmt.Errorf("archive did not contain %s", filepath.Base(target))
 	}
 	_ = os.Chmod(target, 0o755)
-	return target, nil
+	for _, sib := range siblings {
+		sp := filepath.Join(cacheDir, filepath.FromSlash(sib))
+		if !fileExists(sp) {
+			return fmt.Errorf("archive is missing required sibling %s", sib)
+		}
+		_ = os.Chmod(sp, 0o755)
+	}
+	return nil
 }
 
 func report(progress func(string), msg string) {

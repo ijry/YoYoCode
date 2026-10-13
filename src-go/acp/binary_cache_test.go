@@ -19,21 +19,57 @@ func TestCurrentPlatformNonEmpty(t *testing.T) {
 	}
 }
 
-// TestBinaryDistMetadata locks the binary registry: cursor/antigravity are
-// binary with a current-platform recipe; qoder is NOT binary (upstream runs it
-// via npx).
+// TestBinaryDistMetadata locks the binary registry: cursor/open_code/antigravity
+// are binary with a current-platform recipe; qoder is NOT binary (upstream runs
+// it via npx).
 func TestBinaryDistMetadata(t *testing.T) {
-	for _, at := range []string{"cursor", "antigravity"} {
+	for _, at := range []string{"cursor", "open_code", "antigravity"} {
 		ab, ok := BinaryDistFor(at)
 		if !ok {
 			t.Fatalf("%s: no binary recipe for %s", at, CurrentPlatform())
 		}
-		if ab.URL == "" || ab.Version == "" || ab.Entry == "" {
+		if ab.URL == "" || ab.Version == "" {
 			t.Errorf("%s: incomplete recipe: %+v", at, ab)
 		}
 	}
 	if _, ok := BinaryDistFor("qoder"); ok {
 		t.Error("qoder must not be a binary agent (upstream uses npx)")
+	}
+	// antigravity is a dir-tree agent with a required sibling on the current
+	// platform.
+	if ab, ok := BinaryDistFor("antigravity"); ok {
+		if !ab.DirTree || len(ab.Siblings) == 0 {
+			t.Errorf("antigravity should be dir-tree with a sibling: %+v", ab)
+		}
+	}
+	// open_code is a single-file agent (no dir entry → the cmd file).
+	if ab, ok := BinaryDistFor("open_code"); ok {
+		if ab.DirTree || ab.Entry != "" {
+			t.Errorf("open_code should be single-file: %+v", ab)
+		}
+	}
+}
+
+// TestInstallBinaryTreeValidatesSiblings locks the sibling check: a dir-tree
+// archive missing its required sibling fails rather than installing a broken
+// agent.
+func TestInstallBinaryTreeValidatesSiblings(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "agy.zip")
+	// Entry present, required sibling absent.
+	writeZip(t, zipPath, map[string]string{"agy_acp_server.par": "entry"})
+	target := filepath.Join(dir, "out", "agy_acp_server.par")
+	if err := installBinaryTree(zipPath, filepath.Join(dir, "out"), target, []string{"localharness_external"}); err == nil {
+		t.Fatal("expected a missing-sibling error")
+	}
+
+	// With the sibling present it installs.
+	dir2 := t.TempDir()
+	zip2 := filepath.Join(dir2, "agy2.zip")
+	writeZip(t, zip2, map[string]string{"agy_acp_server.par": "entry", "localharness_external": "harness"})
+	out2 := filepath.Join(dir2, "out")
+	if err := installBinaryTree(zip2, out2, filepath.Join(out2, "agy_acp_server.par"), []string{"localharness_external"}); err != nil {
+		t.Fatalf("install with sibling: %v", err)
 	}
 }
 
