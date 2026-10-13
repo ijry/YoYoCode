@@ -100,7 +100,7 @@ go test ./...         → acp / app_error / web 全绿
 - [x] 权限请求：`session/request_permission` → emit permission_request → `acp_respond_permission` HTTP → ResolvePermission 全链路打通
 - [ ] 提问请求 → `pending_question` → `acp_answer_question`
 - [x] session 驱动 `acp/agent_session.go` + 活连接生命周期 `acp/connection.go`：spawn→握手→注册 SessionRegistry→prompt/permission/cancel/disconnect，HTTP handler 全部接到真实引擎
-- [ ] fork / delegation / plan approval
+- [~] fork ✅（`acp_fork`，两行布局；fork point 需 transcript 解析 → 尾部 fork）；delegation（上游约 1MB 源码，不可行）/ plan approval（引擎未暴露）待做
 - [ ] `yoyocode-mcp` 伴随二进制
 
 ---
@@ -146,6 +146,27 @@ go test ./...         → acp / app_error / web 全绿
 ---
 
 ## 日志
+
+### 2026-10-13（ACP fork —— 会话分叉 + 两行布局）
+
+- **`acp_fork` 路由落地**（端口此前完全缺失）：`AcpForkParams{connectionId, conversationId, folderId,
+  forkFromTurnId}` → `ForkResultInfo{forkedSessionId, originalSessionId, siblingConversationId}`；
+  `TurnInProgress` → 409 `turn_in_progress`（其余经 acpError：未知连接 404、缺 connectionId 400）。
+- **`src-go/acp/fork.go`（新增）**：`Manager.ForkSession`（查活会话 → 按需链接会话行 → ACP
+  `session/fork` → 落两行布局 → 重指活会话 → emit `conversation://changed`）+
+  `persistForkOutcome`（**两行布局**，对齐上游 `persist_fork_outcome`）：当前行 external_id→S2 +
+  标题加 `[Fork] ` 前缀且 title_locked=1；兄弟行复制（title 去前缀、status=`pending_review`、
+  external_id=S1、kind delegate→regular）+ 复制标签链；已存在 S1 行则**收养**
+  （`(external_id, agent_type)` 唯一）。
+- **`AgentSession.Fork`**：发 `session/fork{sessionId}` 并采用返回的 sessionId（**尾部 fork**，不送
+  `_meta` fork point）。
+- **明确 deferred（已在代码注释说明）**：① per-agent fork-point 解析（需 transcript 解析，未移植）→
+  一律尾部 fork（上游的 fallback 行为）；② turn-in-flight 门（端口不跟踪 turn）；③ connection
+  command loop 的取消屏蔽（端口无 command loop）；④ **delegation 全量移植不可行**（上游约 1MB 源码：
+  broker / companion / listener / transport…），端口已具备 `get/set_delegation_settings` 契约。
+- 测试：`fork_test.go`（两行布局、收养已存在 S1、端到端 fake agent 分叉、未知连接）+
+  `acp_fork_test.go`（未知连接 404、缺 connectionId 400）。
+- `go build ./...` / `go vet` / `go test ./src-go/acp` / `go test ./src-go/web/handlers -run Acp` 全绿。
 
 ### 2026-10-13（M5 UI：Settings 三页补齐 —— Browser / Science / Office Tools）
 

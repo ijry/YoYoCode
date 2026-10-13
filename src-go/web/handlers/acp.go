@@ -122,6 +122,32 @@ func RegisterACP(reg *Registry) {
 		}
 		return snap, nil
 	})
+	// acp_fork branches a live session (ACP `session/fork`): the agent gets a new
+	// session id, the pre-fork history is preserved on a sibling conversation
+	// row, and the current row is re-pointed to the forked session.
+	reg.web.Register("acp_fork", func(c *web.Context) (any, error) {
+		st := c.State.(*appstate.AppState)
+		connID := strVal(c.Body["connectionId"], c.Body["connection_id"])
+		if connID == "" {
+			return nil, web.ErrInvalidInput("connectionId required")
+		}
+		convID := intVal(c.Body["conversationId"], c.Body["conversation_id"])
+		folderID := intVal(c.Body["folderId"], c.Body["folder_id"])
+		// forkFromTurnId is accepted but unused: resolving a per-turn fork point
+		// needs the transcript parsing this build does not port, so the fork lands
+		// at the tail (upstream's own fallback).
+		_ = strVal(c.Body["forkFromTurnId"], c.Body["fork_from_turn_id"])
+		res, err := st.ACP.ForkSession(connID, convID, folderID)
+		if err != nil {
+			var tip *acp.TurnInProgressError
+			if errors.As(err, &tip) {
+				return nil, web.ErrTurnInProgress("a turn is already in progress")
+			}
+			return nil, acpError(err)
+		}
+		Emit(c, "conversation://changed", map[string]any{"conversationId": res.SiblingConversationID})
+		return res, nil
+	})
 	reg.web.Register("acp_preflight", func(c *web.Context) (any, error) {
 		return map[string]any{"ok": true}, nil
 	})

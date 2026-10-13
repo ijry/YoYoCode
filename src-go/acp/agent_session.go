@@ -14,6 +14,7 @@ package acp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"sync"
 )
@@ -95,6 +96,32 @@ func (s *AgentSession) SessionID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.sessionID
+}
+
+// Fork asks the agent to branch the current session (the unstable
+// `session/fork`) and adopts the returned session id. No `_meta` fork point is
+// sent: every adapter that reads one falls back to forking at the TAIL when it
+// is absent, which is the honest default here — per-agent fork-point resolution
+// needs the transcript parsing this build does not port.
+func (s *AgentSession) Fork(ctx context.Context) (forkedID, originalID string, err error) {
+	s.mu.Lock()
+	originalID = s.sessionID
+	s.mu.Unlock()
+	res, err := s.peer.Call(ctx, "session/fork", map[string]any{"sessionId": originalID})
+	if err != nil {
+		return "", originalID, err
+	}
+	var out struct {
+		SessionID string `json:"sessionId"`
+	}
+	_ = json.Unmarshal(res, &out)
+	if out.SessionID == "" {
+		return "", originalID, errors.New("session/fork returned no sessionId")
+	}
+	s.mu.Lock()
+	s.sessionID = out.SessionID
+	s.mu.Unlock()
+	return out.SessionID, originalID, nil
 }
 
 // Prompt sends a prompt turn and returns the stop reason. session/update
