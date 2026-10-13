@@ -147,6 +147,20 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（M5 UI：Settings 三页补齐 —— Browser / Science / Office Tools）
+
+- **`src/app/settings_browser.go`（新增）**：Browser 设置页 —— `get_browser_tools_settings`（DB 真实）
+  的 Enabled / Allow eval 开关（`set_browser_tools_settings` 写回）+ `browser_bridge_status` 桥接状态。
+- **`src/app/settings_science.go`（新增）**：Science 页 —— `science_list`（本构建为空）的诚实空态。
+- **`src/app/settings_office.go`（新增）**：Office Tools 页 —— `officecli_detect` 状态；并注明**上游把
+  该页重定向合并进 Skill Packs（Office tab）**。
+- `settings.go` 加三个 case。
+- 测试 `settings_pages_test.go`：三页渲染（browser 开关 on/off、science 空态、office 未安装）。
+- **IA 盘点（发现两处偏差，记待办）**：① 端口**缺 `model-providers`** 设置页（上游有）；② 上游
+  `office-tools` 是重定向到 `skill-packs?tab=office`。另有 shortcuts / skill-packs / collaboration
+  仍为占位（后端无对应命令）。
+- `go build ./...` / `go vet ./src/app` / `go test ./src/app`（29.4s）全绿。
+
 ### 2026-10-13（ACP 二进制下载补齐：open_code 改回 binary + 兄弟可执行文件校验）
 
 - **open_code 错标修复**：上游 OpenCode 是 **binary**（github.com/anomalyco/opencode releases v1.18.35），

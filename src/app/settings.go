@@ -77,6 +77,12 @@ func (s *Shell) viewSettings(c *ui.Context) {
 				s.viewSettingsComputerUse(c)
 			case "experts":
 				s.viewSettingsExperts(c)
+			case "browser":
+				s.viewSettingsBrowser(c)
+			case "science":
+				s.viewSettingsScience(c)
+			case "office-tools":
+				s.viewSettingsOfficeTools(c)
 			default:
 				label := s.settingsPage
 				for _, p := range settingsPages {
