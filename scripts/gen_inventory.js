@@ -65,8 +65,11 @@ function scanGo(dir) {
       if (e.isDirectory()) walk(p);
       else if (e.name.endsWith(".go")) {
         const text = fs.readFileSync(p, "utf8");
-        for (const mm of text.matchAll(/Register(?:Public)?\(\s*"([a-z0-9_/]+)"/g)) {
+        for (const mm of text.matchAll(/Register(?:Public|Raw)?\(\s*"([a-z0-9_/]+)"/g)) {
           out.add(mm[1]);
+          // RegisterRaw takes a path prefix ("/workspace_download/"); the
+          // upstream route cmds carry no leading slash, so normalize.
+          out.add(mm[1].replace(/^\/+/, ""));
         }
         // Also commands registered through a helper that takes the command
         // name as a string arg, e.g. registerWorkTaskTransition(reg, "cmd", ...).
@@ -80,6 +83,9 @@ function scanGo(dir) {
   return out;
 }
 const implemented = scanGo(path.join(ROOT, "src-go"));
+// Routes served outside `reg.Register`: the WS endpoint is matched by path in
+// web/server.go (`if path == "/ws/events"`), so the regex above cannot see it.
+implemented.add("ws/events");
 
 // ── 3. Commands mcode-app actually calls ───────────────────────────────────
 function scanMcode() {

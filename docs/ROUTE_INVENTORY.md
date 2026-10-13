@@ -2,6 +2,9 @@
 
 自动解析自 `_upstream/ref/src-tauri/src/web/router.rs`，共 **523** 条路由、47 个模块。
 
+> 注：个别路由名里含上游品牌词（如 `get_codeg_mcp_service_status`），那是**协议契约的字面量**，
+> 客户端按原样调用，不能改名。
+
 图例：
 
 - `[x]` 已注册 · `[ ]` 未实现
@@ -10,12 +13,12 @@
 
 > 重新生成：`node scripts/gen_inventory.js`（跟进上游新功能后重跑即可）
 
-## (inline) — 1/2 · P0 1/1
+## (inline) — 2/2 · P0 1/1
 
 - [x] `/health` **[P0]**
-- [ ] `/ws/events` `get`
+- [x] `/ws/events` `get`
 
-## acp — 45/75 · P0 17/17
+## acp — 46/75 · P0 17/17
 
 - [x] `/acp_get_agent_status` **[P0]**
 - [x] `/acp_list_agents` **[P0]**
@@ -30,7 +33,7 @@
 - [x] `/acp_goal_control`
 - [x] `/acp_describe_agent_options` **[P0]**
 - [x] `/acp_cancel` **[P0]**
-- [ ] `/acp_fork`
+- [x] `/acp_fork`
 - [x] `/acp_stop_async_task`
 - [x] `/acp_respond_permission` **[P0]**
 - [x] `/acp_answer_question`
@@ -660,13 +663,13 @@
 - [x] `/work_task_template_save` **[P0]**
 - [x] `/work_task_template_delete` **[P0]**
 
-## workspace_files — 4/5
+## workspace_files — 5/5
 
 - [x] `/upload_workspace_file`
 - [x] `/workspace_download_ticket`
 - [x] `/download_workspace_file`
 - [x] `/download_workspace_dir`
-- [ ] `/workspace_download/` `get`
+- [x] `/workspace_download/` `get`
 
 ## workspace_state — 3/3
 
@@ -676,13 +679,13 @@
 
 ## 汇总
 
-- 全部路由：476/523
+- 全部路由：479/523
 - P0（mcode-app 依赖）：128/128
 
 | 模块 | 已实现 | P0 进度 |
 |---|---|---|
-| (inline) | 1/2 | 1/1 |
-| acp | 45/75 | 17/17 |
+| (inline) | 2/2 | 1/1 |
+| acp | 46/75 | 17/17 |
 | app_update | 4/4 | — |
 | automation | 11/11 | — |
 | background | 6/6 | — |
@@ -726,5 +729,5 @@
 | version_control | 12/12 | 10/10 |
 | web_server | 8/8 | — |
 | work_task | 31/31 | 29/29 |
-| workspace_files | 4/5 | — |
+| workspace_files | 5/5 | — |
 | workspace_state | 3/3 | — |

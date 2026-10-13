@@ -147,6 +147,21 @@ go test ./...         → acp / app_error / web 全绿
 
 ## 日志
 
+### 2026-10-13（完整复刻：清单校准 + acp_validate_pi_command）
+
+- **清单生成器校准（2 处误报）**：`scripts/gen_inventory.js` 此前只匹配 `Register` / `RegisterPublic`，
+  漏了 `RegisterRaw`（前缀路由）与 server.go 里按路径匹配的 `/ws/events` → 修好后
+  `/workspace_download/`（端口已有 `workspace_download_ticket.go`）与 `/ws/events` 由 `[ ]` 变 `[x]`。
+  **准确缺口：523 路由 / 已实现 479 / 缺 44**（P0 128/128 全通）。
+- **剩余 44 的分组与推进顺序（自定）**：① acp 每 agent 配置/目录/鉴权（28）；② backup 子系统（10）；
+  ③ office_watch（2）+ office_watch_proxy（3）。规模：backup 约 6.5k 行、office_watch 1.2k 行，
+  acp 组多为小配置/目录端点 + 少量 OAuth 流程。
+- **本轮落地 `acp_validate_pi_command`**（BYO-pi 二进制校验，自包含）：`resolvePiCommandPath`
+  （路径或 PATH 查找）+ `probePiVersion`（`<resolved> --version` 首行）→
+  `{found, resolvedPath, version}`（camelCase）。新增 `src-go/web/handlers/acp_pi.go`（`RegisterACPPi`）
+  + `register.go` 接线 + 测试。
+- `go build ./...` / `go vet` / `go test ./src-go/web/handlers -run Acp` 全绿。
+
 ### 2026-10-13（ACP fork —— 会话分叉 + 两行布局）
 
 - **`acp_fork` 路由落地**（端口此前完全缺失）：`AcpForkParams{connectionId, conversationId, folderId,

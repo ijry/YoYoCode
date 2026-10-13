@@ -8,6 +8,7 @@ func RegisterAll(reg *Registry) {
 	RegisterFolders(reg)
 	RegisterWebServer(reg)
 	RegisterACP(reg)
+	RegisterACPPi(reg)
 	RegisterQuickMessages(reg)
 	RegisterConversationTags(reg)
 	RegisterOpenedTabs(reg)
