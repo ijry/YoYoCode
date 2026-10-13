@@ -139,13 +139,29 @@ go test ./...         → acp / app_error / web 全绿
 - [ ] `src/app/commit` / `push` / `merge` / `stash`
 - [~] `src/app/pet` / `pet-panel`（pet-panel 会话面板接真实数据 ✅ 2026-10-13；pet sprite / marketplace 待做）
 - [x] `src/app/login`（token 门；桌面版恒有 token，等价上游 `isDesktop()` 跳过）✅ 2026-10-13
-- [ ] `src/app/project-boot`
-- [ ] `src/app/import-sessions`
+- [~] `src/app/project-boot`（诚实占位；后端 `project_boot_*` 未移植）✅ 2026-10-13
+- [~] `src/app/import-sessions`（诚实占位；后端 `import_sessions` 未移植）✅ 2026-10-13
 - [~] `src/app/computer-indicator` / `computer-marker`（indicator 条已接契约 ✅ 2026-10-13；marker 单窗口无对应实现，见日志）
 
 ---
 
 ## 日志
+
+### 2026-10-13（M5 UI 补齐第四块：project-boot / import-sessions 占位 —— 五项收官）
+
+- **`src/app/project_boot.go` / `src/app/import_sessions.go`（诚实占位）**：镜像上游
+  `src/app/project-boot`（承载 `ProjectBootWorkspace`）与 `src/app/import-sessions`（承载
+  `ImportSessionsWindow`）两条全屏路由。两者后端均为 **0 handler**（`project_boot` /
+  `import_sessions` 未移植），故按端口既有「诚实占位」约定补路由与提示文案。
+- **入口**：上游这两条是动作触发的独立窗口；本端口折进 Workspace 侧栏，新增
+  「Import sessions」/「Project boot」两个 nav 行（与既有 forge 占位行同款），
+  `viewWorkbenchRoute` 分发到对应占位视图。
+- 测试 `src/app/placeholder_routes_test.go`：选中两条路由分别渲染其独特提示
+  （`import_sessions` / `project_boot_*`，区别于 nav 标签）。
+- **M5 UI 补齐五项收官**：pet-panel（真数据）、login（门）、computer-indicator（接契约）、
+  project-boot / import-sessions（占位）—— 路线图 5 行全部处理完（computer-marker 单窗口无对应，
+  已在第三块说明）。
+- `go build ./...` / `go vet` / `go test ./src/app`（16.0s）全绿。
 
 ### 2026-10-13（M5 UI 补齐第二/三块：login 门 + /api/health 鉴权修复 + computer 指示条）
 
