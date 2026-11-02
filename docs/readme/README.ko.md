@@ -274,7 +274,7 @@ docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 어느 쪽이든 브라우저에서 `http://<host>:18080`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
 
-**모바일** — [iOS 앱](https://apps.apple.com/app/yoyo-client/id6785199071) 또는 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)를 설치한 뒤 데스크톱 앱의 **웹 서비스**나 직접 운영하는 `codeg-server`를 가리키게 하세요: 주소와 토큰만 넣으면 끝입니다. 연결 절차는 [모바일 앱](https://docs.codeg.app/getting-started/installation#mobile-apps) 참고.
+**모바일** — 모바일 앱은 [getmcode.lingyun.net](https://getmcode.lingyun.net)에서 받고, 데스크톱 앱의 **웹 서비스**나 자신의 `codeg-server`를 지정하세요: URL과 토큰이면 끝입니다. 페어링 단계는 [모바일 앱](https://docs.codeg.app/getting-started/installation#mobile-apps)을 참고하세요.
 
 Compose, 사전 빌드 바이너리, 소스 빌드, 제자리 업데이트는 [배포](https://docs.codeg.app/getting-started/deployment)에서, 환경 변수는 [설정](https://docs.codeg.app/getting-started/configuration)에서 다룹니다.
 

@@ -274,7 +274,7 @@ docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 En ambos casos, abre `http://<host>:18080` en un navegador e introduce el token de acceso que el servidor muestra al arrancar (en el contenedor, lo ves con `docker logs`), o define `CODEG_TOKEN` para elegir el tuyo.
 
-**Móvil** — instala la [app de iOS](https://apps.apple.com/app/yoyo-client/id6785199071) o el [APK de Android](https://github.com/xintaofei/codeg-android/releases/latest) y apúntala al **Servicio Web** de tu app de escritorio o a tu propio `codeg-server`: URL, token y listo. Los pasos de vinculación están en [Apps móviles](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**Móvil** — obtén la app móvil en [getmcode.lingyun.net](https://getmcode.lingyun.net) y apúntala al **servicio web** de tu app de escritorio o a tu propio `codeg-server`: URL, token, listo. Pasos de emparejamiento en [Apps móviles](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 Compose, binarios precompilados, compilación desde el código y actualizaciones in situ se cubren en [Despliegue](https://docs.codeg.app/getting-started/deployment); las variables de entorno, en [Configuración](https://docs.codeg.app/getting-started/configuration).
 

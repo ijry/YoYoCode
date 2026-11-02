@@ -274,7 +274,7 @@ docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 无论哪种方式，都在浏览器里打开 `http://<host>:18080`，输入服务器启动时打印的访问令牌（容器用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自己指定。
 
-**移动端** — 安装 [iOS 应用](https://apps.apple.com/app/yoyo-client/id6785199071) 或 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)，再把它指向桌面应用的 **Web 服务**或你自己的 `codeg-server`：填地址、填令牌，完成。配对步骤见 [移动应用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
+**移动端** — 从 [getmcode.lingyun.net](https://getmcode.lingyun.net) 获取移动端应用，然后指向桌面应用的**Web 服务**或你自己的 `codeg-server`：填 URL 和 token 即可。配对步骤见[移动应用](https://docs.codeg.app/getting-started/installation#mobile-apps)。
 
 Compose、预编译二进制、源码构建与就地升级见 [部署](https://docs.codeg.app/zh/getting-started/deployment)；环境变量见 [配置](https://docs.codeg.app/zh/getting-started/configuration)。
 

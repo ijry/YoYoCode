@@ -274,7 +274,7 @@ docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 どちらの場合も、ブラウザで `http://<host>:18080` を開き、サーバーが起動時に出力するアクセストークンを入力します（コンテナでは `docker logs` で確認できます）。`CODEG_TOKEN` で自分で決めることもできます。
 
-**モバイル** — [iOS アプリ](https://apps.apple.com/app/yoyo-client/id6785199071) または [Android APK](https://github.com/xintaofei/codeg-android/releases/latest) をインストールし、デスクトップアプリの **Webサービス**か自分の `codeg-server` を指定するだけ：アドレスとトークンを入れれば完了です。接続手順は [モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)。
+**モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `codeg-server` を指定します：URL とトークンで完了。ペアリング手順は[モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)を参照。
 
 Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://docs.codeg.app/getting-started/deployment) に、環境変数は [設定](https://docs.codeg.app/getting-started/configuration) にあります。
 
