@@ -1,4 +1,4 @@
-//! What `codeg-cli` prints, and where.
+//! What `yoyo-cli` prints, and where.
 //!
 //! - `text`: the final reply on stdout and nothing else — with
 //!   `--output-schema`, the result's JSON on one line, or nothing when there is
@@ -252,7 +252,7 @@ impl Output {
     }
 
     /// `--detach`: the run's `init` and nothing after it — the run goes on.
-    /// `text` prints the run's id alone on stdout, for `RUN=$(codeg-cli …)`.
+    /// `text` prints the run's id alone on stdout, for `RUN=$(yoyo-cli …)`.
     pub fn detached(&self, init: &RunEvent) {
         let run_id = init.run_id.clone().unwrap_or_default();
         match self.format {
@@ -266,7 +266,7 @@ impl Output {
             _ => "",
         };
         self.note(&format!(
-            "codeg-cli: the run goes on in Codeg ({link}); collect it with `codeg-cli result \
+            "yoyo-cli: the run goes on in Codeg ({link}); collect it with `yoyo-cli result \
              {run_id}`"
         ));
     }
@@ -282,7 +282,7 @@ impl Output {
             .map(|l| format!(" ({l})"))
             .unwrap_or_default();
         self.note(&format!(
-            "codeg-cli: run {} is still {}{link}; it was not cancelled",
+            "yoyo-cli: run {} is still {}{link}; it was not cancelled",
             status.run_id,
             match status.state {
                 RunState::Reserved | RunState::Starting => "starting",
@@ -292,7 +292,7 @@ impl Output {
     }
 
     pub fn error_lines(&self, message: &str, next_steps: &[String]) {
-        self.stderr_line(&format!("codeg-cli: {}", self.marked(message)));
+        self.stderr_line(&format!("yoyo-cli: {}", self.marked(message)));
         for step in next_steps {
             self.stderr_line(&format!("  try: {step}"));
         }
@@ -306,7 +306,7 @@ impl Output {
     pub fn denial_hint(&self, refused: usize) {
         if refused > 0 && self.hint_denials.load(Ordering::Relaxed) && !self.quiet {
             self.stderr_line(&format!(
-                "codeg-cli: {refused} permission request(s) were refused by --permissions deny; \
+                "yoyo-cli: {refused} permission request(s) were refused by --permissions deny; \
                  --permissions allow lets them through once each, or set the agent's own mode \
                  with --mode"
             ));
@@ -384,7 +384,7 @@ impl Output {
 
 fn heartbeat_line(elapsed: Duration, tool_calls: u64) -> String {
     let minutes = elapsed.as_secs() / 60;
-    format!("codeg-cli: still running ({minutes}m so far, {tool_calls} tool calls)")
+    format!("yoyo-cli: still running ({minutes}m so far, {tool_calls} tool calls)")
 }
 
 /// A progress line for an event, in `text` mode.
@@ -472,7 +472,7 @@ mod tests {
     fn the_heartbeat_says_how_long_and_how_much() {
         assert_eq!(
             heartbeat_line(Duration::from_secs(185), 7),
-            "codeg-cli: still running (3m so far, 7 tool calls)"
+            "yoyo-cli: still running (3m so far, 7 tool calls)"
         );
     }
 

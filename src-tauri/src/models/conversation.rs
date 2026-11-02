@@ -78,7 +78,7 @@ pub struct DbConversationSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assistant_name: Option<String>,
     /// Mirror of `conversation.source`: `"cli"` for a conversation a
-    /// `codeg-cli` run started. Absent on every other row.
+    /// `yoyo-cli` run started. Absent on every other row.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     /// Ids of the tags on this conversation, ascending. Not stored on the row —

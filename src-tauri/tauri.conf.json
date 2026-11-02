@@ -32,7 +32,7 @@
     "externalBin": [
       "binaries/codeg-mcp",
       "binaries/codeg-computer-helper",
-      "binaries/codeg-cli"
+      "binaries/yoyo-cli"
     ],
     "windows": {
       "nsis": {

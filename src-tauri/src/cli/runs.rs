@@ -1,5 +1,5 @@
 //! `result` and `cancel`: a run this command did not start, or let go of —
-//! one started with `--detach`, or one whose `codeg-cli` lost its runtime.
+//! one started with `--detach`, or one whose `yoyo-cli` lost its runtime.
 //!
 //! A run is named by its id or by at least 8 characters from its start. The
 //! runtime keeps a settled run's result for 30 minutes; `result` never
@@ -32,7 +32,7 @@ pub async fn result(global: &GlobalArgs, args: &ResultArgs, env: &Env) -> i32 {
         outcome = result_inner(global, args, env, &out, &mut run_ref) => outcome,
         code = signals.recv() => Err(Failure::interrupted(
             code,
-            "interrupted; the run was not cancelled (`codeg-cli cancel` cancels it)",
+            "interrupted; the run was not cancelled (`yoyo-cli cancel` cancels it)",
         )),
     };
     match outcome {

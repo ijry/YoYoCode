@@ -34,7 +34,7 @@ const MAX_ERROR_CHARS: usize = 300;
 /// resolves elsewhere, and is refused.
 const SCHEMA_URL: &str = "https://codeg.invalid/output-schema.json";
 
-/// The checks that need no compiled schema — also made by `codeg-cli` before
+/// The checks that need no compiled schema — also made by `yoyo-cli` before
 /// it sends one: a JSON object, at most [`MAX_OUTPUT_SCHEMA_BYTES`], whose
 /// root takes objects only.
 pub fn check_shape(schema: &Value) -> Result<(), String> {

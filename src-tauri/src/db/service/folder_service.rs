@@ -219,7 +219,7 @@ pub async fn ensure_folder_for_path(
 }
 
 /// [`ensure_folder_for_path`] for a worktree a background producer made under
-/// the root folder `root_id` (a `codeg-cli --worktree` run): a new row is
+/// the root folder `root_id` (a `yoyo-cli --worktree` run): a new row is
 /// recorded under that root — closed, as every row this family makes — and an
 /// existing live one is left as it is.
 pub async fn ensure_worktree_folder_closed(
@@ -287,7 +287,7 @@ async fn ensure_folder_inner(
         match active.insert(conn).await {
             Ok(model) => model,
             // Another caller made the row meanwhile — the runs of one
-            // `codeg-cli -a x -a y` in a new workspace, started together, say
+            // `yoyo-cli -a x -a y` in a new workspace, started together, say
             // (`UNIQUE(path)`): the row it made is this caller's too.
             Err(err) => match folder::Entity::find()
                 .filter(folder::Column::Path.eq(path))

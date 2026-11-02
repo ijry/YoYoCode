@@ -148,7 +148,7 @@ mkdir -p "$T/install" "$T/other" "$T/stale" "$T/elsewhere" "$T/stale-link" \
 # INSTALL_DIR is given through a symlink, as /usr/local/bin may be.
 ln -s "$T/install" "$T/linked"
 for _f in install/codeg-server install/codeg-mcp other/codeg-server other/codeg-mcp \
-  stale/codeg-server stale/codeg-mcp stale/codeg-cli elsewhere/codeg-server \
+  stale/codeg-server stale/codeg-mcp stale/yoyo-cli elsewhere/codeg-server \
   releases/codeg-server-v1 mapper; do
   cp "$T/fake" "$T/$_f"
 done
@@ -261,7 +261,7 @@ OTHER="$(spawn "$T/other/codeg-server")"
 OTHER_MCP="$(spawn "$T/other/codeg-mcp")"
 STALE="$(spawn "$T/stale/codeg-server")"
 STALE_MCP="$(spawn "$T/stale/codeg-mcp")"
-STALE_CLI="$(spawn "$T/stale/codeg-cli")"
+STALE_CLI="$(spawn "$T/stale/yoyo-cli")"
 LINK_TARGET="$(spawn "$T/elsewhere/codeg-server")"
 # A program that has the install's file mapped, without running it.
 MAPPER="$(spawn "$T/mapper" --map "$T/install/codeg-server")"
@@ -308,7 +308,7 @@ if [ "$IS_ROOT" -eq 0 ]; then
 fi
 
 section "1. cleanup on" "$T/linked" 1 \
-  "$T/stale/codeg-server" "$T/stale/codeg-mcp" "$T/stale/codeg-cli" "$T/stale-link/codeg-server"
+  "$T/stale/codeg-server" "$T/stale/codeg-mcp" "$T/stale/yoyo-cli" "$T/stale-link/codeg-server"
 expect_stopped "1: started from a file since replaced" "$DELETED"
 expect_stopped "1: started by its absolute path" "$ABSOLUTE"
 expect_stopped "1: started by a relative path" "$RELATIVE"
@@ -319,7 +319,7 @@ expect_stopped "1: a stale codeg-server cleanup removes" "$STALE"
 expect_stopped "1: a stale codeg-mcp cleanup removes" "$STALE_MCP"
 expect_running "1: a codeg-server of another directory" "$OTHER"
 expect_running "1: a codeg-mcp of another directory" "$OTHER_MCP"
-expect_running "1: a stale codeg-cli" "$STALE_CLI"
+expect_running "1: a stale yoyo-cli" "$STALE_CLI"
 expect_running "1: what a stale link that cleanup removes points to" "$LINK_TARGET"
 expect_running "1: a program that only maps the install's file" "$MAPPER"
 if [ -n "$ELSEWHERE" ]; then

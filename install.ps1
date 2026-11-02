@@ -40,7 +40,7 @@ if (-not $InstallDir) {
 # functions use and which PowerShell does not move.
 $InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir)
 # A desktop app folder's bin\ is the desktop's too: it holds the copy of its
-# codeg-cli.exe that goes on PATH.
+# yoyo-cli.exe that goes on PATH.
 function Test-DesktopBinDir([string]$Dir) {
     try {
         $Dir = $Dir.TrimEnd('\', '/')
@@ -53,11 +53,11 @@ function Test-DesktopBinDir([string]$Dir) {
     }
 }
 if (Test-Path -LiteralPath (Join-Path $InstallDir "codeg.exe") -PathType Leaf) {
-    Write-Error "$InstallDir holds the codeg desktop app, whose codeg-mcp.exe, codeg-computer-helper.exe, codeg-cli.exe and web\ the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
+    Write-Error "$InstallDir holds the codeg desktop app, whose codeg-mcp.exe, codeg-computer-helper.exe, yoyo-cli.exe and web\ the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
     exit 1
 }
 if (Test-DesktopBinDir $InstallDir) {
-    Write-Error "$InstallDir is the codeg desktop app's bin\ folder, whose codeg-cli.exe the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
+    Write-Error "$InstallDir is the codeg desktop app's bin\ folder, whose yoyo-cli.exe the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
     exit 1
 }
 
@@ -67,9 +67,9 @@ if (Test-DesktopBinDir $InstallDir) {
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
 $ManagedBins = @("codeg-server", "codeg-mcp")
-# Looked for on PATH as well: the two above, and codeg-cli, the command-line
+# Looked for on PATH as well: the two above, and yoyo-cli, the command-line
 # client the release ships beside them (older releases do not).
-$ScannedBins = @("codeg-server", "codeg-mcp", "codeg-cli")
+$ScannedBins = @("codeg-server", "codeg-mcp", "yoyo-cli")
 
 # Stale codeg-server / codeg-mcp binaries elsewhere in PATH are removed by
 # default so the user's `codeg-server` command always runs the freshly
@@ -176,7 +176,7 @@ foreach ($dir in $pathDirs) {
         break
     }
     # In the desktop app's folder only a codeg-server.exe is a server's
-    # leftover: the codeg-mcp.exe and codeg-cli.exe there are the desktop
+    # leftover: the codeg-mcp.exe and yoyo-cli.exe there are the desktop
     # app's own, and so is everything in its bin\ folder.
     $desktopDir = Test-Path -LiteralPath (Join-Path $dir "codeg.exe") -PathType Leaf
     $desktopBin = Test-DesktopBinDir $dir
@@ -188,7 +188,7 @@ foreach ($dir in $pathDirs) {
                 if ($seenReal.ContainsKey($real)) { continue }
                 $seenReal[$real] = $true
                 if ($desktopBin -or ($desktopDir -and $name -ne "codeg-server")) {
-                    if ($name -eq "codeg-cli") { $DesktopShadows += $bin }
+                    if ($name -eq "yoyo-cli") { $DesktopShadows += $bin }
                     continue
                 }
                 $PathConflicts += $bin
@@ -238,9 +238,9 @@ if ($PathConflicts.Count -gt 0) {
     Write-Host ""
     Write-Host "Found other codeg-server binaries in PATH that may shadow ${DestBin}:"
     foreach ($c in $PathConflicts) {
-        if ((Split-Path -Leaf $c) -like "codeg-cli*") {
-            # Only removed if this release ships a codeg-cli (known once extracted).
-            Write-Host "  - $c  (removed if this release includes codeg-cli)"
+        if ((Split-Path -Leaf $c) -like "yoyo-cli*") {
+            # Only removed if this release ships a yoyo-cli (known once extracted).
+            Write-Host "  - $c  (removed if this release includes yoyo-cli)"
             continue
         }
         $cv = Read-BinVersion $c
@@ -277,9 +277,9 @@ $Changing = @(
     (Join-Path $InstallDir "codeg-computer-helper.exe")
 )
 if ($Cleanup) {
-    # A codeg-cli is never stopped for this: a run in progress is the user's.
+    # A yoyo-cli is never stopped for this: a run in progress is the user's.
     # One in use is moved aside instead (see the install below).
-    $Changing += @($PathConflicts | Where-Object { (Split-Path -Leaf $_) -notlike "codeg-cli*" })
+    $Changing += @($PathConflicts | Where-Object { (Split-Path -Leaf $_) -notlike "yoyo-cli*" })
     if ($MoveFrom) { $Changing += (Join-Path $MoveFrom "codeg-server.exe") }
 }
 $Changing = @($Changing | ForEach-Object {
@@ -387,18 +387,18 @@ foreach ($name in $ManagedBins) {
         exit 1
     }
 }
-# codeg-cli.exe: the command-line client (`codeg-cli run …`), installed when
+# yoyo-cli.exe: the command-line client (`yoyo-cli run …`), installed when
 # the release ships it. A running exe cannot be replaced, but it can be
-# renamed: the current one is moved aside to `codeg-cli.exe.old-<time>` FIRST —
+# renamed: the current one is moved aside to `yoyo-cli.exe.old-<time>` FIRST —
 # before any file is changed, so a failure leaves the old install whole — and
 # a CLI in the middle of a run (the user's) keeps going from the renamed file.
 # Asides no longer in use are deleted below, now and on later installs.
-$CliSrc = Join-Path $ArtifactDir "codeg-cli.exe"
-$CliDst = Join-Path $InstallDir "codeg-cli.exe"
+$CliSrc = Join-Path $ArtifactDir "yoyo-cli.exe"
+$CliDst = Join-Path $InstallDir "yoyo-cli.exe"
 $CliStatus = "absent"
 $CliAside = ""
 if (Test-Path -LiteralPath $CliDst -PathType Leaf) {
-    $CliAside = Join-Path $InstallDir "codeg-cli.exe.old-$(Get-Date -Format yyyyMMddHHmmssfff)"
+    $CliAside = Join-Path $InstallDir "yoyo-cli.exe.old-$(Get-Date -Format yyyyMMddHHmmssfff)"
     try {
         Rename-Item -LiteralPath $CliDst -NewName (Split-Path -Leaf $CliAside) -ErrorAction Stop
     } catch {
@@ -406,14 +406,14 @@ if (Test-Path -LiteralPath $CliDst -PathType Leaf) {
         $users = @()
         if ($script:CimWorks) {
             try {
-                $users = @(Get-CimInstance Win32_Process -Filter "Name = 'codeg-cli.exe'" -OperationTimeoutSec 15 -ErrorAction Stop |
+                $users = @(Get-CimInstance Win32_Process -Filter "Name = 'yoyo-cli.exe'" -OperationTimeoutSec 15 -ErrorAction Stop |
                     Where-Object { $_.ExecutablePath -and ([System.IO.Path]::GetFullPath($_.ExecutablePath) -eq [System.IO.Path]::GetFullPath($CliDst)) } |
                     ForEach-Object { $_.ProcessId })
             } catch {}
         }
         $who = if ($users.Count -gt 0) { " (in use by PID $($users -join ', '))" } else { "" }
         $stopped = if ($WasRunning) { " codeg-server was stopped for the upgrade: start it again." } else { "" }
-        Write-Error "Cannot move $CliDst aside to replace it$who, so no file was changed. Let that codeg-cli finish, then run the installer again.$stopped $why"
+        Write-Error "Cannot move $CliDst aside to replace it$who, so no file was changed. Let that yoyo-cli finish, then run the installer again.$stopped $why"
         exit 1
     }
     $CliStatus = "removed"
@@ -430,15 +430,15 @@ try {
         $CliStatus = "installed"
     }
 } catch {
-    # The install stops here: the codeg-cli moved aside goes back in place.
+    # The install stops here: the yoyo-cli moved aside goes back in place.
     if ($CliAside -and -not (Test-Path -LiteralPath $CliDst)) {
-        Rename-Item -LiteralPath $CliAside -NewName "codeg-cli.exe" -ErrorAction SilentlyContinue
+        Rename-Item -LiteralPath $CliAside -NewName "yoyo-cli.exe" -ErrorAction SilentlyContinue
     }
     throw
 }
-# Without a codeg-cli in this release (a downgrade) the one moved aside above
+# Without a yoyo-cli in this release (a downgrade) the one moved aside above
 # stays removed: a newer CLI would talk to an older server.
-Get-ChildItem -LiteralPath $InstallDir -Filter "codeg-cli.exe.old-*" -ErrorAction SilentlyContinue |
+Get-ChildItem -LiteralPath $InstallDir -Filter "yoyo-cli.exe.old-*" -ErrorAction SilentlyContinue |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
 # codeg-computer-helper.exe: computer use, which codeg-server offers only when
 # started with CODEG_COMPUTER_USE=1 in a desktop session. Installed when the
@@ -485,9 +485,9 @@ Remove-Item $TmpDir -Recurse -Force -ErrorAction SilentlyContinue
 
 $ExitStatus = 0
 
-# Without a codeg-cli in this release there is nothing a stale one shadows.
+# Without a yoyo-cli in this release there is nothing a stale one shadows.
 if ($CliStatus -ne "installed") {
-    $PathConflicts = @($PathConflicts | Where-Object { (Split-Path -Leaf $_) -notlike "codeg-cli*" })
+    $PathConflicts = @($PathConflicts | Where-Object { (Split-Path -Leaf $_) -notlike "yoyo-cli*" })
 }
 
 if ($Cleanup -and $PathConflicts.Count -gt 0) {
@@ -499,9 +499,9 @@ if ($Cleanup -and $PathConflicts.Count -gt 0) {
             Write-Host "  removed $c"
         } catch {
             $why = $_.Exception.Message
-            # A codeg-cli still running: out of the way by name, gone once it ends.
+            # A yoyo-cli still running: out of the way by name, gone once it ends.
             $moved = $false
-            if ((Split-Path -Leaf $c) -like "codeg-cli*") {
+            if ((Split-Path -Leaf $c) -like "yoyo-cli*") {
                 try {
                     Rename-Item -LiteralPath $c -NewName "$(Split-Path -Leaf $c).old-$(Get-Date -Format yyyyMMddHHmmssfff)" -ErrorAction Stop
                     Write-Host "  moved $c aside (still running; delete the .old file once it ends)"
@@ -520,7 +520,7 @@ if ($CliStatus -eq "installed" -and $DesktopShadows.Count -gt 0) {
     Write-Host ""
     Write-Host "Kept (they belong to the codeg desktop app, and come before $InstallDir on PATH):"
     foreach ($c in $DesktopShadows) {
-        Write-Host "  $c  (typing 'codeg-cli' runs this one, the same program)"
+        Write-Host "  $c  (typing 'yoyo-cli' runs this one, the same program)"
     }
 }
 
@@ -582,9 +582,9 @@ Write-Host ""
 Write-Host "codeg-server installed to $InstallDir\codeg-server.exe"
 Write-Host "codeg-mcp    installed to $InstallDir\codeg-mcp.exe"
 if ($CliStatus -eq "installed") {
-    Write-Host "codeg-cli    installed to $CliDst"
+    Write-Host "yoyo-cli    installed to $CliDst"
 } elseif ($CliStatus -eq "removed") {
-    Write-Host "codeg-cli    removed: this release has none"
+    Write-Host "yoyo-cli    removed: this release has none"
 }
 Write-Host "Version: $InstalledVer"
 

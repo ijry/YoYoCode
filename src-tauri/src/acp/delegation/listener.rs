@@ -176,7 +176,7 @@ pub struct DelegationListener {
     /// `NoComputerDesktop` — and like it, re-checks its switch at call time.
     pub computer: Arc<dyn ComputerToolAccess>,
     /// The schema `submit_result` takes, and the results handed in with it,
-    /// on the root connection of a `codeg-cli` run given `--output-schema`.
+    /// on the root connection of a `yoyo-cli` run given `--output-schema`.
     /// Same token → parent-connection scoping as the delegation arms.
     pub results: Arc<dyn ResultToolAccess>,
 }

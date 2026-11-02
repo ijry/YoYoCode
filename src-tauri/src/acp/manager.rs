@@ -745,7 +745,7 @@ impl ConnectionManager {
         .await
     }
 
-    /// A fresh connection for the root of a `codeg-cli` run, marked as the
+    /// A fresh connection for the root of a `yoyo-cli` run, marked as the
     /// run's from the moment it exists — before its agent starts, so the
     /// codeg-mcp it is given knows the run ([`crate::cli_run::RootSeed`]).
     #[allow(clippy::too_many_arguments)]
@@ -852,7 +852,7 @@ impl ConnectionManager {
         );
         // Every connection's processes know which connection they belong to,
         // whoever started it (UI, automation, delegation, CLI), so a nested
-        // `codeg-cli` call can be traced back to it. Kept out of the config
+        // `yoyo-cli` call can be traced back to it. Kept out of the config
         // fingerprint (`is_volatile_fingerprint_key`).
         runtime_env.insert(
             crate::cli_run::CLI_CALLER_ENV.to_string(),

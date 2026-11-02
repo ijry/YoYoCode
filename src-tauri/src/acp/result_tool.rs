@@ -1,5 +1,5 @@
 //! Listener-facing access for `submit_result`, the tool codeg-mcp gives the
-//! root connection of a `codeg-cli` run started with `--output-schema`. The
+//! root connection of a `yoyo-cli` run started with `--output-schema`. The
 //! listener resolves the caller's connection from its per-launch token and
 //! comes here: for the schema, when the companion lists its tools, and with
 //! each result the agent hands in. Kept as a trait so the listener stays

@@ -12,7 +12,7 @@
 //! (resolve a referenced session by id) — whose schemas are embedded at compile
 //! time from [`TOOL_SCHEMA_JSON`] and gated by the `--features` groups (delegation
 //! / feedback / ask / sessions). `submit_result` (the `result` group of a
-//! `codeg-cli --output-schema` run) is the one tool not embedded: its input
+//! `yoyo-cli --output-schema` run) is the one tool not embedded: its input
 //! schema is the run's own, asked of the parent. Only `delegate_to_agent`
 //! registers a broker-side cancel handle; canceling a status / cancel /
 //! feedback / session round-trip merely suppresses its response — and for
@@ -168,7 +168,7 @@ pub struct CompanionFeatures {
     /// only into spawns launched by the task engine.
     pub tasks: bool,
     /// `submit_result` — injected only into the root connection of a
-    /// `codeg-cli` run given `--output-schema`. Its input schema is that run's
+    /// `yoyo-cli` run given `--output-schema`. Its input schema is that run's
     /// schema, asked of the parent at `tools/list` time.
     pub result: bool,
     /// `create_automation` — save a scheduled/manual automation from chat.

@@ -1,4 +1,4 @@
-//! `/api/cli_*`: the routes `codeg-cli` talks to.
+//! `/api/cli_*`: the routes `yoyo-cli` talks to.
 //!
 //! Mounted twice, on the same handlers: under the main `/api` router (main
 //! token; how CI reaches a remote `codeg-server`), and on the loopback-only
@@ -77,7 +77,7 @@ async fn hello(
         return Err(CliError::incompatible(
             "api_version",
             format!(
-                "this codeg speaks CLI API {}, the CLI speaks {}; use a codeg-cli from the same \
+                "this codeg speaks CLI API {}, the CLI speaks {}; use a yoyo-cli from the same \
                  release as this codeg ({})",
                 wire::API_VERSION,
                 req.api_version,

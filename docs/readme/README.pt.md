@@ -184,7 +184,7 @@ Compartilhe páginas e erros do navegador desktop. Uso do computador (prévia) o
 
 ### Linha de comando e CI
 
-`codeg-cli` conecta scripts e CI a um YoYoCode em execução e exibe respostas ou eventos JSON.
+`yoyo-cli` conecta scripts e CI a um YoYoCode em execução e exibe respostas ou eventos JSON.
 
 [Documentação →](https://docs.codeg.app/guide/command-line)
 
@@ -192,10 +192,10 @@ Compartilhe páginas e erros do navegador desktop. Uso do computador (prévia) o
 <td width="50%" valign="middle">
 
 ```bash
-codeg-cli -a codex \
+yoyo-cli -a codex \
   -p "Review the latest commit"
 
-git diff | codeg-cli -a codex \
+git diff | yoyo-cli -a codex \
   -p "Review this diff"
 ```
 
@@ -269,12 +269,12 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — o mesmo servidor, em um contêiner:
 
 ```bash
-docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-Nos dois casos, abra `http://<host>:3080` no navegador e informe o token de acesso que o servidor exibe ao iniciar (no contêiner, veja com `docker logs`), ou defina `CODEG_TOKEN` para escolher o seu.
+Nos dois casos, abra `http://<host>:18080` no navegador e informe o token de acesso que o servidor exibe ao iniciar (no contêiner, veja com `docker logs`), ou defina `CODEG_TOKEN` para escolher o seu.
 
-**Celular e tablet** — instale o [app de iOS](https://apps.apple.com/app/codeg-client/id6785199071) ou o [APK do Android](https://github.com/xintaofei/codeg-android/releases/latest) e aponte-o para o **Serviço Web** do seu aplicativo de desktop ou para o seu próprio `codeg-server`: URL, token, pronto. Os passos de pareamento estão em [Aplicativos móveis](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**Celular e tablet** — instale o [app de iOS](https://apps.apple.com/app/yoyo-client/id6785199071) ou o [APK do Android](https://github.com/xintaofei/codeg-android/releases/latest) e aponte-o para o **Serviço Web** do seu aplicativo de desktop ou para o seu próprio `codeg-server`: URL, token, pronto. Os passos de pareamento estão em [Aplicativos móveis](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 Compose, binários pré-compilados, builds a partir do código e atualizações no lugar estão em [Implantação](https://docs.codeg.app/getting-started/deployment); variáveis de ambiente, em [Configuração](https://docs.codeg.app/getting-started/configuration).
 

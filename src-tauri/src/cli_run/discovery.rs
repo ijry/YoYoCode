@@ -1,4 +1,4 @@
-//! Discovery files: how a `codeg-cli` on this machine finds the runtimes it
+//! Discovery files: how a `yoyo-cli` on this machine finds the runtimes it
 //! may talk to, and the token for each.
 //!
 //! Every runtime with command-line access on publishes

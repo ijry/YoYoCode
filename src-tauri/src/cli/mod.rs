@@ -1,4 +1,4 @@
-//! `codeg-cli`: run a prompt through a running codeg — the desktop app or a
+//! `yoyo-cli`: run a prompt through a running codeg — the desktop app or a
 //! `codeg-server` — from a script or a CI job, without opening its window
 //! (issue #694).
 //!
@@ -91,7 +91,7 @@ impl Failure {
     }
 }
 
-/// The process entry point of the `codeg-cli` binary.
+/// The process entry point of the `yoyo-cli` binary.
 pub fn main() -> ExitCode {
     let cli = match Cli::parse_from(std::env::args_os()) {
         Ok(cli) => cli,
@@ -109,7 +109,7 @@ pub fn main() -> ExitCode {
     {
         Ok(rt) => rt,
         Err(e) => {
-            eprintln!("codeg-cli: cannot start: {e}");
+            eprintln!("yoyo-cli: cannot start: {e}");
             return ExitCode::from(1);
         }
     };

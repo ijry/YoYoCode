@@ -496,7 +496,7 @@ impl TerminalManager {
                 cmd.env(key, value);
             }
         }
-        // codeg's own codeg-cli first (`cli_run::shim`). Said here because
+        // codeg's own yoyo-cli first (`cli_run::shim`). Said here because
         // on Windows portable-pty rebuilds PATH from the registry, dropping
         // what this process put on its own.
         if let Some(dir) = crate::cli_run::shim::path_dir() {

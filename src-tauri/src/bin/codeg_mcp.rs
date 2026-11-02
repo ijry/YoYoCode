@@ -4,7 +4,7 @@
 //! steering notes), `ask_user_question` (block on a multiple-choice card), and
 //! `get_session_info` (resolve a referenced session by id), plus the
 //! chat-authoring tools (`create_automation` / `create_work_task`) and the
-//! `submit_result` of a `codeg-cli --output-schema` run, gated by the
+//! `submit_result` of a `yoyo-cli --output-schema` run, gated by the
 //! `--features` groups (`delegation` / `feedback` / `ask` / `sessions` /
 //! `tasks` / `result` / `automations` / `taskboard`).
 //!

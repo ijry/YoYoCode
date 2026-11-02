@@ -1,4 +1,4 @@
-//! How a headless `codeg-cli` run answers what the agent asks: permission
+//! How a headless `yoyo-cli` run answers what the agent asks: permission
 //! requests, `ask_user_question`-style questions and Grok plan approvals.
 //!
 //! Options are always chosen by the KIND `connection.rs` normalized them to
@@ -121,7 +121,7 @@ pub fn decide_permission(
 
 /// A run's mark on a connection that belongs to it: its root connection, or a
 /// delegation child that inherited the mark when it was spawned. Delegated
-/// children answer by the same policy; a nested `codeg-cli` call made from
+/// children answer by the same policy; a nested `yoyo-cli` call made from
 /// inside the connection takes its depth and its policy ceiling from here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CliRunTag {

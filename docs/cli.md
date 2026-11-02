@@ -1,15 +1,15 @@
-# Command line: `codeg-cli`
+# Command line: `yoyo-cli`
 
-`codeg-cli` runs one prompt through a Codeg that is already running — the
+`yoyo-cli` runs one prompt through a Codeg that is already running — the
 desktop app or `codeg-server` — and prints the agent's reply. No window opens.
 The run is an ordinary conversation: it is listed in Codeg with the others,
 where you can read it, answer what the agent asks, and carry it on. A terminal
 mark sets it apart, and the Recent section's filter can show only those.
 
 ```bash
-codeg-cli -a claude_code -p "Review the latest commit"
-git diff main | codeg-cli -a codex -p "Review this diff" -o review.md
-codeg-cli --assistant code-reviewer "Review the latest commit"
+yoyo-cli -a claude_code -p "Review the latest commit"
+git diff main | yoyo-cli -a codex -p "Review this diff" -o review.md
+yoyo-cli --assistant code-reviewer "Review the latest commit"
 ```
 
 - [Install](#install)
@@ -27,45 +27,45 @@ codeg-cli --assistant code-reviewer "Review the latest commit"
 
 ## Install
 
-`codeg-cli` comes with every package: the desktop app, `codeg-server`, and the
+`yoyo-cli` comes with every package: the desktop app, `codeg-server`, and the
 Docker image.
 
-| Package | `codeg-cli` | On PATH |
+| Package | `yoyo-cli` | On PATH |
 | --- | --- | --- |
-| Linux `.deb` / `.rpm` | `/usr/bin/codeg-cli` | Yes |
-| macOS app | `codeg.app/Contents/MacOS/codeg-cli` | Install command-line tool, below |
-| Windows installer | `%LOCALAPPDATA%\codeg\bin\codeg-cli.exe` | Install command-line tool, below |
+| Linux `.deb` / `.rpm` | `/usr/bin/yoyo-cli` | Yes |
+| macOS app | `codeg.app/Contents/MacOS/yoyo-cli` | Install command-line tool, below |
+| Windows installer | `%LOCALAPPDATA%\codeg\bin\yoyo-cli.exe` | Install command-line tool, below |
 | AppImage | Inside the image, copied out at every start | Install command-line tool, below |
 | `install.sh` / `install.ps1` | Next to `codeg-server` | Yes |
-| Docker image | `/usr/local/bin/codeg-cli` | Yes |
+| Docker image | `/usr/local/bin/yoyo-cli` | Yes |
 
 **Install command-line tool.** In the desktop app, Settings → System →
-Command-line access has a button that puts `codeg-cli` on your PATH: on macOS
+Command-line access has a button that puts `yoyo-cli` on your PATH: on macOS
 a link in `/usr/local/bin` (macOS asks for an administrator's password when
 the folder needs one), on Windows the installer's `bin` folder on your PATH,
-for an AppImage a link in `~/.local/bin`. A `codeg-cli` already there that is
+for an AppImage a link in `~/.local/bin`. A `yoyo-cli` already there that is
 not the app's — the one `install.sh` puts there with `codeg-server`, say — is
 left alone: the two are the same program. The steps below do the same by
 hand.
 
-**In Codeg's own terminals and agents**, the app's own `codeg-cli` comes first
-on PATH, and `CODEG_CLI` names it: a `codeg-cli` typed there is always the
+**In Codeg's own terminals and agents**, the app's own `yoyo-cli` comes first
+on PATH, and `CODEG_CLI` names it: a `yoyo-cli` typed there is always the
 app's release. A login shell may put its own PATH first; `"$CODEG_CLI"` is the
 app's whatever the PATH. A development build calls its command
-`codeg-cli-dev`, so it never takes the place of an installed release.
+`yoyo-cli-dev`, so it never takes the place of an installed release.
 
 **macOS.** Link the app's copy into a folder on PATH:
 
 ```bash
 sudo mkdir -p /usr/local/bin
-sudo ln -s /Applications/codeg.app/Contents/MacOS/codeg-cli /usr/local/bin/codeg-cli
+sudo ln -s /Applications/codeg.app/Contents/MacOS/yoyo-cli /usr/local/bin/yoyo-cli
 ```
 
-Without `-f`, `ln` does not replace a `codeg-cli` that is already there — one
+Without `-f`, `ln` does not replace a `yoyo-cli` that is already there — one
 `install.sh` put there with `codeg-server`, say. The two are the same program:
 keep either.
 
-**Windows.** The installer puts a copy of `codeg-cli.exe` in a `bin` folder of
+**Windows.** The installer puts a copy of `yoyo-cli.exe` in a `bin` folder of
 its own, so that PATH gains this one program and not `codeg.exe` or the
 uninstaller beside it. Add that folder to your PATH once, then open a new
 terminal:
@@ -76,32 +76,32 @@ $path = [Environment]::GetEnvironmentVariable("Path", "User")
 [Environment]::SetEnvironmentVariable("Path", "$path;$bin", "User")
 ```
 
-If you installed Codeg in another folder, use its `bin` folder. `codeg-cli.exe`
+If you installed Codeg in another folder, use its `bin` folder. `yoyo-cli.exe`
 is a console program: it behaves the same in PowerShell, `cmd` and Git Bash,
 and a prompt reaches the agent exactly as you wrote it.
 
 **AppImage.** The release has one for x64; `tauri build` makes one for other
 machines. Its files are only there while it runs, so at every start the app
-copies its `codeg-cli` to `<data dir>/cli/bin/codeg-cli` —
+copies its `yoyo-cli` to `<data dir>/cli/bin/yoyo-cli` —
 `~/.local/share/app.codeg` by default — over the copy it wrote before, never
 over a file you changed; Install command-line tool links that copy into
 `~/.local/bin`. Until the newer app first starts, the older copy keeps working
 with it. Or take it out of the image yourself:
 
 ```bash
-./codeg.AppImage --appimage-extract usr/bin/codeg-cli
+./codeg.AppImage --appimage-extract usr/bin/yoyo-cli
 mkdir -p ~/.local/bin
-mv squashfs-root/usr/bin/codeg-cli ~/.local/bin/
+mv squashfs-root/usr/bin/yoyo-cli ~/.local/bin/
 ```
 
-**`install.sh` and `install.ps1`** put `codeg-cli` next to `codeg-server` when
-the release has it, and leave alone a desktop app's `codeg-cli` they find there
+**`install.sh` and `install.ps1`** put `yoyo-cli` next to `codeg-server` when
+the release has it, and leave alone a desktop app's `yoyo-cli` they find there
 — in its install, or the ones it keeps in its data directory for its own
 terminals.
-From 0.38.0 on, the server's in-place update brings the matching `codeg-cli`
+From 0.38.0 on, the server's in-place update brings the matching `yoyo-cli`
 with it. The update from 0.37.0 does not, as 0.37.0 knows nothing of
-`codeg-cli`: take it from the server package on the release page and put it
-next to `codeg-server`. Replacing `codeg-cli` never stops one that is running,
+`yoyo-cli`: take it from the server package on the release page and put it
+next to `codeg-server`. Replacing `yoyo-cli` never stops one that is running,
 but a run it waits on in that server ends when the upgrade stops the server.
 
 **Docker.** Run it in the container: it finds the server there by itself. The
@@ -109,27 +109,27 @@ workspace is a path in the container, e.g. under the `/projects` mount of
 `docker-compose.yml`:
 
 ```bash
-docker compose exec codeg codeg-cli -w /projects/app -a claude_code -p "Review the latest commit"
+docker compose exec codeg yoyo-cli -w /projects/app -a claude_code -p "Review the latest commit"
 ```
 
 ### Turning it on and off
 
 Settings → System → **Command-line access**, on by default, shows the endpoint
-file this Codeg publishes and a command to try. Switched off, no `codeg-cli` on
+file this Codeg publishes and a command to try. Switched off, no `yoyo-cli` on
 this computer can reach this Codeg. `--url` to a server, with the server's
 token, does not depend on it (see [Security](#security)).
 
 ## Which Codeg it talks to
 
 Every running Codeg, desktop or server, listens on a loopback port of its own
-for `codeg-cli`, and says where in a private file,
-`<data dir>/cli/endpoint-<pid>.json`. `codeg-cli` looks, in this order:
+for `yoyo-cli`, and says where in a private file,
+`<data dir>/cli/endpoint-<pid>.json`. `yoyo-cli` looks, in this order:
 
 1. `--url` with `--token` or `--token-file`: a Codeg over HTTP(S), usually a
    `codeg-server` on another machine.
 2. `--data-dir DIR`: the Codeg that keeps its data in `DIR`.
 3. `CODEG_CLI_ENDPOINT_FILE`: set by Codeg in its own terminals and for its
-   agents, so that `codeg-cli` typed there reaches the Codeg it runs in —
+   agents, so that `yoyo-cli` typed there reaches the Codeg it runs in —
    whatever your shell profile exports.
 4. `CODEG_URL` with `CODEG_TOKEN`.
 5. `CODEG_DATA_DIR`.
@@ -139,7 +139,7 @@ for `codeg-cli`, and says where in a private file,
    `%APPDATA%` on Windows.
 
 Only the first one given is used. If it fails — that Codeg is not running, or
-cannot prove it is the one in the file — `codeg-cli` stops and says that
+cannot prove it is the one in the file — `yoyo-cli` stops and says that
 nothing was sent. It never falls back to another Codeg: a conversation there
 would end up in a database nobody is looking at. In a data directory, a file
 that leads to no Codeg that answers and proves itself is skipped. When several
@@ -147,7 +147,7 @@ Codegs answer
 there, the desktop app wins, then a debug build of it, then a server, the most
 recently started first. `--runtime desktop|server` picks the kind.
 
-`codeg-cli status` lists everything it looked at, what each turned out to be,
+`yoyo-cli status` lists everything it looked at, what each turned out to be,
 and which one a run would use:
 
 | State | Meaning |
@@ -159,11 +159,11 @@ and which one a run would use:
 | `access_denied` | The operating system refused the connection — a sandbox, most likely |
 | `incompatible` | It speaks another CLI API, or cannot do what this command needs |
 
-`codeg-cli open` starts the desktop app when no desktop answers, and waits
+`yoyo-cli open` starts the desktop app when no desktop answers, and waits
 until one does (`--wait`, 60 seconds by default).
 
 **In a sandbox.** An agent's shell often may not use the network at all,
-loopback included. `codeg-cli` then fails with `error_runtime_access_denied`:
+loopback included. `yoyo-cli` then fails with `error_runtime_access_denied`:
 allow the command local network access, or run it outside the sandbox.
 Restarting Codeg does not help. An agent in Codeg is better off with Codeg's
 own delegation tools, which do not go through its shell.
@@ -171,21 +171,21 @@ own delegation tools, which do not go through its shell.
 ## Commands
 
 ```text
-codeg-cli [GLOBAL OPTIONS] [run] [RUN OPTIONS] [PROMPT]
-codeg-cli agents      [--json]
-codeg-cli agents install SLUG [--version VERSION] [--wait DUR] [--json]
-codeg-cli assistants  [--json]
-codeg-cli status      [--json]
-codeg-cli open        [--wait DUR] [--json]
-codeg-cli result      RUN [--wait DUR] [--output-format FORMAT] [-o FILE]
-codeg-cli cancel      RUN [--json]
-codeg-cli automations [list] [--json]
-codeg-cli automations run ID [--wait DUR] [--json]
+yoyo-cli [GLOBAL OPTIONS] [run] [RUN OPTIONS] [PROMPT]
+yoyo-cli agents      [--json]
+yoyo-cli agents install SLUG [--version VERSION] [--wait DUR] [--json]
+yoyo-cli assistants  [--json]
+yoyo-cli status      [--json]
+yoyo-cli open        [--wait DUR] [--json]
+yoyo-cli result      RUN [--wait DUR] [--output-format FORMAT] [-o FILE]
+yoyo-cli cancel      RUN [--json]
+yoyo-cli automations [list] [--json]
+yoyo-cli automations run ID [--wait DUR] [--json]
 ```
 
-No command means `run`: `codeg-cli "review it"` and `codeg-cli run "review it"`
+No command means `run`: `yoyo-cli "review it"` and `yoyo-cli run "review it"`
 are the same run. A first word that names a command is that command. To send
-`status` as a prompt, write `codeg-cli run status` or `codeg-cli -p status`.
+`status` as a prompt, write `yoyo-cli run status` or `yoyo-cli -p status`.
 Run options go after `run`, or with no command at all: written before `run`,
 or with another command, they are a usage error rather than quietly dropped.
 
@@ -197,7 +197,7 @@ or with another command, they are a usage error rather than quietly dropped.
 | `assistants` | The assistants to run with `--assistant` |
 | `status` | The runtimes this command can reach, and which it would use. Exit code 0 when it would use one |
 | `open` | Start the desktop app unless it is running, and wait until it answers. This computer's desktop app only |
-| `result` | The result of a run: one started with `--detach`, or one whose `codeg-cli` lost its Codeg. See [Detached runs](#detached-runs) |
+| `result` | The result of a run: one started with `--detach`, or one whose `yoyo-cli` lost its Codeg. See [Detached runs](#detached-runs) |
 | `cancel` | Cancel a run |
 | `automations` | The automations saved in Codeg; `automations run ID` runs one now. See [Automations](#automations) |
 
@@ -220,8 +220,8 @@ Global options:
 | --- | --- |
 | `-p`, `--prompt TEXT` | The prompt. `-` reads it from stdin. It can also be the last argument |
 | `-w`, `--workspace DIR` (`--cd`, `-C`) | Where the agent works. By default the current directory; a relative path is taken from it. With `--url`, a path on the server's machine: required, and sent as written |
-| `-a`, `--agent SLUG` | The agent: `claude_code`, `codex`, … (`codeg-cli agents`). Again for another run: see [Several agents at once](#several-agents-at-once) |
-| `-A`, `--assistant NAME\|ID` | Run as an assistant: its agent, settings and instructions (`codeg-cli assistants`). A number is an id before it is a name |
+| `-a`, `--agent SLUG` | The agent: `claude_code`, `codex`, … (`yoyo-cli agents`). Again for another run: see [Several agents at once](#several-agents-at-once) |
+| `-A`, `--assistant NAME\|ID` | Run as an assistant: its agent, settings and instructions (`yoyo-cli assistants`). A number is an id before it is a name |
 | `--max-parallel N` | With several `-a` and `-A`: how many run at once, 4 by default. The rest wait their turn |
 | `-m`, `--model VALUE` | The model, as the agent lists it |
 | `--effort LEVEL` | The thinking effort, as the agent lists it |
@@ -242,7 +242,7 @@ With neither `-a` nor `-A`, the run uses the workspace's default agent, when
 it has one.
 
 **stdin.** Piped stdin is context for the prompt:
-`git diff | codeg-cli -p "review this"` sends the prompt, then the diff.
+`git diff | yoyo-cli -p "review this"` sends the prompt, then the diff.
 Without a prompt, stdin is the prompt. A terminal or an empty device such as
 `/dev/null` is never read, so a CI job that leaves stdin open does not hang.
 The prompt and stdin may be up to 10 MiB together.
@@ -276,12 +276,12 @@ waits up to 10 seconds for it to wind up. A second one quits within two
 seconds. The exit code is 130 or 143, also when the signal comes before the
 run has started.
 
-**Losing Codeg.** When Codeg stops answering for 30 seconds, `codeg-cli` gives
+**Losing Codeg.** When Codeg stops answering for 30 seconds, `yoyo-cli` gives
 up with exit code 4. The run may still be going: the result has its link.
 
 ## Installing agents
 
-`codeg-cli agents install claude_code` installs an agent the way Settings →
+`yoyo-cli agents install claude_code` installs an agent the way Settings →
 Agents does — its npm package, or its download — at the version this Codeg
 pins, or at `--version`. It is installed where Codeg runs: with `--url`, on
 the server. An install can take minutes: it goes on in Codeg whatever becomes
@@ -291,8 +291,8 @@ with its own installer, is not installed this way.
 
 ## Automations
 
-`codeg-cli automations` lists the automations saved in Codeg, and
-`codeg-cli automations run ID` runs one now, as its Run now button does. It
+`yoyo-cli automations` lists the automations saved in Codeg, and
+`yoyo-cli automations run ID` runs one now, as its Run now button does. It
 returns once the run is under way and prints its id; `--wait DUR` waits that
 long for it to end instead, then prints the agent's reply and exits 0 when
 the run succeeded, 1 when it did not, and 6 when it has not ended yet. An
@@ -314,7 +314,7 @@ Each `-a` and `-A` is a run of the prompt of its own, numbered from 1 in the
 order written; the same one twice is two runs to compare:
 
 ```bash
-git diff main | codeg-cli -a claude_code -a codex -A reviewer -p "Review this diff" -o review.md
+git diff main | yoyo-cli -a claude_code -a codex -A reviewer -p "Review this diff" -o review.md
 ```
 
 - The prompt, stdin included, is read once, and the runs share `--timeout`.
@@ -341,15 +341,15 @@ git diff main | codeg-cli -a claude_code -a codex -A reviewer -p "Review this di
 id; the run goes on in Codeg. `result` collects it, `cancel` stops it:
 
 ```bash
-run=$(codeg-cli --detach -a codex -p "Review the latest commit")
+run=$(yoyo-cli --detach -a codex -p "Review the latest commit")
 # … other steps …
-codeg-cli result "$run" --wait 30m -o review.md
+yoyo-cli result "$run" --wait 30m -o review.md
 ```
 
 - `--detach` prints the id alone on stdout in `text`, and the run's `init`
   event in both JSON formats. It does not go with `-o`: the reply is not
   there yet. `--timeout` still counts: Codeg cancels the run when it runs out,
-  with no `codeg-cli` left to wait for it.
+  with no `yoyo-cli` left to wait for it.
 - `result RUN` prints the run's result as `run` would have — the reply in
   `text`, the [result object](#the-result-object) in JSON — writes `-o FILE`,
   and exits with the run's [exit code](#exit-codes). Without `--wait` it looks
@@ -368,7 +368,7 @@ codeg-cli result "$run" --wait 30m -o review.md
 - Codeg keeps a finished run's result for 30 minutes, in memory: a Codeg that
   restarted no longer has it. The conversation itself stays in Codeg.
 
-The same `result` collects a run whose `codeg-cli` gave up on its Codeg —
+The same `result` collects a run whose `yoyo-cli` gave up on its Codeg —
 exit code 4, `runtime_lost` — once that Codeg answers again.
 
 ## Permissions
@@ -393,7 +393,7 @@ is approved under `allow`, left for you under `wait`, and abandoned otherwise.
 Sub-agents the run delegates to answer by the same policy.
 
 Every request, and what became of it, is an event. The refused ones are listed
-in the result's `permission_denials`, and under `deny` `codeg-cli` says on
+in the result's `permission_denials`, and under `deny` `yoyo-cli` says on
 stderr how many there were.
 
 The agent's own mode is another matter: `--mode bypassPermissions` (Claude
@@ -405,8 +405,8 @@ window, or from a chat channel. `--open` brings it to the front. When
 `--timeout` runs out while requests are still waiting, the result lists them
 in `pending`.
 
-**Runs an agent starts.** An agent can run `codeg-cli` too. A run started from
-inside a `codeg-cli` run never gets a wider policy than that run: a
+**Runs an agent starts.** An agent can run `yoyo-cli` too. A run started from
+inside a `yoyo-cli` run never gets a wider policy than that run: a
 `--permissions allow` under a `deny` run becomes `deny`, and a notice says so.
 Such a run cannot start another: runs nest one level deep. This guards against
 mistakes, not against an agent set on getting around it. A run started from a
@@ -424,7 +424,7 @@ already went through your agent's own permission check.
 In both JSON formats stdout carries JSON only. Every exit after the arguments
 were read prints a result object — a Codeg that could not be reached, a
 timeout and an interrupt included — with `is_error: true` and the reason in
-`subtype` and `error`. Only arguments `codeg-cli` cannot parse print nothing
+`subtype` and `error`. Only arguments `yoyo-cli` cannot parse print nothing
 but a message on stderr, with exit code 2. Scripts should look at both the
 exit code and `is_error`.
 
@@ -432,7 +432,7 @@ exit code and `is_error`.
 a minute, a line goes there:
 
 ```text
-codeg-cli: still running (12m so far, 31 tool calls)
+yoyo-cli: still running (12m so far, 31 tool calls)
 ```
 
 A CI system that kills a job gone silent — CircleCI does after ten minutes by
@@ -463,7 +463,7 @@ cat > verdict.json <<'EOF'
   "additionalProperties": false
 }
 EOF
-git show HEAD | codeg-cli -a claude_code --output-schema verdict.json \
+git show HEAD | yoyo-cli -a claude_code --output-schema verdict.json \
   -p "Review this commit" > result.json
 jq -r .verdict result.json
 ```
@@ -482,7 +482,7 @@ schema the same way.
 - `text` prints the result's JSON on one line, and `-o FILE` writes it, with a
   line end. In the JSON formats it is the result object's `structured_output`,
   where Claude Code puts it, so a `jq '.structured_output'` reads either;
-  `result` keeps the agent's reply. `codeg-cli result` gives it the same way,
+  `result` keeps the agent's reply. `yoyo-cli result` gives it the same way,
   for a run started with `--detach`.
 - With several `-a` and `-A` each run hands in its own. `text` prints one line
   per run, in the order written: its result's JSON, or `null` for one without,
@@ -532,7 +532,7 @@ new meaning.
 When `is_error` is true, the result's `error` says what went wrong:
 
 ```json
-{"code": "unknown_agent", "message": "\"claud\" is not an agent", "next_steps": ["codeg-cli agents"]}
+{"code": "unknown_agent", "message": "\"claud\" is not an agent", "next_steps": ["yoyo-cli agents"]}
 ```
 
 `code` is stable, for scripts. `message` is for people, and its wording may
@@ -569,10 +569,10 @@ change. `next_steps` are commands or actions to try, when there are any.
 | `bad_worktree_name` | `error_usage` | A `--worktree` name that is not letters, digits, `.`, `_` and `-` |
 | `workspace_not_in_worktree`, `worktree_unavailable` | `error_usage` | The workspace's directory is not in the repository's HEAD, there is no directory above the repository to put the worktree in, or git is older than 2.33 |
 | `ambiguous_run` | `error_usage` | More than one run starts that way: `next_steps` lists them |
-| `bad_nonce` | `error_usage` | A request no `codeg-cli` sends |
+| `bad_nonce` | `error_usage` | A request no `yoyo-cli` sends |
 | `bad_output_schema` | `error_usage` | `--output-schema` names a file that cannot be read, or is not a JSON Schema whose root takes objects |
 | `output_unwritable` | `error_during_execution` | The reply could not be written to `-o FILE` |
-| `agent_not_installed` | `error_during_execution` | The agent is not installed: `codeg-cli agents` says how to install it |
+| `agent_not_installed` | `error_during_execution` | The agent is not installed: `yoyo-cli agents` says how to install it |
 | `agent_unavailable` | `error_during_execution` | The agent is disabled in Codeg's settings, or its settings cannot be read |
 | `agent_spawn_failed` | `error_during_execution` | The agent could not be started |
 | `agent_exited` | `error_during_execution` | The agent ended before its turn did |
@@ -588,7 +588,7 @@ change. `next_steps` are commands or actions to try, when there are any.
 | `agents_unavailable`, `assistants_unavailable` | `error_during_execution` | Codeg could not list them |
 | `http_error` | `error_during_execution` | An unexpected HTTP answer |
 | `timeout` | `error_timeout` | `--timeout` ran out |
-| `runtime_unavailable` | `error_runtime_unavailable` | No Codeg is running where `codeg-cli` looked, or the one there does not answer |
+| `runtime_unavailable` | `error_runtime_unavailable` | No Codeg is running where `yoyo-cli` looked, or the one there does not answer |
 | `unauthorized` | `error_runtime_unavailable` | That Codeg refused the token |
 | `runtime_lost` | `error_runtime_unavailable` | Codeg stopped answering during the run. The run may still be going |
 | `run_not_found`, `result_missing`, `install_not_found` | `error_runtime_unavailable` | That Codeg has no such run or install, or no result for it |
@@ -596,7 +596,7 @@ change. `next_steps` are commands or actions to try, when there are any.
 | `no_server`, `standalone_failed` | `error_runtime_unavailable` | `--standalone` found no `codeg-server` to start, or the one it started did not come up |
 | `data_dir_in_use` | `error_runtime_unavailable` | `--standalone`: another Codeg is alive on that data directory |
 | `runtime_access_denied` | `error_runtime_access_denied` | The operating system refused the connection |
-| `runtime_incompatible`, `api_version`, `bad_response`, `run_not_reserved` | `error_runtime_incompatible` | That Codeg and this `codeg-cli` do not understand each other |
+| `runtime_incompatible`, `api_version`, `bad_response`, `run_not_reserved` | `error_runtime_incompatible` | That Codeg and this `yoyo-cli` do not understand each other |
 | `automations_elsewhere` | `error_runtime_incompatible` | Another Codeg on the same data directory runs the automations |
 | `permission_required` | `error_permission_required` | A permission the policy does not give |
 | `interrupted` | `error_interrupted` | SIGINT or SIGTERM |
@@ -682,7 +682,7 @@ them reads it too.
 | `error` | When `is_error`: `{code, message, next_steps}`. See [Error codes](#error-codes) |
 
 A run that failed before Codeg took it — no Codeg to reach, or arguments
-`codeg-cli` itself refused — has `null` for `run_id`. One that failed before
+`yoyo-cli` itself refused — has `null` for `run_id`. One that failed before
 its conversation existed has `null` for `conversation_id` and `link`, and
 `stream-json` then prints the result alone, without `init`.
 
@@ -697,12 +697,12 @@ The shortest way on a fresh runner is a server of the command's own:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 export ANTHROPIC_API_KEY="..."   # from the CI system's secrets
-codeg-cli --standalone agents install claude_code
-git show HEAD | codeg-cli --standalone -a claude_code -w "$PWD" --timeout 30m \
+yoyo-cli --standalone agents install claude_code
+git show HEAD | yoyo-cli --standalone -a claude_code -w "$PWD" --timeout 30m \
   -p "Review this commit for bugs" -o review.md
 ```
 
-`--standalone` starts the `codeg-server` installed next to `codeg-cli` (or on
+`--standalone` starts the `codeg-server` installed next to `yoyo-cli` (or on
 PATH) on a fresh temporary data directory, listening on this machine only;
 runs the command there; and stops the server and removes the directory when
 the command ends. Killed outright (`kill -9`), the command still takes its
@@ -710,14 +710,14 @@ server down with it, but leaves the temporary directory. The agents it starts ge
 the command's environment, credentials included. Each command starts from
 nothing: an npm agent stays installed (npm keeps it), but settings, assistants
 and downloaded agents do not. `--data-dir DIR` keeps them in `DIR` between
-commands instead. It never starts on its own: when `codeg-cli` cannot reach a
+commands instead. It never starts on its own: when `yoyo-cli` cannot reach a
 Codeg it says so, and nothing else happens.
 
 A data directory is never shared with a `--standalone` server. One that finds
 another Codeg alive on its `--data-dir` — even one that cannot be reached —
 stops before touching anything, with `data_dir_in_use`. A `codeg-server`
 started on a directory a `--standalone` server holds waits for it; the
-desktop app says so and quits. Only a Codeg that ships `codeg-cli` is seen
+desktop app says so and quits. Only a Codeg that ships `yoyo-cli` is seen
 this way: an older desktop app or `codeg-server` on the same directory is
 not, and does not see a `--standalone` server either — keep `--data-dir`
 away from a directory one of them uses. `--standalone` does not go with
@@ -732,7 +732,7 @@ runner:
 ```bash
 set -e
 
-# 1. codeg-server and codeg-cli
+# 1. codeg-server and yoyo-cli
 curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 
 # 2. A server for this job alone: its own data directory, loopback only. The
@@ -743,18 +743,18 @@ export CODEG_TOKEN="$(openssl rand -hex 32)"
 export ANTHROPIC_API_KEY="..."   # from the CI system's secrets
 codeg-server > "$CODEG_DATA_DIR/server.log" 2>&1 &
 export CODEG_URL="http://127.0.0.1:$CODEG_PORT"
-for _ in $(seq 60); do codeg-cli status > /dev/null 2>&1 && break; sleep 1; done
-codeg-cli status   # fails the job, saying why, if the server did not come up
+for _ in $(seq 60); do yoyo-cli status > /dev/null 2>&1 && break; sleep 1; done
+yoyo-cli status   # fails the job, saying why, if the server did not come up
 
 # 3. The agent, installed by that server as its settings page would.
-codeg-cli agents install claude_code
+yoyo-cli agents install claude_code
 
 # 4. The run
-git show HEAD | codeg-cli -a claude_code -w "$PWD" --timeout 30m \
+git show HEAD | yoyo-cli -a claude_code -w "$PWD" --timeout 30m \
   -p "Review this commit for bugs" -o review.md
 ```
 
-`CODEG_URL` and `CODEG_TOKEN` point `codeg-cli` at that server, as `--url`
+`CODEG_URL` and `CODEG_TOKEN` point `yoyo-cli` at that server, as `--url`
 and `--token-file` would. The prompt carries the commit on stdin, because
 under the default `--permissions deny` the agent cannot run `git` itself.
 `--permissions reads` lets it read the rest of the checkout.
@@ -773,10 +773,10 @@ In GitHub Actions:
     export CODEG_TOKEN="$(openssl rand -hex 32)"
     codeg-server > "$RUNNER_TEMP/codeg-server.log" 2>&1 &
     export CODEG_URL="http://127.0.0.1:$CODEG_PORT"
-    for _ in $(seq 60); do codeg-cli status > /dev/null 2>&1 && break; sleep 1; done
-    codeg-cli status
-    codeg-cli agents install claude_code
-    git show HEAD | codeg-cli -a claude_code -w "$GITHUB_WORKSPACE" --timeout 30m \
+    for _ in $(seq 60); do yoyo-cli status > /dev/null 2>&1 && break; sleep 1; done
+    yoyo-cli status
+    yoyo-cli agents install claude_code
+    git show HEAD | yoyo-cli -a claude_code -w "$GITHUB_WORKSPACE" --timeout 30m \
       --permissions reads -p "Review this commit for bugs" -o review.md
 ```
 
@@ -788,7 +788,7 @@ have it hand in a verdict with `--output-schema`: see
 
 ## Security
 
-- **This computer only.** A Codeg's `codeg-cli` port listens on `127.0.0.1`
+- **This computer only.** A Codeg's `yoyo-cli` port listens on `127.0.0.1`
   and serves nothing but the run API and a health check: no web interface, no
   other API. It
   accepts only `Host: 127.0.0.1` and `localhost`, so a web page cannot reach it
@@ -800,10 +800,10 @@ have it hand in a verdict with `--output-schema`: see
   owner-only access list on Windows). A folder found otherwise — another
   user's, one others may read, or on macOS one with an access list (say,
   inherited from the folder above) — is refused and left as it is: Codeg
-  then publishes nothing, and Settings shows why. `codeg-cli` in turn reads
+  then publishes nothing, and Settings shows why. `yoyo-cli` in turn reads
   only an endpoint file that is your own, and that no one else may write.
 - **Proof before anything is sent.** A file left by a crash may name a port
-  another program now holds. `codeg-cli` first asks whoever answers to prove it
+  another program now holds. `yoyo-cli` first asks whoever answers to prove it
   knows the key, bound to that port, and sends the key and the prompt only to
   one that does.
 - **The same trust as your files.** Any program running as you can read the

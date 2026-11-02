@@ -273,7 +273,7 @@ pub async fn list_runs(
     Ok(rows.into_iter().map(run_to_info).collect())
 }
 
-/// One run, by id (`codeg-cli automations run --wait` follows it).
+/// One run, by id (`yoyo-cli automations run --wait` follows it).
 pub async fn get_run(
     conn: &DatabaseConnection,
     run_id: i32,

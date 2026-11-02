@@ -34,7 +34,7 @@ COPY dist/web /app/web
 
 ENV CODEG_STATIC_DIR=/app/web
 ENV CODEG_DATA_DIR=/data
-ENV CODEG_PORT=3080
+ENV CODEG_PORT=18080
 ENV CODEG_HOST=0.0.0.0
 ENV SHELL=/bin/bash
 # In-place self-update markers: tells the running server it is a container
@@ -43,7 +43,7 @@ ENV SHELL=/bin/bash
 ENV CODEG_RUNTIME=docker
 ENV CODEG_RESTART_DELAY_MS=2000
 
-EXPOSE 3080
+EXPOSE 18080
 VOLUME /data
 
 # Run under the built-in supervisor (PID 1) so an in-place upgrade can swap

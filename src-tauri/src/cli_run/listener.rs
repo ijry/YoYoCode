@@ -1,4 +1,4 @@
-//! The loopback-only listener a runtime opens for the `codeg-cli`s of its own
+//! The loopback-only listener a runtime opens for the `yoyo-cli`s of its own
 //! machine, and the discovery file that points them at it.
 //!
 //! - Binds `127.0.0.1:0` and serves `/api/health` and `/api/cli_*` only — no

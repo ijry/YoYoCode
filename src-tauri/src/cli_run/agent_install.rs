@@ -1,4 +1,4 @@
-//! `codeg-cli agents install SLUG`: an agent installed the way Settings →
+//! `yoyo-cli agents install SLUG`: an agent installed the way Settings →
 //! Agents installs it, so a fresh CI runner needs nothing else.
 //!
 //! An install can take minutes (npm, a download) and must not depend on the
@@ -157,7 +157,7 @@ impl AgentInstalls {
 fn installable(slug: &str) -> Result<AgentType, CliError> {
     let unknown = || {
         CliError::usage("unknown_agent", format!("{slug:?} is not an agent"))
-            .with_next_steps(["codeg-cli agents".to_string()])
+            .with_next_steps(["yoyo-cli agents".to_string()])
     };
     let agent = AgentType::from_wire(slug).ok_or_else(unknown)?;
     if let Some(id) = agent.custom_id() {

@@ -3,7 +3,7 @@
 //!
 //! Every runtime — the desktop app, `codeg-server` — holds a SHARED lock on
 //! `<data dir>/<database file>.runtime.lock` from before it opens the
-//! database until it exits. The private server `codeg-cli --standalone`
+//! database until it exits. The private server `yoyo-cli --standalone`
 //! starts (with [`EXCLUSIVE_ENV`]) takes it EXCLUSIVE instead, and only when
 //! no runtime holds it at all: otherwise it leaves at once with
 //! [`BUSY_EXIT_CODE`], having touched nothing. A runtime that finds the lock
@@ -23,7 +23,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// Set to `1` by `codeg-cli --standalone` for the server it starts: take the
+/// Set to `1` by `yoyo-cli --standalone` for the server it starts: take the
 /// data directory exclusively, or not at all.
 pub const EXCLUSIVE_ENV: &str = "CODEG_REQUIRE_EXCLUSIVE_DATA_DIR";
 
@@ -31,8 +31,8 @@ pub const EXCLUSIVE_ENV: &str = "CODEG_REQUIRE_EXCLUSIVE_DATA_DIR";
 /// directory: before any migration, any write. `EX_TEMPFAIL` of sysexits.
 pub const BUSY_EXIT_CODE: u8 = 75;
 
-/// Set to `1` by `codeg-cli --standalone` too: the server ends when its stdin
-/// does — when the `codeg-cli` that started it is gone, however it went, a
+/// Set to `1` by `yoyo-cli --standalone` too: the server ends when its stdin
+/// does — when the `yoyo-cli` that started it is gone, however it went, a
 /// `kill -9` included. No pid to watch, so none to mistake for another.
 pub const EXIT_ON_STDIN_EOF_ENV: &str = "CODEG_EXIT_ON_STDIN_EOF";
 
@@ -134,7 +134,7 @@ pub fn hold_for_server(data_dir: &Path) -> io::Result<Option<RuntimeLock>> {
     }
     shared_waiting(data_dir, |waited| {
         tracing::warn!(
-            "[SERVER] {} is in use by a `codeg-cli --standalone` server; waiting for it to end \
+            "[SERVER] {} is in use by a `yoyo-cli --standalone` server; waiting for it to end \
              ({}s so far)",
             data_dir.display(),
             waited.as_secs()

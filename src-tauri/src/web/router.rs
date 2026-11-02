@@ -2055,7 +2055,7 @@ pub fn build_router_with_proxy_auth(
             "/cli_access_set_enabled",
             post(handlers::cli_access::cli_access_set_enabled),
         )
-        // `codeg-cli` against this runtime with the main token (how CI reaches
+        // `yoyo-cli` against this runtime with the main token (how CI reaches
         // a remote server); the loopback listener serves the same handlers.
         .merge(crate::cli_run::http::routes(state.cli_runs.clone()))
         // Catch-all

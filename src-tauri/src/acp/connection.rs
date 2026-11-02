@@ -1152,7 +1152,7 @@ const CODEX_PROMPT_SUGGESTIONS_ENV: &str = "CODEX_ACP_PROMPT_SUGGESTIONS";
 /// more model call: an ephemeral thread on the title model (`gpt-5.6-luna`)
 /// that reads the turn's prompt and final answer. codeg offers it in the empty
 /// composer (`AcpEvent::PromptSuggestion`). An automation run, a chat-channel
-/// bot, a `codeg-cli` run and a one-shot generation have no composer, so a
+/// bot, a `yoyo-cli` run and a one-shot generation have no composer, so a
 /// Claude session of theirs asks for no prediction
 /// ([`claude_raw_sdk_session_meta`]). codex-acp has no per-session switch,
 /// only this variable, so it is set for their whole process. It is forced
@@ -1274,7 +1274,7 @@ fn prepend_officecli_path(env: &mut BTreeMap<String, String>) {
     }
 }
 
-/// Prepend the directory of codeg's own `codeg-cli` (`cli_run::shim`) to a
+/// Prepend the directory of codeg's own `yoyo-cli` (`cli_run::shim`) to a
 /// merged env's PATH — the process's PATH already starts with it, but an
 /// agent's own env may set PATH outright. PATH-only, like the above.
 fn prepend_own_cli_path(env: &mut BTreeMap<String, String>) {
@@ -1419,7 +1419,7 @@ pub enum ConnectionCommand {
 /// API tokens or model provider credentials: `git fetch`/`git push` run
 /// through a terminal authenticate via the same helper path the agent process
 /// uses, while unrelated secrets stay scoped to the agent and out of arbitrary
-/// shell commands it runs. The connection's id travels too, so a `codeg-cli`
+/// shell commands it runs. The connection's id travels too, so a `yoyo-cli`
 /// run from such a command names the same caller as one the agent process
 /// starts itself.
 fn terminal_env_from_runtime(runtime_env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
@@ -2750,7 +2750,7 @@ pub async fn spawn_agent_connection(
         initial_state.claude_settings =
             crate::acp::claude_model_picker::launch_settings(&runtime_env);
     }
-    // A `codeg-cli` run's root: marked before anything can look, the codeg-mcp
+    // A `yoyo-cli` run's root: marked before anything can look, the codeg-mcp
     // injection below included.
     if let Some(seed) = cli_root {
         initial_state.cli_run = Some(seed.tag);
@@ -7860,7 +7860,7 @@ struct CompanionFeatureFlags {
     /// it still injects the companion so a task session always has its reporting
     /// tools.
     tasks: bool,
-    /// `submit_result`: per-spawn too, for the root of a `codeg-cli` run given
+    /// `submit_result`: per-spawn too, for the root of a `yoyo-cli` run given
     /// `--output-schema`.
     result: bool,
     /// `create_automation`, gated by the chat-authoring setting.
@@ -7960,7 +7960,7 @@ struct CompanionInjection {
 struct LaunchGroups {
     /// `task_progress` / `task_complete`: a task-engine launch.
     tasks: bool,
-    /// `submit_result`: the root of a `codeg-cli` run given `--output-schema`.
+    /// `submit_result`: the root of a `yoyo-cli` run given `--output-schema`.
     result: bool,
 }
 
@@ -8001,7 +8001,7 @@ where
     // companion which tool groups to expose so a disabled feature's tools never
     // surface to the LLM. (Historically this was gated on delegation alone.)
     // `groups` are per-spawn: the reporting tools of a task-engine launch and
-    // the `submit_result` of a `codeg-cli` run's root, each given regardless of
+    // the `submit_result` of a `yoyo-cli` run's root, each given regardless of
     // the settings toggles.
     let feedback_enabled = injection.feedback.is_enabled().await;
     let authoring = injection.authoring.snapshot().await;
@@ -9065,7 +9065,7 @@ async fn run_connection(
                 if let Some(inj) = delegation_injection.as_ref() {
                     // Task-engine launches (owner label "work_task") carry the
                     // task_progress / task_complete tool group; the root of a
-                    // `codeg-cli` run given `--output-schema`, submit_result.
+                    // `yoyo-cli` run given `--output-schema`, submit_result.
                     let groups = {
                         let s = state.read().await;
                         LaunchGroups {
@@ -10140,7 +10140,7 @@ fn codeg_submit_auto_allow_option(req: &RequestPermissionRequest, given: bool) -
 }
 
 /// Answer a permission request that only gates `submit_result`, on the one
-/// kind of connection codeg gives that tool to: the root of a `codeg-cli` run
+/// kind of connection codeg gives that tool to: the root of a `yoyo-cli` run
 /// started with `--output-schema`. The tool's whole effect is to hand the run
 /// the JSON its starter asked for — it runs and reads nothing on the machine —
 /// so asking "run submit_result?" would only have `--permissions deny` refuse
@@ -11374,7 +11374,7 @@ async fn set_session_mode(
 }
 
 /// Keep the mode selector codeg builds from Kiro's or Hermes' legacy modes on
-/// the mode a plain `session/set_mode` (`codeg-cli run --mode`, say) or the
+/// the mode a plain `session/set_mode` (`yoyo-cli run --mode`, say) or the
 /// agent itself just switched to. Every other agent's mode selectors are its
 /// own and report themselves.
 async fn sync_synthesized_mode_option(
@@ -22898,7 +22898,7 @@ mod hermes_selector_tests {
         );
     }
 
-    /// A plain `session/set_mode` (`codeg-cli run --mode`) or the agent's own
+    /// A plain `session/set_mode` (`yoyo-cli run --mode`) or the agent's own
     /// switch moves the selector codeg built from Hermes' modes; an agent's
     /// own mode selector is left to report itself.
     #[tokio::test]
@@ -43026,7 +43026,7 @@ mod tests {
         );
     }
 
-    /// The root of a `codeg-cli` run given `--output-schema` gets a companion
+    /// The root of a `yoyo-cli` run given `--output-schema` gets a companion
     /// carrying `submit_result` with every setting off, as a task launch gets
     /// its reporting tools.
     #[tokio::test]
@@ -43195,7 +43195,7 @@ mod tests {
         assert_eq!(only(|f| f.sessions = true), Some("sessions".to_string()));
         // Per-spawn tasks group: injects alone.
         assert_eq!(only(|f| f.tasks = true), Some("tasks".to_string()));
-        // So does the per-spawn result group of a `codeg-cli` run's root.
+        // So does the per-spawn result group of a `yoyo-cli` run's root.
         assert_eq!(only(|f| f.result = true), Some("result".to_string()));
         // Each chat-authoring group injects the companion on its own too, so a
         // user who only wants "create a task from chat" still gets the tool.

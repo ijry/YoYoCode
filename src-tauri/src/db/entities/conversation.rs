@@ -82,13 +82,13 @@ pub struct Model {
     /// this, never the assistant's current row.
     pub assistant_snapshot: Option<String>,
     /// Where the conversation was started from, when not the window:
-    /// [`SOURCE_CLI`] for a `codeg-cli` run. `None` otherwise. Text, so a
+    /// [`SOURCE_CLI`] for a `yoyo-cli` run. `None` otherwise. Text, so a
     /// value from a newer build never stops an older one decoding the row.
     /// See `m20261017_000002_conversation_source`.
     pub source: Option<String>,
 }
 
-/// [`Model::source`] of a conversation a `codeg-cli` run started.
+/// [`Model::source`] of a conversation a `yoyo-cli` run started.
 pub const SOURCE_CLI: &str = "cli";
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

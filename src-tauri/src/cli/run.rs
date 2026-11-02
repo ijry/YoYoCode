@@ -1,4 +1,4 @@
-//! `codeg-cli run`: one prompt, one turn.
+//! `yoyo-cli run`: one prompt, one turn.
 //!
 //! reserve → start → long-poll events → result. The runtime owns the run, so
 //! this side only has to be careful about three things: a lost `start`
@@ -166,7 +166,7 @@ pub(super) async fn prepare(
         .count();
     if ready > 1 || global.verbose {
         out.note(&format!(
-            "codeg-cli: using the {:?} {:?} codeg {} ({})",
+            "yoyo-cli: using the {:?} {:?} codeg {} ({})",
             conn.hello.build, conn.hello.runtime, conn.hello.version, conn.source
         ));
     }
@@ -355,7 +355,7 @@ async fn drive_loop(
         }
         if args.permissions == super::args::PolicyArg::Wait {
             out.note(&format!(
-                "codeg-cli: --permissions wait: answer the agent's requests in Codeg at {}",
+                "yoyo-cli: --permissions wait: answer the agent's requests in Codeg at {}",
                 started.link
             ));
         }
@@ -406,7 +406,7 @@ async fn drive_loop(
                     return Err(Failure::interrupted(code, "interrupted; the run was cancelled"));
                 }
                 signal_code = Some(code);
-                out.note("codeg-cli: interrupted; cancelling the run (again to quit now)");
+                out.note("yoyo-cli: interrupted; cancelling the run (again to quit now)");
                 *cancelling = Some(spawn_cancel(conn, &run_id, CancelReason::Interrupt));
                 settle_by = Some(Instant::now() + SETTLE_WAIT);
             }
@@ -595,7 +595,7 @@ async fn read_prompt(args: &RunArgs) -> Result<Vec<PromptBlock>, Failure> {
         Some(text) => {
             blocks.push(text.to_string());
             // Prompt + piped stdin: stdin is context for the prompt
-            // (`git diff | codeg-cli -p "review"`).
+            // (`git diff | yoyo-cli -p "review"`).
             if readable {
                 let rest = MAX_PROMPT_BYTES.saturating_sub(text.len());
                 let piped = stdin::read_all(rest).await?;
@@ -635,8 +635,8 @@ fn no_stdin_failure() -> Failure {
          empty device, so it is not read)",
     )
     .with_next_steps([
-        "codeg-cli -p \"review the diff\"".to_string(),
-        "git diff | codeg-cli -p \"review this\"".to_string(),
+        "yoyo-cli -p \"review the diff\"".to_string(),
+        "git diff | yoyo-cli -p \"review this\"".to_string(),
     ])
 }
 
@@ -711,7 +711,7 @@ fn lost(failure: Failure, run_id: &str) -> Failure {
     .with_next_steps([
         "the run may still be going: open its conversation in Codeg to watch or cancel it"
             .to_string(),
-        format!("codeg-cli result {run_id} --wait 30m   (once that codeg answers again)"),
+        format!("yoyo-cli result {run_id} --wait 30m   (once that codeg answers again)"),
     ])
 }
 

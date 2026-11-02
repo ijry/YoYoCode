@@ -8,7 +8,7 @@ as [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies
 proxy's signed assertion (a JWT), so the browser needs no token.
 
 The token keeps working in this mode. Clients that do not pass through the
-proxy — `codeg-cli --url`, scripts — still use it.
+proxy — `yoyo-cli --url`, scripts — still use it.
 
 ## Why it is safe
 

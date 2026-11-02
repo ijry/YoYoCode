@@ -1,4 +1,4 @@
-//! Headless runs for `codeg-cli`: one prompt, one turn, owned by the runtime.
+//! Headless runs for `yoyo-cli`: one prompt, one turn, owned by the runtime.
 //!
 //! The CLI is a thin HTTP client. Everything that has to keep working when it
 //! goes away — answering permissions by the run's policy, settling the result,
@@ -26,7 +26,7 @@ pub use listener::{CliAccess, CliAccessStatus};
 pub use service::{CliError, CliRunService, SessionOpener};
 
 /// The variable every agent process, and every command it runs through an ACP
-/// terminal, gets: the id of the connection it belongs to. A `codeg-cli` run
+/// terminal, gets: the id of the connection it belongs to. A `yoyo-cli` run
 /// from inside it sends this as its caller, so the runtime — not the caller —
 /// decides its depth and its policy ceiling from that connection's record.
 pub const CLI_CALLER_ENV: &str = "CODEG_CLI_CALLER";

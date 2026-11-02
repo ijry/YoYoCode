@@ -70,7 +70,7 @@ pub async fn require_token(request: Request, next: Next, token: String) -> Respo
 /// How the web API authenticates a request: the access token always, and with
 /// `CODEG_AUTH=proxy-jwt` also a proxy's verified assertion (see
 /// `proxy_auth`). The token keeps working in that mode for clients that do
-/// not pass through the proxy (`codeg-cli --url`, scripts).
+/// not pass through the proxy (`yoyo-cli --url`, scripts).
 #[derive(Clone)]
 pub struct WebAuth {
     pub token: String,

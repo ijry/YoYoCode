@@ -1,15 +1,15 @@
-//! The command line of `codeg-cli`.
+//! The command line of `yoyo-cli`.
 //!
 //! ```text
-//! codeg-cli [GLOBAL] [run] [RUN OPTIONS] [PROMPT]
-//! codeg-cli agents|assistants|status [--json]
-//! codeg-cli open [--wait DUR] [--json]
+//! yoyo-cli [GLOBAL] [run] [RUN OPTIONS] [PROMPT]
+//! yoyo-cli agents|assistants|status [--json]
+//! yoyo-cli open [--wait DUR] [--json]
 //! ```
 //!
-//! No subcommand means `run`, so `codeg-cli "review it"` and
-//! `codeg-cli run "review it"` are the same run. A first positional that IS a
-//! subcommand name is that subcommand: `codeg-cli run status` or
-//! `codeg-cli -p status` sends the word as a prompt.
+//! No subcommand means `run`, so `yoyo-cli "review it"` and
+//! `yoyo-cli run "review it"` are the same run. A first positional that IS a
+//! subcommand name is that subcommand: `yoyo-cli run status` or
+//! `yoyo-cli -p status` sends the word as a prompt.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -20,10 +20,10 @@ use crate::cli_run::PermissionPolicy;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "codeg-cli",
+    name = "yoyo-cli",
     // Fixed, so help, errors and `next_steps` name the command the way the
-    // docs do whatever the file is called (`codeg-cli.exe`, a symlink, …).
-    bin_name = "codeg-cli",
+    // docs do whatever the file is called (`yoyo-cli.exe`, a symlink, …).
+    bin_name = "yoyo-cli",
     version,
     about = "Run one prompt through a running codeg — the desktop app or codeg-server — \
              without opening its window.",
@@ -71,7 +71,7 @@ impl Cli {
         if cli.command.is_some() && run_options_given(&matches) {
             let message = match cli.command {
                 Some(Command::Run(_)) => {
-                    "run options go after `run` (`codeg-cli run -p …`), not before it"
+                    "run options go after `run` (`yoyo-cli run -p …`), not before it"
                 }
                 _ => {
                     "run options (-p, -a, -w, …) go with `run` or with no command at all, not \
@@ -128,7 +128,7 @@ impl Cli {
                 return Err(command.error(
                     clap::error::ErrorKind::ArgumentConflict,
                     "--detach does not wait for the reply, so it cannot write -o: collect it \
-                     with `codeg-cli result RUN -o FILE`",
+                     with `yoyo-cli result RUN -o FILE`",
                 ));
             }
         }
@@ -204,7 +204,7 @@ fn run_options_given(matches: &clap::ArgMatches) -> bool {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct GlobalArgs {
-    /// A codeg reachable over HTTP(S), e.g. a codeg-server: https://host:3080.
+    /// A codeg reachable over HTTP(S), e.g. a codeg-server: https://host:18080.
     #[arg(long, global = true, value_name = "URL")]
     pub url: Option<String>,
 
@@ -256,7 +256,7 @@ pub enum RuntimeChoice {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Run one prompt (what `codeg-cli` does without a command).
+    /// Run one prompt (what `yoyo-cli` does without a command).
     Run(Box<RunArgs>),
     /// The agents this codeg knows, and whether each is enabled and installed;
     /// `agents install SLUG` installs one.
@@ -295,7 +295,7 @@ pub enum AgentsAction {
 
 #[derive(Args, Debug, Clone)]
 pub struct AgentInstallArgs {
-    /// The agent: claude_code, codex, … (`codeg-cli agents`).
+    /// The agent: claude_code, codex, … (`yoyo-cli agents`).
     #[arg(value_name = "SLUG")]
     pub agent: String,
 
@@ -326,7 +326,7 @@ pub struct AutomationsArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AutomationsAction {
-    /// The automations saved in Codeg (what `codeg-cli automations` prints).
+    /// The automations saved in Codeg (what `yoyo-cli automations` prints).
     List(ListArgs),
     /// Run an automation now, as its Run now button does.
     Run(AutomationRunArgs),
@@ -334,7 +334,7 @@ pub enum AutomationsAction {
 
 #[derive(Args, Debug, Clone)]
 pub struct AutomationRunArgs {
-    /// The automation's id (`codeg-cli automations`).
+    /// The automation's id (`yoyo-cli automations`).
     #[arg(value_name = "ID")]
     pub id: i32,
 
@@ -425,13 +425,13 @@ pub struct RunArgs {
     #[arg(value_name = "PROMPT")]
     pub prompt_arg: Option<String>,
 
-    /// The agent to run: claude_code, codex, … (`codeg-cli agents`). Each -a
+    /// The agent to run: claude_code, codex, … (`yoyo-cli agents`). Each -a
     /// and -A is a run of its own: `-a codex -a claude_code` runs the prompt
     /// twice.
     #[arg(short = 'a', long, value_name = "SLUG", action = clap::ArgAction::Append)]
     pub agent: Vec<String>,
 
-    /// Run as an assistant, by name or id (`codeg-cli assistants`).
+    /// Run as an assistant, by name or id (`yoyo-cli assistants`).
     #[arg(short = 'A', long, value_name = "NAME|ID", action = clap::ArgAction::Append)]
     pub assistant: Vec<String>,
 
@@ -507,7 +507,7 @@ pub struct RunArgs {
     pub no_stdin: bool,
 
     /// Return once the prompt is with the agent, printing the run's id; the
-    /// run goes on. `codeg-cli result RUN` collects it.
+    /// run goes on. `yoyo-cli result RUN` collects it.
     #[arg(long)]
     pub detach: bool,
 
@@ -618,7 +618,7 @@ mod tests {
     use super::*;
 
     fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
-        Cli::parse_from(std::iter::once("codeg-cli").chain(args.iter().copied()))
+        Cli::parse_from(std::iter::once("yoyo-cli").chain(args.iter().copied()))
     }
 
     #[test]
@@ -784,7 +784,7 @@ mod tests {
         assert!(cli.run.detach);
         let err = parse(&["--detach", "-o", "review.md", "x"]).unwrap_err();
         assert_eq!(err.exit_code(), 2);
-        assert!(err.to_string().contains("codeg-cli result"), "{err}");
+        assert!(err.to_string().contains("yoyo-cli result"), "{err}");
         let err = parse(&["run", "--detach", "-o", "review.md", "x"]).unwrap_err();
         assert_eq!(err.exit_code(), 2);
     }
@@ -960,11 +960,11 @@ mod tests {
 
     #[test]
     fn help_names_the_command_as_the_docs_do() {
-        let err = Cli::try_parse_from(["C:\\bin\\codeg-cli.exe", "--help"]).unwrap_err();
+        let err = Cli::try_parse_from(["C:\\bin\\yoyo-cli.exe", "--help"]).unwrap_err();
         let text = err.render().to_string();
-        assert!(text.contains("Usage: codeg-cli"), "{text}");
+        assert!(text.contains("Usage: yoyo-cli"), "{text}");
         assert!(!text.contains(".exe"), "{text}");
         let err = Cli::try_parse_from(["/some/link/name", "--bogus"]).unwrap_err();
-        assert!(err.render().to_string().contains("codeg-cli"));
+        assert!(err.render().to_string().contains("yoyo-cli"));
     }
 }

@@ -28,9 +28,9 @@ fi
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
 MANAGED_BINS=(codeg-server codeg-mcp)
-# Looked for on PATH as well: the two above, and `codeg-cli`, the command-line
+# Looked for on PATH as well: the two above, and `yoyo-cli`, the command-line
 # client the release ships beside them (older releases do not).
-SCANNED_BINS=(codeg-server codeg-mcp codeg-cli)
+SCANNED_BINS=(codeg-server codeg-mcp yoyo-cli)
 
 # ── Parse arguments ──
 
@@ -175,7 +175,7 @@ resolve_priv() {
 # Whether $1 belongs to the codeg desktop app: installed by its deb/rpm package,
 # or inside a codeg.app bundle (a symlink the user made into one counts, by the
 # file it resolves to). Such a file is never removed or overwritten here, only
-# reported: the desktop's `codeg-mcp` and `codeg-cli` are its own, and
+# reported: the desktop's `codeg-mcp` and `yoyo-cli` are its own, and
 # deleting them would break the desktop app — `/usr/bin/codeg-mcp` from the deb
 # included, which an install dir later on PATH than /usr/bin used to remove.
 is_desktop_file() {
@@ -198,7 +198,7 @@ is_desktop_file() {
     return 0
   fi
   local record
-  record="$(dirname "$real")/.codeg-cli.sha256"
+  record="$(dirname "$real")/.yoyo-cli.sha256"
   if [ -f "$record" ] && [ -n "$(file_sha256 "$real")" ] \
     && [ "$(file_sha256 "$real")" = "$(cat "$record" 2>/dev/null)" ]; then
     return 0
@@ -207,7 +207,7 @@ is_desktop_file() {
 }
 
 # The second line of the shims the desktop app writes (`cli_run::shim`).
-DESKTOP_SHIM_MARKER="# codeg-cli shim, written by Codeg at every start: changes are lost"
+DESKTOP_SHIM_MARKER="# yoyo-cli shim, written by Codeg at every start: changes are lost"
 
 # The SHA-256 of a file, in hex; empty when there is no tool for it.
 file_sha256() {
@@ -331,9 +331,9 @@ if [ "${#PATH_CONFLICTS[@]}" -gt 0 ]; then
   echo ""
   echo "Found other codeg-server binaries in PATH that may shadow ${DEST_BIN}:"
   for _c in "${PATH_CONFLICTS[@]}"; do
-    if [ "$(basename "$_c")" = "codeg-cli" ]; then
-      # Only removed if this release ships a codeg-cli (known once extracted).
-      echo "  - $_c  (removed if this release includes codeg-cli)"
+    if [ "$(basename "$_c")" = "yoyo-cli" ]; then
+      # Only removed if this release ships a yoyo-cli (known once extracted).
+      echo "  - $_c  (removed if this release includes yoyo-cli)"
       continue
     fi
     _cv="$(read_bin_version "$_c" 2>/dev/null || true)"
@@ -362,7 +362,7 @@ fi
 # containers have theirs. A process is told by the file it runs — on Linux
 # whatever it is called — and one named like such a file that this user
 # cannot look into (another user's, unless this is root) is left alone, and
-# named. A codeg-cli is never stopped: a run in progress is the user's.
+# named. A yoyo-cli is never stopped: a run in progress is the user's.
 
 SELF_MNT_NS=""
 if [ "$PLATFORM" = "linux" ]; then
@@ -606,21 +606,21 @@ if [ -f "${TMP_DIR}/${ARTIFACT}/codeg-computer-helper" ]; then
   priv_run chmod +x "$_helper_staged"
   priv_run mv -f "$_helper_staged" "${INSTALL_DIR}/codeg-computer-helper"
 fi
-# codeg-cli: the command-line client (`codeg-cli run …`), installed when the
+# yoyo-cli: the command-line client (`yoyo-cli run …`), installed when the
 # release ships it. Renamed over the target like the helper: a CLI still
 # running keeps its file (no `text file busy`), and a symlink at the target is
 # replaced rather than written through — `cp` onto the link a desktop user
 # made into `codeg.app` would overwrite the app's own binary. A target that IS
 # the desktop app's (that link, or the deb's) is left alone: it is the same
 # program, and the user chose it.
-CLI_DST="${INSTALL_DIR}/codeg-cli"
+CLI_DST="${INSTALL_DIR}/yoyo-cli"
 CLI_STATUS="absent"
-if [ -f "${TMP_DIR}/${ARTIFACT}/codeg-cli" ]; then
+if [ -f "${TMP_DIR}/${ARTIFACT}/yoyo-cli" ]; then
   if [ -e "$CLI_DST" ] && is_desktop_file "$CLI_DST"; then
     CLI_STATUS="desktop"
   else
-    _cli_staged="${INSTALL_DIR}/.codeg-cli.new"
-    priv_run cp "${TMP_DIR}/${ARTIFACT}/codeg-cli" "$_cli_staged"
+    _cli_staged="${INSTALL_DIR}/.yoyo-cli.new"
+    priv_run cp "${TMP_DIR}/${ARTIFACT}/yoyo-cli" "$_cli_staged"
     priv_run chmod +x "$_cli_staged"
     priv_run mv -f "$_cli_staged" "$CLI_DST"
     CLI_STATUS="installed"
@@ -656,11 +656,11 @@ fi
 
 EXIT_STATUS=0
 
-# Without a codeg-cli in this release there is nothing a stale one shadows.
+# Without a yoyo-cli in this release there is nothing a stale one shadows.
 if [ "$CLI_STATUS" != "installed" ]; then
   _kept=()
   for _c in ${PATH_CONFLICTS[@]+"${PATH_CONFLICTS[@]}"}; do
-    [ "$(basename "$_c")" = "codeg-cli" ] || _kept+=("$_c")
+    [ "$(basename "$_c")" = "yoyo-cli" ] || _kept+=("$_c")
   done
   PATH_CONFLICTS=(${_kept[@]+"${_kept[@]}"})
 fi
@@ -708,9 +708,9 @@ echo ""
 echo "codeg-server installed to ${INSTALL_DIR}/codeg-server"
 echo "codeg-mcp    installed to ${INSTALL_DIR}/codeg-mcp"
 case "$CLI_STATUS" in
-  installed) echo "codeg-cli    installed to ${CLI_DST}" ;;
-  desktop) echo "codeg-cli    kept: ${CLI_DST} is the codeg desktop app's (the same program; remove it first to use this release's)" ;;
-  removed) echo "codeg-cli    removed: this release has none" ;;
+  installed) echo "yoyo-cli    installed to ${CLI_DST}" ;;
+  desktop) echo "yoyo-cli    kept: ${CLI_DST} is the codeg desktop app's (the same program; remove it first to use this release's)" ;;
+  removed) echo "yoyo-cli    removed: this release has none" ;;
 esac
 INSTALLED_VER=$("${INSTALL_DIR}/codeg-server" --version 2>/dev/null || echo "${TARGET_VER}")
 echo "Version: ${INSTALLED_VER}"
@@ -757,7 +757,7 @@ echo "Quick start:"
 echo "  CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
 echo ""
 echo "Or with custom settings:"
-echo "  CODEG_PORT=3080 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
+echo "  CODEG_PORT=18080 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
 echo ""
 echo "The auth token is printed to stderr on startup if not set via CODEG_TOKEN."
 

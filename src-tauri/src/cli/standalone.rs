@@ -1,4 +1,4 @@
-//! `codeg-cli --standalone`: a codeg-server of the command's own, for a job
+//! `yoyo-cli --standalone`: a codeg-server of the command's own, for a job
 //! with no codeg running — started on a data directory of its own (a fresh
 //! temporary one, or `--data-dir`), used for this one command, stopped when
 //! the command ends.
@@ -57,7 +57,7 @@ impl Standalone {
             Failure::new(
                 Subtype::ErrorRuntimeUnavailable,
                 "no_server",
-                "--standalone starts a codeg-server, and there is none next to codeg-cli or on \
+                "--standalone starts a codeg-server, and there is none next to yoyo-cli or on \
                  PATH",
             )
             .with_next_steps([
@@ -75,7 +75,7 @@ impl Standalone {
             }
             None => {
                 let temp = tempfile::Builder::new()
-                    .prefix("codeg-cli-")
+                    .prefix("yoyo-cli-")
                     .tempdir()
                     .map_err(|e| {
                         Failure::new(

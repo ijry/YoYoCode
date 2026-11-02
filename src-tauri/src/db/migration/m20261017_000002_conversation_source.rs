@@ -7,7 +7,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Where a conversation was started from, when that was not the window:
-        // `cli` for a `codeg-cli` run, which the sidebar marks and can filter
+        // `cli` for a `yoyo-cli` run, which the sidebar marks and can filter
         // on. NULL on every other row — every row from before, too. Text, not
         // an enum: a value a newer build writes must not make an older one
         // fail to decode the whole row. No index: the sidebar filters the

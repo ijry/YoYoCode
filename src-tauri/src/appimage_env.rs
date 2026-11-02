@@ -27,7 +27,7 @@
 //! image's libraries, find them only through the `LD_LIBRARY_PATH` they
 //! inherit from codeg. So it is put back for each program codeg starts
 //! instead: [`restore`], [`restore_tokio`] and [`restore_pty`]. The image's
-//! own programs (`codeg-mcp`, `codeg-cli`, `codeg` as git's credential
+//! own programs (`codeg-mcp`, `yoyo-cli`, `codeg` as git's credential
 //! helper) run without it, through a RUNPATH to the image's library directory.
 //!
 //! Programs the Tauri plugins start (the opener's `xdg-open`, deep-link's
@@ -271,14 +271,14 @@ mod tests {
     /// What the 0.38.0 AppImage's launcher hands codeg, captured from its
     /// real `AppRun` → `linuxdeploy-plugin-gtk.sh` → `AppRun.wrapped` chain
     /// (mount path renamed), after `cli_run::shim` put its directory first on
-    /// `PATH` and named the image's `codeg-cli` in `CODEG_CLI`. The session
+    /// `PATH` and named the image's `yoyo-cli` in `CODEG_CLI`. The session
     /// had `PATH`, `XDG_DATA_DIRS`, `HOME` and `LANG`, and none of the rest.
     fn launched() -> BTreeMap<&'static str, String> {
         let r = ROOT;
         BTreeMap::from([
             ("HOME", "/home/u".to_string()),
             ("LANG", "en_US.UTF-8".to_string()),
-            ("CODEG_CLI", format!("{r}/usr/bin/codeg-cli")),
+            ("CODEG_CLI", format!("{r}/usr/bin/yoyo-cli")),
             ("APPIMAGE", "/home/u/Apps/codeg.AppImage".to_string()),
             ("APPDIR", r.to_string()),
             ("OWD", "/home/u".to_string()),
@@ -385,7 +385,7 @@ mod tests {
             ("LANG".to_string(), "en_US.UTF-8".to_string()),
             // The image's own CLI, named on purpose for agents: not the
             // launcher's, so it stays.
-            ("CODEG_CLI".to_string(), format!("{ROOT}/usr/bin/codeg-cli")),
+            ("CODEG_CLI".to_string(), format!("{ROOT}/usr/bin/yoyo-cli")),
             (
                 "PATH".to_string(),
                 "/home/u/.local/share/codeg/cli/bin:/home/u/.volta/bin:/usr/local/bin:/usr/bin:/bin"

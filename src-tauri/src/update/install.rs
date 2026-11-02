@@ -1,6 +1,6 @@
 //! Download → verify → extract → atomic swap of the server bundle
 //! (`codeg-server` + `codeg-mcp` + `web/`, and `codeg-computer-helper` and
-//! `codeg-cli` where the release ships them).
+//! `yoyo-cli` where the release ships them).
 //!
 //! The running worker performs the swap, keeping a `.bak` of each artifact,
 //! then exits so the supervisor (or a re-exec) brings up the new version.
@@ -85,9 +85,9 @@ fn mcp_bin_filename() -> &'static str {
 
 fn cli_bin_filename() -> &'static str {
     if cfg!(windows) {
-        "codeg-cli.exe"
+        "yoyo-cli.exe"
     } else {
-        "codeg-cli"
+        "yoyo-cli"
     }
 }
 
@@ -100,7 +100,7 @@ struct Targets {
     helper_bin: PathBuf,
     /// The command-line client: swapped when the new bundle has one and the
     /// file in place is not a symlink (see [`cli_is_ours_to_replace`]), so
-    /// `codeg-cli` stays the server's version.
+    /// `yoyo-cli` stays the server's version.
     cli_bin: PathBuf,
     web_dir: PathBuf,
 }
@@ -144,9 +144,9 @@ fn resolve_targets() -> Result<Targets, AppCommandError> {
     })
 }
 
-/// Whether the update may put the bundle's `codeg-cli` at `target`: when
+/// Whether the update may put the bundle's `yoyo-cli` at `target`: when
 /// nothing is there, or a file — what `install.sh` and the Docker image put
-/// there. A symlink stays: it is the desktop app's command (a `codeg-cli`
+/// there. A symlink stays: it is the desktop app's command (a `yoyo-cli`
 /// linked into `codeg.app`, which `install.sh` leaves alone too) or one the
 /// user made, and replacing it would take away the program they chose.
 fn cli_is_ours_to_replace(target: &Path) -> bool {
@@ -1683,7 +1683,7 @@ fn next_path(record: &Path) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// The marker of a `codeg-cli` an update added where there was none: what a
+/// The marker of a `yoyo-cli` an update added where there was none: what a
 /// rollback of that update removes.
 fn absent_path(target: &Path) -> PathBuf {
     let mut s = target.as_os_str().to_os_string();
@@ -2024,7 +2024,7 @@ mod tests {
             server_bin,
             mcp_bin: bindir.join("codeg-mcp"),
             helper_bin: bindir.join("codeg-computer-helper"),
-            cli_bin: bindir.join("codeg-cli"),
+            cli_bin: bindir.join("yoyo-cli"),
             web_dir,
         }
     }
@@ -2185,7 +2185,7 @@ mod tests {
         let bundle = dir.join("bundle");
         std::fs::create_dir_all(bundle.join("web")).unwrap();
         std::fs::write(bundle.join("web").join("index.html"), b"C").unwrap();
-        for name in ["codeg-server", "codeg-mcp", "codeg-cli"] {
+        for name in ["codeg-server", "codeg-mcp", "yoyo-cli"] {
             std::fs::write(bundle.join(name), b"C").unwrap();
         }
         (targets, bundle)
@@ -2196,7 +2196,7 @@ mod tests {
             dir.join("codeg-server"),
             dir.join("codeg-mcp"),
             dir.join("codeg-computer-helper"),
-            dir.join("codeg-cli"),
+            dir.join("yoyo-cli"),
             dir.join("web"),
         )
     }
@@ -2259,7 +2259,7 @@ mod tests {
     fn an_update_without_a_cli_retires_the_previous_records() {
         let dir = tempfile::tempdir().unwrap();
         let (targets, bundle) = second_update(dir.path());
-        std::fs::remove_file(bundle.join("codeg-cli")).unwrap();
+        std::fs::remove_file(bundle.join("yoyo-cli")).unwrap();
         swap(&targets, &bundle).unwrap();
         assert_eq!(read(&targets.cli_bin), b"B");
         assert!(!bak_path(&targets.cli_bin).exists());
@@ -2765,7 +2765,7 @@ mod tests {
     #[test]
     fn the_cli_is_replaced_when_absent_or_a_file() {
         let dir = tempfile::tempdir().unwrap();
-        let target = dir.path().join("codeg-cli");
+        let target = dir.path().join("yoyo-cli");
         assert!(cli_is_ours_to_replace(&target), "nothing there yet");
         std::fs::write(&target, b"old").unwrap();
         assert!(
@@ -2783,13 +2783,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let app = dir.path().join("codeg.app/Contents/MacOS");
         std::fs::create_dir_all(&app).unwrap();
-        std::fs::write(app.join("codeg-cli"), b"desktop").unwrap();
-        let target = dir.path().join("codeg-cli");
-        std::os::unix::fs::symlink(app.join("codeg-cli"), &target).unwrap();
+        std::fs::write(app.join("yoyo-cli"), b"desktop").unwrap();
+        let target = dir.path().join("yoyo-cli");
+        std::os::unix::fs::symlink(app.join("yoyo-cli"), &target).unwrap();
         assert!(!cli_is_ours_to_replace(&target));
 
         // A dangling link is someone's choice all the same.
-        std::fs::remove_file(app.join("codeg-cli")).unwrap();
+        std::fs::remove_file(app.join("yoyo-cli")).unwrap();
         assert!(!cli_is_ours_to_replace(&target));
     }
 
@@ -2890,7 +2890,7 @@ mod tests {
             .trim_end_matches("; do")
             .split_whitespace()
             .collect();
-        assert_eq!(signed, ["codeg-server", "codeg-mcp", "codeg-cli"]);
+        assert_eq!(signed, ["codeg-server", "codeg-mcp", "yoyo-cli"]);
         assert!(
             !script.contains("codeg-computer-helper"),
             "the helper refuses to start with a Team ID and no peer requirement"

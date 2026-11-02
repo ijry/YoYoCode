@@ -14,6 +14,8 @@
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
+// 域分隔串是 CLI↔运行时握手协议的一部分：两端同版发布，改它必须两边同时改
+// 且新旧混跑（新 CLI 对旧运行时）会握手失败。名字与命令名解耦，保持不变。
 const DOMAIN: &[u8] = b"codeg-cli-hello\0";
 
 /// The proof for `nonce`, hex. `port` is the loopback listener's own port;

@@ -1,6 +1,6 @@
 //! One prompt, several runs: every `-a` and `-A` is a target, numbered from 1
 //! in the order the command line gives them —
-//! `codeg-cli -a claude_code -A reviewer -a codex -p "review the diff"`; the
+//! `yoyo-cli -a claude_code -A reviewer -a codex -p "review the diff"`; the
 //! same one twice is a best-of-N.
 //!
 //! The prompt is read and the runtime found once. Each target is then a run
@@ -174,7 +174,7 @@ async fn fan_out(
         && PermissionPolicy::from(args.permissions) == PermissionPolicy::Allow
     {
         out.note(&format!(
-            "codeg-cli: warning: {} runs may change {} at the same time; --worktree gives each \
+            "yoyo-cli: warning: {} runs may change {} at the same time; --worktree gives each \
              its own worktree",
             args.targets.len(),
             prepared.workspace

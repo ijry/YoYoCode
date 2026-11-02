@@ -101,7 +101,7 @@ async fn install_inner(
         )
         .await?;
     out.note(&format!(
-        "codeg-cli: installing {} in Codeg; this can take a few minutes",
+        "yoyo-cli: installing {} in Codeg; this can take a few minutes",
         started.agent
     ));
     let conn_ref = &conn;
@@ -146,7 +146,7 @@ async fn install_inner(
         }
         "running" => {
             out.note(&format!(
-                "codeg-cli: {} is still being installed; it goes on in Codeg",
+                "yoyo-cli: {} is still being installed; it goes on in Codeg",
                 state.agent
             ));
             Ok(STILL_RUNNING_EXIT_CODE)
@@ -317,7 +317,7 @@ fn report_run(out: &Output, json: bool, state: &AutomationRunState, waited: bool
         (status, _) => status.to_string(),
     };
     out.note(&format!(
-        "codeg-cli: automation {} run {}: {what}{link}",
+        "yoyo-cli: automation {} run {}: {what}{link}",
         state.automation_id, state.run_id
     ));
     if let Some(error) = &state.error {

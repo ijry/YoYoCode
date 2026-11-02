@@ -1,4 +1,4 @@
-//! `codeg-cli automations`: the saved automations, listed and run now.
+//! `yoyo-cli automations`: the saved automations, listed and run now.
 //!
 //! A run goes through the automation engine, which only one runtime of a data
 //! directory drives (the first to start); listing reads the database and
@@ -54,7 +54,7 @@ pub async fn run(db: &AppDatabase, id: i32) -> Result<AutomationRunState, CliErr
         .await
         .map_err(|_| {
             CliError::usage("unknown_automation", format!("no automation {id}"))
-                .with_next_steps(["codeg-cli automations".to_string()])
+                .with_next_steps(["yoyo-cli automations".to_string()])
         })?;
     if crate::automation::engine().is_none() {
         return Err(CliError::incompatible(

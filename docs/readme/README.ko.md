@@ -184,7 +184,7 @@ Office 파일을 만들고 실시간으로 미리 보며 PDF도 열어 보세요
 
 ### 명령줄과 CI
 
-`codeg-cli`로 스크립트나 CI에서 실행 중인 YoYoCode에 요청하세요. 응답이나 JSON 이벤트를 출력합니다.
+`yoyo-cli`로 스크립트나 CI에서 실행 중인 YoYoCode에 요청하세요. 응답이나 JSON 이벤트를 출력합니다.
 
 [문서 →](https://docs.codeg.app/guide/command-line)
 
@@ -192,10 +192,10 @@ Office 파일을 만들고 실시간으로 미리 보며 PDF도 열어 보세요
 <td width="50%" valign="middle">
 
 ```bash
-codeg-cli -a codex \
+yoyo-cli -a codex \
   -p "Review the latest commit"
 
-git diff | codeg-cli -a codex \
+git diff | yoyo-cli -a codex \
   -p "Review this diff"
 ```
 
@@ -269,12 +269,12 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — 같은 서버를, 컨테이너 하나로:
 
 ```bash
-docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-어느 쪽이든 브라우저에서 `http://<host>:3080`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
+어느 쪽이든 브라우저에서 `http://<host>:18080`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
 
-**모바일** — [iOS 앱](https://apps.apple.com/app/codeg-client/id6785199071) 또는 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)를 설치한 뒤 데스크톱 앱의 **웹 서비스**나 직접 운영하는 `codeg-server`를 가리키게 하세요: 주소와 토큰만 넣으면 끝입니다. 연결 절차는 [모바일 앱](https://docs.codeg.app/getting-started/installation#mobile-apps) 참고.
+**모바일** — [iOS 앱](https://apps.apple.com/app/yoyo-client/id6785199071) 또는 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)를 설치한 뒤 데스크톱 앱의 **웹 서비스**나 직접 운영하는 `codeg-server`를 가리키게 하세요: 주소와 토큰만 넣으면 끝입니다. 연결 절차는 [모바일 앱](https://docs.codeg.app/getting-started/installation#mobile-apps) 참고.
 
 Compose, 사전 빌드 바이너리, 소스 빌드, 제자리 업데이트는 [배포](https://docs.codeg.app/getting-started/deployment)에서, 환경 변수는 [설정](https://docs.codeg.app/getting-started/configuration)에서 다룹니다.
 

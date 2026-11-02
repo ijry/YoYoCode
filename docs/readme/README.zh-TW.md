@@ -184,7 +184,7 @@
 
 ### 命令列與 CI
 
-`codeg-cli` 將腳本與 CI 接入執行中的 YoYoCode，輸出智慧體回覆或 JSON 事件。
+`yoyo-cli` 將腳本與 CI 接入執行中的 YoYoCode，輸出智慧體回覆或 JSON 事件。
 
 [文件 →](https://docs.codeg.app/zh/guide/command-line)
 
@@ -192,10 +192,10 @@
 <td width="50%" valign="middle">
 
 ```bash
-codeg-cli -a codex \
+yoyo-cli -a codex \
   -p "Review the latest commit"
 
-git diff | codeg-cli -a codex \
+git diff | yoyo-cli -a codex \
   -p "Review this diff"
 ```
 
@@ -269,12 +269,12 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — 同一個伺服器，裝進一個容器：
 
 ```bash
-docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-無論哪種方式，都在瀏覽器中開啟 `http://<host>:3080`，輸入伺服器啟動時印出的存取權杖（容器可用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自行指定。
+無論哪種方式，都在瀏覽器中開啟 `http://<host>:18080`，輸入伺服器啟動時印出的存取權杖（容器可用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自行指定。
 
-**行動裝置** — 安裝 [iOS 應用](https://apps.apple.com/app/codeg-client/id6785199071) 或 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)，再把它指向桌面應用的 **Web 服務**或你自己的 `codeg-server`：填位址、填權杖，完成。配對步驟見 [行動應用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
+**行動裝置** — 安裝 [iOS 應用](https://apps.apple.com/app/yoyo-client/id6785199071) 或 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)，再把它指向桌面應用的 **Web 服務**或你自己的 `codeg-server`：填位址、填權杖，完成。配對步驟見 [行動應用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
 
 Compose、預編譯二進位檔、原始碼建置與就地升級見 [部署](https://docs.codeg.app/zh/getting-started/deployment)；環境變數見 [設定](https://docs.codeg.app/zh/getting-started/configuration)。
 

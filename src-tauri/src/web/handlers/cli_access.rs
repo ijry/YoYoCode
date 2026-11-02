@@ -1,4 +1,4 @@
-//! The "Allow command-line access" setting (`codeg-cli`).
+//! The "Allow command-line access" setting (`yoyo-cli`).
 
 use std::sync::Arc;
 

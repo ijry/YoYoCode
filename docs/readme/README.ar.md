@@ -184,7 +184,7 @@
 
 ### سطر الأوامر وCI
 
-اربط السكربتات وCI بـ YoYoCode قيد التشغيل عبر `codeg-cli`، واحصل على الردود أو أحداث JSON.
+اربط السكربتات وCI بـ YoYoCode قيد التشغيل عبر `yoyo-cli`، واحصل على الردود أو أحداث JSON.
 
 [التوثيق ←](https://docs.codeg.app/guide/command-line)
 
@@ -192,10 +192,10 @@
 <td width="50%" valign="middle">
 
 ```bash
-codeg-cli -a codex \
+yoyo-cli -a codex \
   -p "Review the latest commit"
 
-git diff | codeg-cli -a codex \
+git diff | yoyo-cli -a codex \
   -p "Review this diff"
 ```
 
@@ -269,12 +269,12 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — الخادم نفسه، داخل حاوية واحدة:
 
 ```bash
-docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-في الحالتين، افتح `http://<host>:3080` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
+في الحالتين، افتح `http://<host>:18080` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
 
-**الهاتف واللوحي** — ثبّت [تطبيق iOS](https://apps.apple.com/app/codeg-client/id6785199071) أو [حزمة Android APK](https://github.com/xintaofei/codeg-android/releases/latest)، ثم وجّهه إلى **خدمة الويب** في تطبيق سطح المكتب أو إلى خادم `codeg-server` الخاص بك: العنوان والرمز، وانتهى الأمر. خطوات الاقتران في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**الهاتف واللوحي** — ثبّت [تطبيق iOS](https://apps.apple.com/app/yoyo-client/id6785199071) أو [حزمة Android APK](https://github.com/xintaofei/codeg-android/releases/latest)، ثم وجّهه إلى **خدمة الويب** في تطبيق سطح المكتب أو إلى خادم `codeg-server` الخاص بك: العنوان والرمز، وانتهى الأمر. خطوات الاقتران في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 يغطي [النشر](https://docs.codeg.app/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://docs.codeg.app/getting-started/configuration).
 

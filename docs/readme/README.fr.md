@@ -184,7 +184,7 @@ Partagez pages et erreurs du navigateur de bureau. Computer Use (aperçu) pilote
 
 ### Ligne de commande et CI
 
-`codeg-cli` relie scripts et CI à un YoYoCode déjà lancé et affiche les réponses ou événements JSON.
+`yoyo-cli` relie scripts et CI à un YoYoCode déjà lancé et affiche les réponses ou événements JSON.
 
 [Documentation →](https://docs.codeg.app/guide/command-line)
 
@@ -192,10 +192,10 @@ Partagez pages et erreurs du navigateur de bureau. Computer Use (aperçu) pilote
 <td width="50%" valign="middle">
 
 ```bash
-codeg-cli -a codex \
+yoyo-cli -a codex \
   -p "Review the latest commit"
 
-git diff | codeg-cli -a codex \
+git diff | yoyo-cli -a codex \
   -p "Review this diff"
 ```
 
@@ -269,12 +269,12 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — le même serveur, dans un conteneur :
 
 ```bash
-docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-Dans les deux cas, ouvrez `http://<host>:3080` dans un navigateur et saisissez le jeton d'accès que le serveur affiche au démarrage (pour le conteneur, `docker logs` le montre), ou définissez `CODEG_TOKEN` pour choisir le vôtre.
+Dans les deux cas, ouvrez `http://<host>:18080` dans un navigateur et saisissez le jeton d'accès que le serveur affiche au démarrage (pour le conteneur, `docker logs` le montre), ou définissez `CODEG_TOKEN` pour choisir le vôtre.
 
-**Mobile** — installez l'[app iOS](https://apps.apple.com/app/codeg-client/id6785199071) ou l'[APK Android](https://github.com/xintaofei/codeg-android/releases/latest), puis pointez-la vers le **Service Web** de votre application de bureau ou vers votre propre `codeg-server` : URL, jeton, c'est prêt. Les étapes d'appairage sont dans [Applications mobiles](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**Mobile** — installez l'[app iOS](https://apps.apple.com/app/yoyo-client/id6785199071) ou l'[APK Android](https://github.com/xintaofei/codeg-android/releases/latest), puis pointez-la vers le **Service Web** de votre application de bureau ou vers votre propre `codeg-server` : URL, jeton, c'est prêt. Les étapes d'appairage sont dans [Applications mobiles](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 Compose, binaires précompilés, compilation depuis les sources et mises à jour sur place sont traités dans [Déploiement](https://docs.codeg.app/getting-started/deployment) ; les variables d'environnement dans [Configuration](https://docs.codeg.app/getting-started/configuration).
 

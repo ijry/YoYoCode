@@ -356,7 +356,7 @@ async fn on_event(
     }
 }
 
-/// Refuse a permission request once, the way `codeg-cli run --permissions
+/// Refuse a permission request once, the way `yoyo-cli run --permissions
 /// deny` does. A request that offers no one-time refusal ends the run: the
 /// only other ways to answer it would write a standing rule into the user's
 /// agent settings.

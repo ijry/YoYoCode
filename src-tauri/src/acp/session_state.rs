@@ -804,7 +804,7 @@ pub struct SessionState {
     /// settles it on an immediate poll rather than its next scheduled one.
     pub wire_title_wake: Arc<tokio::sync::Notify>,
 
-    /// The headless `codeg-cli` run this connection belongs to — its root
+    /// The headless `yoyo-cli` run this connection belongs to — its root
     /// connection, or a delegation child that inherited the tag when it was
     /// spawned. `None` for every other connection. Never on the snapshot.
     pub cli_run: Option<crate::cli_run::CliRunTag>,
@@ -2458,10 +2458,10 @@ impl SessionState {
 /// Not for the owners codeg drives without one: an automation run (owner
 /// `"automation"`, see `automation::engine`), a chat-channel bot (owners
 /// `"chat_channel:<channel>:<sender>…"`, see
-/// `chat_channel::session_commands::owner_label_for`) and a `codeg-cli` run
+/// `chat_channel::session_commands::owner_label_for`) and a `yoyo-cli` run
 /// (owner [`CLI_OWNER_LABEL`](crate::cli_run::service::CLI_OWNER_LABEL)), whose
 /// prompts arrive from a schedule, a messaging app or a command line — and a
-/// `codeg-cli` run lets its connection go as soon as its one turn has ended.
+/// `yoyo-cli` run lets its connection go as soon as its one turn has ended.
 /// Nor a one-shot generation (owner
 /// [`OWNER_LABEL`](crate::acp::one_shot::OWNER_LABEL)), which has no
 /// conversation to continue at all.

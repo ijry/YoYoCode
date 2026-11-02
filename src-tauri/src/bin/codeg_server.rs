@@ -83,7 +83,7 @@ fn main() -> ExitCode {
         .unwrap_or_else(|_| default_data_dir());
     let resolved_data_dir = codeg_lib::git_credential::absolutize(&resolved_data_dir);
     std::env::set_var("CODEG_DATA_DIR", &resolved_data_dir);
-    // This process's `codeg-cli` discovery file, for everything it starts: a
+    // This process's `yoyo-cli` discovery file, for everything it starts: a
     // CLI run from one of its terminals or agents connects back to THIS
     // runtime, not to whichever else shares the data directory. Overrides a
     // value inherited from a runtime this one was started from.
@@ -92,11 +92,11 @@ fn main() -> ExitCode {
         codeg_lib::cli_run::discovery::file_for(&resolved_data_dir, std::process::id()),
     );
 
-    // The codeg-cli installed beside this server, for everything it starts
+    // The yoyo-cli installed beside this server, for everything it starts
     // (`cli_run::shim`): the matching one, whatever else is on their PATH.
     if let Some(cli) = codeg_lib::update::runtime::self_exe()
         .parent()
-        .map(|dir| dir.join(if cfg!(windows) { "codeg-cli.exe" } else { "codeg-cli" }))
+        .map(|dir| dir.join(if cfg!(windows) { "yoyo-cli.exe" } else { "yoyo-cli" }))
         .filter(|p| p.metadata().is_ok_and(|m| m.is_file() && m.len() > 0))
     {
         std::env::set_var(codeg_lib::cli_run::shim::CLI_ENV, cli);
@@ -152,7 +152,7 @@ fn main() -> ExitCode {
     };
 
     // Before anything opens the database (see `runtime_lock`): every server
-    // shares the data directory, and waits while a `codeg-cli --standalone`
+    // shares the data directory, and waits while a `yoyo-cli --standalone`
     // server has it — which itself takes it alone, or leaves untouched.
     let exclusive = std::env::var(codeg_lib::runtime_lock::EXCLUSIVE_ENV).is_ok_and(|v| v == "1");
     let _runtime_lock = match codeg_lib::runtime_lock::hold_for_server(&resolved_data_dir) {
@@ -174,7 +174,7 @@ fn main() -> ExitCode {
         Err(e) if codeg_lib::runtime_lock::locking_unsupported(&e) => {
             tracing::warn!(
                 "[SERVER][WARN] {} cannot lock files ({e}); going on without, so a \
-                 `codeg-cli --standalone` there would not see this server",
+                 `yoyo-cli --standalone` there would not see this server",
                 resolved_data_dir.display()
             );
             None
@@ -189,7 +189,7 @@ fn main() -> ExitCode {
         }
     };
 
-    // A `codeg-cli --standalone` server ends with the codeg-cli that started
+    // A `yoyo-cli --standalone` server ends with the yoyo-cli that started
     // it: its stdin closes when that process is gone, a crash included.
     if std::env::var(codeg_lib::runtime_lock::EXIT_ON_STDIN_EOF_ENV).is_ok_and(|v| v == "1") {
         let endpoint =
@@ -236,7 +236,7 @@ async fn async_main(
     let port: u16 = std::env::var("CODEG_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(3080);
+        .unwrap_or(18080);
     let host = std::env::var("CODEG_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     // CODEG_DATA_DIR was already resolved and absolutized in `main()` so
     // all path resolvers across the process see the same root. Read it
@@ -690,7 +690,7 @@ async fn async_main(
         tokio::spawn(codeg_lib::automation::run_automation_engine(engine));
     }
 
-    // Headless `codeg-cli` runs (mirrors lib.rs setup): the policy backstop
+    // Headless `yoyo-cli` runs (mirrors lib.rs setup): the policy backstop
     // here; the loopback listener and its discovery file once the server has
     // its own socket (below), so a server that fails to start publishes none.
     state.cli_runs.spawn_background();

@@ -1425,7 +1425,7 @@ pub enum PermissionAnswerOrigin {
     User,
     /// A chat channel: its `/approve` / `/deny` commands or its auto-approve.
     ChatChannel,
-    /// The permission policy of a headless `codeg-cli` run.
+    /// The permission policy of a headless `yoyo-cli` run.
     CliPolicy { run_id: String },
 }
 

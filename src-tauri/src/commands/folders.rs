@@ -7742,7 +7742,7 @@ mod tests {
     }
 
     /// Two callers making the row of one new path at once — the runs of a
-    /// `codeg-cli -a x -a y` in a new workspace, delegations into a new cwd —
+    /// `yoyo-cli -a x -a y` in a new workspace, delegations into a new cwd —
     /// both get it: the one that lost the insert reads the winner's.
     #[tokio::test]
     async fn ensure_folder_for_path_made_twice_at_once_is_one_row() {

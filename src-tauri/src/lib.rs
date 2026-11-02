@@ -31,7 +31,7 @@ pub mod backgrounds;
 /// mode — see `browser/mod.rs` for why those two, and only those two.
 pub mod browser;
 pub mod chat_channel;
-/// The `codeg-cli` binary's client side (feature `cli-bin`).
+/// The `yoyo-cli` binary's client side (feature `cli-bin`).
 #[cfg(feature = "cli-bin")]
 pub mod cli;
 pub mod cli_run;
@@ -574,7 +574,7 @@ mod tauri_app {
         if let Some(data_dir) = &desktop_data_dir {
             // SAFETY: single-threaded as argued above.
             unsafe { std::env::set_var("CODEG_DATA_DIR", data_dir) };
-            // This process's `codeg-cli` discovery file, for everything it
+            // This process's `yoyo-cli` discovery file, for everything it
             // starts, so a CLI run from one of its terminals or agents
             // connects back here — not to the debug or release desktop, or
             // the server, that shares the directory. Replaces a value
@@ -604,7 +604,7 @@ mod tauri_app {
         }
         process::ensure_node_in_path();
         process::ensure_user_npm_prefix_in_path();
-        // This release's own `codeg-cli`, first on the PATH of everything it
+        // This release's own `yoyo-cli`, first on the PATH of everything it
         // starts and named in CODEG_CLI (`cli_run::shim`); written in setup.
         // After the PATH fixes above, which rewrite PATH.
         if let (Some(data_dir), Ok(exe)) = (&desktop_data_dir, std::env::current_exe()) {
@@ -822,7 +822,7 @@ mod tauri_app {
 
                 // Before the database (see `runtime_lock`): shared with any
                 // other runtime of this data directory, never with a private
-                // `codeg-cli --standalone` server that has it alone. The
+                // `yoyo-cli --standalone` server that has it alone. The
                 // window does not wait for that one: it says so and leaves.
                 let refused = match crate::runtime_lock::try_shared(&effective_data_dir) {
                     Ok(Some(lock)) => {
@@ -830,14 +830,14 @@ mod tauri_app {
                         None
                     }
                     Ok(None) => Some(format!(
-                        "{} is in use by a `codeg-cli --standalone` server. Open Codeg again \
+                        "{} is in use by a `yoyo-cli --standalone` server. Open Codeg again \
                          once that command has finished.",
                         effective_data_dir.display()
                     )),
                     Err(e) if crate::runtime_lock::locking_unsupported(&e) => {
                         tracing::warn!(
                             "[startup] {} cannot lock files ({e}); going on without, so a \
-                             `codeg-cli --standalone` there would not see this window",
+                             `yoyo-cli --standalone` there would not see this window",
                             effective_data_dir.display()
                         );
                         None
@@ -867,12 +867,12 @@ mod tauri_app {
                 .map_err(|e| e.to_string())?;
                 app.manage(database);
 
-                // The `codeg-cli` startup put first on PATH (`cli_run::shim`),
+                // The `yoyo-cli` startup put first on PATH (`cli_run::shim`),
                 // written off the way of the window.
                 if let Some(layout) = crate::cli_run::shim::layout() {
                     std::thread::spawn(move || {
                         if let Err(e) = layout.write() {
-                            tracing::warn!("[cli] this app's own codeg-cli: {e}");
+                            tracing::warn!("[cli] this app's own yoyo-cli: {e}");
                         }
                     });
                 }
@@ -1379,7 +1379,7 @@ mod tauri_app {
                     ));
                 }
 
-                // Headless `codeg-cli` runs: the service and its loopback
+                // Headless `yoyo-cli` runs: the service and its loopback
                 // access. Managed before the web service may start below,
                 // which serves the same routes from this state.
                 {

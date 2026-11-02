@@ -1,19 +1,19 @@
-//! Settings → "Install command-line tool": `codeg-cli` on the user's own
+//! Settings → "Install command-line tool": `yoyo-cli` on the user's own
 //! PATH, from the desktop app.
 //!
 //! What that takes depends on the package:
-//! - macOS: a link `/usr/local/bin/codeg-cli` → the app's sidecar, the one
+//! - macOS: a link `/usr/local/bin/yoyo-cli` → the app's sidecar, the one
 //!   docs/cli.md has people make by hand — asking for an administrator's
 //!   password when the folder needs it.
-//! - Windows: the installer's `bin\` (only `codeg-cli.exe` in it) added to the
+//! - Windows: the installer's `bin\` (only `yoyo-cli.exe` in it) added to the
 //!   user's PATH.
-//! - an AppImage: a link `~/.local/bin/codeg-cli` → the copy the app keeps up
+//! - an AppImage: a link `~/.local/bin/yoyo-cli` → the copy the app keeps up
 //!   to date (`shim`); likewise for a Linux build outside a package.
-//! - a Linux package: nothing — `/usr/bin/codeg-cli` is on PATH already.
+//! - a Linux package: nothing — `/usr/bin/yoyo-cli` is on PATH already.
 //!
-//! A `codeg-cli` already there that is not the app's — the server package's,
+//! A `yoyo-cli` already there that is not the app's — the server package's,
 //! say — is never replaced: the two are the same program. A debug build
-//! installs `codeg-cli-dev`, never the command of an installed release.
+//! installs `yoyo-cli-dev`, never the command of an installed release.
 
 use std::path::{Path, PathBuf};
 
@@ -27,14 +27,14 @@ use super::shim::{self, Kind, Layout};
 pub struct CommandToolStatus {
     /// `link` (a link in a folder on PATH), `path` (a folder added to PATH),
     /// `package` (the package put it on PATH), or `none` (this build has no
-    /// `codeg-cli` to offer).
+    /// `yoyo-cli` to offer).
     pub method: String,
     pub command: String,
     pub installed: bool,
     /// Where the command is, or will be: the link, or the folder.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
-    /// Another `codeg-cli` in the way, left as it is.
+    /// Another `yoyo-cli` in the way, left as it is.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conflict: Option<String>,
     /// Something to know: the link's folder is not on PATH, say.
@@ -145,7 +145,7 @@ fn status_of(plan: &Plan, command: &str) -> CommandToolStatus {
 pub fn install() -> Result<CommandToolStatus, String> {
     let plan = this_plan();
     match &plan {
-        Plan::Nothing => return Err("this build of Codeg has no codeg-cli to install".into()),
+        Plan::Nothing => return Err("this build of Codeg has no yoyo-cli to install".into()),
         Plan::Package { .. } => {}
         Plan::Link { link, target } => match link_state(link, target) {
             LinkState::Ours { current: true } => {}
@@ -190,15 +190,26 @@ fn link_state(link: &Path, target: &Path) -> LinkState {
     if points_to == target {
         return LinkState::Ours { current: true };
     }
-    // Into a codeg.app bundle somewhere else: this app, moved, or a copy
-    // of it — the link install.sh also keeps as the desktop's.
+    // Into an .app bundle somewhere else: this app, moved, or a copy
+    // of it — the link install.sh also keeps as the desktop's. The bundle's
+    // name follows the injected productName (YoYoCode.app), so read it from
+    // this process's own location instead of hardcoding it.
     let tail: Vec<_> = points_to
         .components()
         .rev()
         .take(4)
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
         .collect();
-    let ours = tail == ["codeg-cli", "MacOS", "Contents", "codeg.app"];
+    let our_app = std::env::current_exe()
+        .ok()
+        .and_then(|exe| {
+            // <…>/<app>.app/Contents/MacOS/<bin> → <app>.app
+            exe.ancestors().nth(2).map(std::path::Path::to_path_buf)
+        })
+        .filter(|d| d.extension().is_some_and(|e| e == "app"))
+        .and_then(|d| d.file_name().map(|f| f.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "codeg.app".to_string());
+    let ours = tail == ["yoyo-cli", "MacOS", "Contents", our_app.as_str()];
     if ours {
         LinkState::Ours { current: false }
     } else {
@@ -250,7 +261,7 @@ fn make_link_as_admin(link: &Path, target: &Path) -> Result<(), String> {
     let dir = link.parent().unwrap_or(Path::new("/usr/local/bin"));
     let script = format!(
         "do shell script \"/bin/mkdir -p \" & {} & \" && /bin/ln -sfn \" & {} & \" \" & {} \
-         with prompt \"Codeg wants to put codeg-cli on your PATH.\" with administrator privileges",
+         with prompt \"Codeg wants to put yoyo-cli on your PATH.\" with administrator privileges",
         quoted(dir),
         quoted(target),
         quoted(link)
@@ -467,8 +478,8 @@ mod tests {
     fn layout(kind: Kind, dir: &Path) -> Layout {
         Layout {
             dir: dir.to_path_buf(),
-            command: "codeg-cli",
-            cli: dir.join("codeg-cli"),
+            command: "yoyo-cli",
+            cli: dir.join("yoyo-cli"),
             kind,
         }
     }
@@ -476,7 +487,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn on_macos_the_link_goes_where_the_docs_put_it() {
-        let target = PathBuf::from("/Applications/codeg.app/Contents/MacOS/codeg-cli");
+        let target = PathBuf::from("/Applications/codeg.app/Contents/MacOS/yoyo-cli");
         let shim = layout(
             Kind::Shim {
                 target: target.clone(),
@@ -490,7 +501,7 @@ mod tests {
                 None
             ),
             Plan::Link {
-                link: PathBuf::from("/usr/local/bin/codeg-cli"),
+                link: PathBuf::from("/usr/local/bin/yoyo-cli"),
                 target,
             }
         );
@@ -501,7 +512,7 @@ mod tests {
     fn on_linux_a_package_needs_nothing_and_an_appimage_links_its_copy() {
         let packaged = layout(
             Kind::Shim {
-                target: PathBuf::from("/usr/bin/codeg-cli"),
+                target: PathBuf::from("/usr/bin/yoyo-cli"),
             },
             Path::new("/d/cli/bin"),
         );
@@ -515,7 +526,7 @@ mod tests {
         ));
         let image = layout(
             Kind::Copy {
-                source: PathBuf::from("/tmp/.mount_x/usr/bin/codeg-cli"),
+                source: PathBuf::from("/tmp/.mount_x/usr/bin/yoyo-cli"),
             },
             Path::new("/d/cli/bin"),
         );
@@ -526,8 +537,8 @@ mod tests {
                 Some(Path::new("/home/u"))
             ),
             Plan::Link {
-                link: PathBuf::from("/home/u/.local/bin/codeg-cli"),
-                target: PathBuf::from("/d/cli/bin/codeg-cli"),
+                link: PathBuf::from("/home/u/.local/bin/yoyo-cli"),
+                target: PathBuf::from("/d/cli/bin/yoyo-cli"),
             }
         );
     }
@@ -535,7 +546,7 @@ mod tests {
     #[test]
     fn a_build_without_codeg_cli_offers_nothing() {
         assert_eq!(plan(None, Path::new("/x/codeg"), None), Plan::Nothing);
-        let status = status_of(&Plan::Nothing, "codeg-cli");
+        let status = status_of(&Plan::Nothing, "yoyo-cli");
         assert_eq!(status.method, "none");
         assert!(!status.installed);
     }
@@ -544,10 +555,10 @@ mod tests {
     #[test]
     fn a_link_is_made_left_alone_or_repointed_as_whose_it_is() {
         let root = tempfile::tempdir().unwrap();
-        let target = root.path().join("codeg.app/Contents/MacOS/codeg-cli");
+        let target = root.path().join("codeg.app/Contents/MacOS/yoyo-cli");
         std::fs::create_dir_all(target.parent().unwrap()).unwrap();
         std::fs::write(&target, "cli").unwrap();
-        let link = root.path().join("bin").join("codeg-cli");
+        let link = root.path().join("bin").join("yoyo-cli");
 
         assert_eq!(link_state(&link, &target), LinkState::Absent);
         make_link(&link, &target).unwrap();
@@ -557,7 +568,7 @@ mod tests {
         );
 
         // The app moved: the old link is still ours, to point at it anew.
-        let moved = root.path().join("new/codeg.app/Contents/MacOS/codeg-cli");
+        let moved = root.path().join("new/codeg.app/Contents/MacOS/yoyo-cli");
         assert_eq!(
             link_state(&link, &moved),
             LinkState::Ours { current: false }
@@ -571,9 +582,9 @@ mod tests {
         assert!(matches!(link_state(&link, &target), LinkState::Other(_)));
         // A link somewhere else: likewise, whatever its path looks like.
         for elsewhere in [
-            "/opt/codeg/codeg-cli",
-            "/opt/server/cli/bin/codeg-cli",
-            "/Applications/Other.app/Contents/MacOS/codeg-cli",
+            "/opt/codeg/yoyo-cli",
+            "/opt/server/cli/bin/yoyo-cli",
+            "/Applications/Other.app/Contents/MacOS/yoyo-cli",
         ] {
             std::fs::remove_file(&link).unwrap();
             std::os::unix::fs::symlink(elsewhere, &link).unwrap();

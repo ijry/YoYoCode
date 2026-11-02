@@ -1,4 +1,4 @@
-//! The `codeg-cli` contract, in one place for both ends of it.
+//! The `yoyo-cli` contract, in one place for both ends of it.
 //!
 //! Two layers:
 //! - the HTTP bodies the CLI and the runtime exchange under `/api/cli_*` —
@@ -34,7 +34,7 @@ pub mod capability {
     /// `open: true` in `cli_run_start` (desktop runtimes only).
     pub const OPEN_SESSION: &str = "open_session";
     /// `cli_run_find`: a run looked up by the start of its id, for
-    /// `codeg-cli result` and `codeg-cli cancel`.
+    /// `yoyo-cli result` and `yoyo-cli cancel`.
     pub const RUN_LOOKUP: &str = "run_lookup";
     /// `worktree` in `cli_run_start`: the run in a git worktree of its own.
     pub const WORKTREE: &str = "worktree";
@@ -47,7 +47,7 @@ pub mod capability {
     pub const OUTPUT_SCHEMA: &str = "output_schema";
 }
 
-/// The exit code of `codeg-cli result` for a run that has not settled within
+/// The exit code of `yoyo-cli result` for a run that has not settled within
 /// its `--wait`. Not a result's: the run was not cancelled, it goes on.
 pub const STILL_RUNNING_EXIT_CODE: i32 = 6;
 
@@ -360,7 +360,7 @@ pub struct AutomationRunGetRequest {
     pub wait_ms: Option<u64>,
 }
 
-/// One automation run, as the runtime answers for it and `codeg-cli
+/// One automation run, as the runtime answers for it and `yoyo-cli
 /// automations run` prints it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AutomationRunState {
@@ -409,7 +409,7 @@ pub struct AgentInstallGetRequest {
     pub wait_ms: Option<u64>,
 }
 
-/// An agent install, as the runtime answers for it and `codeg-cli agents
+/// An agent install, as the runtime answers for it and `yoyo-cli agents
 /// install` prints it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentInstallState {
@@ -752,7 +752,7 @@ impl RunEvent {
     }
 }
 
-/// What `codeg-cli result` prints for a run that has not settled within its
+/// What `yoyo-cli result` prints for a run that has not settled within its
 /// `--wait`, with [`STILL_RUNNING_EXIT_CODE`]. Not a result: `type` is
 /// `"status"`, and the run goes on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

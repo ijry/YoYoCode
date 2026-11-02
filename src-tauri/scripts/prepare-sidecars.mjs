@@ -7,7 +7,7 @@
 //      `TAURI_TARGET_TRIPLE` env, or the host's `rustc -vV` host triple.
 //   2. Runs `cargo build --release --no-default-features`, with the feature
 //      each binary target requires, for each sidecar bin (`codeg-mcp`,
-//      `codeg-computer-helper`, `codeg-cli`) for that triple from
+//      `codeg-computer-helper`, `yoyo-cli`) for that triple from
 //      `src-tauri/`.
 //   3. Copies each produced binary to
 //      `src-tauri/binaries/<bin>-<triple>{.exe}` so Tauri's externalBin
@@ -57,7 +57,7 @@ const SRC_TAURI = resolve(SCRIPT_DIR, "..")
 const BINARIES_DIR = join(SRC_TAURI, "binaries")
 // Every sidecar in `bundle.externalBin`, in the order they are built. (On
 // macOS the helper is bundled as an app instead; see `stageHelperApp`.)
-const BIN_NAMES = ["codeg-mcp", "codeg-computer-helper", "codeg-cli"]
+const BIN_NAMES = ["codeg-mcp", "codeg-computer-helper", "yoyo-cli"]
 // The features their binary targets require (Cargo.toml) — all of them, in one
 // cargo invocation: naming only a new sidecar's feature would leave the
 // others' binary targets disabled.

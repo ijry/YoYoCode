@@ -1,4 +1,4 @@
-//! `codeg-cli run --worktree[=NAME]`: a fresh git worktree for one run.
+//! `yoyo-cli run --worktree[=NAME]`: a fresh git worktree for one run.
 //!
 //! The same shape as an automation's per-run worktree: a sibling of the
 //! repository, on a new branch from its HEAD (`cli/<NAME>`, or the start of
@@ -174,7 +174,7 @@ async fn check_out(
     run_id: &str,
 ) -> Result<(), String> {
     let nonce = super::hello::random_hex(16);
-    let reason = format!("codeg-cli is setting up run {run_id} ({nonce})");
+    let reason = format!("yoyo-cli is setting up run {run_id} ({nonce})");
     let root_arg = root.to_string_lossy().into_owned();
     let added = git(
         repository,
@@ -650,7 +650,7 @@ mod tests {
     fn the_porcelain_list_reads_as_one_entry_per_worktree() {
         let text = "worktree C:/src/repo\r\nHEAD 1111\r\nbranch refs/heads/main\r\n\r\n\
                     worktree C:/src/repo-cli-x\r\nHEAD 2222\r\nbranch refs/heads/cli/x\r\n\
-                    locked codeg-cli is setting up run r (abc)\r\n\r\n\
+                    locked yoyo-cli is setting up run r (abc)\r\n\r\n\
                     worktree /w/detached\nHEAD 3333\ndetached\nlocked\n\n\
                     worktree /w/with space\nHEAD 4444\nbranch refs/heads/b\n\
                     prunable gitdir file points to non-existent location\n";
@@ -666,7 +666,7 @@ mod tests {
                 entry(
                     "C:/src/repo-cli-x",
                     Some("refs/heads/cli/x"),
-                    Some("codeg-cli is setting up run r (abc)")
+                    Some("yoyo-cli is setting up run r (abc)")
                 ),
                 entry("/w/detached", None, Some("")),
                 entry("/w/with space", Some("refs/heads/b"), None),

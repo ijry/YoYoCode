@@ -1,4 +1,4 @@
-//! `CliRunService`: the runtime side of `codeg-cli run`.
+//! `CliRunService`: the runtime side of `yoyo-cli run`.
 //!
 //! One run is one prompt and one turn on a fresh connection. The service owns
 //! everything that must not depend on the CLI staying connected:
@@ -159,7 +159,7 @@ impl AgentLauncher for ManagerLauncher {
             .map_err(|e| {
                 CliError::execution("agent_not_installed", e.to_string()).with_next_steps([
                     format!(
-                        "codeg-cli agents   (shows how to install {})",
+                        "yoyo-cli agents   (shows how to install {})",
                         agent.as_wire()
                     ),
                 ])
@@ -1162,7 +1162,7 @@ impl CliRunService {
         let by_id = key.trim().parse::<i32>().ok();
         let wanted = assistant_service::name_key(key.trim());
         // A number is an id first: one assistant's numeric name never shadows
-        // another's id (`codeg-cli assistants` shows both).
+        // another's id (`yoyo-cli assistants` shows both).
         let found = by_id
             .and_then(|id| live.iter().position(|a| a.id == id))
             .or_else(|| {
@@ -1175,7 +1175,7 @@ impl CliRunService {
                 "unknown_assistant",
                 format!("no enabled assistant is named or numbered {key:?}"),
             )
-            .with_next_steps(["codeg-cli assistants".to_string()])),
+            .with_next_steps(["yoyo-cli assistants".to_string()])),
         }
     }
 
@@ -1204,7 +1204,7 @@ impl CliRunService {
         }
         Err(
             CliError::usage("unknown_agent", format!("{slug:?} is not an agent"))
-                .with_next_steps(["codeg-cli agents".to_string()]),
+                .with_next_steps(["yoyo-cli agents".to_string()]),
         )
     }
 
@@ -2638,7 +2638,7 @@ impl CliRunService {
     }
 
     /// The runs whose id starts with `prefix`, newest first — what lets
-    /// `codeg-cli result 8d0c7c2e` stand for the whole id.
+    /// `yoyo-cli result 8d0c7c2e` stand for the whole id.
     pub async fn find(&self, req: &FindRequest) -> Result<FindResponse, CliError> {
         let prefix = req.prefix.trim().to_ascii_lowercase();
         if prefix.len() < MIN_RUN_PREFIX
@@ -3738,7 +3738,7 @@ mod tests {
         assert_eq!(summary.source.as_deref(), Some("cli"));
     }
 
-    /// `codeg-cli result --wait`: a `get` that waits answers the moment the
+    /// `yoyo-cli result --wait`: a `get` that waits answers the moment the
     /// run settles; one whose wait runs out answers with the run as it is —
     /// its conversation known before its result.
     #[tokio::test]

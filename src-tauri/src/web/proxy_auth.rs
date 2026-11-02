@@ -5,7 +5,7 @@
 //! holds a JWT whose signature verifies against the proxy's published keys
 //! (JWKS) and whose `iss`, `aud`, `exp` and `nbf` match. The browser then needs
 //! no Codeg token: the proxy's login is the login. The token keeps working for
-//! every other client (`codeg-cli --url`, scripts).
+//! every other client (`yoyo-cli --url`, scripts).
 //!
 //! Why a signature check and not "trust the header": anything that can reach
 //! the listener — any local process when Codeg is bound to loopback — can set

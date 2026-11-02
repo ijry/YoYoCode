@@ -1,13 +1,13 @@
-//! codeg's own `codeg-cli`, first for everything codeg starts.
+//! codeg's own `yoyo-cli`, first for everything codeg starts.
 //!
-//! The desktop app puts a `codeg-cli` of its own release first on the PATH of
+//! The desktop app puts a `yoyo-cli` of its own release first on the PATH of
 //! its built-in terminal and of every agent, and names it in `CODEG_CLI`, so
-//! a `codeg-cli` typed there, or run by an agent, is the one that matches the
+//! a `yoyo-cli` typed there, or run by an agent, is the one that matches the
 //! runtime it talks to (`CODEG_CLI_ENDPOINT_FILE` already picks the runtime).
 //! A login shell may put its own PATH first; `CODEG_CLI` always holds.
 //!
-//! Where that `codeg-cli` is:
-//! - macOS, Linux packages: `<data dir>/cli/bin/codeg-cli`, a script that
+//! Where that `yoyo-cli` is:
+//! - macOS, Linux packages: `<data dir>/cli/bin/yoyo-cli`, a script that
 //!   runs the app's own sidecar — rewritten at every start, so a moved or
 //!   updated app keeps it right. Only a file with [`MARKER`] as its second
 //!   line is ours: one the user put there under that name is left alone.
@@ -17,23 +17,23 @@
 //!   user changed. A copy in use is replaced by a rename, which leaves it
 //!   running.
 //! - Windows: the installer's `bin\`, which holds nothing but
-//!   `codeg-cli.exe`. A debug build copies its own into
+//!   `yoyo-cli.exe`. A debug build copies its own into
 //!   `%LOCALAPPDATA%\app.codeg\cli\bin\` — never into the roaming data
 //!   directory, which is no place for a program.
 //!
-//! A debug build names its command `codeg-cli-dev`, so it never takes the
+//! A debug build names its command `yoyo-cli-dev`, so it never takes the
 //! name of an installed release's.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 /// The second line of every shim this module writes.
-pub const MARKER: &str = "# codeg-cli shim, written by Codeg at every start: changes are lost";
+pub const MARKER: &str = "# yoyo-cli shim, written by Codeg at every start: changes are lost";
 
 /// Beside a copy (AppImage, Windows debug): the SHA-256 of the copy last
 /// written, which is ours to replace while it still matches — the release's
-/// record; a debug build's is `.codeg-cli-dev.sha256` (`record_of`).
-pub const SHA_FILE: &str = ".codeg-cli.sha256";
+/// record; a debug build's is `.yoyo-cli-dev.sha256` (`record_of`).
+pub const SHA_FILE: &str = ".yoyo-cli.sha256";
 
 /// The record beside the copy at `path`: one per command, so a debug build
 /// sharing the directory never touches the release's.
@@ -46,7 +46,7 @@ fn record_of(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{command}.sha256"))
 }
 
-/// How codeg's own `codeg-cli` is put in place.
+/// How codeg's own `yoyo-cli` is put in place.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Kind {
     /// A script running `target`, the app's sidecar.
@@ -61,7 +61,7 @@ pub enum Kind {
 pub struct Layout {
     /// The directory put first on PATH.
     pub dir: PathBuf,
-    /// The command name: `codeg-cli`, or `codeg-cli-dev` for a debug build.
+    /// The command name: `yoyo-cli`, or `yoyo-cli-dev` for a debug build.
     pub command: &'static str,
     /// The program in `dir`.
     pub cli: PathBuf,
@@ -70,25 +70,25 @@ pub struct Layout {
 
 static LAYOUT: OnceLock<Layout> = OnceLock::new();
 
-/// The command name this build's `codeg-cli` goes by.
+/// The command name this build's `yoyo-cli` goes by.
 pub fn command_name() -> &'static str {
     if cfg!(debug_assertions) {
-        "codeg-cli-dev"
+        "yoyo-cli-dev"
     } else {
-        "codeg-cli"
+        "yoyo-cli"
     }
 }
 
-/// Where this desktop process's own `codeg-cli` goes, for its data directory
+/// Where this desktop process's own `yoyo-cli` goes, for its data directory
 /// and the executable it runs as. `None`: the app has no usable sidecar (a
 /// development build that never built one leaves an empty placeholder).
 pub fn plan_desktop(data_dir: &Path, local_data_dir: Option<&Path>, exe: &Path) -> Option<Layout> {
     let exe_dir = exe.parent()?;
     let command = command_name();
     let sidecar = exe_dir.join(if cfg!(windows) {
-        "codeg-cli.exe"
+        "yoyo-cli.exe"
     } else {
-        "codeg-cli"
+        "yoyo-cli"
     });
     if !is_program(&sidecar) {
         return None;
@@ -104,7 +104,7 @@ pub fn plan_desktop(data_dir: &Path, local_data_dir: Option<&Path>, exe: &Path) 
             });
         }
         let dir = exe_dir.join("bin");
-        let cli = dir.join("codeg-cli.exe");
+        let cli = dir.join("yoyo-cli.exe");
         return is_program(&cli).then_some(Layout {
             dir,
             command,
@@ -210,10 +210,10 @@ impl Layout {
     }
 }
 
-/// The variable that names codeg's own `codeg-cli` for what it starts.
+/// The variable that names codeg's own `yoyo-cli` for what it starts.
 pub const CLI_ENV: &str = "CODEG_CLI";
 
-/// The directory codeg's own `codeg-cli` is in, when this process has one.
+/// The directory codeg's own `yoyo-cli` is in, when this process has one.
 pub fn path_dir() -> Option<&'static Path> {
     LAYOUT.get().map(|l| l.dir.as_path())
 }
@@ -355,7 +355,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let app = root.path().join("codeg.app/Contents/MacOS");
         program(&app.join("codeg"), "app");
-        program(&app.join("codeg-cli"), "cli");
+        program(&app.join("yoyo-cli"), "cli");
         let data = root.path().join("data");
         let layout = plan_desktop(&data, None, &app.join("codeg")).expect("a sidecar");
         assert_eq!(layout.dir, data.join("cli").join("bin"));
@@ -363,16 +363,16 @@ mod tests {
         assert_eq!(
             layout.kind,
             Kind::Shim {
-                target: app.join("codeg-cli")
+                target: app.join("yoyo-cli")
             }
         );
         // CODEG_CLI names the app's own program, there whatever the shim.
-        assert_eq!(layout.program(), app.join("codeg-cli"));
+        assert_eq!(layout.program(), app.join("yoyo-cli"));
 
         layout.write().unwrap();
         let text = std::fs::read_to_string(&layout.cli).unwrap();
         assert!(text.starts_with("#!/bin/sh\n"), "{text}");
-        assert!(text.contains(&*app.join("codeg-cli").to_string_lossy()));
+        assert!(text.contains(&*app.join("yoyo-cli").to_string_lossy()));
         assert!(is_our_shim(&layout.cli));
         use std::os::unix::fs::PermissionsExt;
         let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
@@ -386,7 +386,7 @@ mod tests {
         // The app moved: the next start points the shim at it.
         let moved = root.path().join("elsewhere/codeg.app/Contents/MacOS");
         program(&moved.join("codeg"), "app");
-        program(&moved.join("codeg-cli"), "cli");
+        program(&moved.join("yoyo-cli"), "cli");
         let later = plan_desktop(&data, None, &moved.join("codeg")).unwrap();
         later.write().unwrap();
         assert!(std::fs::read_to_string(&later.cli)
@@ -416,14 +416,14 @@ mod tests {
     #[test]
     fn each_command_keeps_its_own_record() {
         let dir = Path::new("/d/cli/bin");
-        assert_eq!(record_of(&dir.join("codeg-cli")), dir.join(SHA_FILE));
+        assert_eq!(record_of(&dir.join("yoyo-cli")), dir.join(SHA_FILE));
         assert_eq!(
-            record_of(&dir.join("codeg-cli-dev.exe")),
-            dir.join(".codeg-cli-dev.sha256")
+            record_of(&dir.join("yoyo-cli-dev.exe")),
+            dir.join(".yoyo-cli-dev.sha256")
         );
         assert_eq!(
-            record_of(&dir.join("codeg-cli-dev")),
-            dir.join(".codeg-cli-dev.sha256")
+            record_of(&dir.join("yoyo-cli-dev")),
+            dir.join(".yoyo-cli-dev.sha256")
         );
     }
 
@@ -434,19 +434,19 @@ mod tests {
         program(&dir.join("codeg"), "app");
         assert!(plan_desktop(root.path(), None, &dir.join("codeg")).is_none());
         // The empty placeholder a development build writes is no program.
-        program(&dir.join("codeg-cli"), "");
-        program(&dir.join("codeg-cli.exe"), "");
+        program(&dir.join("yoyo-cli"), "");
+        program(&dir.join("yoyo-cli.exe"), "");
         assert!(plan_desktop(root.path(), None, &dir.join("codeg")).is_none());
     }
 
     #[test]
     fn a_copy_is_replaced_while_it_is_the_one_written_and_kept_once_changed() {
         let root = tempfile::tempdir().unwrap();
-        let source = root.path().join("mount/usr/bin/codeg-cli");
+        let source = root.path().join("mount/usr/bin/yoyo-cli");
         program(&source, "v1");
         let dir = root.path().join("bin");
         std::fs::create_dir_all(&dir).unwrap();
-        let copy = dir.join("codeg-cli");
+        let copy = dir.join("yoyo-cli");
 
         write_copy(&copy, &source).unwrap();
         assert_eq!(std::fs::read_to_string(&copy).unwrap(), "v1");
@@ -467,8 +467,8 @@ mod tests {
         // A file found there with no record of ours is not ours either.
         let other = root.path().join("other");
         std::fs::create_dir_all(&other).unwrap();
-        std::fs::write(other.join("codeg-cli"), "someone's").unwrap();
-        assert!(write_copy(&other.join("codeg-cli"), &source).is_err());
+        std::fs::write(other.join("yoyo-cli"), "someone's").unwrap();
+        assert!(write_copy(&other.join("yoyo-cli"), &source).is_err());
     }
 
     /// The data directory outlives a change of package: an AppImage takes
@@ -478,16 +478,16 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let dir = root.path().join("bin");
         std::fs::create_dir_all(&dir).unwrap();
-        let file = dir.join("codeg-cli");
-        let source = root.path().join("image/codeg-cli");
+        let file = dir.join("yoyo-cli");
+        let source = root.path().join("image/yoyo-cli");
         program(&source, "binary");
 
-        write_shim(&file, Path::new("/usr/bin/codeg-cli")).unwrap();
+        write_shim(&file, Path::new("/usr/bin/yoyo-cli")).unwrap();
         write_copy(&file, &source).unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "binary");
         assert!(dir.join(SHA_FILE).exists());
 
-        write_shim(&file, Path::new("/usr/bin/codeg-cli")).unwrap();
+        write_shim(&file, Path::new("/usr/bin/yoyo-cli")).unwrap();
         assert!(is_our_shim(&file));
         assert!(
             !dir.join(SHA_FILE).exists(),
@@ -500,9 +500,9 @@ mod tests {
     fn a_copy_in_use_is_replaced_by_a_rename_that_leaves_it_running() {
         use std::os::unix::fs::MetadataExt;
         let root = tempfile::tempdir().unwrap();
-        let source = root.path().join("codeg-cli.src");
+        let source = root.path().join("yoyo-cli.src");
         program(&source, "v1");
-        let copy = root.path().join("codeg-cli");
+        let copy = root.path().join("yoyo-cli");
         write_copy(&copy, &source).unwrap();
         let before = std::fs::metadata(&copy).unwrap().ino();
         program(&source, "v2");

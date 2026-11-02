@@ -185,7 +185,7 @@ pub async fn status(global: &GlobalArgs, list: &ListArgs, env: &Env) -> i32 {
         );
         // stdout stays JSON-only; a person reads why on stderr.
         if let Err(f) = &chosen {
-            out.stderr_line(&format!("codeg-cli: {}", f.message));
+            out.stderr_line(&format!("yoyo-cli: {}", f.message));
         }
     } else {
         println!("looking at {}", level.describe());
@@ -318,7 +318,7 @@ fn report_open(out: &Output, json: bool, what: &str) -> i32 {
     if json {
         println!("{}", json!({ "status": "ready", "desktop": what }));
     } else {
-        out.note(&format!("codeg-cli: the desktop app is {what}"));
+        out.note(&format!("yoyo-cli: the desktop app is {what}"));
     }
     0
 }

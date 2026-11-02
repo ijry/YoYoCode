@@ -477,7 +477,7 @@ async fn probe(
     if answer.api_version != wire::API_VERSION {
         candidate.state = CandidateState::Incompatible;
         candidate.detail = Some(format!(
-            "speaks CLI API {} (this codeg-cli speaks {})",
+            "speaks CLI API {} (this yoyo-cli speaks {})",
             answer.api_version,
             wire::API_VERSION
         ));
@@ -495,7 +495,7 @@ async fn probe(
 /// other URL honours the user's proxy settings.
 pub fn client_for(url: &str) -> reqwest::Client {
     let builder =
-        reqwest::Client::builder().user_agent(concat!("codeg-cli/", env!("CARGO_PKG_VERSION")));
+        reqwest::Client::builder().user_agent(concat!("yoyo-cli/", env!("CARGO_PKG_VERSION")));
     let builder = if is_loopback_url(url) {
         builder.no_proxy().connect_timeout(LOOPBACK_CONNECT)
     } else {
@@ -600,7 +600,7 @@ fn no_runtime(level: &Level, candidates: &[Candidate]) -> Failure {
                 old.detail.as_deref().unwrap_or("incompatible")
             ),
         )
-        .with_next_steps(["use a codeg-cli from the same release as that codeg".to_string()]);
+        .with_next_steps(["use a yoyo-cli from the same release as that codeg".to_string()]);
     }
     let pinned = matches!(level, Level::EndpointFile(_) | Level::Url { .. });
     let mut message = if pinned {
@@ -618,7 +618,7 @@ fn no_runtime(level: &Level, candidates: &[Candidate]) -> Failure {
         vec!["check the URL and the token, and that the server is up".to_string()]
     } else {
         vec![
-            "codeg-cli open   (starts the desktop app)".to_string(),
+            "yoyo-cli open   (starts the desktop app)".to_string(),
             "or start codeg-server, or point --url at one".to_string(),
         ]
     };
@@ -920,7 +920,7 @@ mod tests {
         let err = choose(&level, &[], None).unwrap_err();
         assert_eq!(err.subtype, Subtype::ErrorRuntimeUnavailable);
         assert!(err.message.contains("Nothing was sent"));
-        assert!(err.next_steps.iter().any(|s| s.contains("codeg-cli open")));
+        assert!(err.next_steps.iter().any(|s| s.contains("yoyo-cli open")));
     }
 
     /// The three ways an OS says "not allowed" all read as access denied:

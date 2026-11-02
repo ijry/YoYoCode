@@ -1,4 +1,4 @@
-//! The "Allow command-line access" setting (`codeg-cli`) for the desktop;
+//! The "Allow command-line access" setting (`yoyo-cli`) for the desktop;
 //! the server's are `web::handlers::cli_access`.
 
 use std::sync::Arc;
@@ -28,7 +28,7 @@ pub async fn cli_access_set_enabled(
         .map_err(AppCommandError::task_execution_failed)
 }
 
-/// Settings → "Install command-line tool": whether `codeg-cli` is on the
+/// Settings → "Install command-line tool": whether `yoyo-cli` is on the
 /// user's PATH, and how it would get there.
 #[tauri::command]
 pub async fn cli_tool_status() -> Result<CommandToolStatus, AppCommandError> {
@@ -37,7 +37,7 @@ pub async fn cli_tool_status() -> Result<CommandToolStatus, AppCommandError> {
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))
 }
 
-/// Put `codeg-cli` on the user's PATH; on macOS this may ask for an
+/// Put `yoyo-cli` on the user's PATH; on macOS this may ask for an
 /// administrator's password.
 #[tauri::command]
 pub async fn cli_tool_install() -> Result<CommandToolStatus, AppCommandError> {

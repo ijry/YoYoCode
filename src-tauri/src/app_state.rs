@@ -96,7 +96,7 @@ pub struct AppState {
     /// The upgrade UI subscribes to it and re-syncs from a snapshot on mount,
     /// so download progress survives settings-page navigation and reloads.
     pub update_state: crate::update::AppUpdateStateHandle,
-    /// Headless `codeg-cli` runs. Built in both runtimes at startup; its
+    /// Headless `yoyo-cli` runs. Built in both runtimes at startup; its
     /// routes are served under `/api` and on the loopback listener.
     pub cli_runs: Arc<crate::cli_run::CliRunService>,
     /// The loopback listener and discovery file the CLIs of this machine
