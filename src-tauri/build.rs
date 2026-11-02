@@ -57,7 +57,7 @@ fn fingerprint_helper_sources() {
 }
 
 /// Tauri's bundler validates that every `bundle.externalBin` path resolves
-/// to an existing file at build.rs time. The real sidecars — `codeg-mcp` and
+/// to an existing file at build.rs time. The real sidecars — `yoyocode-mcp` and
 /// `codeg-computer-helper` — are produced by `pnpm tauri:prepare-sidecars`
 /// (invoked from `beforeBuildCommand` / `beforeDevCommand` and the CI release
 /// matrix) — but plain `cargo check --features tauri-runtime` doesn't go
@@ -90,7 +90,7 @@ fn ensure_sidecar_placeholder() {
     };
     let dir = PathBuf::from("binaries");
 
-    for name in ["codeg-mcp", "codeg-computer-helper", "codeg-cli"] {
+    for name in ["yoyocode-mcp", "codeg-computer-helper", "yoyo-cli"] {
         let path = dir.join(format!("{name}-{triple}{ext}"));
 
         println!("cargo:rerun-if-changed={}", path.display());
