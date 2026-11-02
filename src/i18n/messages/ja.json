@@ -67,7 +67,8 @@
       "browser": "ブラウザ操作",
       "computer_use": "コンピューター操作",
       "quick_messages": "クイックメッセージ",
-      "logs": "実行ログ"
+      "logs": "実行ログ",
+      "about": "情報"
     }
   },
   "AppearanceSettings": {
@@ -4461,7 +4462,10 @@
       "permissionDenied": "権限が不足しています。1024 以上のポートを使用するか、より高い権限で実行してください",
       "addressUnavailable": "このアドレスはこの端末では利用できません",
       "bindFailed": "アドレスのバインドに失敗しました"
-    }
+    },
+    "mobileRemoteTitle": "モバイルリモート管理",
+    "mobileRemoteDescription": "スマホからこのワークスペースを操作 — モバイルアプリをインストールして上の Web サービスとペアリングすれば、いつでもセッションを確認・操作できます。",
+    "mobileRemoteDownload": "モバイルアプリを入手"
   },
   "DirectoryBrowser": {
     "title": "ディレクトリを参照",
@@ -7644,5 +7648,12 @@
         "probeFailed": "内蔵ブラウザーがトンネル経由でリモートホストに届くことを確認できませんでした。しばらくしてからもう一度お試しください。"
       }
     }
+  },
+  "AboutSettings": {
+    "tagline": "マルチエージェントコーディングワークスペース — すべての AI コーディングエージェントを一つの場所で実行させ、協調させます。",
+    "basedOnTitle": "Codeg をベースに構築",
+    "basedOnText": "YoYoCode はオープンソースプロジェクト Codeg のフォークです。spacering-net/codeg とすべての貢献者に心から感謝します。",
+    "openRepository": "リポジトリを開く",
+    "openDocumentation": "ドキュメント"
   }
 }

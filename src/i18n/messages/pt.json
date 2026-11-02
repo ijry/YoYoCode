@@ -67,7 +67,8 @@
       "browser": "Uso do navegador",
       "computer_use": "Uso do computador",
       "quick_messages": "Mensagens rápidas",
-      "logs": "Registros de execução"
+      "logs": "Registros de execução",
+      "about": "Sobre"
     }
   },
   "AppearanceSettings": {
@@ -4461,7 +4462,10 @@
       "permissionDenied": "Permissão negada. Use uma porta acima de 1024 ou execute com privilégios mais altos.",
       "addressUnavailable": "O endereço não está disponível nesta máquina",
       "bindFailed": "Falha ao vincular o endereço"
-    }
+    },
+    "mobileRemoteTitle": "Gestão remota pelo celular",
+    "mobileRemoteDescription": "Gerencie este espaço de trabalho pelo celular — instale o app móvel, pareie com o serviço Web acima e leve suas sessões para qualquer lugar.",
+    "mobileRemoteDownload": "Obter o app móvel"
   },
   "DirectoryBrowser": {
     "title": "Explorar diretório",
@@ -7644,5 +7648,12 @@
         "probeFailed": "O navegador integrado não conseguiu confirmar que alcança o host remoto pelo túnel. Tente novamente em instantes."
       }
     }
+  },
+  "AboutSettings": {
+    "tagline": "O espaço de trabalho de codificação multiagente — execute todos os agentes de codificação de IA em um só lugar e deixe-os trabalhar juntos.",
+    "basedOnTitle": "Construído sobre o Codeg",
+    "basedOnText": "O YoYoCode é um fork do projeto de código aberto Codeg. Sinceros agradecimentos a spacering-net/codeg e a todos os contribuidores.",
+    "openRepository": "Abrir repositório",
+    "openDocumentation": "Documentação"
   }
 }

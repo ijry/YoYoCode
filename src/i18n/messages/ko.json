@@ -67,7 +67,8 @@
       "browser": "브라우저 사용",
       "computer_use": "컴퓨터 사용",
       "quick_messages": "빠른 메시지",
-      "logs": "실행 로그"
+      "logs": "실행 로그",
+      "about": "정보"
     }
   },
   "AppearanceSettings": {
@@ -4461,7 +4462,10 @@
       "permissionDenied": "권한이 부족합니다. 1024 이상의 포트를 사용하거나 더 높은 권한으로 실행하세요",
       "addressUnavailable": "이 주소는 현재 시스템에서 사용할 수 없습니다",
       "bindFailed": "주소 바인딩에 실패했습니다"
-    }
+    },
+    "mobileRemoteTitle": "모바일 원격 관리",
+    "mobileRemoteDescription": "휴대폰에서 이 작업 공간을 관리하세요 — 모바일 앱을 설치해 위 웹 서비스와 페어링하면 언제 어디서나 세션을 확인하고 제어할 수 있습니다.",
+    "mobileRemoteDownload": "모바일 앱 받기"
   },
   "DirectoryBrowser": {
     "title": "디렉토리 찾아보기",
@@ -7644,5 +7648,12 @@
         "probeFailed": "내장 브라우저가 터널을 통해 원격 호스트에 도달하는지 확인할 수 없습니다. 잠시 후 다시 시도하세요."
       }
     }
+  },
+  "AboutSettings": {
+    "tagline": "멀티 에이전트 코딩 워크스페이스 — 모든 AI 코딩 에이전트를 한곳에서 실행하고 함께 작업하게 합니다.",
+    "basedOnTitle": "Codeg 기반",
+    "basedOnText": "YoYoCode는 오픈소스 프로젝트 Codeg의 포크입니다. spacering-net/codeg와 모든 기여자에게 진심으로 감사드립니다.",
+    "openRepository": "저장소 열기",
+    "openDocumentation": "문서"
   }
 }

@@ -67,7 +67,8 @@
       "browser": "浏览器操作",
       "computer_use": "电脑操作",
       "quick_messages": "快捷消息",
-      "logs": "运行日志"
+      "logs": "运行日志",
+      "about": "关于"
     }
   },
   "AppearanceSettings": {
@@ -4461,7 +4462,10 @@
       "permissionDenied": "权限不足，请使用 1024 以上的端口，或以更高权限运行",
       "addressUnavailable": "该地址在本机不可用",
       "bindFailed": "绑定地址失败"
-    }
+    },
+    "mobileRemoteTitle": "移动端远程管理",
+    "mobileRemoteDescription": "在手机上管理这个工作区——安装移动端应用并与上方 Web 服务配对，随时随地查看和操控会话。",
+    "mobileRemoteDownload": "获取移动端"
   },
   "DirectoryBrowser": {
     "title": "浏览目录",
@@ -7644,5 +7648,12 @@
         "probeFailed": "内置浏览器无法确认它能通过隧道访问远端主机。请稍后重试。"
       }
     }
+  },
+  "AboutSettings": {
+    "tagline": "多智能体编码工作台——把所有 AI 编码智能体聚在一处，让它们协同工作。",
+    "basedOnTitle": "基于 Codeg 构建",
+    "basedOnText": "YoYoCode 是开源项目 Codeg 的分支。衷心感谢 spacering-net/codeg 以及所有贡献者——本应用的一切都建立在他们的工作之上。",
+    "openRepository": "打开仓库",
+    "openDocumentation": "文档"
   }
 }

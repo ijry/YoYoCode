@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   QrCode,
+  Smartphone,
   RefreshCw,
 } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
@@ -595,6 +596,27 @@ export function WebServiceSettings() {
               )}
             </div>
           )}
+
+          {/* 移动端远程管理：下载入口（YoYoCode 增补） */}
+          <div className="rounded-md border p-3">
+            <div className="flex items-start gap-3">
+              <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium">
+                  {t("mobileRemoteTitle")}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("mobileRemoteDescription")}
+                </p>
+                <button
+                  onClick={() => void openUrl("https://getmcode.lingyun.net")}
+                  className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t("mobileRemoteDownload")}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </ScrollArea>

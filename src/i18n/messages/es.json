@@ -67,7 +67,8 @@
       "browser": "Uso del navegador",
       "computer_use": "Uso del ordenador",
       "quick_messages": "Mensajes rápidos",
-      "logs": "Registros de ejecución"
+      "logs": "Registros de ejecución",
+      "about": "Acerca de"
     }
   },
   "AppearanceSettings": {
@@ -4461,7 +4462,10 @@
       "permissionDenied": "Permiso denegado. Utilice un puerto superior a 1024 o ejecute con mayores privilegios.",
       "addressUnavailable": "La dirección no está disponible en este equipo",
       "bindFailed": "No se pudo enlazar la dirección"
-    }
+    },
+    "mobileRemoteTitle": "Gestión remota móvil",
+    "mobileRemoteDescription": "Gestiona este espacio de trabajo desde tu móvil: instala la app móvil, emparéjala con el servicio web de arriba y llévate tus sesiones a cualquier parte.",
+    "mobileRemoteDownload": "Obtener la app móvil"
   },
   "DirectoryBrowser": {
     "title": "Explorar directorio",
@@ -7644,5 +7648,12 @@
         "probeFailed": "El navegador integrado no pudo confirmar que llega al host remoto a través del túnel. Vuelve a intentarlo en un momento."
       }
     }
+  },
+  "AboutSettings": {
+    "tagline": "El espacio de trabajo de codificación multiagente: ejecuta todos los agentes de IA en un solo lugar y haz que trabajen juntos.",
+    "basedOnTitle": "Construido sobre Codeg",
+    "basedOnText": "YoYoCode es una bifurcación del proyecto de código abierto Codeg. Sincero agradecimiento a spacering-net/codeg y a todos los contribuyentes.",
+    "openRepository": "Abrir repositorio",
+    "openDocumentation": "Documentación"
   }
 }

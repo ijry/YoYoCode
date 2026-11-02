@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   GitBranch,
   Globe,
+  Info,
   Keyboard,
   Menu,
   MessageSquareText,
@@ -62,6 +63,7 @@ interface SettingsNavItem {
     | "system"
     | "web_service"
     | "logs"
+    | "about"
   icon: ComponentType<{ className?: string }>
 }
 
@@ -150,6 +152,11 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     href: "/settings/system",
     labelKey: "system",
     icon: Settings,
+  },
+  {
+    href: "/settings/about",
+    labelKey: "about",
+    icon: Info,
   },
 ]
 
