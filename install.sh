@@ -12,7 +12,7 @@ REPO="spacering-net/codeg"
 INSTALL_DIR="${CODEG_INSTALL_DIR:-/usr/local/bin}"
 WEB_DIR="${CODEG_WEB_DIR:-/usr/local/share/codeg/web}"
 VERSION=""
-# Stale codeg-server / codeg-mcp binaries elsewhere in PATH are removed by
+# Stale codeg-server / yoyocode-mcp binaries elsewhere in PATH are removed by
 # default so the user's `codeg-server` command always runs the freshly
 # installed binary AND the runtime locates the matching companion via the
 # exe-sibling lookup. Set CODEG_NO_CLEANUP=1 (or pass --no-cleanup) to
@@ -23,14 +23,14 @@ if [ "${CODEG_NO_CLEANUP:-0}" = "1" ]; then
 fi
 
 # Names of binaries this installer manages. `codeg-server` is the user-facing
-# entry point; `codeg-mcp` is the stdio MCP companion that the server's ACP
+# entry point; `yoyocode-mcp` is the stdio MCP companion that the server's ACP
 # layer spawns per session for delegation. Both must live in the same
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
-MANAGED_BINS=(codeg-server codeg-mcp)
+MANAGED_BINS=(codeg-server yoyocode-mcp)
 # Looked for on PATH as well: the two above, and `yoyo-cli`, the command-line
 # client the release ships beside them (older releases do not).
-SCANNED_BINS=(codeg-server codeg-mcp yoyo-cli)
+SCANNED_BINS=(codeg-server yoyocode-mcp yoyo-cli)
 
 # ── Parse arguments ──
 
@@ -175,8 +175,8 @@ resolve_priv() {
 # Whether $1 belongs to the codeg desktop app: installed by its deb/rpm package,
 # or inside a codeg.app bundle (a symlink the user made into one counts, by the
 # file it resolves to). Such a file is never removed or overwritten here, only
-# reported: the desktop's `codeg-mcp` and `yoyo-cli` are its own, and
-# deleting them would break the desktop app — `/usr/bin/codeg-mcp` from the deb
+# reported: the desktop's `yoyocode-mcp` and `yoyo-cli` are its own, and
+# deleting them would break the desktop app — `/usr/bin/yoyocode-mcp` from the deb
 # included, which an install dir later on PATH than /usr/bin used to remove.
 is_desktop_file() {
   local real
@@ -238,7 +238,7 @@ DEST_BIN="${INSTALL_DIR}/codeg-server"
 DEST_BIN_REAL="$(canon_path "$DEST_BIN")"
 INSTALL_DIR_REAL="$(canon_path "$INSTALL_DIR")"
 
-# Scan PATH for both managed binaries — a stale `codeg-mcp` in an earlier
+# Scan PATH for both managed binaries — a stale `yoyocode-mcp` in an earlier
 # PATH entry would be picked by the runtime's `which` fallback once
 # `codeg-server` was upgraded out from under it, breaking delegation in
 # subtle ways. Track conflicts uniformly for cleanup.
@@ -356,9 +356,9 @@ fi
 #
 # On Linux `cp` onto a running executable fails (text file busy); on macOS
 # it goes through, under a process that goes on running the old program. So
-# what runs ${INSTALL_DIR}'s codeg-server or codeg-mcp stops first, and with
+# what runs ${INSTALL_DIR}'s codeg-server or yoyocode-mcp stops first, and with
 # cleanup on, what runs a stale copy removed below. Only that: the desktop
-# app runs a codeg-mcp of its own, and other users, other directories and
+# app runs a yoyocode-mcp of its own, and other users, other directories and
 # containers have theirs. A process is told by the file it runs — on Linux
 # whatever it is called — and one named like such a file that this user
 # cannot look into (another user's, unless this is root) is left alone, and
@@ -538,7 +538,7 @@ stop_processes codeg-server 10 || true
 # Whether a codeg-server stopped, for the note at the end.
 SERVER_STOPPED="$STOPPED_ANY"
 # Companions are short-lived: a brief moment to end on SIGTERM.
-stop_processes codeg-mcp 3 || true
+stop_processes yoyocode-mcp 3 || true
 
 # ── Download and extract ──
 
@@ -706,7 +706,7 @@ fi
 
 echo ""
 echo "codeg-server installed to ${INSTALL_DIR}/codeg-server"
-echo "codeg-mcp    installed to ${INSTALL_DIR}/codeg-mcp"
+echo "yoyocode-mcp    installed to ${INSTALL_DIR}/yoyocode-mcp"
 case "$CLI_STATUS" in
   installed) echo "yoyo-cli    installed to ${CLI_DST}" ;;
   desktop) echo "yoyo-cli    kept: ${CLI_DST} is the codeg desktop app's (the same program; remove it first to use this release's)" ;;
@@ -715,13 +715,13 @@ esac
 INSTALLED_VER=$("${INSTALL_DIR}/codeg-server" --version 2>/dev/null || echo "${TARGET_VER}")
 echo "Version: ${INSTALLED_VER}"
 
-# Final smoke: codeg-mcp must exist next to codeg-server so the runtime's
+# Final smoke: yoyocode-mcp must exist next to codeg-server so the runtime's
 # `locate_codeg_mcp_binary()` exe-sibling lookup hits. A failure here means
 # the tarball was malformed or a previous `_install_one` was silently
 # blocked — surface it loudly rather than ship a half-broken install.
-if [ ! -x "${INSTALL_DIR}/codeg-mcp" ]; then
+if [ ! -x "${INSTALL_DIR}/yoyocode-mcp" ]; then
   echo ""
-  echo "Error: ${INSTALL_DIR}/codeg-mcp missing or not executable after install."
+  echo "Error: ${INSTALL_DIR}/yoyocode-mcp missing or not executable after install."
   echo "       Delegation (sub-agent tooling) will not work. Re-run the installer."
   EXIT_STATUS=1
 fi

@@ -7,7 +7,7 @@
  *   * "General" — feature kill switch + chain depth limit. Persisted as
  *     `delegation.enabled` / `delegation.depth_limit` on the Rust side.
  *   * "Agent defaults" — per-agent overrides (mode + config_values) that
- *     codeg-mcp uses when spawning a subagent for a `delegate_to_agent`
+ *     yoyocode-mcp uses when spawning a subagent for a `delegate_to_agent`
  *     call. Persisted as `delegation.agent_defaults` (one JSON blob).
  *   * "Assistants" — the user's assistants. Each change is written at once,
  *     so the section's save bar does not apply to (and is hidden on) it.
@@ -187,7 +187,7 @@ export function DelegationSettingsSection() {
   /**
    * Converge on a delegation write that happened elsewhere.
    *
-   * The status-bar codeg-mcp popover flips `enabled` on its own, while the save
+   * The status-bar yoyocode-mcp popover flips `enabled` on its own, while the save
    * below submits the whole record. Without this, a form left open across such
    * a toggle would send its stale `enabled` on the next save — changing only the
    * depth limit would silently switch delegation back off.

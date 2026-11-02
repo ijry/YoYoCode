@@ -1299,7 +1299,7 @@ fn parse_delegate_task_id(output: &str) -> Option<String> {
 /// so re-parse those. Depth-capped like the frontend walker.
 ///
 /// Shares `acp::lifecycle`'s key list rather than restating it: that list, its
-/// frontend twins in `delegation-card.ts` / `codeg-mcp-tool.ts`, and this
+/// frontend twins in `delegation-card.ts` / `yoyocode-mcp-tool.ts`, and this
 /// walker must peel the same envelopes, or a card and the meta injected beneath
 /// it disagree about which task a call names.
 fn find_task_id_in_value(value: &serde_json::Value, depth: u8) -> Option<String> {
@@ -1361,7 +1361,7 @@ fn parse_resume_task_id(input: &str) -> Option<String> {
 /// set `meta["codeg.delegation"]` to the DB-derived snapshot. Skips blocks
 /// whose meta is already populated so the live-broker write (when present)
 /// always wins. Tool-name match is by substring to cover the MCP-prefixed
-/// (`mcp__codeg-mcp__delegate_to_agent`) and bare forms the host may have
+/// (`mcp__yoyocode-mcp__delegate_to_agent`) and bare forms the host may have
 /// emitted.
 ///
 /// For `delegate_to_agent`, matching is by `parent_tool_use_id` first, then by
@@ -3595,7 +3595,7 @@ mod tests {
     fn inject_tool_approvals_merges_into_existing_meta() {
         let mut turns = vec![tool_use_turn(
             Some("tu-1"),
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
         )];
         inject_delegation_meta(&mut turns, &[summary_child(42, "tu-1", "completed")]);
         inject_tool_approvals(&mut turns, &[approval_record("tu-1", "allow_once")]);
@@ -3608,7 +3608,7 @@ mod tests {
     fn inject_delegation_meta_populates_completed_child() {
         let mut turns = vec![tool_use_turn(
             Some("tu-1"),
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
         )];
         let children = vec![summary_child(42, "tu-1", "completed")];
         inject_delegation_meta(&mut turns, &children);
@@ -3628,7 +3628,7 @@ mod tests {
     /// with, so a refreshed card keeps its status mapping and 查看会话.
     #[test]
     fn inject_delegation_meta_binds_an_opencode_execute_call() {
-        let code = r#"await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
+        let code = r#"await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
         let mut turns = vec![tool_use_turn_with_input(
             Some("tu-exec-1"),
             "execute",
@@ -3648,7 +3648,7 @@ mod tests {
     /// binds through the task id echoed on its own result.
     #[test]
     fn inject_delegation_meta_binds_an_execute_call_by_its_task_id() {
-        let code = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: `t` })"#;
+        let code = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: `t` })"#;
         let mut turns = vec![
             tool_use_turn_with_input(
                 Some("call_exec_2"),
@@ -3676,7 +3676,7 @@ mod tests {
     /// registered live.
     #[test]
     fn inject_delegation_meta_does_not_bind_another_tools_code_argument() {
-        let code = r#"await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
+        let code = r#"await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
         let mut turns = vec![tool_use_turn_with_input(
             Some("browser-1"),
             "mcp__playwright__browser_run_code",
@@ -3708,7 +3708,7 @@ mod tests {
     fn inject_delegation_meta_carries_the_assistant_off_the_child_row() {
         let mut turns = vec![tool_use_turn(
             Some("tu-a"),
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
         )];
         let mut child = summary_child(43, "tu-a", "completed");
         child.assistant_id = Some(3);
@@ -3724,7 +3724,7 @@ mod tests {
         // An agent delegation's meta carries no assistant keys at all.
         let mut turns = vec![tool_use_turn(
             Some("tu-b"),
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
         )];
         inject_delegation_meta(&mut turns, &[summary_child(44, "tu-b", "completed")]);
         let inner = first_block_meta(&turns[0])
@@ -3807,7 +3807,7 @@ mod tests {
     fn inject_delegation_meta_binds_a_resume_call_by_its_task_id_argument() {
         let mut turns = vec![tool_use_turn_with_input(
             Some("tu-resume"),
-            "mcp__codeg-mcp__resume_delegation",
+            "mcp__yoyocode-mcp__resume_delegation",
             Some(r#"{"task_id":"b0858712-9257","reason":"the app was killed"}"#),
         )];
         let mut child = summary_child(9, "tu-original-delegate", "completed");
@@ -3866,7 +3866,7 @@ mod tests {
         // `params` on `input_preview` on purpose, for readers to peel.
         assert_eq!(
             parse_resume_task_id(
-                r#"{"toolName":"mcp__codeg-mcp__resume_delegation","params":{"task_id":"abc-123"}}"#
+                r#"{"toolName":"mcp__yoyocode-mcp__resume_delegation","params":{"task_id":"abc-123"}}"#
             )
             .as_deref(),
             Some("abc-123")
@@ -3879,7 +3879,7 @@ mod tests {
         // Cursor's `{providerIdentifier, toolName, args}`.
         assert_eq!(
             parse_resume_task_id(
-                r#"{"providerIdentifier":"codeg-mcp","toolName":"resume_delegation","args":{"task_id":"abc-123"}}"#
+                r#"{"providerIdentifier":"yoyocode-mcp","toolName":"resume_delegation","args":{"task_id":"abc-123"}}"#
             )
             .as_deref(),
             Some("abc-123")

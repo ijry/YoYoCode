@@ -5,7 +5,7 @@
  * codex-acp forwards EVERY MCP tool call's outcome to the ACP wire as
  *   `rawOutput = { result: <CallToolResult> | null, error: <string> | null }`
  * (its `createMcpRawOutput`), and codex's own rollout tags the same result under
- * a serde `{ Ok: … }` variant. Neither layer is part of the result the codeg-mcp
+ * a serde `{ Ok: … }` variant. Neither layer is part of the result the yoyocode-mcp
  * companion actually returned, so a card that reads a companion result has to
  * strip them first — otherwise the whole envelope falls through as opaque text
  * and the card renders raw JSON instead of the report inside it.

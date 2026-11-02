@@ -1,4 +1,4 @@
-//! Listener-facing access for `submit_result`, the tool codeg-mcp gives the
+//! Listener-facing access for `submit_result`, the tool yoyocode-mcp gives the
 //! root connection of a `yoyo-cli` run started with `--output-schema`. The
 //! listener resolves the caller's connection from its per-launch token and
 //! comes here: for the schema, when the companion lists its tools, and with

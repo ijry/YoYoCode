@@ -556,7 +556,7 @@ describe("extractDelegationSources", () => {
     const sources = extractDelegationSources([
       toolCall(
         "tu-1",
-        "mcp__codeg-mcp__delegate_to_agent",
+        "mcp__yoyocode-mcp__delegate_to_agent",
         '{"agent_type":"codex"}'
       ),
     ])
@@ -590,7 +590,7 @@ describe("extractDelegationSources", () => {
       toolCall("tu-a", "resume_delegation", "{}"),
       toolCall(
         "tu-b",
-        "mcp__codeg-mcp__resume_delegation",
+        "mcp__yoyocode-mcp__resume_delegation",
         '{"task_id":"t-1"}'
       ),
       toolCall("tu-c", "resume_delegation", '{"task_id":"t-1"}'),
@@ -655,7 +655,7 @@ describe("extractMessageDelegationSources", () => {
     return {
       type: "tool-call",
       toolCallId,
-      toolName: "mcp__codeg-mcp__delegate_to_agent",
+      toolName: "mcp__yoyocode-mcp__delegate_to_agent",
       input: '{"agent_type":"codex","task":"do it"}',
       state: "output-available",
       output: null,
@@ -825,7 +825,7 @@ describe("threadDelegationStatusTasks", () => {
     return {
       type: "tool-call",
       toolCallId: id,
-      toolName: "mcp__codeg-mcp__get_delegation_status",
+      toolName: "mcp__yoyocode-mcp__get_delegation_status",
       input: JSON.stringify({ task_ids: [taskId] }),
       state: "output-available",
       output: JSON.stringify({

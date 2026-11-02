@@ -30,7 +30,7 @@
       "../out": "web/"
     },
     "externalBin": [
-      "binaries/codeg-mcp",
+      "binaries/yoyocode-mcp",
       "binaries/codeg-computer-helper",
       "binaries/yoyo-cli"
     ],

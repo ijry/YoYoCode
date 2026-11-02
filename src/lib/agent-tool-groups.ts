@@ -14,7 +14,7 @@ import {
 /**
  * How codeg's own tool groups are named and drawn, in one table.
  *
- * Two surfaces render this list: the codeg-mcp popover in the bottom-right of
+ * Two surfaces render this list: the yoyocode-mcp popover in the bottom-right of
  * the workspace (`components/layout/status-bar-mcp.tsx`) and the "tools an
  * agent may use" panel in Collaboration settings
  * (`components/settings/agent-tools-settings.tsx`). They used to hold a table

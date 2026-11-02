@@ -68,7 +68,7 @@ export function StatusBar() {
         {/* Computer use: which windows agents may see right now. Renders
             nothing unless the desktop runtime has it switched on. */}
         <StatusBarComputer />
-        {/* codeg-mcp service health. Sits next to the alerts bell because the
+        {/* yoyocode-mcp service health. Sits next to the alerts bell because the
             two answer adjacent questions — "is something wrong right now?" —
             and both open a top-anchored popover from this corner. */}
         <StatusBarMcp />

@@ -69,7 +69,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * codeg-mcp service indicator, bottom-right of the workspace.
+ * yoyocode-mcp service indicator, bottom-right of the workspace.
  *
  * The companion is what carries codeg's own tools into an agent session —
  * delegation, live feedback, ask-user-question, session lookup, the two

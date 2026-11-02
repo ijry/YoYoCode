@@ -5,7 +5,7 @@
 //! means the same thing in a listing, in a refusal and in the frontend's
 //! mirror of these types (`src/lib/computer/types.ts`).
 //!
-//! Compiled in both runtimes: the codeg-mcp plumbing that carries these is
+//! Compiled in both runtimes: the yoyocode-mcp plumbing that carries these is
 //! shared code, and server mode has to be able to say "no desktop here" in the
 //! same shapes.
 

@@ -11967,7 +11967,7 @@ pub async fn acp_goal_control(
 /// read whatever `SessionConfigOptions` / `SessionModes` the agent advertises,
 /// and tear it down. The returned snapshot drives the delegation-settings UI
 /// so the user picks from the exact option set the agent will accept when
-/// codeg-mcp later spawns a subagent.
+/// yoyocode-mcp later spawns a subagent.
 ///
 /// Does NOT touch the chat-side `selectorsCache`, `localStorage` preferences,
 /// or any active connection state — see `ConnectionManager::probe_agent_options`

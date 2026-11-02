@@ -2481,7 +2481,7 @@
         "showPet": "Pet anzeigen"
       },
       "mcp": {
-        "title": "codeg-mcp-Dienst",
+        "title": "yoyocode-mcp-Dienst",
         "state": {
           "running": "Läuft",
           "stopped": "Läuft nicht",
@@ -2493,7 +2493,7 @@
           "running": "Hier gestartete Agenten können codegs Tools nutzen.",
           "stopped": "Der Broker-Socket antwortet nicht.",
           "disabled": "Alle Tool-Gruppen sind ausgeschaltet.",
-          "unavailable": "Die codeg-mcp-Binärdatei fehlt auf der Festplatte.",
+          "unavailable": "Die yoyocode-mcp-Binärdatei fehlt auf der Festplatte.",
           "unknown": "Der Status konnte nicht gelesen werden."
         },
         "socketPath": "Adresse",

@@ -115,7 +115,7 @@ beforeEach(() => {
 })
 
 describe("DelegationSettingsSection", () => {
-  /** The status-bar codeg-mcp popover flips `enabled` on its own, and Save here
+  /** The status-bar yoyocode-mcp popover flips `enabled` on its own, and Save here
    * submits the whole record. A form left open across such a toggle must adopt
    * it, or changing only the depth limit would switch delegation back off. */
   it("adopts a remote enable instead of reverting it on save", async () => {

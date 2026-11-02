@@ -29,7 +29,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // Both panels subscribe to their settings-change broadcasts so a form left
 // open converges instead of reverting a write made elsewhere (the status-bar
-// codeg-mcp popover).
+// yoyocode-mcp popover).
 vi.mock("@/lib/platform", () => ({
   isDesktop: () => true,
   subscribe: () => Promise.resolve(() => {}),

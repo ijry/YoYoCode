@@ -2481,7 +2481,7 @@
         "showPet": "Mostrar mascota"
       },
       "mcp": {
-        "title": "Servicio codeg-mcp",
+        "title": "Servicio yoyocode-mcp",
         "state": {
           "running": "En ejecución",
           "stopped": "Detenido",
@@ -2493,7 +2493,7 @@
           "running": "Los agentes de aquí pueden usar las herramientas de codeg.",
           "stopped": "El socket del broker no responde.",
           "disabled": "Todos los grupos de herramientas están desactivados.",
-          "unavailable": "No se encuentra el binario codeg-mcp.",
+          "unavailable": "No se encuentra el binario yoyocode-mcp.",
           "unknown": "No se pudo leer el estado."
         },
         "socketPath": "Dirección",

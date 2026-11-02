@@ -8,7 +8,7 @@
 //!
 //! Separate from `commands::computer`, which is the desktop feature itself and
 //! exists only in the desktop build: these switches are read by the shared
-//! codeg-mcp plumbing (injection, the service-status popover), so they compile
+//! yoyocode-mcp plumbing (injection, the service-status popover), so they compile
 //! in server mode too — where computer use is simply never advertised.
 //!
 //! **Off by default.** It hands an agent a view of the user's screen.

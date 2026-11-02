@@ -790,7 +790,7 @@ async fn execute(app: &AppHandle, cmd: &Value) -> Result<Value, String> {
         // Ask the frontend to open a URL as a browser tab (exercises the real
         // tab record → surface host → browser_open_tab path).
         // Mint a companion token against the live broker socket, so the real
-        // `codeg-mcp` binary can be driven against this running app the way an
+        // `yoyocode-mcp` binary can be driven against this running app the way an
         // agent CLI drives it. Verifying the browser tools end to end otherwise
         // means starting a real agent session and asking it nicely; this reaches
         // the same listener, over the same UDS, with the same token policy —

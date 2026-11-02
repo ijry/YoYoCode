@@ -134,7 +134,7 @@ pub struct CliRunTag {
 
 /// What a run's root connection carries from the moment it exists, before its
 /// agent starts: the run's tag, and the `--output-schema` its result is handed
-/// in against — so the codeg-mcp the connection is given offers
+/// in against — so the yoyocode-mcp the connection is given offers
 /// `submit_result`. A delegated child inherits the tag alone.
 #[derive(Debug, Clone)]
 pub struct RootSeed {

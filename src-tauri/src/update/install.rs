@@ -1,5 +1,5 @@
 //! Download → verify → extract → atomic swap of the server bundle
-//! (`codeg-server` + `codeg-mcp` + `web/`, and `codeg-computer-helper` and
+//! (`codeg-server` + `yoyocode-mcp` + `web/`, and `codeg-computer-helper` and
 //! `yoyo-cli` where the release ships them).
 //!
 //! The running worker performs the swap, keeping a `.bak` of each artifact,
@@ -77,9 +77,9 @@ fn server_bin_filename() -> &'static str {
 
 fn mcp_bin_filename() -> &'static str {
     if cfg!(windows) {
-        "codeg-mcp.exe"
+        "yoyocode-mcp.exe"
     } else {
-        "codeg-mcp"
+        "yoyocode-mcp"
     }
 }
 
@@ -396,7 +396,7 @@ pub async fn perform_update(
     if !new_server.is_file() || !new_mcp.is_file() || !new_web.is_dir() {
         return Err(AppCommandError::new(
             crate::app_error::AppErrorCode::TaskExecutionFailed,
-            "Downloaded update is incomplete (expected codeg-server, codeg-mcp and a web/ directory)",
+            "Downloaded update is incomplete (expected codeg-server, yoyocode-mcp and a web/ directory)",
         ));
     }
 
@@ -645,7 +645,7 @@ fn extract_tar_gz(bytes: &[u8], dest: &Path, max: u64) -> Result<(), AppCommandE
                 ));
             }
             extracted += written;
-            // Preserve unix mode so +x on codeg-server / codeg-mcp survives.
+            // Preserve unix mode so +x on codeg-server / yoyocode-mcp survives.
             #[cfg(unix)]
             if let Some(mode) = mode {
                 use std::os::unix::fs::PermissionsExt;
@@ -2022,7 +2022,7 @@ mod tests {
         std::fs::write(bak_path(&web_dir).join("index.html"), b"old").unwrap();
         Targets {
             server_bin,
-            mcp_bin: bindir.join("codeg-mcp"),
+            mcp_bin: bindir.join("yoyocode-mcp"),
             helper_bin: bindir.join("codeg-computer-helper"),
             cli_bin: bindir.join("yoyo-cli"),
             web_dir,
@@ -2185,7 +2185,7 @@ mod tests {
         let bundle = dir.join("bundle");
         std::fs::create_dir_all(bundle.join("web")).unwrap();
         std::fs::write(bundle.join("web").join("index.html"), b"C").unwrap();
-        for name in ["codeg-server", "codeg-mcp", "yoyo-cli"] {
+        for name in ["codeg-server", "yoyocode-mcp", "yoyo-cli"] {
             std::fs::write(bundle.join(name), b"C").unwrap();
         }
         (targets, bundle)
@@ -2194,7 +2194,7 @@ mod tests {
     fn bundle_of(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf, PathBuf) {
         (
             dir.join("codeg-server"),
-            dir.join("codeg-mcp"),
+            dir.join("yoyocode-mcp"),
             dir.join("codeg-computer-helper"),
             dir.join("yoyo-cli"),
             dir.join("web"),
@@ -2890,7 +2890,7 @@ mod tests {
             .trim_end_matches("; do")
             .split_whitespace()
             .collect();
-        assert_eq!(signed, ["codeg-server", "codeg-mcp", "yoyo-cli"]);
+        assert_eq!(signed, ["codeg-server", "yoyocode-mcp", "yoyo-cli"]);
         assert!(
             !script.contains("codeg-computer-helper"),
             "the helper refuses to start with a Team ID and no peer requirement"

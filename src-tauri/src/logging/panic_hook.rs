@@ -159,7 +159,7 @@ impl PanicReport {
 /// Where the rolling file sink writes, so the hook can append to the same file.
 ///
 /// Recorded by [`set_log_file`] once the appender it describes has been built.
-/// Absent in the stderr-only modes (`codeg-mcp`, the `--supervise` supervisor,
+/// Absent in the stderr-only modes (`yoyocode-mcp`, the `--supervise` supervisor,
 /// the credential helper), which have no file to append to; there the hook
 /// still emits its `tracing::error!` and stderr carries the record.
 static FILE_SINK: OnceLock<FileSink> = OnceLock::new();

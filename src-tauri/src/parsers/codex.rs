@@ -13387,7 +13387,7 @@ mod tests {
                         "item": {
                             "type": "McpToolCall",
                             "id": id,
-                            "server": "codeg-mcp",
+                            "server": "yoyocode-mcp",
                             "tool": "delegate_to_agent",
                             "arguments": {"agent_type":"codex", "task":task},
                             "status": "completed",
@@ -13478,7 +13478,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "mcp-semantic-initial",
-                        "server": "codeg-mcp",
+                        "server": "yoyocode-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {
                             "agent_type": "codex",
@@ -13535,7 +13535,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "mcp-semantic-continuation",
-                        "server": "codeg-mcp",
+                        "server": "yoyocode-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {
                             "agent_type": "codex",
@@ -13671,7 +13671,7 @@ mod tests {
             serde_json::json!({
                 "type":"item_completed",
                 "item": {
-                    "type":"McpToolCall", "id":"exec-from-a", "server":"codeg-mcp",
+                    "type":"McpToolCall", "id":"exec-from-a", "server":"yoyocode-mcp",
                     "tool":"delegate_to_agent", "arguments":{"task":"A"},
                     "status":"completed", "result":{"content":[], "isError":false}
                 }
@@ -13696,7 +13696,7 @@ mod tests {
     /// A refused MCP call still lets the SCRIPT finish, so the wrapper's own
     /// `Script completed` says nothing about the call inside it. The card has to
     /// settle on the semantic item's outcome or it contradicts the result block
-    /// written beside it. Shape taken verbatim from a real rollout: codeg-mcp
+    /// written beside it. Shape taken verbatim from a real rollout: yoyocode-mcp
     /// refuses a `delegate_to_agent` past the delegation depth limit.
     #[test]
     fn a_failed_semantic_mcp_item_settles_its_card_as_failed() {
@@ -13722,7 +13722,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "exec-depth-limit",
-                        "server": "codeg-mcp",
+                        "server": "yoyocode-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {"agent_type":"codex", "working_dir":"/tmp/w"},
                         "status": "failed",
@@ -13891,7 +13891,7 @@ mod tests {
                             "item": {
                                 "type": "McpToolCall",
                                 "id": "exec-poll",
-                                "server": "codeg-mcp",
+                                "server": "yoyocode-mcp",
                                 "tool": "get_delegation_status",
                                 "arguments": {"task_ids":["t1"], "wall_ms":30000},
                                 "status": "completed",
@@ -13949,7 +13949,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "exec-progress",
-                        "server": "codeg-mcp",
+                        "server": "yoyocode-mcp",
                         "tool": "task_progress",
                         "arguments": {"message":"halfway"},
                         "status": "completed",
@@ -15513,7 +15513,7 @@ mod tests {
                 "item": {
                     "type": "McpToolCall",
                     "id": "mcp-deferred-status",
-                    "server": "codeg-mcp",
+                    "server": "yoyocode-mcp",
                     "tool": "get_delegation_status",
                     "arguments": {"task_ids":["t1"], "wait_ms":60000},
                     "result": {

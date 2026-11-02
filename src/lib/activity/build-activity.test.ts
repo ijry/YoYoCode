@@ -75,7 +75,7 @@ describe("buildActivity on the reference turn", () => {
     // the delegation reads the newest.
     const TASK = "a1b2c3d4"
     const status = (id: string) =>
-      toolUse(id, "mcp__codeg-mcp__get_delegation_status", {
+      toolUse(id, "mcp__yoyocode-mcp__get_delegation_status", {
         task_ids: [TASK],
         wait_ms: 3000,
       })
@@ -84,7 +84,7 @@ describe("buildActivity on the reference turn", () => {
       role: "assistant",
       timestamp: "2026-10-22T09:00:00Z",
       blocks: [
-        toolUse("d1", "mcp__codeg-mcp__delegate_to_agent", {
+        toolUse("d1", "mcp__yoyocode-mcp__delegate_to_agent", {
           agent_type: "claude_code",
           task: "Run the four checks.",
         }),
@@ -277,12 +277,12 @@ describe("buildActivity on a reply rebuilt from fresh parts", () => {
   it("hands a kept delegation the check that came after it", () => {
     const TASK = "a1b2c3d4"
     const blocks: MessageTurn["blocks"] = [
-      toolUse("d1", "mcp__codeg-mcp__delegate_to_agent", {
+      toolUse("d1", "mcp__yoyocode-mcp__delegate_to_agent", {
         agent_type: "codex",
         task: "Update the snapshot.",
       }),
       toolResult("d1", JSON.stringify({ task_id: TASK, status: "started" })),
-      toolUse("d2", "mcp__codeg-mcp__get_delegation_status", {
+      toolUse("d2", "mcp__yoyocode-mcp__get_delegation_status", {
         task_ids: [TASK],
       }),
       toolResult("d2", JSON.stringify({ task_id: TASK, status: "running" })),
@@ -308,7 +308,7 @@ describe("buildActivity on a reply rebuilt from fresh parts", () => {
     expect(build([]).steps[0]).toBe(before.steps[0])
     const after = build([
       { type: "text", text: "Still waiting on it." },
-      toolUse("d3", "mcp__codeg-mcp__get_delegation_status", {
+      toolUse("d3", "mcp__yoyocode-mcp__get_delegation_status", {
         task_ids: [TASK],
       }),
       toolResult(

@@ -4,7 +4,7 @@
  * Shared read-only live-transcript surface: the same `MessageListView` used by
  * the main conversation panel, without the input bar, send signal, or
  * reload/new-session handlers — plus the child connection's blocking prompts
- * that resolve WITHOUT driving a new turn (permission request, codeg-mcp
+ * that resolve WITHOUT driving a new turn (permission request, yoyocode-mcp
  * `ask_user_question`, Grok plan approval), answered through the viewed
  * connection id.
  *
@@ -271,7 +271,7 @@ export function LiveTranscriptView({
   useLiveTranscriptBridge(conversationId, conn)
 
   // The session runs with the user's configured permission level, so it may
-  // raise a permission request; it may also call the codeg-mcp
+  // raise a permission request; it may also call the yoyocode-mcp
   // `ask_user_question` tool or (Grok) `exit_plan_mode`. All three are
   // blocking prompts resolved WITHOUT driving a new turn — answered through
   // the viewed connection id. The legacy free-text `pendingQuestion` path is

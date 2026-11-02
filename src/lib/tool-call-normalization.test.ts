@@ -81,7 +81,7 @@ describe("inferLiveToolName on OpenCode's code-mode execute frames", () => {
     // The delegated task is text; the patch marker in it is no patch call.
     expect(
       replay(
-        "await tools['codeg-mcp'].delegate_to_agent({agent_type:'codex',task:`Apply this patch:\n*** Begin Patch\n*** Add File: hello.txt\n+hello\n*** End Patch`})"
+        "await tools['yoyocode-mcp'].delegate_to_agent({agent_type:'codex',task:`Apply this patch:\n*** Begin Patch\n*** Add File: hello.txt\n+hello\n*** End Patch`})"
       )
     ).toBe("bash")
     expect(replay("return 1 + 1")).toBe("bash")
@@ -520,7 +520,7 @@ describe("inferLiveToolName meta.claudeCode.toolName override", () => {
     // the title-companion priority must win.
     expect(
       inferLiveToolName({
-        title: "codeg-mcp__cancel_delegation",
+        title: "yoyocode-mcp__cancel_delegation",
         kind: "other",
         rawInput: JSON.stringify({ task_id: "t1" }),
         meta: { "x.ai/tool": { name: "use_tool" } },
@@ -529,7 +529,7 @@ describe("inferLiveToolName meta.claudeCode.toolName override", () => {
     // Siblings stay correct too.
     expect(
       inferLiveToolName({
-        title: "codeg-mcp__get_delegation_status",
+        title: "yoyocode-mcp__get_delegation_status",
         kind: "other",
         rawInput: JSON.stringify({ task_ids: ["t1"] }),
         meta: { "x.ai/tool": { name: "use_tool" } },
@@ -537,7 +537,7 @@ describe("inferLiveToolName meta.claudeCode.toolName override", () => {
     ).toBe("get_delegation_status")
     expect(
       inferLiveToolName({
-        title: "codeg-mcp__delegate_to_agent",
+        title: "yoyocode-mcp__delegate_to_agent",
         kind: "other",
         rawInput: JSON.stringify({ agent_type: "codex", task: "go" }),
         meta: { "x.ai/tool": { name: "use_tool" } },
@@ -696,10 +696,10 @@ describe("normalizeToolName collapses delegate_to_agent across hosts", () => {
   // canonical name so the renderer routes them into DelegatedSubThread.
   it.each([
     "delegate_to_agent",
-    "mcp__codeg-mcp__delegate_to_agent",
+    "mcp__yoyocode-mcp__delegate_to_agent",
     "mcp__codeg-delegate__delegate_to_agent",
     "mcp__codeg__delegate_to_agent",
-    "codeg-mcp/delegate_to_agent",
+    "yoyocode-mcp/delegate_to_agent",
     "codeg-delegate/delegate_to_agent",
     "codeg-delegate.delegate_to_agent",
     "codeg-delegate:delegate_to_agent",
@@ -735,10 +735,10 @@ describe("codex view_image", () => {
 describe("normalizeToolName collapses delegation companion tools across hosts", () => {
   it.each([
     "get_delegation_status",
-    "mcp__codeg-mcp__get_delegation_status",
+    "mcp__yoyocode-mcp__get_delegation_status",
     "mcp__codeg-delegate__get_delegation_status",
     "mcp__codeg__get_delegation_status",
-    "codeg-mcp/get_delegation_status",
+    "yoyocode-mcp/get_delegation_status",
     "codeg-delegate/get_delegation_status",
     "codeg-delegate.get_delegation_status",
     "codeg-delegate:get_delegation_status",
@@ -748,10 +748,10 @@ describe("normalizeToolName collapses delegation companion tools across hosts", 
 
   it.each([
     "cancel_delegation",
-    "mcp__codeg-mcp__cancel_delegation",
+    "mcp__yoyocode-mcp__cancel_delegation",
     "mcp__codeg-delegate__cancel_delegation",
     "mcp__codeg__cancel_delegation",
-    "codeg-mcp/cancel_delegation",
+    "yoyocode-mcp/cancel_delegation",
     "codeg-delegate/cancel_delegation",
     "codeg-delegate.cancel_delegation",
     "codeg-delegate:cancel_delegation",
@@ -774,10 +774,10 @@ describe("normalizeToolName collapses ask_user_question across hosts", () => {
     "question",
     "ask_user_question",
     "askuserquestion",
-    "mcp__codeg-mcp__ask_user_question",
-    "codeg-mcp/ask_user_question",
-    "codeg-mcp.ask_user_question",
-    "codeg-mcp:ask_user_question",
+    "mcp__yoyocode-mcp__ask_user_question",
+    "yoyocode-mcp/ask_user_question",
+    "yoyocode-mcp.ask_user_question",
+    "yoyocode-mcp:ask_user_question",
   ])("%s -> question", (input) => {
     expect(normalizeToolName(input)).toBe("question")
   })
@@ -807,11 +807,11 @@ describe("normalizeToolName maps Antigravity's native ask_question", () => {
 describe("normalizeToolName collapses check_user_feedback across hosts", () => {
   it.each([
     "check_user_feedback",
-    "mcp__codeg-mcp__check_user_feedback",
+    "mcp__yoyocode-mcp__check_user_feedback",
     "mcp__codeg__check_user_feedback",
-    "codeg-mcp/check_user_feedback",
-    "codeg-mcp.check_user_feedback",
-    "codeg-mcp:check_user_feedback",
+    "yoyocode-mcp/check_user_feedback",
+    "yoyocode-mcp.check_user_feedback",
+    "yoyocode-mcp:check_user_feedback",
   ])("%s -> check_user_feedback", (input) => {
     expect(normalizeToolName(input)).toBe("check_user_feedback")
   })
@@ -1000,14 +1000,14 @@ describe("Antigravity MCP dispatch naming", () => {
     // (`tools.py::unwrap_mcp_tool_call`); `parsers/antigravity.rs` performs the
     // same rewrite so history and live resolve identically. Pinned here
     // because that naming is now load-bearing for the delegation cards.
-    expect(normalizeToolName("codeg-mcp_delegate_to_agent")).toBe(
+    expect(normalizeToolName("yoyocode-mcp_delegate_to_agent")).toBe(
       "delegate_to_agent"
     )
-    expect(normalizeToolName("codeg-mcp_get_delegation_status")).toBe(
+    expect(normalizeToolName("yoyocode-mcp_get_delegation_status")).toBe(
       "get_delegation_status"
     )
-    expect(normalizeToolName("codeg-mcp_ask_user_question")).toBe("question")
-    expect(normalizeToolName("codeg-mcp_task_progress")).toBe("task_progress")
+    expect(normalizeToolName("yoyocode-mcp_ask_user_question")).toBe("question")
+    expect(normalizeToolName("yoyocode-mcp_task_progress")).toBe("task_progress")
   })
 })
 
@@ -1091,10 +1091,10 @@ describe("inferLiveToolName cursor task and MCP shapes", () => {
     // the call as a terminal command.
     expect(
       inferLiveToolName({
-        title: "codeg-mcp: delegate_to_agent",
+        title: "yoyocode-mcp: delegate_to_agent",
         kind: "other",
         rawInput: JSON.stringify({
-          providerIdentifier: "codeg-mcp",
+          providerIdentifier: "yoyocode-mcp",
           toolName: "delegate_to_agent",
           args: { agent_type: "codex", task: "run build" },
         }),
@@ -1260,7 +1260,7 @@ describe("inferLiveToolName Grok identity via x.ai/tool.name", () => {
     // send every MCP call to the generic tool card instead.
     expect(
       inferLiveToolName({
-        title: "codeg-mcp__delegate_to_agent",
+        title: "yoyocode-mcp__delegate_to_agent",
         kind: "other",
         rawInput: JSON.stringify({ agent_type: "codex", task: "run build" }),
         meta: { "x.ai/tool": { name: "use_tool", kind: "use_tool" } },
@@ -1373,15 +1373,15 @@ describe("inferLiveToolName codex plan_review marker", () => {
 // (`"<tool> (<server> MCP Server)"`, built by `GN`'s default branch) and hangs
 // the authoritative SDK name off `_meta.qoder.toolName` (`AOn`). Before that
 // meta was read, only `delegate_to_agent` reached its card live — rescued by
-// the broker's own `codeg.delegation` marker — while every other codeg-mcp
+// the broker's own `codeg.delegation` marker — while every other yoyocode-mcp
 // companion kept the sentence as its "name" and fell through to the generic
 // tool shell. Shapes below are verbatim from a real qodercli 1.1.25 session.
 describe("inferLiveToolName resolves Qoder's authoritative _meta.qoder.toolName", () => {
   const qoderMcpCall = (tool: string, input: unknown) => ({
-    title: `${tool} (codeg-mcp MCP Server)`,
+    title: `${tool} (yoyocode-mcp MCP Server)`,
     kind: "other",
     rawInput: JSON.stringify(input),
-    meta: { qoder: { toolName: `mcp__codeg-mcp__${tool}` } },
+    meta: { qoder: { toolName: `mcp__yoyocode-mcp__${tool}` } },
   })
 
   it.each([
@@ -1402,17 +1402,17 @@ describe("inferLiveToolName resolves Qoder's authoritative _meta.qoder.toolName"
 
   it("resolves the frame captured verbatim from qodercli 1.1.25", () => {
     // Recorded off a live `qoder --acp` turn against a stdio MCP server named
-    // `codeg-mcp` — copied byte-for-byte from the session/update payload:
-    //   {"title":"get_delegation_status (codeg-mcp MCP Server)","kind":"other",
-    //    "_meta":{"qoder":{"toolName":"mcp__codeg-mcp__get_delegation_status"}},
+    // `yoyocode-mcp` — copied byte-for-byte from the session/update payload:
+    //   {"title":"get_delegation_status (yoyocode-mcp MCP Server)","kind":"other",
+    //    "_meta":{"qoder":{"toolName":"mcp__yoyocode-mcp__get_delegation_status"}},
     //    "rawInput":{"task_ids":["081139e7"]}}
     expect(
       inferLiveToolName({
-        title: "get_delegation_status (codeg-mcp MCP Server)",
+        title: "get_delegation_status (yoyocode-mcp MCP Server)",
         kind: "other",
         rawInput: JSON.stringify({ task_ids: ["081139e7"] }),
         meta: {
-          qoder: { toolName: "mcp__codeg-mcp__get_delegation_status" },
+          qoder: { toolName: "mcp__yoyocode-mcp__get_delegation_status" },
         },
       })
     ).toBe("get_delegation_status")
@@ -1422,7 +1422,7 @@ describe("inferLiveToolName resolves Qoder's authoritative _meta.qoder.toolName"
     // Guard the ordering: the MCP sentence is not collapsible by any alias or
     // suffix rule, so the assertions above prove the meta did the work.
     expect(
-      normalizeToolName("get_delegation_status (codeg-mcp MCP Server)")
+      normalizeToolName("get_delegation_status (yoyocode-mcp MCP Server)")
     ).not.toBe("get_delegation_status")
     expect(
       inferLiveToolName({ ...qoderMcpCall("task_progress", {}), meta: null })
@@ -1434,7 +1434,7 @@ describe("inferLiveToolName resolves Qoder's authoritative _meta.qoder.toolName"
     // resolution MUST sit ahead of it — same guarantee claude-agent-acp gets.
     expect(
       inferLiveToolName({
-        title: "cancel_delegation (codeg-mcp MCP Server)",
+        title: "cancel_delegation (yoyocode-mcp MCP Server)",
         kind: "other",
         rawInput: JSON.stringify({ task_id: "t1" }),
         meta: null,
@@ -1547,11 +1547,11 @@ describe("toolCallMovedToBackground", () => {
   })
 })
 
-// The historical path reads the raw `mcp__codeg-mcp__<tool>` name straight out
+// The historical path reads the raw `mcp__yoyocode-mcp__<tool>` name straight out
 // of the transcript, so every host prefix/separator must collapse to the same
 // canonical name the live path now produces — otherwise a reload swaps a card
 // back to the generic tool shell.
-describe("normalizeToolName collapses the codeg-mcp workbench companions", () => {
+describe("normalizeToolName collapses the yoyocode-mcp workbench companions", () => {
   const TOOLS = [
     "get_session_info",
     "task_progress",
@@ -1563,11 +1563,11 @@ describe("normalizeToolName collapses the codeg-mcp workbench companions", () =>
   it.each(TOOLS)("collapses every host spelling of %s", (tool) => {
     for (const spelling of [
       tool,
-      `mcp__codeg-mcp__${tool}`,
+      `mcp__yoyocode-mcp__${tool}`,
       `mcp__codeg__${tool}`,
-      `codeg-mcp/${tool}`,
-      `codeg-mcp.${tool}`,
-      `codeg-mcp:${tool}`,
+      `yoyocode-mcp/${tool}`,
+      `yoyocode-mcp.${tool}`,
+      `yoyocode-mcp:${tool}`,
     ]) {
       expect(normalizeToolName(spelling)).toBe(tool)
     }
@@ -1657,12 +1657,12 @@ describe("inferLiveToolName meta.opencode.toolName override", () => {
     // OpenCode names an MCP tool `<server>_<tool>`; the suffix rules collapse it
     // to the canonical companion name the delegation cards dispatch on.
     expect(
-      call("codeg-mcp_get_delegation_status", "status", "other", {
+      call("yoyocode-mcp_get_delegation_status", "status", "other", {
         task_ids: ["t1"],
       })
     ).toBe("get_delegation_status")
     expect(
-      call("codeg-mcp_ask_user_question", "asked", "other", { questions: [] })
+      call("yoyocode-mcp_ask_user_question", "asked", "other", { questions: [] })
     ).toBe("question")
   })
 
@@ -1782,10 +1782,10 @@ describe("inferLiveToolName meta.kiro.canonicalToolName override", () => {
       call(
         {
           toolName: "get_session_info",
-          mcpServerName: "codeg-mcp",
-          canonicalToolName: "mcp__codeg-mcp__get_session_info",
+          mcpServerName: "yoyocode-mcp",
+          canonicalToolName: "mcp__yoyocode-mcp__get_session_info",
         },
-        "Running: @codeg-mcp/get_session_info",
+        "Running: @yoyocode-mcp/get_session_info",
         null,
         { __tool_use_purpose: "Look it up", session_id: 7 }
       )

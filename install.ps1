@@ -17,7 +17,7 @@ $Artifact = "codeg-server-windows-x64"
 
 # Where the server goes when no -InstallDir is given. Not
 # $env:LOCALAPPDATA\codeg: the codeg desktop app installs itself there for
-# one user, and it ships codeg-mcp.exe, codeg-computer-helper.exe and web\
+# one user, and it ships yoyocode-mcp.exe, codeg-computer-helper.exe and web\
 # of its own, which each installer would replace with its own. Earlier
 # versions of this script installed the server there all the same. A server
 # they left there stays — unless the desktop app is there too: then it moves
@@ -53,7 +53,7 @@ function Test-DesktopBinDir([string]$Dir) {
     }
 }
 if (Test-Path -LiteralPath (Join-Path $InstallDir "codeg.exe") -PathType Leaf) {
-    Write-Error "$InstallDir holds the codeg desktop app, whose codeg-mcp.exe, codeg-computer-helper.exe, yoyo-cli.exe and web\ the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
+    Write-Error "$InstallDir holds the codeg desktop app, whose yoyocode-mcp.exe, codeg-computer-helper.exe, yoyo-cli.exe and web\ the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
     exit 1
 }
 if (Test-DesktopBinDir $InstallDir) {
@@ -62,16 +62,16 @@ if (Test-DesktopBinDir $InstallDir) {
 }
 
 # Names of binaries this installer manages. codeg-server is the user-facing
-# entry point; codeg-mcp is the stdio MCP companion that the server's ACP
+# entry point; yoyocode-mcp is the stdio MCP companion that the server's ACP
 # layer spawns per session for delegation. Both must live in the same
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
-$ManagedBins = @("codeg-server", "codeg-mcp")
+$ManagedBins = @("codeg-server", "yoyocode-mcp")
 # Looked for on PATH as well: the two above, and yoyo-cli, the command-line
 # client the release ships beside them (older releases do not).
-$ScannedBins = @("codeg-server", "codeg-mcp", "yoyo-cli")
+$ScannedBins = @("codeg-server", "yoyocode-mcp", "yoyo-cli")
 
-# Stale codeg-server / codeg-mcp binaries elsewhere in PATH are removed by
+# Stale codeg-server / yoyocode-mcp binaries elsewhere in PATH are removed by
 # default so the user's `codeg-server` command always runs the freshly
 # installed binary AND the runtime locates the matching companion via the
 # exe-sibling lookup. Pass -NoCleanup (or set CODEG_NO_CLEANUP=1) to disable.
@@ -163,7 +163,7 @@ $DesktopShadows = @()
 $seenReal = @{}
 $pathDirs = @()
 if ($env:Path) { $pathDirs = $env:Path.Split(';') }
-# Scan PATH for both managed binaries — a stale `codeg-mcp.exe` in an earlier
+# Scan PATH for both managed binaries — a stale `yoyocode-mcp.exe` in an earlier
 # PATH entry would be picked by the runtime's `which` fallback once
 # `codeg-server.exe` was upgraded out from under it, breaking delegation in
 # subtle ways. Track conflicts uniformly for cleanup.
@@ -176,7 +176,7 @@ foreach ($dir in $pathDirs) {
         break
     }
     # In the desktop app's folder only a codeg-server.exe is a server's
-    # leftover: the codeg-mcp.exe and yoyo-cli.exe there are the desktop
+    # leftover: the yoyocode-mcp.exe and yoyo-cli.exe there are the desktop
     # app's own, and so is everything in its bin\ folder.
     $desktopDir = Test-Path -LiteralPath (Join-Path $dir "codeg.exe") -PathType Leaf
     $desktopBin = Test-DesktopBinDir $dir
@@ -261,19 +261,19 @@ if ($PathConflicts.Count -gt 0) {
 
 # ── Stop running service before upgrade ──
 #
-# codeg-mcp.exe is the stdio MCP companion spawned per ACP session.
+# yoyocode-mcp.exe is the stdio MCP companion spawned per ACP session.
 # On Windows, Copy-Item -Force fails with a sharing violation if the
 # target .exe is currently running (the OS holds an exclusive write
 # lock on executable images), and Remove-Item fails the same way. Stop
 # what runs from the files this script replaces or removes — and only
-# that: the desktop app runs a codeg-mcp.exe and a codeg-computer-helper.exe
+# that: the desktop app runs a yoyocode-mcp.exe and a codeg-computer-helper.exe
 # of its own, from its own folder. A process whose path cannot be read
 # (another user's, an elevated one) is left alone; Stop-Process could not
 # stop it either.
 
 $Changing = @(
     (Join-Path $InstallDir "codeg-server.exe"),
-    (Join-Path $InstallDir "codeg-mcp.exe"),
+    (Join-Path $InstallDir "yoyocode-mcp.exe"),
     (Join-Path $InstallDir "codeg-computer-helper.exe")
 )
 if ($Cleanup) {
@@ -339,12 +339,12 @@ if ($HelperProcesses) {
     Start-Sleep -Seconds 1
 }
 
-$McpProcesses = Get-RunningFrom "codeg-mcp"
+$McpProcesses = Get-RunningFrom "yoyocode-mcp"
 if ($McpProcesses) {
-    Write-Host "Stopping running codeg-mcp companion process(es)..."
+    Write-Host "Stopping running yoyocode-mcp companion process(es)..."
     $McpProcesses | Stop-Process -Force
     Start-Sleep -Seconds 1
-    $StillRunning = Get-RunningFrom "codeg-mcp"
+    $StillRunning = Get-RunningFrom "yoyocode-mcp"
     if ($StillRunning) {
         $StillRunning | Stop-Process -Force
         Start-Sleep -Seconds 1
@@ -528,7 +528,7 @@ if ($CliStatus -eq "installed" -and $DesktopShadows.Count -gt 0) {
 #
 # The server an earlier version of this script installed in $MoveFrom, the
 # desktop app's folder, now lives in $InstallDir. Of what is left there only
-# codeg-server.exe is the server's: codeg-mcp.exe, codeg-computer-helper.exe
+# codeg-server.exe is the server's: yoyocode-mcp.exe, codeg-computer-helper.exe
 # and web\ are the desktop app's. The folder went on the user PATH for the
 # server, and comes off it.
 
@@ -580,7 +580,7 @@ if (-not $InstalledVer) { $InstalledVer = $TargetVer }
 
 Write-Host ""
 Write-Host "codeg-server installed to $InstallDir\codeg-server.exe"
-Write-Host "codeg-mcp    installed to $InstallDir\codeg-mcp.exe"
+Write-Host "yoyocode-mcp    installed to $InstallDir\yoyocode-mcp.exe"
 if ($CliStatus -eq "installed") {
     Write-Host "yoyo-cli    installed to $CliDst"
 } elseif ($CliStatus -eq "removed") {
@@ -588,11 +588,11 @@ if ($CliStatus -eq "installed") {
 }
 Write-Host "Version: $InstalledVer"
 
-# Final smoke: codeg-mcp.exe must exist next to codeg-server.exe so the
+# Final smoke: yoyocode-mcp.exe must exist next to codeg-server.exe so the
 # runtime's `locate_codeg_mcp_binary()` exe-sibling lookup hits. A failure
 # here means the zip was malformed or a previous Copy-Item was silently
 # blocked — surface it loudly rather than ship a half-broken install.
-$McpPath = Join-Path $InstallDir "codeg-mcp.exe"
+$McpPath = Join-Path $InstallDir "yoyocode-mcp.exe"
 if (-not (Test-Path -LiteralPath $McpPath)) {
     Write-Host ""
     Write-Host "Error: $McpPath missing after install."

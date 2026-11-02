@@ -3286,7 +3286,7 @@ impl TaskEngine {
         }
     }
 
-    // ── codeg-mcp task reporting tools ──────────────────────────────────────
+    // ── yoyocode-mcp task reporting tools ──────────────────────────────────────
 
     /// `task_progress`: attribute the report through the connection index and
     /// append an `agent_progress` event (the card/timeline milestone).
@@ -8086,7 +8086,7 @@ fn expand_home(path: &str, home: Option<&Path>) -> PathBuf {
     }
 }
 
-/// codeg-mcp `task_progress` / `task_complete` access handed to the delegation
+/// yoyocode-mcp `task_progress` / `task_complete` access handed to the delegation
 /// listener at boot. Resolves the process-global engine at CALL time — the
 /// listener is constructed before the engine, and a process that never wins the
 /// engine lock cleanly rejects every report.

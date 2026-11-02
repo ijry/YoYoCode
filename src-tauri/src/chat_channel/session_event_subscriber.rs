@@ -1162,7 +1162,7 @@ mod delegation_relay_tests {
         assert!(is_delegation_title("Delegate To Agent"));
         assert!(is_delegation_title("delegate-to-agent"));
         assert!(is_delegation_title(
-            "mcp__codeg-mcp__delegate_to_agent"
+            "mcp__yoyocode-mcp__delegate_to_agent"
         ));
         assert!(is_delegation_title("Run mcp__codeg__delegate_to_agent"));
         assert!(!is_delegation_title("agent"));

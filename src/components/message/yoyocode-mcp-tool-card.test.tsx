@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
 
-import { CodegMcpToolCard } from "./codeg-mcp-tool-card"
+import { CodegMcpToolCard } from "./yoyocode-mcp-tool-card"
 import enMessages from "@/i18n/messages/en.json"
 
 // MessageResponse (Streamdown) drags in the link-safety hook and async Shiki
@@ -136,7 +136,7 @@ describe("CodegMcpToolCard", () => {
       <CodegMcpToolCard
         tool="create_automation"
         input={JSON.stringify({
-          name: "mcp__codeg-mcp__create_automation",
+          name: "mcp__yoyocode-mcp__create_automation",
           arguments: { name: "nightly sweep", prompt: "sweep the logs" },
         })}
         state="output-available"

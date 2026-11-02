@@ -383,7 +383,7 @@ const WORKFLOW_TURN: MessageTurn = {
       ],
     }),
     toolResult("w1", "Todos have been modified successfully."),
-    toolUse("w2", "mcp__codeg-mcp__ask_user_question", {
+    toolUse("w2", "mcp__yoyocode-mcp__ask_user_question", {
       questions: [
         {
           question: "Which report format?",
@@ -409,12 +409,12 @@ const WORKFLOW_TURN: MessageTurn = {
         declined: false,
       })
     ),
-    toolUse("w3", "mcp__codeg-mcp__check_user_feedback", {}),
+    toolUse("w3", "mcp__yoyocode-mcp__check_user_feedback", {}),
     toolResult(
       "w3",
       '{"count":1,"feedback":[{"created_at":"2026-10-22T09:41:12Z","text":"Also keep the CSV export working"}]}'
     ),
-    toolUse("w4", "mcp__codeg-mcp__task_progress", {
+    toolUse("w4", "mcp__yoyocode-mcp__task_progress", {
       message: "Bindings filtered; regenerating the report next",
     }),
     toolResult("w4", '{"recorded":true}'),
@@ -670,7 +670,7 @@ const DELEGATION_TURN: MessageTurn = {
   blocks: [
     toolUse(
       "d1",
-      "mcp__codeg-mcp__delegate_to_agent",
+      "mcp__yoyocode-mcp__delegate_to_agent",
       { agent_type: "codex", task: POLLED_TASK },
       {
         "codeg.delegation": {
@@ -689,7 +689,7 @@ const DELEGATION_TURN: MessageTurn = {
       type: "text",
       text: "Codex is waiting for you to approve `pnpm build`; it will not go on until you confirm in Codeg. I'll keep waiting.",
     },
-    toolUse("d2", "mcp__codeg-mcp__get_delegation_status", {
+    toolUse("d2", "mcp__yoyocode-mcp__get_delegation_status", {
       task_ids: [POLLED_TASK_ID],
       wait_ms: 60000,
     }),
@@ -736,7 +736,7 @@ const DELEGATION_TURN: MessageTurn = {
     // Still out when the reply ends: no step and no word from it yet.
     toolUse(
       "d3",
-      "mcp__codeg-mcp__delegate_to_agent",
+      "mcp__yoyocode-mcp__delegate_to_agent",
       { agent_type: "codex", task: RUNNING_TASK },
       {
         "codeg.delegation": {
@@ -751,7 +751,7 @@ const DELEGATION_TURN: MessageTurn = {
       "d3",
       JSON.stringify({ task_id: RUNNING_TASK_ID, status: "started" })
     ),
-    toolUse("d4", "mcp__codeg-mcp__get_delegation_status", {
+    toolUse("d4", "mcp__yoyocode-mcp__get_delegation_status", {
       task_ids: [RUNNING_TASK_ID],
       wait_ms: 60000,
     }),

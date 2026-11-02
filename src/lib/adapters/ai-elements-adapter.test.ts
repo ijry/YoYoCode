@@ -118,7 +118,7 @@ describe("groupConsecutiveDelegationStatus", () => {
 
   it("matches host-prefixed historical names", () => {
     const out = groupConsecutiveDelegationStatus([
-      poll("mcp__codeg-mcp__get_delegation_status", "t1"),
+      poll("mcp__yoyocode-mcp__get_delegation_status", "t1"),
       poll("mcp__codeg-delegate__get_delegation_status", "t1"),
       poll("codeg-delegate/get_delegation_status", "t1"),
     ])

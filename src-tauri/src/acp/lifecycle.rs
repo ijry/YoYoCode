@@ -726,7 +726,7 @@ pub(crate) const CURSOR_IDENTITYLESS_MCP_TITLE: &str = "MCP: tool";
 /// agent gets to decide both fields:
 ///
 /// * `title` is a free-form human-readable string the host composes. Some
-///   hosts copy the MCP method verbatim (`mcp__codeg-mcp__delegate_to_agent`),
+///   hosts copy the MCP method verbatim (`mcp__yoyocode-mcp__delegate_to_agent`),
 ///   some prefix it with a verb (`Run mcp__…__delegate_to_agent`), some
 ///   rephrase it (`Delegate to codex`). We match by substring so any
 ///   form containing `delegate_to_agent` is captured.
@@ -837,7 +837,7 @@ fn extract_args_match_key(raw_input: Option<&str>) -> Option<DelegationMatchKey>
 ///
 /// opencode ≥2.x routes every MCP tool call through its built-in `execute`
 /// tool: the model writes JavaScript
-/// `await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `…` })`
+/// `await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `…` })`
 /// and the ACP announcement is `{title: "execute", raw_input: {"code": "<js>"}}`.
 /// Neither earlier branch of [`is_delegation_invocation`] matches — the title
 /// carries no `delegate_to_agent`, and the args live inside a JS string
@@ -848,7 +848,7 @@ fn extract_args_match_key(raw_input: Option<&str>) -> Option<DelegationMatchKey>
 /// The recognizers below parse the `code` string with a small structural JS
 /// scanner rather than regexes, and are STRICT about what counts as a call:
 /// `tools` must be a standalone identifier reaching `delegate_to_agent(`
-/// through a real accessor (`tools["codeg-mcp"].…` or `tools.<ns>.…`), and
+/// through a real accessor (`tools["yoyocode-mcp"].…` or `tools.<ns>.…`), and
 /// the scan skips strings, template literals, and comments, so a task text
 /// *quoting* such a call (or a comment mentioning one) cannot register a
 /// phantom delegation.
@@ -1053,7 +1053,7 @@ const CODE_MODE_BRANCH_KEYWORDS: [&[u8]; 9] = [
 /// Byte offset of the `(` that opens the argument list of the
 /// `delegate_to_agent` call whose `tools` token sits at `tools_at`. Two
 /// accepted accessor shapes (opencode emits the first; the second covers a
-/// namespaced client): `tools["codeg-mcp"].delegate_to_agent(` and
+/// namespaced client): `tools["yoyocode-mcp"].delegate_to_agent(` and
 /// `tools.codeg_mcp.delegate_to_agent(`.
 fn code_mode_tools_call_open(code: &str, tools_at: usize) -> Option<usize> {
     let b = code.as_bytes();
@@ -2005,7 +2005,7 @@ mod delegation_title_tests {
     #[test]
     fn matches_mcp_prefixed_method_in_title() {
         assert!(is_delegation_invocation(
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
             None
         ));
         assert!(is_delegation_invocation(
@@ -2066,13 +2066,13 @@ mod delegation_title_tests {
         // opencode 2.x wraps MCP calls in its built-in `execute` tool: the
         // title is "execute" and the real call lives in a JS string under
         // `code`.
-        let raw = r#"{"code":"const res = await tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `smoke test` })"}"#;
+        let raw = r#"{"code":"const res = await tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `smoke test` })"}"#;
         assert!(is_delegation_invocation("execute", Some(raw)));
         // Namespaced accessor form.
         let raw2 = r#"{"code":"await tools.codeg_mcp.delegate_to_agent({agent_type:\"codex\",task:`t`})"}"#;
         assert!(is_delegation_invocation("execute", Some(raw2)));
         // Loose whitespace is still the same call site.
-        let raw3 = r#"{"code":"tools [ \"codeg-mcp\" ] . delegate_to_agent ( { agent_type: \"codex\", task: `t` } )"}"#;
+        let raw3 = r#"{"code":"tools [ \"yoyocode-mcp\" ] . delegate_to_agent ( { agent_type: \"codex\", task: `t` } )"}"#;
         assert!(is_delegation_invocation("execute", Some(raw3)));
     }
 
@@ -2086,28 +2086,28 @@ mod delegation_title_tests {
         // A comment mentioning the call shape registers nothing.
         assert!(!is_delegation_invocation(
             "execute",
-            Some(r#"{"code":"// tools[\"codeg-mcp\"].delegate_to_agent({agent_type:\"codex\",task:`t`})\nconst x = 1"}"#)
+            Some(r#"{"code":"// tools[\"yoyocode-mcp\"].delegate_to_agent({agent_type:\"codex\",task:`t`})\nconst x = 1"}"#)
         ));
         // The call shape inside a string literal is data, not code.
         assert!(!is_delegation_invocation(
             "execute",
-            Some(r#"{"code":"const s = 'tools[\"codeg-mcp\"].delegate_to_agent({task:`t`})'"}"#)
+            Some(r#"{"code":"const s = 'tools[\"yoyocode-mcp\"].delegate_to_agent({task:`t`})'"}"#)
         ));
         // No `code` field, not JSON, and other tools of the same host.
         assert!(!is_delegation_invocation(
             "execute",
-            Some(r#"{"input":"tools[\"codeg-mcp\"].delegate_to_agent({})"}"#)
+            Some(r#"{"input":"tools[\"yoyocode-mcp\"].delegate_to_agent({})"}"#)
         ));
         assert!(!is_delegation_invocation("execute", Some("not json")));
         assert!(!is_delegation_invocation(
             "execute",
-            Some(r#"{"code":"await tools[\"codeg-mcp\"].get_delegation_status({ handle: \"h\" })"}"#)
+            Some(r#"{"code":"await tools[\"yoyocode-mcp\"].get_delegation_status({ handle: \"h\" })"}"#)
         ));
     }
 
     #[test]
     fn extracts_code_mode_key_from_template_task() {
-        let code = "const res = await tools[\"codeg-mcp\"].delegate_to_agent({\n  agent_type: \"codex\",\n  task: `帮我 review\n第二行`,\n  working_dir: \"/tmp/w\",\n})";
+        let code = "const res = await tools[\"yoyocode-mcp\"].delegate_to_agent({\n  agent_type: \"codex\",\n  task: `帮我 review\n第二行`,\n  working_dir: \"/tmp/w\",\n})";
         let raw = serde_json::json!({ "code": code }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("code-mode key parses");
         assert_eq!(
@@ -2122,7 +2122,7 @@ mod delegation_title_tests {
     fn code_mode_key_unescapes_minimal_js_escapes() {
         // `\n` in the template SOURCE is a real newline after JS evaluation —
         // the key must match what the MCP listener receives, not the source.
-        let code = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `line1\nline2\tend` })"#;
+        let code = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `line1\nline2\tend` })"#;
         let raw = serde_json::json!({ "code": code }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("escaped key parses");
         assert_eq!(key.task, "line1\nline2\tend");
@@ -2132,32 +2132,32 @@ mod delegation_title_tests {
     fn code_mode_key_accepts_escape_free_quoted_task() {
         // A quoted string with no backslashes evaluates byte-identically, so
         // it keys like a template would.
-        let code = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "plain task" })"#;
+        let code = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "plain task" })"#;
         let raw = serde_json::json!({ "code": code }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("quoted key parses");
         assert_eq!(key.task, "plain task");
         // …but an escaped quoted string bails (unkeyed) instead of guessing.
-        let escaped = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"a\\nb\" })"}"#;
+        let escaped = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"a\\nb\" })"}"#;
         assert!(extract_delegation_match_key(Some(escaped)).is_none());
     }
 
     #[test]
     fn code_mode_key_bails_on_ambiguity() {
         // Interpolation evaluates differently from the source text.
-        let interp = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `sum ${1 + 1}` })"}"#;
+        let interp = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `sum ${1 + 1}` })"}"#;
         assert!(extract_delegation_match_key(Some(interp)).is_none());
         // Unknown escape → bail rather than guess. (`\\q` in the JSON string
         // is the JS source's `\q`.)
-        let unknown_escape = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\\qb` })"}"#;
+        let unknown_escape = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\\qb` })"}"#;
         assert!(extract_delegation_match_key(Some(unknown_escape)).is_none());
         // Mixed shape: `assistant_id` wins on the MCP side; guessing
         // Agent(…) here would mint an unclaimable keyed entry.
-        let mixed = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ assistant_id: 3, agent_type: \"codex\", task: `t` })"}"#;
+        let mixed = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ assistant_id: 3, agent_type: \"codex\", task: `t` })"}"#;
         assert!(extract_delegation_match_key(Some(mixed)).is_none());
         // No target / unknown target → no key.
-        let no_target = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ task: `t` })"}"#;
+        let no_target = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ task: `t` })"}"#;
         assert!(extract_delegation_match_key(Some(no_target)).is_none());
-        let bad_target = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"garbage\", task: `t` })"}"#;
+        let bad_target = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"garbage\", task: `t` })"}"#;
         assert!(extract_delegation_match_key(Some(bad_target)).is_none());
         // The invocation is still RECOGNIZED in every ambiguous shape, so the
         // id registers as an unkeyed candidate (post-budget FIFO claim).
@@ -2171,7 +2171,7 @@ mod delegation_title_tests {
     fn code_mode_region_scan_does_not_bleed_across_calls() {
         // A second tool call AFTER the delegate call carries its own `task:`
         // field; keys must be read only within the delegate call's parens.
-        let code = "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `t1` }); tools[\"codeg-mcp\"].get_delegation_status({ task: `other`, handle: \"h\" })";
+        let code = "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `t1` }); tools[\"yoyocode-mcp\"].get_delegation_status({ task: `other`, handle: \"h\" })";
         let raw = serde_json::json!({ "code": code }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("key parses");
         assert_eq!(key.task, "t1");
@@ -2197,7 +2197,7 @@ mod delegation_title_tests {
             task: task.to_string(),
             working_dir: Some(working_dir.to_string()),
         };
-        let code = r#"await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp/对拍", task: `review 对拍\nsecond\tline ✓` })"#;
+        let code = r#"await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp/对拍", task: `review 对拍\nsecond\tline ✓` })"#;
         let raw = serde_json::json!({ "code": code }).to_string();
         let acp_key = extract_delegation_match_key(Some(&raw)).expect("acp key parses");
         assert_eq!(acp_key, request_key);
@@ -2211,7 +2211,7 @@ mod delegation_title_tests {
             task: task_ls.to_string(),
             working_dir: None,
         };
-        let code_ls = "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `seg\u{2028}a\u{2029}b` })";
+        let code_ls = "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `seg\u{2028}a\u{2029}b` })";
         let raw = serde_json::json!({ "code": code_ls }).to_string();
         let acp_key = extract_delegation_match_key(Some(&raw)).expect("ls acp key parses");
         assert_eq!(acp_key, request_key);
@@ -2231,7 +2231,7 @@ mod delegation_title_tests {
         ];
         for code in cases {
             let raw =
-                serde_json::json!({ "code": format!("tools[\"codeg-mcp\"].delegate_to_agent({code})") })
+                serde_json::json!({ "code": format!("tools[\"yoyocode-mcp\"].delegate_to_agent({code})") })
                     .to_string();
             assert!(
                 extract_delegation_match_key(Some(&raw)).is_none(),
@@ -2239,7 +2239,7 @@ mod delegation_title_tests {
             );
             assert!(is_delegation_invocation("execute", Some(&raw)));
         }
-        let absent = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
+        let absent = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })"#;
         let raw = serde_json::json!({ "code": absent }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("absent working_dir keys");
         assert_eq!(key.working_dir, None);
@@ -2258,7 +2258,7 @@ mod delegation_title_tests {
         ];
         for code in cases {
             let raw =
-                serde_json::json!({ "code": format!("tools[\"codeg-mcp\"].delegate_to_agent({code})") })
+                serde_json::json!({ "code": format!("tools[\"yoyocode-mcp\"].delegate_to_agent({code})") })
                     .to_string();
             assert!(
                 extract_delegation_match_key(Some(&raw)).is_none(),
@@ -2284,7 +2284,7 @@ mod delegation_title_tests {
         ];
         for code in cases {
             let raw =
-                serde_json::json!({ "code": format!("tools[\"codeg-mcp\"].delegate_to_agent({code})") })
+                serde_json::json!({ "code": format!("tools[\"yoyocode-mcp\"].delegate_to_agent({code})") })
                     .to_string();
             assert!(
                 extract_delegation_match_key(Some(&raw)).is_none(),
@@ -2301,12 +2301,12 @@ mod delegation_title_tests {
         // opencode throw "expects at most one input object" before any MCP
         // call. Each stays a recognized (unkeyed) delegation.
         let cases = [
-            r#"tools["codeg-mcp"].delegate_to_agent(c ? { agent_type: "codex", task: `a` } : { agent_type: "codex", task: `b` })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent(x || { agent_type: "codex", task: `decoy` })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent(x ?? { agent_type: "codex", task: `decoy` })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }.y)"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, { agent_type: "goose", task: `u` })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent(args)"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent(c ? { agent_type: "codex", task: `a` } : { agent_type: "codex", task: `b` })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent(x || { agent_type: "codex", task: `decoy` })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent(x ?? { agent_type: "codex", task: `decoy` })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }.y)"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, { agent_type: "goose", task: `u` })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent(args)"#,
         ];
         for code in cases {
             let raw = serde_json::json!({ "code": code }).to_string();
@@ -2317,7 +2317,7 @@ mod delegation_title_tests {
             assert!(is_delegation_invocation("execute", Some(&raw)));
         }
         // A trailing comma still leaves exactly one argument.
-        let trailing = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, /* end */ )"#;
+        let trailing = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, /* end */ )"#;
         let raw = serde_json::json!({ "code": trailing }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("trailing comma keys");
         assert_eq!(key.task, "t");
@@ -2329,7 +2329,7 @@ mod delegation_title_tests {
         // call, say — is no delegation: registering it would let a real
         // delegation with the same key claim its id.
         let raw = serde_json::json!({
-            "code": "async page => { const tools = {'codeg-mcp': {delegate_to_agent: async x => x}}; await tools['codeg-mcp'].delegate_to_agent({agent_type:'codex',task:'review'}); }"
+            "code": "async page => { const tools = {'yoyocode-mcp': {delegate_to_agent: async x => x}}; await tools['yoyocode-mcp'].delegate_to_agent({agent_type:'codex',task:'review'}); }"
         })
         .to_string();
         for title in ["mcp__playwright__browser_run_code", "browser_run_code", ""] {
@@ -2344,18 +2344,18 @@ mod delegation_title_tests {
         // A regex is indistinguishable from division to the scanner, and
         // `/'/` opens a "string" that skips the real call and closes in a
         // later comment, which then reads as a call site.
-        let code = "const re = /'/;\nawait tools[\"codeg-mcp\"].delegate_to_agent({agent_type:\"codex\",task:\"real\"});\n// here's an example: tools[\"codeg-mcp\"].delegate_to_agent({agent_type:\"codex\",task:\"decoy\"})";
+        let code = "const re = /'/;\nawait tools[\"yoyocode-mcp\"].delegate_to_agent({agent_type:\"codex\",task:\"real\"});\n// here's an example: tools[\"yoyocode-mcp\"].delegate_to_agent({agent_type:\"codex\",task:\"decoy\"})";
         let raw = serde_json::json!({ "code": code }).to_string();
         assert!(extract_delegation_match_key(Some(&raw)).is_none());
         assert!(!is_delegation_invocation("execute", Some(&raw)));
 
         // After a call that runs first, a slash changes nothing.
-        let after = r#"const r = await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }); return r.ms / 1000"#;
+        let after = r#"const r = await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }); return r.ms / 1000"#;
         let raw = serde_json::json!({ "code": after }).to_string();
         assert_eq!(extract_delegation_match_key(Some(&raw)).expect("keys").task, "t");
 
         // After a call that may not run, it hides whether another site exists.
-        let unsure = r#"if (bad) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }) } const n = 4 / 2"#;
+        let unsure = r#"if (bad) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }) } const n = 4 / 2"#;
         let raw = serde_json::json!({ "code": unsure }).to_string();
         assert!(extract_delegation_match_key(Some(&raw)).is_none());
         assert!(is_delegation_invocation("execute", Some(&raw)));
@@ -2370,54 +2370,54 @@ mod delegation_title_tests {
         };
         // Runs first: in order, or eagerly side by side.
         assert_eq!(
-            key_task(r#"await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#).as_deref(),
+            key_task(r#"await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#).as_deref(),
             Some("A")
         );
         assert_eq!(
-            key_task(r#"const [a, b] = await Promise.allSettled([tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })])"#).as_deref(),
+            key_task(r#"const [a, b] = await Promise.allSettled([tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })])"#).as_deref(),
             Some("A")
         );
         // A lone call keys wherever it sits: if it runs, it is the call.
         assert_eq!(
-            key_task(r#"if (failed) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "fix" }) }"#).as_deref(),
+            key_task(r#"if (failed) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "fix" }) }"#).as_deref(),
             Some("fix")
         );
         assert_eq!(
-            key_task(r#"const r = await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" }); return `${r.task_id}`"#).as_deref(),
+            key_task(r#"const r = await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" }); return `${r.task_id}`"#).as_deref(),
             Some("A")
         );
         assert_eq!(
-            key_task(r#"await Promise.allSettled([tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })]).then(rs => rs)"#).as_deref(),
+            key_task(r#"await Promise.allSettled([tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })]).then(rs => rs)"#).as_deref(),
             Some("A")
         );
         assert_eq!(
-            key_task(r#"return await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" })"#).as_deref(),
+            key_task(r#"return await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" })"#).as_deref(),
             Some("A")
         );
         // The first site may not run while a later one does: a branch, a
         // deferred function or parameter default, a destructuring default, or
         // a `${…}` the count cannot see; one case per construct.
         for code in [
-            r#"const later = (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"const later = async (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"function later(x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) { return x } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"const [a = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })] = [1]; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"if (false) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } const text = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`"#,
-            r#"const text = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; if (c) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) }"#,
-            r#"c && await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"c || await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"switch (c) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"for (const x of xs) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"while (false) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"do {} while (false); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"try {} catch (e) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"const t = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; return t; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"const f = (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }), y = 1 / 2) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"if (false) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
-            r#"c ? tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) : tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"if (c) await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); else await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"const later = () => tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
-            r#"async function go() { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"const later = (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"const later = async (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"function later(x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) { return x } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"const [a = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })] = [1]; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"if (false) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } const text = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`"#,
+            r#"const text = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; if (c) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) }"#,
+            r#"c && await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"c || await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"switch (c) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"for (const x of xs) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"while (false) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"do {} while (false); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"try {} catch (e) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"const t = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; return t; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"const f = (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }), y = 1 / 2) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"if (false) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })"#,
+            r#"c ? tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) : tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"if (c) await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); else await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"const later = () => tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
+            r#"async function go() { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })"#,
         ] {
             assert_eq!(key_task(code), None, "{code}");
         }
@@ -2431,14 +2431,14 @@ mod delegation_title_tests {
         // before its `:`), an optional chain, and a duplicate key behind
         // non-ASCII whitespace the word matcher cannot see.
         let cases = [
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", task })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t", agent_type })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", \u0074ask: "real" })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: c ? "task" : "real" })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: c ? "agent_type" : "codex", task: "t" })"#,
-            r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: obj?.task })"#,
-            "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"decoy\",\u{a0}task: \"real\" })",
-            "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"decoy\",\u{feff}task: \"real\" })",
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", task })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t", agent_type })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", \u0074ask: "real" })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: c ? "task" : "real" })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: c ? "agent_type" : "codex", task: "t" })"#,
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: obj?.task })"#,
+            "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"decoy\",\u{a0}task: \"real\" })",
+            "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: \"decoy\",\u{feff}task: \"real\" })",
         ];
         for code in cases {
             let raw = serde_json::json!({ "code": code }).to_string();
@@ -2454,19 +2454,19 @@ mod delegation_title_tests {
     fn code_mode_line_comments_end_at_every_js_line_terminator() {
         // ECMA-262 line comments end at CR, LF, U+2028 and U+2029; a scanner
         // stopping only at LF would swallow the real code after the others.
-        let cr = "tools[\"codeg-mcp\"].delegate_to_agent({ // pick\r agent_type: \"codex\", task: `t` })";
+        let cr = "tools[\"yoyocode-mcp\"].delegate_to_agent({ // pick\r agent_type: \"codex\", task: `t` })";
         let raw = serde_json::json!({ "code": cr }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("CR comment ends");
         assert_eq!(key.task, "t");
 
-        let ls = "// delegate\u{2028}await tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `t` })";
+        let ls = "// delegate\u{2028}await tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `t` })";
         let raw = serde_json::json!({ "code": ls }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("LS comment ends");
         assert_eq!(key.task, "t");
 
         // Inside the argument object the terminator is non-ASCII code the word
         // matcher cannot delimit, so the key degrades rather than guesses.
-        let ls_in_args = "tools[\"codeg-mcp\"].delegate_to_agent({ // pick\u{2028} agent_type: \"codex\", task: `t` })";
+        let ls_in_args = "tools[\"yoyocode-mcp\"].delegate_to_agent({ // pick\u{2028} agent_type: \"codex\", task: `t` })";
         let raw = serde_json::json!({ "code": ls_in_args }).to_string();
         assert!(extract_delegation_match_key(Some(&raw)).is_none());
         assert!(is_delegation_invocation("execute", Some(&raw)));
@@ -2476,7 +2476,7 @@ mod delegation_title_tests {
     fn code_mode_key_accepts_comments_around_values() {
         // Comments between a value and its property terminator (or between
         // properties) are whitespace; they must not break a readable call.
-        let code = r#"tools["codeg-mcp"].delegate_to_agent({
+        let code = r#"tools["yoyocode-mcp"].delegate_to_agent({
   // choose the agent
   agent_type: "codex", /* trailing */ task: `t` /* last */, // done
 })"#;
@@ -2493,9 +2493,9 @@ mod delegation_title_tests {
     fn code_mode_assistant_id_guard_covers_every_spelling() {
         // Bare numeric, quoted-key, and quoted-key+quoted-value spellings all
         // resolve to Assistant(…) on the MCP side; no Agent(…) guess may key.
-        let bare = r#"tools["codeg-mcp"].delegate_to_agent({ assistant_id: 3, task: `t` })"#;
-        let quoted = r#"tools["codeg-mcp"].delegate_to_agent({ "assistant_id": 3, task: `t` })"#;
-        let quoted_value = r#"tools["codeg-mcp"].delegate_to_agent({ "assistant_id": "3", task: `t` })"#;
+        let bare = r#"tools["yoyocode-mcp"].delegate_to_agent({ assistant_id: 3, task: `t` })"#;
+        let quoted = r#"tools["yoyocode-mcp"].delegate_to_agent({ "assistant_id": 3, task: `t` })"#;
+        let quoted_value = r#"tools["yoyocode-mcp"].delegate_to_agent({ "assistant_id": "3", task: `t` })"#;
         for code in [bare, quoted, quoted_value] {
             let raw = serde_json::json!({ "code": code }).to_string();
             assert!(
@@ -2507,8 +2507,8 @@ mod delegation_title_tests {
         // Computed key and spread are unknowable syntax: the transparency
         // pre-pass degrades the whole region.
         let computed =
-            r#"tools["codeg-mcp"].delegate_to_agent({ ["assistant_id"]: 3, agent_type: "codex", task: `t` })"#;
-        let spread = r#"tools["codeg-mcp"].delegate_to_agent({ ...base, task: `t` })"#;
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ ["assistant_id"]: 3, agent_type: "codex", task: `t` })"#;
+        let spread = r#"tools["yoyocode-mcp"].delegate_to_agent({ ...base, task: `t` })"#;
         for code in [computed, spread] {
             let raw = serde_json::json!({ "code": code }).to_string();
             assert!(
@@ -2523,7 +2523,7 @@ mod delegation_title_tests {
     fn code_mode_key_reads_quoted_keys_and_ignores_nested_ones() {
         // Quoted property keys are real keys too.
         let quoted =
-            r#"tools["codeg-mcp"].delegate_to_agent({ "agent_type": "codex", 'task': "plain" })"#;
+            r#"tools["yoyocode-mcp"].delegate_to_agent({ "agent_type": "codex", 'task': "plain" })"#;
         let raw = serde_json::json!({ "code": quoted }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("quoted-key form parses");
         assert_eq!(key.task, "plain");
@@ -2535,7 +2535,7 @@ mod delegation_title_tests {
         // A same-named key nested in a sub-object is invisible to the MCP
         // listener (it reads flat args), so it must not be read here either —
         // in either source order.
-        let nested = r#"tools["codeg-mcp"].delegate_to_agent({
+        let nested = r#"tools["yoyocode-mcp"].delegate_to_agent({
   meta: { agent_type: "zzz", task: `decoy` },
   agent_type: "codex",
   task: `real`,
@@ -2547,7 +2547,7 @@ mod delegation_title_tests {
             key.target,
             crate::acp::delegation::types::DelegationTarget::Agent(AgentType::Codex)
         );
-        let nested_rev = r#"tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `real`, meta: { task: `decoy`, agent_type: "zzz" } })"#;
+        let nested_rev = r#"tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `real`, meta: { task: `decoy`, agent_type: "zzz" } })"#;
         let raw = serde_json::json!({ "code": nested_rev }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("nested-rev form parses");
         assert_eq!(key.task, "real");
@@ -2558,26 +2558,26 @@ mod delegation_title_tests {
         // The JS runtime TV-normalizes bare line terminators in template
         // literals to a single LF (CRLF and CR included); the key must be
         // built from the COOKED text the MCP listener receives.
-        let code = "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\r\nb\rc` })";
+        let code = "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\r\nb\rc` })";
         let raw = serde_json::json!({ "code": code }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("crlf key parses");
         assert_eq!(key.task, "a\nb\nc");
 
         // U+2028/U+2029 are JS line terminators but NOT TV-normalized
         // (ECMA-262 rewrites only CR and CRLF); they pass through verbatim.
-        let ls = "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\u{2028}b` })";
+        let ls = "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\u{2028}b` })";
         let raw = serde_json::json!({ "code": ls }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("LS key parses");
         assert_eq!(key.task, "a\u{2028}b");
 
-        let ps = "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\u{2029}b` })";
+        let ps = "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\u{2029}b` })";
         let raw = serde_json::json!({ "code": ps }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("PS key parses");
         assert_eq!(key.task, "a\u{2029}b");
 
         // A backslash line continuation contributes nothing to the cooked text.
         let cont =
-            "tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\\\r\nb` })";
+            "tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `a\\\r\nb` })";
         let raw = serde_json::json!({ "code": cont }).to_string();
         let key = extract_delegation_match_key(Some(&raw)).expect("continuation key parses");
         assert_eq!(key.task, "ab");
@@ -2921,7 +2921,7 @@ mod delegation_registration_tests {
         // tc-2 registers unkeyed (tool-name title, no raw_input yet).
         register_delegation_tool_call_from_event(
             &b,
-            &tool_call_event("tc-2", "mcp__codeg-mcp__delegate_to_agent", None),
+            &tool_call_event("tc-2", "mcp__yoyocode-mcp__delegate_to_agent", None),
         )
         .await;
         // A parallel keyed sibling sharing the queue (must not be mixed up).
@@ -2929,7 +2929,7 @@ mod delegation_registration_tests {
             &b,
             &tool_call_event(
                 "tc-sibling",
-                "mcp__codeg-mcp__delegate_to_agent",
+                "mcp__yoyocode-mcp__delegate_to_agent",
                 Some(r#"{"agent_type":"codex","task":"sibling"}"#),
             ),
         )
@@ -3038,9 +3038,9 @@ mod delegation_registration_tests {
             &b,
             &tool_call_event(
                 "tc-keyed",
-                "codeg-mcp: delegate_to_agent",
+                "yoyocode-mcp: delegate_to_agent",
                 Some(
-                    r#"{"providerIdentifier":"codeg-mcp","toolName":"delegate_to_agent","args":{"agent_type":"codex","task":"build it"}}"#,
+                    r#"{"providerIdentifier":"yoyocode-mcp","toolName":"delegate_to_agent","args":{"agent_type":"codex","task":"build it"}}"#,
                 ),
             ),
         )
@@ -3061,7 +3061,7 @@ mod delegation_registration_tests {
     #[tokio::test]
     async fn opencode_code_mode_execute_yields_keyed_registration() {
         let b = broker();
-        let code = r#"const res = await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `research code-mode` })"#;
+        let code = r#"const res = await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `research code-mode` })"#;
         let raw = serde_json::json!({ "code": code }).to_string();
         register_delegation_tool_call_from_event(
             &b,
@@ -3082,7 +3082,7 @@ mod delegation_registration_tests {
     #[tokio::test]
     async fn code_mode_payload_on_another_tool_does_not_register() {
         let b = broker();
-        let code = r#"await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `review` })"#;
+        let code = r#"await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `review` })"#;
         let raw = serde_json::json!({ "code": code }).to_string();
         register_delegation_tool_call_from_event(
             &b,
@@ -3102,7 +3102,7 @@ mod delegation_registration_tests {
     #[tokio::test]
     async fn ambiguous_code_mode_execute_still_registers_unkeyed() {
         let b = broker();
-        let raw = r#"{"code":"tools[\"codeg-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `sum ${1 + 1}` })"}"#;
+        let raw = r#"{"code":"tools[\"yoyocode-mcp\"].delegate_to_agent({ agent_type: \"codex\", task: `sum ${1 + 1}` })"}"#;
         register_delegation_tool_call_from_event(
             &b,
             &tool_call_event("tc-ambiguous", "execute", Some(raw)),

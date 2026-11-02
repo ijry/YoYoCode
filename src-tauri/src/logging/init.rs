@@ -501,7 +501,7 @@ fn init_file_writer(dir: &Path, prefix: &str) -> Option<(NonBlocking, WorkerGuar
     Some(tracing_appender::non_blocking(budgeted))
 }
 
-/// Build and install the subscriber. `file_dir` is `None` for `codeg-mcp`
+/// Build and install the subscriber. `file_dir` is `None` for `yoyocode-mcp`
 /// (stderr only). Returns the reload handle and the appender guard.
 fn build_subscriber(
     initial: LogLevel,
@@ -526,7 +526,7 @@ fn build_subscriber(
     let (filter_layer, reload_handle) = reload::Layer::new(initial_filter);
 
     // stderr fmt layer — MUST target stderr (not the default stdout): in
-    // codeg-mcp stdout is the JSON-RPC channel, and elsewhere the migrated
+    // yoyocode-mcp stdout is the JSON-RPC channel, and elsewhere the migrated
     // eprintln! all went to stderr.
     let file = file_dir.and_then(|dir| init_file_writer(dir, file_prefix));
 
@@ -576,7 +576,7 @@ fn build_subscriber(
     // Last here, because the hook logs through the subscriber that was just
     // installed. Early everywhere else: every binary builds its subscriber
     // through this one function, so this single call covers the desktop app,
-    // the server, `codeg-mcp`, the supervisor and the credential helper, and it
+    // the server, `yoyocode-mcp`, the supervisor and the credential helper, and it
     // runs before any of them does real work.
     crate::logging::panic_hook::install();
 
@@ -610,11 +610,11 @@ fn init_with_file(prefix: &str) -> LogGuard {
 
 /// Install a **stderr-only** subscriber (no file / buffer / hub / emitter) for
 /// process modes that run before — or instead of — the full logging stack:
-/// `codeg-mcp`, the `--supervise` supervisor, and the `--credential-helper`
+/// `yoyocode-mcp`, the `--supervise` supervisor, and the `--credential-helper`
 /// subprocess. Without an installed subscriber, `tracing` calls on those paths
 /// are silently dropped (unlike the old `eprintln!`, which always hit stderr).
 ///
-/// stderr (not stdout) is mandatory: in `codeg-mcp` and the credential helper,
+/// stderr (not stdout) is mandatory: in `yoyocode-mcp` and the credential helper,
 /// stdout is a protocol channel. No file appender: those modes are short-lived
 /// or multi-process and must not clobber a shared rolling file. No hub: nothing
 /// to buffer/emit, so `BufferEmitLayer` short-circuits.
@@ -623,7 +623,7 @@ pub fn init_stderr_only() -> LogGuard {
     LogGuard { _guard: guard }
 }
 
-/// Phase 1 for `codeg-mcp`. See [`init_stderr_only`].
+/// Phase 1 for `yoyocode-mcp`. See [`init_stderr_only`].
 pub fn init_mcp() -> LogGuard {
     init_stderr_only()
 }

@@ -543,7 +543,7 @@ describe("AskQuestionResultCard", () => {
   it("echoes codex request_user_input answers keyed by question id", () => {
     // The reported bug: codex Plan-mode `request_user_input` rendered "no
     // selection" because its answer envelope is keyed by the question id
-    // ({answers:{<id>:{answers:[label]}}}), not the codeg-mcp array shape. The
+    // ({answers:{<id>:{answers:[label]}}}), not the yoyocode-mcp array shape. The
     // card must match the answer to the question by that id and echo the pick.
     const input = JSON.stringify({
       questions: [

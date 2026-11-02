@@ -34,7 +34,7 @@ describe("parseInput wrapper peeling", () => {
     // walker in acp/lifecycle.rs (ARGS_WRAPPER_KEYS).
     const parsed = parseInput(
       JSON.stringify({
-        providerIdentifier: "codeg-mcp",
+        providerIdentifier: "yoyocode-mcp",
         toolName: "delegate_to_agent",
         args: { agent_type: "claude_code", task: "执行 pnpm build" },
       })
@@ -500,7 +500,7 @@ describe("resume verdicts never read a child's prose as a verdict", () => {
 })
 
 // opencode 2.x code-mode: MCP calls execute as JS source inside the built-in
-// `execute` tool, arriving as raw_input `{"code": "…tools[\"codeg-mcp\"].
+// `execute` tool, arriving as raw_input `{"code": "…tools[\"yoyocode-mcp\"].
 // delegate_to_agent({…})…"}`. The scanner/unescaper here mirrors
 // `acp/lifecycle.rs` (`code_mode_call_span` & friends) — these cases pin the
 // shared predicate so the two sides can never disagree about what counts as
@@ -512,7 +512,7 @@ describe("opencode code-mode execute payloads", () => {
   // newline/tab, CJK text. The `\\n`/`\\t` are JS SOURCE escapes; the runtime
   // cooks them to a real newline/tab, which is what the card must show.
   const OPENCODE_CALL =
-    'await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp/对拍", task: `review 对拍\\nsecond\\tline ✓` })'
+    'await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp/对拍", task: `review 对拍\\nsecond\\tline ✓` })'
 
   it("recognizes and parses the opencode emission", () => {
     const raw = JSON.stringify({ code: OPENCODE_CALL })
@@ -528,7 +528,7 @@ describe("opencode code-mode execute payloads", () => {
     // U+2028/U+2029 pass through BOTH sides verbatim (ECMA-262 TV-normalizes
     // only CR/CRLF), so the card shows exactly what the listener receives.
     const raw = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `seg\u2028a\u2029b` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `seg\u2028a\u2029b` })',
     })
     expect(isCodeModeDelegationInput(raw)).toBe(true)
     const parsed = parseInput(raw)
@@ -549,7 +549,7 @@ describe("opencode code-mode execute payloads", () => {
 
   it("unescapes the minimal JS escape set in template tasks", () => {
     const raw = JSON.stringify({
-      code: `tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: \`a\\nb\\tc\\u4e2d\\u{1F600}\` })`,
+      code: `tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: \`a\\nb\\tc\\u4e2d\\u{1F600}\` })`,
     })
     const parsed = parseInput(raw)
     expect(parsed.task).toBe("a\nb\tc中😀")
@@ -562,18 +562,18 @@ describe("opencode code-mode execute payloads", () => {
       JSON.stringify({}),
       JSON.stringify({ command: "ls" }),
       // A different method on the same accessor is an execute call, not ours.
-      JSON.stringify({ code: `tools["codeg-mcp"].list_agents({})` }),
+      JSON.stringify({ code: `tools["yoyocode-mcp"].list_agents({})` }),
       // `tools.search` is a plain method call, not an accessor chain.
       JSON.stringify({ code: `tools.search({ query: "delegate_to_agent" })` }),
       // The call shape inside a string/template/comment is not a call site.
       JSON.stringify({
-        code: `const s = "tools[\\"codeg-mcp\\"].delegate_to_agent("`,
+        code: `const s = "tools[\\"yoyocode-mcp\\"].delegate_to_agent("`,
       }),
       JSON.stringify({
-        code: 'const t = `tools["codeg-mcp"].delegate_to_agent()`',
+        code: 'const t = `tools["yoyocode-mcp"].delegate_to_agent()`',
       }),
       JSON.stringify({
-        code: `// tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode" })`,
+        code: `// tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode" })`,
       }),
     ]
     for (const raw of negatives) {
@@ -588,7 +588,7 @@ describe("opencode code-mode execute payloads", () => {
     // `${…}` interpolation evaluates differently than the source reads —
     // the backend goes unkeyed, the card degrades to the generic task row.
     const interp = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: `hi ${name}` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: `hi ${name}` })',
     })
     expect(isCodeModeDelegationInput(interp)).toBe(true)
     expect(parseInput(interp)).toEqual({
@@ -600,27 +600,27 @@ describe("opencode code-mode execute payloads", () => {
 
     // An escape outside the minimal set bails the same way.
     const unknownEscape = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: `a\\qb` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: `a\\qb` })',
     })
     expect(isCodeModeDelegationInput(unknownEscape)).toBe(true)
     expect(parseInput(unknownEscape).task).toBeNull()
 
     // An escaped quoted task could decode differently than it reads — bail.
     const escapedQuoted = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "a\\nb" })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "a\\nb" })',
     })
     expect(isCodeModeDelegationInput(escapedQuoted)).toBe(true)
     expect(parseInput(escapedQuoted).task).toBeNull()
 
     // No agent_type / an unknown slug: still a call, generic card.
     const noAgent = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ task: `t` })',
     })
     expect(isCodeModeDelegationInput(noAgent)).toBe(true)
     expect(parseInput(noAgent).agentType).toBeNull()
 
     const badAgent = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "nope", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "nope", task: `t` })',
     })
     expect(parseInput(badAgent).agentType).toBeNull()
   })
@@ -631,7 +631,7 @@ describe("opencode code-mode execute payloads", () => {
     // `lifecycle.rs::extract_code_mode_match_key`); the card only needs
     // display values, so both identities surface.
     const raw = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ assistant_id: "3", agent_type: "codex", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ assistant_id: "3", agent_type: "codex", task: `t` })',
     })
     expect(isCodeModeDelegationInput(raw)).toBe(true)
     const parsed = parseInput(raw)
@@ -644,25 +644,25 @@ describe("opencode code-mode execute payloads", () => {
     // `assistant_id: 3` is the common spelling; leaving it unread would make
     // the card fall back to `agent_type` and mislabel an Assistant run.
     const bare = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ assistant_id: 3, agent_type: "codex", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ assistant_id: 3, agent_type: "codex", task: `t` })',
     })
     const bareParsed = parseInput(bare)
     expect(bareParsed.assistantId).toBe(3)
     expect(bareParsed.agentType).toBe("codex")
 
     const quotedKey = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ "assistant_id": 3, task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ "assistant_id": 3, task: `t` })',
     })
     expect(parseInput(quotedKey).assistantId).toBe(3)
 
     const quotedBoth = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ "assistant_id": "3", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ "assistant_id": "3", task: `t` })',
     })
     expect(parseInput(quotedBoth).assistantId).toBe(3)
 
     // A bare number NOT ending its property is not the value.
     const concat = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ assistant_id: 3 + 1, task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ assistant_id: 3 + 1, task: `t` })',
     })
     expect(parseInput(concat).assistantId).toBeNull()
   })
@@ -672,10 +672,10 @@ describe("opencode code-mode execute payloads", () => {
     // the whole key (the MCP side sees Some(dir)); the card just shows the
     // fields it can read.
     const cases = [
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "C:\\\\proj", task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: `${cwd}/proj`, task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: projectDir, task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp" + "/w", task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "C:\\\\proj", task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: `${cwd}/proj`, task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: projectDir, task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/tmp" + "/w", task: `t` })',
     ]
     for (const code of cases) {
       const raw = JSON.stringify({ code })
@@ -691,45 +691,45 @@ describe("opencode code-mode execute payloads", () => {
     // A literal followed by an operator evaluates to something else at
     // runtime; reading the literal alone would mislabel the card.
     const taskConcat = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "a" + b })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "a" + b })',
     })
     expect(parseInput(taskConcat).task).toBeNull()
     expect(parseInput(taskConcat).agentType).toBe("codex")
 
     const taskMethod = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `a`.trim() })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `a`.trim() })',
     })
     expect(parseInput(taskMethod).task).toBeNull()
 
     const agentConcat = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "co" + "dex", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "co" + "dex", task: `t` })',
     })
     expect(parseInput(agentConcat).agentType).toBeNull()
     expect(parseInput(agentConcat).task).toBe("t")
 
     const dirConcat = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/a" + suffix, task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", working_dir: "/a" + suffix, task: `t` })',
     })
     expect(parseInput(dirConcat).workingDir).toBeNull()
     expect(parseInput(dirConcat).task).toBe("t")
 
     // Duplicate keys take the LAST spelling — the one the runtime uses.
     const dup = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `stale`, task: `fresh` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `stale`, task: `fresh` })',
     })
     expect(parseInput(dup).task).toBe("fresh")
 
     // …and a later unreadable spelling degrades the read instead of keying
     // the earlier readable one.
     const dupUnreadable = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `stale`, task: "a" + b })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `stale`, task: "a" + b })',
     })
     expect(parseInput(dupUnreadable).task).toBeNull()
   })
 
   it("accepts comments between values and their property terminators", () => {
     const raw = JSON.stringify({
-      code: `tools["codeg-mcp"].delegate_to_agent({
+      code: `tools["yoyocode-mcp"].delegate_to_agent({
   // choose the agent
   agent_type: "codex", /* trailing */ task: \`t\` /* last */, // done
 })`,
@@ -742,7 +742,7 @@ describe("opencode code-mode execute payloads", () => {
 
   it("reads quoted property keys and ignores nested same-named keys", () => {
     const quoted = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ "agent_type": "codex", \'task\': "plain" })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ "agent_type": "codex", \'task\': "plain" })',
     })
     expect(isCodeModeDelegationInput(quoted)).toBe(true)
     expect(parseInput(quoted).agentType).toBe("codex")
@@ -751,7 +751,7 @@ describe("opencode code-mode execute payloads", () => {
     // The backend reads FLAT args, so a same-named key inside a sub-object
     // must not surface — in either source order.
     const nested = JSON.stringify({
-      code: `tools["codeg-mcp"].delegate_to_agent({
+      code: `tools["yoyocode-mcp"].delegate_to_agent({
   meta: { agent_type: "zzz", task: \`decoy\` },
   agent_type: "codex",
   task: \`real\`,
@@ -762,7 +762,7 @@ describe("opencode code-mode execute payloads", () => {
     expect(parsed.task).toBe("real")
 
     const nestedRev = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `real`, meta: { task: `decoy`, agent_type: "zzz" } })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `real`, meta: { task: `decoy`, agent_type: "zzz" } })',
     })
     const parsedRev = parseInput(nestedRev)
     expect(parsedRev.agentType).toBe("codex")
@@ -774,9 +774,9 @@ describe("opencode code-mode execute payloads", () => {
     // values. The call still renders as a delegation card (the backend
     // registers it unkeyed), but the card content is the generic task row.
     const cases = [
-      'tools["codeg-mcp"].delegate_to_agent({ ...base, task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ ["assistant_id"]: 3, agent_type: "codex", task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ ["agent_type"]: "codex", task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ ...base, task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ ["assistant_id"]: 3, agent_type: "codex", task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ ["agent_type"]: "codex", task: `t` })',
     ]
     for (const code of cases) {
       const raw = JSON.stringify({ code })
@@ -795,24 +795,24 @@ describe("opencode code-mode execute payloads", () => {
     // line continuation contributes nothing. (A literal CRLF inside the JS
     // source survives JSON.stringify round-trip.)
     const crlf = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\r\nb\rc` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\r\nb\rc` })',
     })
     expect(parseInput(crlf).task).toBe("a\nb\nc")
 
     const ls = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `a b` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `a b` })',
     })
     // U+2028/U+2029 are JS line terminators but NOT TV-normalized (ECMA-262
     // rewrites only CR and CRLF); they pass through verbatim.
     expect(parseInput(ls).task).toBe("a\u2028b")
 
     const ps = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\u2029b` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\u2029b` })',
     })
     expect(parseInput(ps).task).toBe("a\u2029b")
 
     const cont = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\\\r\nb` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `a\\\r\nb` })',
     })
     expect(parseInput(cont).task).toBe("ab")
   })
@@ -822,10 +822,10 @@ describe("opencode code-mode execute payloads", () => {
     // calls and regex literals are expressions the scanner cannot evaluate —
     // and a regex body could feed quotes/braces to the string/template arms.
     const cases = [
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, working_dir })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, assistant_id })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: pick("codex"), task: `t` })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, flag: /}/ })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, working_dir })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, assistant_id })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: pick("codex"), task: `t` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t`, flag: /}/ })',
     ]
     for (const code of cases) {
       const raw = JSON.stringify({ code })
@@ -850,12 +850,12 @@ describe("opencode code-mode execute payloads", () => {
     // literal in them does not determine. A second argument object makes
     // OpenCode throw "expects at most one input object" before any MCP call.
     const cases = [
-      'tools["codeg-mcp"].delegate_to_agent(c ? { agent_type: "codex", task: `a` } : { agent_type: "codex", task: `b` })',
-      'tools["codeg-mcp"].delegate_to_agent(x || { agent_type: "codex", task: `decoy` })',
-      'tools["codeg-mcp"].delegate_to_agent(x ?? { agent_type: "codex", task: `decoy` })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }.y)',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, { agent_type: "goose", task: `u` })',
-      'tools["codeg-mcp"].delegate_to_agent(args)',
+      'tools["yoyocode-mcp"].delegate_to_agent(c ? { agent_type: "codex", task: `a` } : { agent_type: "codex", task: `b` })',
+      'tools["yoyocode-mcp"].delegate_to_agent(x || { agent_type: "codex", task: `decoy` })',
+      'tools["yoyocode-mcp"].delegate_to_agent(x ?? { agent_type: "codex", task: `decoy` })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }.y)',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, { agent_type: "goose", task: `u` })',
+      'tools["yoyocode-mcp"].delegate_to_agent(args)',
     ]
     for (const code of cases) {
       const raw = JSON.stringify({ code })
@@ -864,7 +864,7 @@ describe("opencode code-mode execute payloads", () => {
     }
     // A trailing comma still leaves exactly one argument.
     const trailing = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, /* end */ )',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` }, /* end */ )',
     })
     expect(parseInput(trailing).task).toBe("t")
   })
@@ -875,14 +875,14 @@ describe("opencode code-mode execute payloads", () => {
     // ternary (whose string reads like a key before its `:`), and a
     // duplicate key behind non-ASCII whitespace the word matcher cannot see.
     const cases = [
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", task })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t", agent_type })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", \\u0074ask: "real" })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: c ? "task" : "real" })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: c ? "agent_type" : "codex", task: "t" })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: obj?.task })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy",\u00a0task: "real" })',
-      'tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy",\ufefftask: "real" })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", task })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t", agent_type })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy", \\u0074ask: "real" })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: c ? "task" : "real" })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: c ? "agent_type" : "codex", task: "t" })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: obj?.task })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy",\u00a0task: "real" })',
+      'tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy",\ufefftask: "real" })',
     ]
     for (const code of cases) {
       const raw = JSON.stringify({ code })
@@ -897,7 +897,7 @@ describe("opencode code-mode execute payloads", () => {
     // Another tool's `code` argument — a Playwright script that mocks the
     // call, say — is no delegation; the backend doesn't register it either.
     const raw = JSON.stringify({
-      code: "async page => { const tools = {'codeg-mcp': {delegate_to_agent: async x => x}}; await tools['codeg-mcp'].delegate_to_agent({agent_type:'codex',task:'review'}); }",
+      code: "async page => { const tools = {'yoyocode-mcp': {delegate_to_agent: async x => x}}; await tools['yoyocode-mcp'].delegate_to_agent({agent_type:'codex',task:'review'}); }",
     })
     expect(isCodeModeDelegationInput(raw)).toBe(true)
     // `execute` normalizes to `bash`, live and in history.
@@ -911,19 +911,19 @@ describe("opencode code-mode execute payloads", () => {
     // `/'/` opens a "string" that skips the real call and closes in a later
     // comment, whose example then reads as the call site.
     const desync = JSON.stringify({
-      code: `const re = /'/;\nawait tools["codeg-mcp"].delegate_to_agent({agent_type:"codex",task:"real"});\n// here's an example: tools["codeg-mcp"].delegate_to_agent({agent_type:"codex",task:"decoy"})`,
+      code: `const re = /'/;\nawait tools["yoyocode-mcp"].delegate_to_agent({agent_type:"codex",task:"real"});\n// here's an example: tools["yoyocode-mcp"].delegate_to_agent({agent_type:"codex",task:"decoy"})`,
     })
     expect(isCodeModeDelegationInput(desync)).toBe(false)
 
     // After a call that runs first, a slash changes nothing…
     const after = JSON.stringify({
-      code: 'const r = await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }); return r.ms / 1000',
+      code: 'const r = await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }); return r.ms / 1000',
     })
     expect(parseInput(after).task).toBe("t")
 
     // …after one that may not run, it hides whether another site exists.
     const unsure = JSON.stringify({
-      code: 'if (bad) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }) } const n = 4 / 2',
+      code: 'if (bad) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "t" }) } const n = 4 / 2',
     })
     expect(isCodeModeDelegationInput(unsure)).toBe(true)
     expect(parseInput(unsure).task).toBeNull()
@@ -937,59 +937,59 @@ describe("opencode code-mode execute payloads", () => {
     }
     expect(
       task(
-        'await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })'
+        'await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })'
       )
     ).toBe("A")
     expect(
       task(
-        'const [a, b] = await Promise.allSettled([tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })])'
+        'const [a, b] = await Promise.allSettled([tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })])'
       )
     ).toBe("A")
     // A lone call reads wherever it sits: if it runs, it is the call.
     expect(
       task(
-        'if (failed) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "fix" }) }'
+        'if (failed) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "fix" }) }'
       )
     ).toBe("fix")
     expect(
       task(
-        'const r = await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" }); return `${r.task_id}`'
+        'const r = await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" }); return `${r.task_id}`'
       )
     ).toBe("A")
     expect(
       task(
-        'await Promise.allSettled([tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })]).then(rs => rs)'
+        'await Promise.allSettled([tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }), tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })]).then(rs => rs)'
       )
     ).toBe("A")
     expect(
       task(
-        'return await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" })'
+        'return await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" })'
       )
     ).toBe("A")
     // The first site may not run while a later one does: a branch, a deferred
     // function or parameter default, a destructuring default, or a `${…}` the
     // count cannot see; one case per construct.
     for (const code of [
-      'const later = (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'const later = async (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'function later(x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) { return x } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'const [a = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })] = [1]; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'if (false) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } const text = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`',
-      'const text = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; if (c) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) }',
-      'c && await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'c || await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'switch (c) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'for (const x of xs) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'while (false) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'do {} while (false); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'try {} catch (e) {} await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'const t = `${await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; return t; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'const f = (x = tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }), y = 1 / 2) => x; await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'if (false) { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
-      'c ? tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) : tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'if (c) await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); else await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'const later = () => tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
-      'async function go() { await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) } await tools["codeg-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'const later = (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'const later = async (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'function later(x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })) { return x } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'const [a = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" })] = [1]; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'if (false) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } const text = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`',
+      'const text = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; if (c) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) }',
+      'c && await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'c || await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'switch (c) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'for (const x of xs) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'while (false) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'do {} while (false); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'try {} catch (e) {} await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'const t = `${await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })}`; return t; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'const f = (x = tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }), y = 1 / 2) => x; await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'if (false) { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "decoy" }) } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "real" })',
+      'c ? tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) : tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'if (c) await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); else await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'const later = () => tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }); await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
+      'async function go() { await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: "A" }) } await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "zcode", task: "B" })',
     ]) {
       expect(task(code)).toBeNull()
     }
@@ -1017,7 +1017,7 @@ describe("opencode code-mode execute payloads", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
       const raw = JSON.stringify({
-        code: 'tools["codeg-mcp"].delegate_to_agent({ ...base, task: `t` })',
+        code: 'tools["yoyocode-mcp"].delegate_to_agent({ ...base, task: `t` })',
       })
       expect(parseInput(raw).task).toBeNull()
       expect(warn).not.toHaveBeenCalled()
@@ -1030,12 +1030,12 @@ describe("opencode code-mode execute payloads", () => {
     // ECMA-262 line comments end at CR, LF, U+2028 and U+2029; a scanner
     // stopping only at LF would swallow the real code after the others.
     const cr = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ // pick\r agent_type: "codex", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ // pick\r agent_type: "codex", task: `t` })',
     })
     expect(parseInput(cr).task).toBe("t")
 
     const ls = JSON.stringify({
-      code: '// delegate\u2028await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
+      code: '// delegate\u2028await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
     })
     expect(isCodeModeDelegationInput(ls)).toBe(true)
     expect(parseInput(ls).task).toBe("t")
@@ -1043,7 +1043,7 @@ describe("opencode code-mode execute payloads", () => {
     // Inside the argument object the terminator is non-ASCII code the word
     // matcher cannot delimit, so the read degrades rather than guesses.
     const lsInArgs = JSON.stringify({
-      code: 'tools["codeg-mcp"].delegate_to_agent({ // pick\u2028 agent_type: "codex", task: `t` })',
+      code: 'tools["yoyocode-mcp"].delegate_to_agent({ // pick\u2028 agent_type: "codex", task: `t` })',
     })
     expect(isCodeModeDelegationInput(lsInArgs)).toBe(true)
     expect(parseInput(lsInArgs).task).toBeNull()

@@ -23,10 +23,10 @@ RUN apt-get update && apt-get install -y \
 # if the base image moves to a newer Debian release (e.g. trixie ships libicu76).
 
 COPY dist/${TARGETARCH}/codeg-server /usr/local/bin/codeg-server
-# codeg-mcp is the stdio MCP companion the runtime injects per session
+# yoyocode-mcp is the stdio MCP companion the runtime injects per session
 # (see acp/delegation/companion.rs). It must ship next to codeg-server so
 # `locate_codeg_mcp_binary()` finds it via the exe-sibling lookup.
-COPY dist/${TARGETARCH}/codeg-mcp /usr/local/bin/codeg-mcp
+COPY dist/${TARGETARCH}/yoyocode-mcp /usr/local/bin/yoyocode-mcp
 # codeg-cli: `docker exec <container> codeg-cli run …` finds this server through
 # its discovery file under CODEG_DATA_DIR (/data/cli).
 COPY dist/${TARGETARCH}/codeg-cli /usr/local/bin/codeg-cli

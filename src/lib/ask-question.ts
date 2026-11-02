@@ -2,7 +2,7 @@
  * Parsing helpers shared by the live `AskQuestionCard` (interactive) and the
  * historical `AskQuestionResultCard` (read-only, in the message stream).
  *
- * The codeg-mcp `ask_user_question` tool serializes into a session transcript
+ * The yoyocode-mcp `ask_user_question` tool serializes into a session transcript
  * as a generic tool call. The input is the raw `{ questions: [...] }` JSON the
  * agent sent. The output is the tool result the agent CLI persisted: in
  * practice that is the companion's structured `{ answers, declined }` envelope
@@ -28,7 +28,7 @@ export interface AskQuestion {
   isSecret: boolean
   /** Codex `request_user_input` gives each question a stable `id`; its chosen
    *  answer envelope is keyed by that id rather than the question text (unlike
-   *  the codeg-mcp ask, which the card matches by header+question). */
+   *  the yoyocode-mcp ask, which the card matches by header+question). */
   id?: string
 }
 
@@ -402,11 +402,11 @@ function decodeCodexAnswerEntries(entries: string[]): string[] {
 
 /**
  * codex `request_user_input` records its answers keyed by question id rather
- * than as the codeg-mcp array envelope:
+ * than as the yoyocode-mcp array envelope:
  *   { "answers": { "<questionId>": { "answers": ["label", ...] } } }
  * Return one answer per id (carrying that id so the card can match it against
  * the question's own id), or `null` when `answers` isn't the object map — so a
- * codeg-mcp / Claude result (whose `answers` is an ARRAY) never lands here.
+ * yoyocode-mcp / Claude result (whose `answers` is an ARRAY) never lands here.
  * Each list is decoded by `decodeCodexAnswerEntries`.
  */
 function parseCodexAnswers(
@@ -444,7 +444,7 @@ function parseCodexAnswers(
  * on ", " mirrors the human-readable fallback's documented lossiness (a label
  * containing ", " degrades to a free-text answer, display-equivalent).
  * Returns `null` when no entry is string-valued and there is no dismissal
- * note, so codex's record-valued map (`parseCodexAnswers`) and the codeg-mcp
+ * note, so codex's record-valued map (`parseCodexAnswers`) and the yoyocode-mcp
  * array envelope never land here.
  */
 function parseKimiOutcome(
@@ -521,7 +521,7 @@ function parseOutcomeJson(output: string): AskQuestionOutcome | null {
   }
 
   // codex `request_user_input`: object-keyed answers. Checked after the
-  // array-shaped envelope above so a codeg-mcp result never falls through here.
+  // array-shaped envelope above so a yoyocode-mcp result never falls through here.
   const codex =
     parseCodexAnswers(top) ??
     parseCodexAnswers(asRecord(top.structuredContent)) ??

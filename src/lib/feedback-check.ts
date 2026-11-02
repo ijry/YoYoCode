@@ -1,5 +1,5 @@
 /**
- * Parsing helper for the codeg-mcp `check_user_feedback` tool result, shared by
+ * Parsing helper for the yoyocode-mcp `check_user_feedback` tool result, shared by
  * the timeline's feedback-check row and the adapter pass that hides no-op
  * checks (`dropHiddenFeedbackChecks`).
  *

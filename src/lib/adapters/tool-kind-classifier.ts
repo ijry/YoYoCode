@@ -2,7 +2,7 @@ import { COLLAB_AGENT_TOOL_NAME } from "@/lib/collab-tool"
 
 /**
  * Identify agent-like tool calls — a sub-agent launch, a codeg delegation, a
- * question, a feedback check, a goal, a codeg-mcp workbench call — which draw
+ * question, a feedback check, a goal, a yoyocode-mcp workbench call — which draw
  * a row of their own and handle their own empty in-flight calls, so the
  * generic empty-call filter (`dropEmptyInFlightToolCalls`) leaves them be.
  *
@@ -23,13 +23,13 @@ const ASK_USER_QUESTION_SUFFIX_RE = /[^a-z0-9]ask_user_question$/
 const CHECK_USER_FEEDBACK_SUFFIX_RE = /[^a-z0-9]check_user_feedback$/
 
 /**
- * The codeg-mcp workbench companions, which own `CodegMcpToolCard` (and, for
+ * The yoyocode-mcp workbench companions, which own `CodegMcpToolCard` (and, for
  * `resume_delegation`, `ResumedDelegationCard`). Same bare-name-plus-suffix
  * treatment as the delegation tools above: the bare form is what the live path
  * produces post-`inferLiveToolName`, the suffix form is the raw
  * `mcp__<server>__<tool>` name the history parsers keep.
  *
- * MUST stay in sync with `CODEG_MCP_WORKBENCH_TOOLS` in `@/lib/codeg-mcp-tool`
+ * MUST stay in sync with `CODEG_MCP_WORKBENCH_TOOLS` in `@/lib/yoyocode-mcp-tool`
  * — a tool listed there but missing here still gets its dedicated card, but
  * the empty-call filter takes it for a generic call and hides it while it runs
  * without arguments. `tool-kind-classifier.test.ts` asserts the two can't
@@ -58,7 +58,7 @@ export function isAgentLikeToolName(toolName: string): boolean {
     name === "cancel_delegation" ||
     name === "create_goal" ||
     name === "update_goal" ||
-    // codeg-mcp ask_user_question — owns the AskQuestionResultCard.
+    // yoyocode-mcp ask_user_question — owns the AskQuestionResultCard.
     // "question" is the canonical name (live path); the bare raw name plus the
     // suffix RE below cover the historical `mcp__<server>__ask_user_question`
     // forms, since this runs pre-normalize.
@@ -76,7 +76,7 @@ export function isAgentLikeToolName(toolName: string): boolean {
     // same AskQuestionResultCard. The history parser keeps this raw name, so
     // hoist it here too; the live path already collapses it to "question".
     name === "request_user_input" ||
-    // codeg-mcp check_user_feedback — owns the timeline's feedback row. The
+    // yoyocode-mcp check_user_feedback — owns the timeline's feedback row. The
     // no-op polls are dropped upstream by `dropHiddenFeedbackChecks`, so only
     // received-feedback checks reach here.
     name === "check_user_feedback"

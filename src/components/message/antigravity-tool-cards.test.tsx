@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest"
  * rawOutput rendered as a JSON tree. The MCP calls, because Antigravity routes
  * every one of them through a `call_mcp_tool` sentinel whose real identity
  * lives inside a PascalCase envelope — five delegation calls all rendered as
- * "call_mcp_tool: codeg-mcp".
+ * "call_mcp_tool: yoyocode-mcp".
  *
  * The wire shapes below are copied from a real session
  * (`tools.py::unwrap_mcp_tool_call`, `server.py::_exec_tool_raw_output`).
@@ -171,7 +171,7 @@ describe("Antigravity MCP calls reach their dedicated rows", () => {
       parseDelegationInput(
         JSON.stringify({
           Arguments: { agent_type: "codex", task: "run pnpm build" },
-          ServerName: "codeg-mcp",
+          ServerName: "yoyocode-mcp",
           ToolName: "delegate_to_agent",
         })
       )
@@ -181,7 +181,7 @@ describe("Antigravity MCP calls reach their dedicated rows", () => {
   it("routes an unwrapped delegate_to_agent to the delegation row", () => {
     // `<server>_<tool>` + `{arguments: {…}}` is what the live stream sends and
     // what the history parser now emits; both must resolve to the same card.
-    expect(normalizeToolName("codeg-mcp_delegate_to_agent")).toBe(
+    expect(normalizeToolName("yoyocode-mcp_delegate_to_agent")).toBe(
       "delegate_to_agent"
     )
 
@@ -189,7 +189,7 @@ describe("Antigravity MCP calls reach their dedicated rows", () => {
       {
         type: "tool-call",
         toolCallId: "call_1199411",
-        toolName: "codeg-mcp_delegate_to_agent",
+        toolName: "yoyocode-mcp_delegate_to_agent",
         input: JSON.stringify({
           arguments: { agent_type: "codex", task: "run pnpm build" },
           prompt: "Delegating pnpm build to Codex CLI",
@@ -215,7 +215,7 @@ describe("Antigravity MCP calls reach their dedicated rows", () => {
       {
         type: "tool-call",
         toolCallId: "call_2951639",
-        toolName: "codeg-mcp_get_delegation_status",
+        toolName: "yoyocode-mcp_get_delegation_status",
         input: JSON.stringify({
           arguments: {
             task_ids: ["71718410-0e8c-4cb2-ab7e-7ebaddbca928"],

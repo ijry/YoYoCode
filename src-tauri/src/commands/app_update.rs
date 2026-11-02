@@ -101,7 +101,7 @@ fn staged_install() -> MutexGuard<'static, Option<StagedInstall>> {
 /// On Windows a successful install never returns: the plugin launches the
 /// installer and ends the process with `std::process::exit(0)` right away, so
 /// no `RunEvent::Exit` arrives and the quit in `shut_down` never runs. The
-/// agents would outlive the app, and with them the codeg-mcp companions they
+/// agents would outlive the app, and with them the yoyocode-mcp companions they
 /// run from the folder the installer is about to write, along with terminals
 /// and office watches; the open workspace windows would not be remembered for
 /// the relaunch either. The plugin calls this hook just before it launches the

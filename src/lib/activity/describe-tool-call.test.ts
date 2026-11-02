@@ -55,13 +55,13 @@ describe("toolStepKind", () => {
     ["AskUserQuestion", { questions: [] }, "question"],
     ["mcp__linear__get_issue", { id: "HVAC-1" }, "mcp"],
     // codeg's own MCP companions are never third-party MCP rows
-    ["mcp__codeg-mcp__delegate_to_agent", { task: "t" }, "delegation"],
+    ["mcp__yoyocode-mcp__delegate_to_agent", { task: "t" }, "delegation"],
     // opencode 2.x code-mode: the delegation call rides inside the `execute`
     // tool's `code` source string, so only the input shape can classify it.
     [
       "execute",
       {
-        code: 'await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
+        code: 'await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
       },
       "delegation",
     ],
@@ -89,27 +89,27 @@ describe("toolStepKind", () => {
     [
       "mcp__playwright__browser_run_code",
       {
-        code: 'await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
+        code: 'await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
       },
       "mcp",
     ],
     [
-      "mcp__codeg-mcp__get_delegation_status",
+      "mcp__yoyocode-mcp__get_delegation_status",
       { task_ids: [] },
       "delegation-status",
     ],
     [
-      "mcp__codeg-mcp__cancel_delegation",
+      "mcp__yoyocode-mcp__cancel_delegation",
       { task_id: "t" },
       "delegation-cancel",
     ],
     [
-      "mcp__codeg-mcp__resume_delegation",
+      "mcp__yoyocode-mcp__resume_delegation",
       { task_id: "t" },
       "delegation-resume",
     ],
-    ["mcp__codeg-mcp__check_user_feedback", {}, "feedback"],
-    ["mcp__codeg-mcp__task_progress", {}, "workbench"],
+    ["mcp__yoyocode-mcp__check_user_feedback", {}, "feedback"],
+    ["mcp__yoyocode-mcp__task_progress", {}, "workbench"],
     // codex
     ["exec_command", { cmd: "ls" }, "command"],
     ["shell_command", { command: "ls" }, "command"],

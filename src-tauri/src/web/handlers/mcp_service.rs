@@ -1,4 +1,4 @@
-//! HTTP handlers for the codeg-mcp service status indicator — the web-mode
+//! HTTP handlers for the yoyocode-mcp service status indicator — the web-mode
 //! mirror of the Tauri commands in `commands::mcp_service`.
 //!
 //! Both transports call the same `_core` helpers, so the probe, the state

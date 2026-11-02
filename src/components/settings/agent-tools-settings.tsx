@@ -4,7 +4,7 @@
  * The extra tools codeg hands an agent inside a conversation, as one panel:
  * live feedback, ask-user-question, get-session-info, the built-in browser
  * (and, inside it, running code), and the two create-from-chat writers. All of
- * them are injected by `codeg-mcp` when an agent starts, so what the user is
+ * them are injected by `yoyocode-mcp` when an agent starts, so what the user is
  * really deciding here is one thing — how much of the app an agent may reach
  * from a conversation.
  *
@@ -15,7 +15,7 @@
  * process with.
  *
  * The names, one-liners and icons come from `lib/agent-tool-groups`, shared
- * with the status-bar codeg-mcp popover — the two lists are the same switches
+ * with the status-bar yoyocode-mcp popover — the two lists are the same switches
  * and had drifted into calling three of them by different names.
  *
  * Persistence stays split the way the backend has it — `feedback.enabled`,
@@ -106,7 +106,7 @@ const DEFAULTS: AgentToolValues = {
  *  look up, what it may do with the browser, what it may write.
  *
  *  Presentation (name, one-liner, paragraph, icon, which switch gates which)
- *  comes from `lib/agent-tool-groups`, which the status-bar codeg-mcp popover
+ *  comes from `lib/agent-tool-groups`, which the status-bar yoyocode-mcp popover
  *  reads too — the two surfaces had drifted into calling three of the same
  *  switches by different names, and one table is the only fix that stays
  *  fixed. What lives here is the half that is this panel's own: which field of
@@ -225,7 +225,7 @@ export function AgentToolsSettingsSection() {
   /**
    * Converge on a create-from-chat write that happened elsewhere.
    *
-   * The status-bar codeg-mcp popover carries the same two switches, and the
+   * The status-bar yoyocode-mcp popover carries the same two switches, and the
    * save below writes the pair whenever *either* is dirty. Without this, a
    * form left open since before that popover toggle would submit its stale
    * value for the switch the user never touched and silently revert it.

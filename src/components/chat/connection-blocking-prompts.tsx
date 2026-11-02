@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * A connection's blocking prompts — permission request, codeg-mcp
+ * A connection's blocking prompts — permission request, yoyocode-mcp
  * `ask_user_question`, plan approval — answered through THAT connection's id.
  *
  * For answering a session from outside its own conversation panel: the

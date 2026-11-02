@@ -1,4 +1,4 @@
-//! `codeg-mcp` — the per-launch stdio MCP companion that an agent CLI runs
+//! `yoyocode-mcp` — the per-launch stdio MCP companion that an agent CLI runs
 //! to surface codeg's tools to its LLM: the multi-agent delegation tools
 //! (`delegate_to_agent` etc.), `check_user_feedback` (pull the user's mid-turn
 //! steering notes), `ask_user_question` (block on a multiple-choice card), and
@@ -11,7 +11,7 @@
 //! The agent's MCP config (injected by codeg via `load_mcp_servers_for_agent`)
 //! spawns this binary with three required flags:
 //!
-//!   codeg-mcp \
+//!   yoyocode-mcp \
 //!     --parent-connection-id <uuid> \
 //!     --socket-path <abs path> \
 //!     --token <ephemeral secret>
@@ -50,7 +50,7 @@ struct Args {
     socket_path: String,
     token: String,
     /// Optional PID of the codeg / codeg-server process that owns this
-    /// session. When set, codeg-mcp exits as soon as the parent is gone so
+    /// session. When set, yoyocode-mcp exits as soon as the parent is gone so
     /// orphaned companions don't keep the binary file locked (Windows
     /// upgrade failure) or hold open a UDS / pipe nobody will ever read
     /// from. Omitted by older parents — backward compatible.
@@ -131,7 +131,7 @@ fn parse_args() -> Result<Args, String> {
             }
             "--help" | "-h" => {
                 println!(
-                    "codeg-mcp --parent-connection-id <uuid> --socket-path <path> --token <secret> [--parent-pid <pid>] [--features delegation,feedback,ask,sessions,tasks,result] [--custom-agents custom:<id>,...] [--disabled-agents <agent>,...]"
+                    "yoyocode-mcp --parent-connection-id <uuid> --socket-path <path> --token <secret> [--parent-pid <pid>] [--features delegation,feedback,ask,sessions,tasks,result] [--custom-agents custom:<id>,...] [--disabled-agents <agent>,...]"
                 );
                 std::process::exit(0);
             }
@@ -187,7 +187,7 @@ async fn main() -> ExitCode {
     let args = match parse_args() {
         Ok(a) => a,
         Err(e) => {
-            let _ = writeln!(std::io::stderr(), "codeg-mcp: {e}");
+            let _ = writeln!(std::io::stderr(), "yoyocode-mcp: {e}");
             return ExitCode::from(2);
         }
     };
@@ -235,7 +235,7 @@ async fn main() -> ExitCode {
                 drain_and_cancel_all(&ctx, &inflight, "parent process exited").await;
                 let _ = writeln!(
                     std::io::stderr(),
-                    "codeg-mcp: parent process exited, shutting down"
+                    "yoyocode-mcp: parent process exited, shutting down"
                 );
                 // Hard exit on purpose: `tokio::io::stdin()` parks a
                 // blocking worker thread that the runtime can't cancel,
@@ -257,7 +257,7 @@ async fn main() -> ExitCode {
                         break;
                     }
                     Err(e) => {
-                        let _ = writeln!(std::io::stderr(), "codeg-mcp: read stdin: {e}");
+                        let _ = writeln!(std::io::stderr(), "yoyocode-mcp: read stdin: {e}");
                         drain_and_cancel_all(&ctx, &inflight, "companion stdin error").await;
                         return ExitCode::from(1);
                     }
@@ -270,7 +270,7 @@ async fn main() -> ExitCode {
                 match action {
                     LineAction::Respond(resp) => {
                         if let Err(e) = write_response(&stdout, &resp).await {
-                            let _ = writeln!(std::io::stderr(), "codeg-mcp: write stdout: {e}");
+                            let _ = writeln!(std::io::stderr(), "yoyocode-mcp: write stdout: {e}");
                             return ExitCode::from(1);
                         }
                     }
@@ -291,7 +291,7 @@ async fn main() -> ExitCode {
                             if let Err(e) = write_response(&stdout, &resp).await {
                                 let _ = writeln!(
                                     std::io::stderr(),
-                                    "codeg-mcp: write stdout: {e}"
+                                    "yoyocode-mcp: write stdout: {e}"
                                 );
                                 // Relay failed (agent stdin gone) → skip any
                                 // post-relay action so feedback notes stay

@@ -9,7 +9,7 @@
 //!   parent LLM ─┐
 //!               │ ToolUse(delegate_to_agent, ...)
 //!               ▼
-//!   parent CLI ──stdio──► codeg-mcp (per-launch companion binary)
+//!   parent CLI ──stdio──► yoyocode-mcp (per-launch companion binary)
 //!                                 │
 //!                                 │ UDS / named pipe (token-authed)
 //!                                 ▼
@@ -53,25 +53,25 @@ pub mod types;
 /// Canonical titles written onto a parent tool call that was announced
 /// identity-less (Cursor's `"MCP: tool"` — see
 /// `acp::lifecycle::CURSOR_IDENTITYLESS_MCP_TITLE`) once the companion
-/// round-trip reveals which codeg-mcp tool it actually is. Two writers must
+/// round-trip reveals which yoyocode-mcp tool it actually is. Two writers must
 /// agree on these strings: the broker/listener call-time rewrite
 /// (`DelegationBroker::rewrite_identityless_tool_call`) and the
 /// completion-time result sniff in `acp::connection`
-/// (`cursor_companion_title_from_content`). The `codeg-mcp__<tool>` shape is
+/// (`cursor_companion_title_from_content`). The `yoyocode-mcp__<tool>` shape is
 /// what the frontend's tool-name normalizer already resolves to the dedicated
 /// delegation / status cards.
-pub const DELEGATE_TOOL_REWRITE_TITLE: &str = "codeg-mcp__delegate_to_agent";
-pub const STATUS_TOOL_REWRITE_TITLE: &str = "codeg-mcp__get_delegation_status";
-pub const CANCEL_TOOL_REWRITE_TITLE: &str = "codeg-mcp__cancel_delegation";
-pub const RESUME_TOOL_REWRITE_TITLE: &str = "codeg-mcp__resume_delegation";
+pub const DELEGATE_TOOL_REWRITE_TITLE: &str = "yoyocode-mcp__delegate_to_agent";
+pub const STATUS_TOOL_REWRITE_TITLE: &str = "yoyocode-mcp__get_delegation_status";
+pub const CANCEL_TOOL_REWRITE_TITLE: &str = "yoyocode-mcp__cancel_delegation";
+pub const RESUME_TOOL_REWRITE_TITLE: &str = "yoyocode-mcp__resume_delegation";
 
-/// Whether a host's name for a tool is codeg-mcp's own `tool`, in whatever
-/// spelling the host composed it — `mcp__codeg-mcp__ask_user_question` from
-/// claude-agent-acp, `codeg-mcp__ask_user_question`, `codeg-mcp/…`,
-/// `codeg-mcp: …`, `mcp.codeg-mcp.…`, any case. The name is cut at the first
+/// Whether a host's name for a tool is yoyocode-mcp's own `tool`, in whatever
+/// spelling the host composed it — `mcp__yoyocode-mcp__ask_user_question` from
+/// claude-agent-acp, `yoyocode-mcp__ask_user_question`, `yoyocode-mcp/…`,
+/// `yoyocode-mcp: …`, `mcp.yoyocode-mcp.…`, any case. The name is cut at the first
 /// separator between server and tool (`__`, `/`, `:` or `.`, after an optional
-/// leading `mcp`), and each half must be exactly codeg-mcp's and the tool's: a
-/// server named `other-codeg-mcp` or `codeg` (whose `mcp_submit_result` would
+/// leading `mcp`), and each half must be exactly yoyocode-mcp's and the tool's: a
+/// server named `other-yoyocode-mcp` or `codeg` (whose `mcp_submit_result` would
 /// read the same with the boundary gone), or a tool named
 /// `ask_user_question_twice`, is someone else's. It decides auto-approvals, so a
 /// near miss keeps its approval card.
@@ -90,7 +90,7 @@ pub fn is_codeg_mcp_tool(name: &str, tool: &str) -> bool {
         return false;
     };
     let (server, named_tool) = (name[..at].trim(), name[at + sep.len()..].trim());
-    matches!(server, "codeg-mcp" | "codeg_mcp") && named_tool == tool
+    matches!(server, "yoyocode-mcp" | "codeg_mcp") && named_tool == tool
 }
 
 #[cfg(test)]
@@ -100,26 +100,26 @@ mod tests {
     #[test]
     fn a_codeg_mcp_tool_is_known_by_its_whole_name_only() {
         for name in [
-            "mcp__codeg-mcp__submit_result",
-            "codeg-mcp__submit_result",
-            "codeg-mcp/submit_result",
-            "codeg-mcp: submit_result",
-            "mcp.codeg-mcp.submit_result",
+            "mcp__yoyocode-mcp__submit_result",
+            "yoyocode-mcp__submit_result",
+            "yoyocode-mcp/submit_result",
+            "yoyocode-mcp: submit_result",
+            "mcp.yoyocode-mcp.submit_result",
             "  MCP__Codeg-MCP__Submit_Result  ",
         ] {
             assert!(is_codeg_mcp_tool(name, "submit_result"), "{name}");
         }
         for name in [
-            "mcp__other-codeg-mcp__submit_result",
-            "mcp__codeg-mcp-x__submit_result",
-            "mcp__codeg-mcp__submit_result_twice",
-            "mcp__codeg-mcp__ask_user_question",
+            "mcp__other-yoyocode-mcp__submit_result",
+            "mcp__yoyocode-mcp-x__submit_result",
+            "mcp__yoyocode-mcp__submit_result_twice",
+            "mcp__yoyocode-mcp__ask_user_question",
             // A server named `codeg` with a tool `mcp_submit_result`: the same
             // words, another boundary.
             "mcp__codeg__mcp_submit_result",
             "codeg/mcp_submit_result",
             "submit_result",
-            "codeg-mcp",
+            "yoyocode-mcp",
             "",
         ] {
             assert!(!is_codeg_mcp_tool(name, "submit_result"), "{name}");

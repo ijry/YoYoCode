@@ -12,7 +12,7 @@
 //!   the repository's resume list in the agent's own CLI, and skipped by
 //!   codeg's session scans ([`GenerationPaths`]).
 //! - **Nothing to run.** No MCP server is offered, neither the user's nor
-//!   codeg-mcp. Claude additionally gets no tools, no on-disk session and a
+//!   yoyocode-mcp. Claude additionally gets no tools, no on-disk session and a
 //!   system prompt of its own ([`session_meta`]).
 //! - **No one to ask.** Permission requests are refused once, questions are
 //!   declined and plan approvals abandoned the moment they arrive.

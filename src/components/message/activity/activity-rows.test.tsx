@@ -188,14 +188,14 @@ describe("a folded turn", () => {
   const delegated = (id: string, taskId: string, status: string) => [
     toolUse(
       id,
-      "mcp__codeg-mcp__delegate_to_agent",
+      "mcp__yoyocode-mcp__delegate_to_agent",
       { agent_type: "codex", task: `Task ${taskId}` },
       { "codeg.delegation": { status, task_id: taskId } }
     ),
     toolResult(id, JSON.stringify({ task_id: taskId, status: "started" })),
   ]
   const checked = (id: string, report: Record<string, unknown>) => [
-    toolUse(id, "mcp__codeg-mcp__get_delegation_status", {
+    toolUse(id, "mcp__yoyocode-mcp__get_delegation_status", {
       task_ids: [report.task_id],
     }),
     toolResult(id, JSON.stringify(report)),
@@ -263,7 +263,7 @@ describe("plan, plan-mode and feedback rows", () => {
       ],
     }),
     toolResult("p1", "Todos have been modified successfully."),
-    toolUse("p2", "mcp__codeg-mcp__check_user_feedback", {}),
+    toolUse("p2", "mcp__yoyocode-mcp__check_user_feedback", {}),
     toolResult(
       "p2",
       '{"count":1,"feedback":[{"created_at":"2026-10-22T09:41:12Z","text":"Keep CSV working"}]}'

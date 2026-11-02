@@ -2712,8 +2712,8 @@ mod settings_route_tests {
     /// to a real route. `general` is the one that looks redundant and is not:
     /// the fallback below it is Appearance, so a caller wanting the General
     /// page must be able to name it and land there. `collaboration` is where
-    /// the codeg-mcp tool switches live in full, and it is what the status-bar
-    /// codeg-mcp popover links to; `computer-use` is what the Computer use
+    /// the yoyocode-mcp tool switches live in full, and it is what the status-bar
+    /// yoyocode-mcp popover links to; `computer-use` is what the Computer use
     /// popover links to.
     #[test]
     fn every_named_settings_section_resolves_to_its_own_route() {

@@ -40,7 +40,7 @@ import { useMemo, useState, type ReactNode } from "react"
 import { RotateCcw } from "lucide-react"
 import { useTranslations } from "next-intl"
 
-import { parseCodegMcpToolCall } from "@/lib/codeg-mcp-tool"
+import { parseCodegMcpToolCall } from "@/lib/yoyocode-mcp-tool"
 import { isRefusedResume } from "@/lib/delegation-card"
 import type { ToolCallState } from "@/lib/adapters/ai-elements-adapter"
 import { DelegationCardRow } from "@/components/message/delegation-card-row"

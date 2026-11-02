@@ -13,7 +13,7 @@
 import type { AdaptedToolCallPart } from "@/lib/adapters/ai-elements-adapter"
 import { parseBackgroundLaunch } from "@/lib/background-task"
 import { CODEX_SCRIPT_TOOL_NAME } from "@/lib/codex-code-mode"
-import { isCodegMcpWorkbenchTool } from "@/lib/codeg-mcp-tool"
+import { isCodegMcpWorkbenchTool } from "@/lib/yoyocode-mcp-tool"
 import { COLLAB_AGENT_TOOL_NAME } from "@/lib/collab-tool"
 import { isContextCompactionMeta } from "@/lib/context-compaction"
 import {

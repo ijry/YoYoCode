@@ -1,4 +1,4 @@
-//! Companion-side MCP protocol — the bits that live inside the `codeg-mcp`
+//! Companion-side MCP protocol — the bits that live inside the `yoyocode-mcp`
 //! binary but are factored out into the library so they can be unit-tested
 //! without spawning the binary.
 //!
@@ -97,7 +97,7 @@ async fn send_broker_cancel(socket_path: &str, req: &BrokerCancelRequest) {
     let _ = tokio::time::timeout(BROKER_CANCEL_BUDGET, client_cancel(socket_path, req)).await;
 }
 
-/// Static MCP tool schema. Lives next to this module so codeg-mcp ships
+/// Static MCP tool schema. Lives next to this module so yoyocode-mcp ships
 /// a single embedded copy — no runtime file IO, no version skew with the
 /// broker's [`super::types::DelegationRequest`].
 pub const TOOL_SCHEMA_JSON: &str = include_str!("tool_schema.json");
@@ -153,7 +153,7 @@ pub fn err(id: Value, code: i64, message: impl Into<String>) -> JsonRpcResponse 
     }
 }
 
-/// Which tool groups this companion exposes. One `codeg-mcp` process can carry
+/// Which tool groups this companion exposes. One `yoyocode-mcp` process can carry
 /// the delegation tools, the feedback tool, or both — gated independently so
 /// each feature can be toggled in settings without the other. Passed in via the
 /// `--features` arg at launch; a tool whose group is off is hidden from
@@ -633,7 +633,7 @@ pub async fn dispatch_line(
             json!({
                 "protocolVersion": "2024-11-05",
                 "serverInfo": {
-                    "name": "codeg-mcp",
+                    "name": "yoyocode-mcp",
                     "version": env!("CARGO_PKG_VERSION"),
                 },
                 "capabilities": { "tools": {} },
@@ -1847,7 +1847,7 @@ const FEEDBACK_POLL_WINDOW: Duration = Duration::from_secs(60);
 /// Process-local count of back-to-back empty feedback pulls. A delivery that
 /// carries notes resets it, and an empty pull more than [`FEEDBACK_POLL_WINDOW`]
 /// after the previous empty one starts a new run. Each agent launch is its own
-/// `codeg-mcp`, so the count does not cross agents.
+/// `yoyocode-mcp`, so the count does not cross agents.
 #[derive(Default)]
 struct FeedbackPollGuard {
     state: std::sync::Mutex<FeedbackPollState>,
@@ -4462,7 +4462,7 @@ mod tests {
     fn ctx_with(features: CompanionFeatures) -> CompanionContext {
         CompanionContext {
             parent_connection_id: "p1".into(),
-            socket_path: "/tmp/codeg-mcp-companion-test-nope.sock".into(),
+            socket_path: "/tmp/yoyocode-mcp-companion-test-nope.sock".into(),
             token: "tok".into(),
             features,
             custom_agents: Vec::new(),
@@ -4494,7 +4494,7 @@ mod tests {
         let resp = unwrap_respond(dispatch_for_test(line).await);
         let result = resp.result.unwrap();
         assert_eq!(result["protocolVersion"], "2024-11-05");
-        assert_eq!(result["serverInfo"]["name"], "codeg-mcp");
+        assert_eq!(result["serverInfo"]["name"], "yoyocode-mcp");
     }
 
     #[tokio::test]

@@ -549,7 +549,7 @@ pub struct SessionState {
     pub(crate) recent_events: RecentEventsBuffer,
 
     /// Per-launch token registered with the delegation broker's
-    /// `TokenRegistry` when `codeg-mcp` is injected at init.
+    /// `TokenRegistry` when `yoyocode-mcp` is injected at init.
     /// Revoked when the connection tears down so a leaked binary can't
     /// keep round-tripping after the parent session ends.
     pub delegation_token: Option<String>,
@@ -572,7 +572,7 @@ pub struct SessionState {
     pub feedback_tool_available: bool,
 
     /// Whether `submit_result` was exposed to THIS agent at launch: the
-    /// connection had a `cli_output_schema`, and its codeg-mcp was injected.
+    /// connection had a `cli_output_schema`, and its yoyocode-mcp was injected.
     /// Fixed for the connection's lifetime. Decides how the run's prompt says
     /// to hand the result in. Backend-only.
     pub result_tool_available: bool,
@@ -810,7 +810,7 @@ pub struct SessionState {
     pub cli_run: Option<crate::cli_run::CliRunTag>,
 
     /// The `--output-schema` of the run whose ROOT connection this is: what
-    /// codeg-mcp's `submit_result` takes, and what the agent handed in. In
+    /// yoyocode-mcp's `submit_result` takes, and what the agent handed in. In
     /// place from the moment the connection exists (`RootSeed`), so the
     /// companion it is given carries the tool; a delegated child never has
     /// one. Never on the snapshot.

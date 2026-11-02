@@ -360,7 +360,7 @@ fn assistant_blocks(
                 };
                 // MCP tools arrive under their bare tool name (the server is
                 // named only in the paired result's `results` map), which is
-                // also how the frontend's alias table already knows codeg-mcp's
+                // also how the frontend's alias table already knows yoyocode-mcp's
                 // own tools (`delegate_to_agent`, …).
                 let tool_use_id = non_empty_str(body.get("toolUseId"));
                 let input = body.get("input");
@@ -654,7 +654,7 @@ fn only_own_arguments(args: &serde_json::Map<String, Value>, own: &[&str]) -> bo
 /// The text one part of a tool result contributes. `json` parts are
 /// flattened where a card expects text: a shell result (`{exit_status,
 /// stdout, stderr}`) becomes what the terminal printed, an MCP result (`{content:
-/// [{type:"text",text}]}`) its text — which the codeg-mcp companion cards
+/// [{type:"text",text}]}`) its text — which the yoyocode-mcp companion cards
 /// parse. Any other JSON (`grep`'s match list, `glob`'s file list, …) is shown
 /// pretty-printed.
 fn result_json_text(value: &Value) -> String {

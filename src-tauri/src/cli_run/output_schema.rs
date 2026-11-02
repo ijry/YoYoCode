@@ -1,16 +1,16 @@
 //! `--output-schema`: a run that hands in its result as JSON matching a
 //! schema.
 //!
-//! The agent hands it in with codeg-mcp's `submit_result`, a tool whose input
+//! The agent hands it in with yoyocode-mcp's `submit_result`, a tool whose input
 //! schema is the run's schema: each result is checked here, and one that does
 //! not match is refused with what to fix, so the agent can try again — up to
-//! [`MAX_REFUSED`] times. An agent codeg-mcp cannot reach (Pi, Cline,
+//! [`MAX_REFUSED`] times. An agent yoyocode-mcp cannot reach (Pi, Cline,
 //! OpenClaw) is asked to reply with the JSON instead, and so is every agent
 //! read that way when it ends its turn without a result: the whole reply, or
 //! its one ```json block.
 //!
 //! The schema travels with the run's root connection from the moment it
-//! exists (`RootSeed`), so the connection's codeg-mcp is given the tool; a
+//! exists (`RootSeed`), so the connection's yoyocode-mcp is given the tool; a
 //! delegated child never is.
 
 use std::sync::Mutex as StdMutex;
@@ -79,7 +79,7 @@ pub struct Refusal {
     pub errors: Vec<String>,
 }
 
-/// What `submit_result` answers, as codeg-mcp relays it to the agent.
+/// What `submit_result` answers, as yoyocode-mcp relays it to the agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubmitOutcome {
     pub accepted: bool,
@@ -700,20 +700,20 @@ mod tests {
     #[test]
     fn the_submit_tool_is_known_by_both_halves_of_its_name() {
         for name in [
-            "mcp__codeg-mcp__submit_result",
-            "codeg-mcp/submit_result",
-            "codeg-mcp: submit_result",
+            "mcp__yoyocode-mcp__submit_result",
+            "yoyocode-mcp/submit_result",
+            "yoyocode-mcp: submit_result",
             "CODEG-MCP.SUBMIT_RESULT",
         ] {
             assert!(is_codeg_submit_tool_name(name), "{name}");
         }
         for name in [
             "mcp__other__submit_result",
-            "mcp__other-codeg-mcp__submit_result",
+            "mcp__other-yoyocode-mcp__submit_result",
             "mcp__codeg__mcp_submit_result",
-            "mcp__codeg-mcp__submit_result_twice",
+            "mcp__yoyocode-mcp__submit_result_twice",
             "submit_result",
-            "mcp__codeg-mcp__ask",
+            "mcp__yoyocode-mcp__ask",
         ] {
             assert!(!is_codeg_submit_tool_name(name), "{name}");
         }

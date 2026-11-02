@@ -3,7 +3,7 @@
 //! `computer_verify`, and the actions `computer_click`, `computer_drag`,
 //! `computer_scroll`, `computer_type`, `computer_press_key`,
 //! `computer_hold_key`, `computer_set_value`, `computer_restore`,
-//! `computer_invoke_menu`) carried by codeg-mcp.
+//! `computer_invoke_menu`) carried by yoyocode-mcp.
 //!
 //! The same split as the browser tools: nothing here decides whether a window
 //! may be read. That is `crate::computer::agent` and the target table, and it

@@ -79,7 +79,7 @@ Codeg records its own ACP transcripts for ZCode, including messages, thoughts, t
 
 Completed replies retain the bridge's per-turn token usage (including cache reads and writes) and wall time, so their footer and session totals survive reopening. A prompt the bridge works through in several rounds, such as an `/auto` loop or a sandbox continuation, totals every round's usage and keeps Codeg's measured duration. Context-window occupancy remains a separate reading, not additional billable tokens. When the bridge supplies no turn measurements, Codeg keeps its measured duration without inventing token counts. A cancelled reply records no usage, because the bridge reports it only after Codeg has stopped the turn. Older transcripts without those measurements are not retroactively filled.
 
-Manage stdio MCP servers through Codeg's MCP settings and assign them to ZCode. The configuration is stored in Codeg's data directory and forwarded when creating or restoring a session; it is not written into official ZCode's provider or credential files. When multi-agent delegation is enabled, Codeg injects its per-launch `codeg-mcp` companion using the same path.
+Manage stdio MCP servers through Codeg's MCP settings and assign them to ZCode. The configuration is stored in Codeg's data directory and forwarded when creating or restoring a session; it is not written into official ZCode's provider or credential files. When multi-agent delegation is enabled, Codeg injects its per-launch `yoyocode-mcp` companion using the same path.
 
 ## Current scope
 

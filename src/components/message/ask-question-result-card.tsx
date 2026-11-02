@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Read-only inline view of the codeg-mcp `ask_user_question` tool in the message
+ * Read-only inline view of the yoyocode-mcp `ask_user_question` tool in the message
  * stream (historical transcripts + the in-flight tool marker).
  *
  * Drawn on the activity timeline's rail: the answered / declined record is a
@@ -87,7 +87,7 @@ export function AskQuestionResultCard({
   const initialSelections = useMemo(() => {
     const sel: Record<string, { chosen: string[]; otherText: string }> = {}
     if (!pending || outcome?.declined) return sel
-    // codex `request_user_input` answers carry the question `id`; codeg-mcp / grok
+    // codex `request_user_input` answers carry the question `id`; yoyocode-mcp / grok
     // asks carry none and match on the header+question signature instead.
     const byId = new Map(
       (outcome?.answers ?? [])

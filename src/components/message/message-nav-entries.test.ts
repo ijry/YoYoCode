@@ -69,7 +69,7 @@ function delegations(
     blocks: calls.map((call) => ({
       type: "tool_use" as const,
       tool_use_id: call.id,
-      tool_name: call.name ?? "mcp__codeg-mcp__delegate_to_agent",
+      tool_name: call.name ?? "mcp__yoyocode-mcp__delegate_to_agent",
       input_preview: JSON.stringify({ agent_type: "codex", task: call.id }),
       meta: call.meta ?? null,
     })),
@@ -240,7 +240,7 @@ describe("buildMessageNavEntries", () => {
           // Its result, which says whether it was refused, isn't outlined.
           {
             id: "resumed",
-            name: "mcp__codeg-mcp__resume_delegation",
+            name: "mcp__yoyocode-mcp__resume_delegation",
             meta: DELEGATION_META,
           },
         ]),
@@ -265,7 +265,7 @@ describe("buildMessageNavEntries", () => {
     // OpenCode 2.x runs MCP calls inside its `execute` tool: the block keeps
     // that name and carries the real call in its `code` source.
     const input = JSON.stringify({
-      code: 'await tools["codeg-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
+      code: 'await tools["yoyocode-mcp"].delegate_to_agent({ agent_type: "codex", task: `t` })',
     })
     const entries = buildMessageNavEntries({
       earlierTurns: [

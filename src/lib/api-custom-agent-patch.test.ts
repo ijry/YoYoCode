@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
  * That matters because the custom-agent settings page renders several
  * independent cards over the SAME definition (skills, MCP), each loaded once on
  * mount. A card sending its own snapshot would revert whatever another card
- * saved after it mounted — turn MCP off, flip a skills switch, and codeg-mcp is
+ * saved after it mounted — turn MCP off, flip a skills switch, and yoyocode-mcp is
  * injected again, which is exactly the failure the MCP toggle exists to fix.
  *
  * `acpPatchCustomAgent` closes that by re-reading the definition immediately

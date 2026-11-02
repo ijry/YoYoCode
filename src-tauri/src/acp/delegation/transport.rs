@@ -1,4 +1,4 @@
-//! Wire format for `codeg-mcp` companion ↔ main process round-trip over UDS
+//! Wire format for `yoyocode-mcp` companion ↔ main process round-trip over UDS
 //! (Unix) or named pipe (Windows).
 //!
 //! The frame is dead simple: a little-endian `u32` byte length followed by
@@ -41,11 +41,11 @@
 //!
 //! ### Version coupling
 //!
-//! The companion (`codeg-mcp`) and the listener (inside the codeg main
+//! The companion (`yoyocode-mcp`) and the listener (inside the codeg main
 //! process) ship in the SAME release artifact — the Tauri bundle, the
 //! server Docker image, and the standalone binary tree all install both
 //! binaries at the same path. The MCP config pointing the agent CLI at
-//! `codeg-mcp` uses an absolute path that is replaced atomically by the
+//! `yoyocode-mcp` uses an absolute path that is replaced atomically by the
 //! upgrade, so an old-version companion talking to a new-version listener
 //! is not a supported configuration. As a consequence this protocol does
 //! NOT carry a version field and the tagged-enum cutover from the older
@@ -921,7 +921,7 @@ pub async fn client_computer_act_round_trip(
 }
 
 /// Probe the listener: write a [`BrokerMessage::Ping`] and read the
-/// `{"ok": true, ..}` answer back. Used by the codeg-mcp service-status
+/// `{"ok": true, ..}` answer back. Used by the yoyocode-mcp service-status
 /// indicator to tell "listening" from "socket file exists but nobody is
 /// accepting", and by the companion's assistant-support probe.
 /// Callers should wrap this in their own timeout — a socket whose peer accepts
@@ -1125,7 +1125,7 @@ mod tests {
         // PID + nanosecond suffix keeps the pipe name unique across parallel
         // tests and avoids collisions with a live listener on the same box.
         let pipe_name = format!(
-            r"\\.\pipe\codeg-mcp-test-{}-{}",
+            r"\\.\pipe\yoyocode-mcp-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1178,7 +1178,7 @@ mod tests {
         // landed at 99 bytes — green, but one directory level from an
         // unexplainable red — and a hand-set one can be longer still.
         let dir = tempfile::tempdir_in("/tmp").unwrap();
-        let path = dir.path().join("codeg-mcp.sock");
+        let path = dir.path().join("yoyocode-mcp.sock");
         let listener = UnixListener::bind(&path).unwrap();
         let server_path = path.to_string_lossy().to_string();
 
@@ -1231,7 +1231,7 @@ mod tests {
     #[tokio::test]
     async fn a_listener_that_stopped_accepting_is_given_up_on() {
         let dir = tempfile::tempdir_in("/tmp").unwrap();
-        let path = dir.path().join("codeg-mcp.sock");
+        let path = dir.path().join("yoyocode-mcp.sock");
         let _never_accepted = tokio::net::UnixListener::bind(&path).unwrap();
         let path = path.to_string_lossy().to_string();
 
@@ -1254,7 +1254,7 @@ mod tests {
         use tokio::net::UnixListener;
 
         let dir = tempfile::tempdir_in("/tmp").unwrap();
-        let path = dir.path().join("codeg-mcp.sock");
+        let path = dir.path().join("yoyocode-mcp.sock");
         let listener = UnixListener::bind(&path).unwrap();
         let server = tokio::spawn(async move {
             loop {

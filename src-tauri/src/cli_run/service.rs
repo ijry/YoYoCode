@@ -836,7 +836,7 @@ impl CliRunService {
             Self::report_refusals(run, schema);
         }
         // Tagged from its first moment — before its agent starts, so the
-        // codeg-mcp it is given knows the run — and before a delegated child,
+        // yoyocode-mcp it is given knows the run — and before a delegated child,
         // which can only come after the prompt, could look for the tag.
         let seed = RootSeed {
             tag: CliRunTag {
@@ -3149,7 +3149,7 @@ mod tests {
         /// The session never comes up: the connection fails instead.
         dead_on_arrival: bool,
         /// Whether the agent "was given" `submit_result` when its run has an
-        /// `--output-schema` — as codeg-mcp's injection decides.
+        /// `--output-schema` — as yoyocode-mcp's injection decides.
         result_tool: bool,
     }
 
@@ -3600,7 +3600,7 @@ mod tests {
     }
 
     /// The root connection carries the run and its schema from the start, so
-    /// its codeg-mcp offers `submit_result`; the prompt says to call it; and
+    /// its yoyocode-mcp offers `submit_result`; the prompt says to call it; and
     /// the last result it accepted is the run's — a refused one reported as
     /// it happens.
     #[tokio::test]

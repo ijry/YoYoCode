@@ -334,7 +334,7 @@ describe("AgentToolsSettingsSection", () => {
     expect(mockPrime).toHaveBeenCalledWith(true)
   })
 
-  /** The status-bar codeg-mcp popover writes these same two flags one key at a
+  /** The status-bar yoyocode-mcp popover writes these same two flags one key at a
    * time. Save here writes the PAIR whenever either is dirty, so a form left
    * open across such a write must adopt the new value for the switch the user
    * never touched — otherwise saving the other one reverts it. */

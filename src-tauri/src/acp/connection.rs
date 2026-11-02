@@ -1068,11 +1068,11 @@ fn codex_config_with_thread_unload_delay(current: Option<&str>) -> Option<String
 }
 
 /// Codex-only launch policy: force codex-acp's MCP name-conflict de-duplication
-/// OFF. codeg injects its companion server (`codeg-mcp`) over ACP
+/// OFF. codeg injects its companion server (`yoyocode-mcp`) over ACP
 /// `session/new.mcpServers`; codex-acp otherwise drops any ACP-passed server
 /// whose name collides with a `config.toml` entry — global *or* project layer
 /// (the check was widened to project `.codex/config.toml` in codex-acp #322) —
-/// silently stripping codeg-mcp and with it ask_user_question / delegation /
+/// silently stripping yoyocode-mcp and with it ask_user_question / delegation /
 /// feedback / session_info. The late `retain` + `push` makes the override win
 /// over any user `runtime_env` twin, so the injection is guaranteed to survive.
 /// Codex launch env policy. `initial_agent_mode` is the preset resolved from
@@ -2750,7 +2750,7 @@ pub async fn spawn_agent_connection(
         initial_state.claude_settings =
             crate::acp::claude_model_picker::launch_settings(&runtime_env);
     }
-    // A `yoyo-cli` run's root: marked before anything can look, the codeg-mcp
+    // A `yoyo-cli` run's root: marked before anything can look, the yoyocode-mcp
     // injection below included.
     if let Some(seed) = cli_root {
         initial_state.cli_run = Some(seed.tag);
@@ -6878,7 +6878,7 @@ pub(crate) fn claude_raw_sdk_session_meta(
 ///   `session/request_permission`, which codeg already handles. Scoped to
 ///   these agents to keep the blast radius off the others (e.g. Claude's
 ///   native AskUserQuestion, which would otherwise un-gate and duplicate the
-///   codeg-mcp ask tool).
+///   yoyocode-mcp ask tool).
 /// - Claude Code only: `_meta["subagent-transcript"] = true` — opt into
 ///   claude-agent-acp ≥0.63's subagent transcript forwarding (#881, SDK
 ///   `forwardSubagentText`). Subagent text/thought chunks then stream with
@@ -7458,11 +7458,11 @@ async fn send_new_session_capturing_models(
 /// actually reach the agent's model. Almost all adapters deliver them; pi-acp
 /// (0.0.31) accepts the `mcpServers` field but DROPS it — it never forwards MCP
 /// to the inner `pi --mode rpc` process, and pi has no native MCP. So forwarding
-/// either user servers or the built-in codeg-mcp companion to pi is futile, and
-/// injecting codeg-mcp would falsely mark delegation/feedback/ask as available
+/// either user servers or the built-in yoyocode-mcp companion to pi is futile, and
+/// injecting yoyocode-mcp would falsely mark delegation/feedback/ask as available
 /// (`feedback_tool_available`, a registered delegation token pi can never use).
 /// `supports_mcp` stays `true` for pi (session/new tolerates the field), so this
-/// is a separate, narrower gate. Gate codeg-mcp injection on it.
+/// is a separate, narrower gate. Gate yoyocode-mcp injection on it.
 ///
 /// Cline drops them the same way. Its ACP agent (`apps/cli/src/acp/acpAgent.ts`)
 /// keeps the `mcpServers` of `session/new` and `session/load` in its session
@@ -7472,7 +7472,7 @@ async fn send_new_session_capturing_models(
 /// release from 3.0.55 through 3.0.74, and live on 3.0.71 through 3.0.74: a
 /// stdio server sent on `session/new` is never started, while one in the settings
 /// file is, and its tools reach the model. User servers still reach Cline,
-/// through that file (see [`agent_reads_own_mcp_config`]); the codeg-mcp
+/// through that file (see [`agent_reads_own_mcp_config`]); the yoyocode-mcp
 /// companion, which only travels over the wire, cannot.
 fn agent_delivers_wire_mcp(agent_type: AgentType) -> bool {
     !matches!(agent_type, AgentType::Pi | AgentType::Cline)
@@ -7581,7 +7581,7 @@ fn load_mcp_servers_for_agent(agent_type: AgentType) -> Vec<McpServer> {
     // (`mcpServers`, shared with the IDE). codeg manages those files directly
     // via the MCP settings UI, so forwarding the same servers over the ACP
     // wire here would double-register them — skip it. (The built-in
-    // `codeg-mcp` companion is injected separately by `inject_codeg_mcp`, so
+    // `yoyocode-mcp` companion is injected separately by `inject_codeg_mcp`, so
     // it still reaches them.)
     //
     // DeepSeek is deliberately NOT in this set: deepseek-acp reads no MCP file
@@ -7598,7 +7598,7 @@ fn load_mcp_servers_for_agent(agent_type: AgentType) -> Vec<McpServer> {
     // settings UI manages) and MERGES it with the wire list BY NAME, wire
     // winning — so forwarding would not actually double-mount. It is skipped
     // anyway because defining one server through two channels is noise, and
-    // because the `codeg-mcp` companion is injected separately regardless.
+    // because the `yoyocode-mcp` companion is injected separately regardless.
     //
     // Kiro joins it: `kiro-cli acp` loads `<KIRO_HOME>/settings/mcp.json`
     // (default `~/.kiro/settings/mcp.json`) for its default agent — verified
@@ -7661,7 +7661,7 @@ fn load_mcp_servers_for_agent(agent_type: AgentType) -> Vec<McpServer> {
     out
 }
 
-/// Context the connection layer needs to inject the built-in `codeg-mcp`
+/// Context the connection layer needs to inject the built-in `yoyocode-mcp`
 /// MCP entry. Built once per `run_connection` from the live AppState pieces
 /// (broker config, token registry, UDS path) and passed through.
 ///
@@ -7720,17 +7720,17 @@ pub struct DelegationInjection {
     /// time so `delegate_to_agent` only advertises launchable targets.
     pub agent_availability: Arc<dyn AgentAvailabilityLookup>,
     /// Hot-swappable "is live-feedback enabled?" flag. Read at injection time
-    /// alongside the broker's delegation flag so `codeg-mcp` is injected when
+    /// alongside the broker's delegation flag so `yoyocode-mcp` is injected when
     /// EITHER feature is on, and the companion is told which tool groups to
     /// expose. Shares the same `tokens` registry and UDS socket as delegation.
     pub feedback: crate::acp::feedback::FeedbackRuntimeConfig,
     /// Hot-swappable "is ask-user-question enabled?" flag. Read at injection
-    /// time alongside delegation + feedback so `codeg-mcp` is injected when ANY
+    /// time alongside delegation + feedback so `yoyocode-mcp` is injected when ANY
     /// of the three is on, and the companion's `--features` lists `ask` to expose
     /// the `ask_user_question` tool.
     pub ask: crate::acp::question::QuestionRuntimeConfig,
     /// Hot-swappable "is get-session-info enabled?" flag. Read at injection time
-    /// alongside the other three so `codeg-mcp` is injected when ANY of the four
+    /// alongside the other three so `yoyocode-mcp` is injected when ANY of the four
     /// is on, and the companion's `--features` lists `sessions` to expose the
     /// `get_session_info` tool. No teardown handle (the lookup is stateless).
     pub sessions: crate::acp::session_info::SessionInfoRuntimeConfig,
@@ -7758,7 +7758,7 @@ pub struct DelegationInjection {
     /// `ConnectionManager` as the listener's question lookup.
     pub questions: Arc<dyn crate::acp::question::SessionQuestionAccess>,
     /// Plan-approval registry handle for Grok's `exit_plan_mode` ext bridge.
-    /// Unlike delegation / ask / feedback this is NOT a codeg-mcp feature — it is
+    /// Unlike delegation / ask / feedback this is NOT a yoyocode-mcp feature — it is
     /// Grok's native plan mode — so it has no runtime on/off flag and is always
     /// wired. Shares the same backing `ConnectionManager` as the question lookup.
     /// The `run_connection` handler registers approvals + parks on the reply
@@ -7767,19 +7767,19 @@ pub struct DelegationInjection {
     pub plan_approvals: Arc<dyn crate::acp::plan_approval::SessionPlanApprovalAccess>,
 }
 
-/// Locate the `codeg-mcp` companion binary across the supported deployment
+/// Locate the `yoyocode-mcp` companion binary across the supported deployment
 /// shapes:
 ///
 /// 1. `CODEG_MCP_BIN` env override — explicit absolute path. Lets dev shells,
 ///    custom installs, and integration tests point at a freshly compiled
 ///    binary without touching the install layout.
 /// 2. Sibling of the running executable — the production layout for every
-///    shipping target. Tauri sidecar (`Contents/MacOS/codeg-mcp` on macOS,
+///    shipping target. Tauri sidecar (`Contents/MacOS/yoyocode-mcp` on macOS,
 ///    next to `codeg.exe` on Windows, next to the unix binary on Linux
-///    deb/rpm), `install.sh`/`install.ps1` (drops `codeg-mcp` next to
-///    `codeg-server`), Docker image (`/usr/local/bin/codeg-mcp` next to
+///    deb/rpm), `install.sh`/`install.ps1` (drops `yoyocode-mcp` next to
+///    `codeg-server`), Docker image (`/usr/local/bin/yoyocode-mcp` next to
 ///    `codeg-server`), and `cargo build` dev output
-///    (`target/<profile>/codeg-mcp`).
+///    (`target/<profile>/yoyocode-mcp`).
 /// 3. `PATH` lookup — last-resort for atypical layouts where ops moved the
 ///    two binaries apart but kept both reachable on `PATH`.
 ///
@@ -7790,9 +7790,9 @@ pub struct DelegationInjection {
 /// down on stricter agents.
 pub fn locate_codeg_mcp_binary() -> Option<PathBuf> {
     let filename = if cfg!(windows) {
-        "codeg-mcp.exe"
+        "yoyocode-mcp.exe"
     } else {
-        "codeg-mcp"
+        "yoyocode-mcp"
     };
 
     if let Some(raw) = std::env::var_os("CODEG_MCP_BIN") {
@@ -7834,7 +7834,7 @@ fn is_executable_file(path: &Path) -> bool {
     true
 }
 
-/// Append the built-in `codeg-mcp` MCP entry if delegation is enabled
+/// Append the built-in `yoyocode-mcp` MCP entry if delegation is enabled
 /// AND the companion binary is present on disk. Returns the per-launch token
 /// that was registered, or `None` when injection was skipped (disabled by
 /// config, or binary missing).
@@ -7845,7 +7845,7 @@ fn is_executable_file(path: &Path) -> bool {
 /// new ACP session ship a guaranteed-to-fail MCP server entry: stricter
 /// agents (Claude Code) refuse the whole session; lax agents lose the
 /// delegate tool silently. Skipping leaves the agent fully functional minus
-/// `delegate_to_agent`, which is the right degradation when codeg-mcp didn't
+/// `delegate_to_agent`, which is the right degradation when yoyocode-mcp didn't
 /// make it into the install.
 /// Which tool groups a companion launch should expose. A struct rather than a
 /// positional bool list: the groups keep growing and seven adjacent `bool`s at a
@@ -7942,7 +7942,7 @@ fn companion_features_arg(flags: CompanionFeatureFlags) -> Option<String> {
     Some(features.join(","))
 }
 
-/// Outcome of injecting the `codeg-mcp` companion: the per-launch token to
+/// Outcome of injecting the `yoyocode-mcp` companion: the per-launch token to
 /// stash for revocation, plus whether the `check_user_feedback` tool was exposed
 /// to this agent (so the session can gate submit + UI on its real capability).
 struct CompanionInjection {
@@ -7996,7 +7996,7 @@ async fn inject_codeg_mcp_with_binary_locator<F>(
 where
     F: FnOnce() -> Option<PathBuf>,
 {
-    // codeg-mcp carries BOTH the delegation tools and the live-feedback tool.
+    // yoyocode-mcp carries BOTH the delegation tools and the live-feedback tool.
     // Inject it when EITHER feature is enabled; the `--features` arg tells the
     // companion which tool groups to expose so a disabled feature's tools never
     // surface to the LLM. (Historically this was gated on delegation alone.)
@@ -8071,7 +8071,7 @@ where
     let features_arg = companion_features_arg(flags)?;
     let Some(binary_path) = locate_binary() else {
         tracing::warn!(
-            "[delegation][WARN] codeg-mcp companion binary not found (checked CODEG_MCP_BIN, \
+            "[delegation][WARN] yoyocode-mcp companion binary not found (checked CODEG_MCP_BIN, \
              exe sibling, and PATH); skipping delegate_to_agent / check_user_feedback / \
              ask_user_question / get_session_info tool injection for connection \
              {parent_connection_id}. Reinstall codeg or set CODEG_MCP_BIN to fix."
@@ -8082,7 +8082,7 @@ where
     // targets; disabled BUILT-INS are subtracted companion-side
     // (`--disabled-agents`) so the embedded schema stays the single source of
     // truth for the builtin list and its order. Either flag is omitted when
-    // empty, which also keeps an older codeg-mcp binary — one that rejects
+    // empty, which also keeps an older yoyocode-mcp binary — one that rejects
     // unknown flags at startup — working for installations needing neither.
     let (custom_slugs, disabled_builtins) = delegate_target_args(&disabled);
     let token = uuid::Uuid::new_v4().to_string();
@@ -8096,7 +8096,7 @@ where
             },
         )
         .await;
-    let mut server = McpServerStdio::new("codeg-mcp", binary_path.clone());
+    let mut server = McpServerStdio::new("yoyocode-mcp", binary_path.clone());
     let mut args = vec![
         "--parent-connection-id".to_string(),
         parent_connection_id.to_string(),
@@ -8104,7 +8104,7 @@ where
         injection.socket_path.to_string_lossy().to_string(),
         "--token".to_string(),
         token.clone(),
-        // Self-cleanup watchdog: codeg-mcp exits when this PID is gone so
+        // Self-cleanup watchdog: yoyocode-mcp exits when this PID is gone so
         // orphaned companions can't keep the binary file locked across an
         // installer upgrade (Windows) or hold a stale broker connection
         // (any platform).
@@ -8343,7 +8343,7 @@ async fn run_connection(
 
     // Shared question access + feature toggle (both live on the delegation
     // injection) for the agents that ask NATIVELY, over a blocking request of
-    // their own rather than the codeg-mcp tool: grok's `_x.ai/ask_user_question`
+    // their own rather than the yoyocode-mcp tool: grok's `_x.ai/ask_user_question`
     // ext request (verified against 0.2.101) and pi's extension-UI `select`,
     // which pi-acp folds into `session/request_permission`. Both handlers
     // register the questions through the SAME interactive-card pipeline and
@@ -8667,7 +8667,7 @@ async fn run_connection(
             {
                 // Codex `elicitation/create`: question-style requests (Plan
                 // mode `request_user_input`, generic MCP forms) bridge into
-                // the same ask card as the codeg-mcp ask tool (reusing the ask
+                // the same ask card as the yoyocode-mcp ask tool (reusing the ask
                 // access + kill switch); approval-style requests (MCP
                 // tool-call approvals, message-only confirms) route through
                 // the permission card via `pending_perms`.
@@ -8991,7 +8991,7 @@ async fn run_connection(
             // Whether this agent accepts MCP server entries over the ACP wire
             // (`session/new`'s `mcpServers`). Almost all do; OpenClaw rejects
             // any server entry and fails session creation, so it must receive
-            // NONE — neither user-configured servers nor the built-in codeg-mcp
+            // NONE — neither user-configured servers nor the built-in yoyocode-mcp
             // companion. A custom agent carries the same flag as a stored
             // declaration the user flips in settings, for the same reason:
             // codeg cannot know whether an arbitrary ACP agent tolerates the
@@ -9004,7 +9004,7 @@ async fn run_connection(
             // wire on every path. See `AcpAgentMeta::supports_mcp`.
             let agent_supports_mcp = registry::get_agent_meta(agent_type).supports_mcp;
             // A one-shot generation (`acp::one_shot`) is offered no MCP server
-            // at all, neither the user's nor codeg-mcp: it is meant to answer
+            // at all, neither the user's nor yoyocode-mcp: it is meant to answer
             // without tools, and every server is one more process to start
             // before it can. Also what gives its Claude session the one-shot
             // `_meta` at `session/new` below.
@@ -9049,14 +9049,14 @@ async fn run_connection(
             } else {
                 if !one_shot {
                     tracing::info!(
-                        "[ACP][{}] supports_mcp=false: skipping all MCP wire forwarding (user servers + codeg-mcp companion)",
+                        "[ACP][{}] supports_mcp=false: skipping all MCP wire forwarding (user servers + yoyocode-mcp companion)",
                         agent_type
                     );
                 }
                 Vec::new()
             };
 
-            // Inject the built-in `codeg-mcp` MCP server. Stdio is
+            // Inject the built-in `yoyocode-mcp` MCP server. Stdio is
             // unconditionally supported by the ACP wire — no `mcp_caps`
             // filter needed. The returned token is stashed on the session
             // state so connection teardown can revoke it. Skipped entirely
@@ -9091,7 +9091,7 @@ async fn run_connection(
             {
                 let mut s = state.write().await;
                 // Native steering is independent of the MCP companion — set it
-                // even when no codeg-mcp is injected (it's exactly the channel
+                // even when no yoyocode-mcp is injected (it's exactly the channel
                 // that needs no tool; OpenClaw-style `supports_mcp: false`
                 // agents could ship it someday).
                 s.native_steering_available = native_steering_available;
@@ -9940,7 +9940,7 @@ fn connection_failure(err: agent_client_protocol::Error) -> AcpError {
 
 /// Grok's native `ask_user_question` tool issues this ACP ext request
 /// (`_x.ai/ask_user_question`) and BLOCKS on the reply — it does NOT go through
-/// the codeg-mcp ask tool. Transparent over the raw params object
+/// the yoyocode-mcp ask tool. Transparent over the raw params object
 /// (`{sessionId, toolCallId, questions, mode}`); the fields codeg needs are read
 /// by [`crate::acp::question::parse_grok_ext_questions`]. The runtime routes typed
 /// handlers on the RAW wire method, so the derive keeps the leading `_`.
@@ -9977,7 +9977,7 @@ struct CodexElicitationRequest(serde_json::Value);
 /// Bridge grok's native `_x.ai/ask_user_question` ext request into codeg's
 /// interactive question card. Grok blocks on the reply, so codeg registers the
 /// questions through the shared [`crate::acp::question::SessionQuestionAccess`] —
-/// the SAME path the codeg-mcp ask tool uses (it sets `pending_question`,
+/// the SAME path the yoyocode-mcp ask tool uses (it sets `pending_question`,
 /// broadcasts `QuestionRequest`, and the `AskQuestionCard` renders) — then answers
 /// the ext request with the user's choice, serialized to grok's own format, once
 /// they submit. Every early return responds with an error, which makes grok fall
@@ -9998,7 +9998,7 @@ async fn handle_grok_ask_user_question(
         let _ = responder.respond_with_internal_error("ask_user_question bridge unavailable");
         return;
     };
-    // Same kill switch as the codeg-mcp ask tool: when off, let grok fall back.
+    // Same kill switch as the yoyocode-mcp ask tool: when off, let grok fall back.
     if !ask_cfg.is_enabled().await {
         let _ = responder.respond_with_internal_error("ask_user_question is disabled");
         return;
@@ -10036,7 +10036,7 @@ async fn handle_grok_ask_user_question(
     tokio::spawn(async move {
         match registered.answer_rx.await {
             Ok(outcome) => {
-                // Surface the answered "提问回答" capsule in-stream — the codeg-mcp
+                // Surface the answered "提问回答" capsule in-stream — the yoyocode-mcp
                 // ask parity grok's native tool never emits into the ACP stream (it
                 // resolves the answer over THIS ext round-trip). Emit BEFORE
                 // unblocking grok so the card lands ahead of grok's follow-up text;
@@ -10085,7 +10085,7 @@ async fn handle_grok_ask_user_question(
 ///
 /// An agent whose permission mode consults the user before every MCP tool call
 /// (claude-agent-acp's default) gates the ask tool too, so asking the user a
-/// question used to cost TWO dialogs: a raw "run mcp__codeg-mcp__ask_user_question?"
+/// question used to cost TWO dialogs: a raw "run mcp__yoyocode-mcp__ask_user_question?"
 /// approval dumping the questions as JSON, and only after "Yes" the real
 /// interactive card. The first one carries no decision the second doesn't — see
 /// [`crate::acp::question::is_codeg_ask_tool_name`] for why answering it is the
@@ -10107,7 +10107,7 @@ fn codeg_ask_auto_allow_option(req: &RequestPermissionRequest) -> Option<String>
     codeg_tool_auto_allow_option(req, crate::acp::question::is_codeg_ask_tool_name)
 }
 
-/// The `allow_once` option of a request gating the codeg-mcp tool `is_tool`
+/// The `allow_once` option of a request gating the yoyocode-mcp tool `is_tool`
 /// names, as [`codeg_ask_auto_allow_option`] reads it.
 fn codeg_tool_auto_allow_option(
     req: &RequestPermissionRequest,
@@ -10192,7 +10192,7 @@ async fn try_auto_allow_codeg_ask(
         return Err(responder);
     };
     // Same kill switch as the ask tool itself (and as `try_bridge_pi_select_ask`):
-    // with the feature off codeg-mcp never exposed `ask_user_question`, so a
+    // with the feature off yoyocode-mcp never exposed `ask_user_question`, so a
     // request naming it is not the tool this shortcut is allowed to speak for.
     let Some((_, ask_cfg)) = access else {
         return Err(responder);
@@ -10221,7 +10221,7 @@ async fn try_auto_allow_codeg_ask(
 /// call as raw JSON, and — because pi never emits a `session/update` for that
 /// `pi-ui-*` id — left NO record of the answer once the card was dismissed
 /// (#644). This registers the choices through the shared
-/// [`crate::acp::question::SessionQuestionAccess`] (the SAME path the codeg-mcp
+/// [`crate::acp::question::SessionQuestionAccess`] (the SAME path the yoyocode-mcp
 /// ask tool uses), answers the blocked permission request with the option the
 /// user picked, and emits the answered `AskQuestionResultCard` into the stream.
 ///
@@ -10258,7 +10258,7 @@ async fn try_bridge_pi_select_ask(
     let Some((questions, ask_cfg)) = access else {
         return Err(responder);
     };
-    // Same kill switch as the codeg-mcp ask tool: when the feature is off, the
+    // Same kill switch as the yoyocode-mcp ask tool: when the feature is off, the
     // approval card stays the way to answer.
     if !ask_cfg.is_enabled().await {
         return Err(responder);
@@ -10419,7 +10419,7 @@ async fn try_bridge_antigravity_ask(
     let Some((questions, ask_cfg)) = access else {
         return Err(responder);
     };
-    // Same kill switch as the codeg-mcp ask tool and every other native ask
+    // Same kill switch as the yoyocode-mcp ask tool and every other native ask
     // bridge (grok, cursor, codex elicitation, pi): when the feature is off,
     // the approval card stays the way to answer.
     if !ask_cfg.is_enabled().await {
@@ -10600,14 +10600,14 @@ async fn handle_grok_exit_plan_mode(
 ///
 ///   * Question-style (Plan-mode `request_user_input`, generic MCP forms) →
 ///     the shared [`crate::acp::question::SessionQuestionAccess`] path — the
-///     SAME one the codeg-mcp ask tool and the grok bridge use (it sets
+///     SAME one the yoyocode-mcp ask tool and the grok bridge use (it sets
 ///     `pending_question`, broadcasts `QuestionRequest`, and `AskQuestionCard`
 ///     renders) — answered once the user submits.
 ///   * Approval-style (MCP tool-call approvals, message-only confirms) → the
 ///     permission card via `pending_perms`, exactly like the
 ///     `session/request_permission` fallback codex-acp used before the
 ///     capability was advertised. Auto-declining these would reject the tool
-///     call (including codeg-mcp's own tools in consent-requiring modes).
+///     call (including yoyocode-mcp's own tools in consent-requiring modes).
 ///
 /// Question-path early returns DECLINE, which makes codex proceed with its own
 /// judgment — no worse than the pre-bridge `{answers:{}}`, so nothing here can
@@ -10936,13 +10936,13 @@ async fn handle_elicitation_request(
             .await;
         }
         // Question-style (codex `request_user_input`, generic MCP forms):
-        // bridge into the same ask card as the codeg-mcp ask tool.
+        // bridge into the same ask card as the yoyocode-mcp ask tool.
         crate::acp::question::ElicitationPlan::Questions(questions) => {
             let Some((question_access, ask_cfg)) = access else {
                 let _ = responder.respond(unanswered());
                 return;
             };
-            // Same kill switch as the codeg-mcp ask tool and the grok bridge:
+            // Same kill switch as the yoyocode-mcp ask tool and the grok bridge:
             // when the user has turned ask_user_question off, decline so codex
             // proceeds.
             if !ask_cfg.is_enabled().await {
@@ -15337,7 +15337,7 @@ async fn run_conversation_loop(
                                     // is up answers it declined first. Through
                                     // Claude Code 2.1.284 the steer interrupted
                                     // the blocked MCP call; the CLI's
-                                    // `notifications/cancelled` made codeg-mcp
+                                    // `notifications/cancelled` made yoyocode-mcp
                                     // abandon the ask and the card closed. From
                                     // 2.1.286 (claude-agent-acp 0.85.0) the CLI
                                     // moves the call to the background instead
@@ -16940,7 +16940,7 @@ fn opencode_canonical_input(
 
 /// `_meta` key carrying the calls a code-mode script made: an array of
 /// `{tool, status, input?}`, where `tool` is the catalog path the script called
-/// (`"probe.echo"`, `"codeg-mcp.ask_user_question"`), `status` is `"running"` /
+/// (`"probe.echo"`, `"yoyocode-mcp.ask_user_question"`), `status` is `"running"` /
 /// `"completed"` / `"error"`, and `input` is the arguments as the agent shows
 /// them. Agent-neutral by design — the card reads this key, whoever wrote it.
 /// Frontend twin: `CODE_MODE_CALLS_META_KEY` in `src/lib/activity/code-mode.ts`.
@@ -18118,7 +18118,7 @@ async fn gemini_mode_update_chunk(
 /// `raw_input` is `{"tool_name": "<server>__<tool>", "tool_input": {..real args..}}`.
 /// Peel it so the call is correlated (delegation `lifecycle.rs`), classified, and
 /// parsed as a direct MCP call — identical to how hosts like Claude Code surface
-/// MCP tools. Without this, Grok's `delegate_to_agent` (and the other codeg-mcp
+/// MCP tools. Without this, Grok's `delegate_to_agent` (and the other yoyocode-mcp
 /// companion tools) never resolve to their dedicated cards, and the delegation
 /// broker can't correlate the parent tool call to bind the sub-session.
 ///
@@ -18161,7 +18161,7 @@ fn grok_mcp_output_text(raw_output: &serde_json::Value) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Recover a codeg-mcp companion tool's identity from its RESULT text, for
+/// Recover a yoyocode-mcp companion tool's identity from its RESULT text, for
 /// Cursor sessions only.
 ///
 /// Cursor's ACP layer announces every MCP call from the first streaming
@@ -18169,7 +18169,7 @@ fn grok_mcp_output_text(raw_output: &serde_json::Value) -> Option<String> {
 /// title "MCP: tool" with an empty `raw_input`, and `sendToolCallUpdate`
 /// (bundle-verified) never forwards `title`/`raw_input` again. The ONLY
 /// wire signal that ever identifies the call is the MCP result text arriving
-/// on the completion update, and for the codeg-mcp companion tools that text
+/// on the completion update, and for the yoyocode-mcp companion tools that text
 /// is a codeg-owned contract:
 ///
 /// * a `delegate_to_agent` ack opens with
@@ -19790,7 +19790,7 @@ const KIRO_META_KEY: &str = "kiro";
 /// frontend classifies the call by (`extractKiroToolName`), ahead of its
 /// input-shape rules — which cannot tell `glob`'s `{pattern}` from `grep`'s, or
 /// a directory listing's `{path}` from a file read. An MCP call gets the
-/// `mcp__<server>__<tool>` form the frontend already resolves (codeg-mcp's
+/// `mcp__<server>__<tool>` form the frontend already resolves (yoyocode-mcp's
 /// companions included), since its title — `Running: @<server>/<tool>` — names
 /// no tool any rule can recover.
 fn stamp_kiro_tool_name(
@@ -22061,9 +22061,9 @@ mod kiro_ext_tests {
             serde_json::json!({
                 "sessionUpdate": "tool_call",
                 "toolCallId": "m1",
-                "title": "Running: @codeg-mcp/get_session_info",
+                "title": "Running: @yoyocode-mcp/get_session_info",
                 "rawInput": {"__tool_use_purpose": "Look up", "session_id": 7},
-                "_meta": {"kiro": {"toolName": "get_session_info", "mcpServerName": "codeg-mcp"}}
+                "_meta": {"kiro": {"toolName": "get_session_info", "mcpServerName": "yoyocode-mcp"}}
             }),
             serde_json::json!({
                 "sessionUpdate": "tool_call_update",
@@ -22085,7 +22085,7 @@ mod kiro_ext_tests {
         );
         assert_eq!(
             events[1].4.as_ref().and_then(|m| m.pointer("/kiro/canonicalToolName")),
-            Some(&serde_json::json!("mcp__codeg-mcp__get_session_info"))
+            Some(&serde_json::json!("mcp__yoyocode-mcp__get_session_info"))
         );
         // The MCP text result, not its `{content:[…]}` envelope — the
         // companion cards parse it.
@@ -25083,7 +25083,7 @@ async fn emit_conversation_update(
             // Cursor loses MCP tool identity on the wire entirely (announced as
             // "MCP: tool" before McpArgs exists; updates never resend title or
             // raw_input). The completion update's result text is the one signal
-            // left — recover the codeg-mcp companion identity from it and record
+            // left — recover the yoyocode-mcp companion identity from it and record
             // it as an authoritative override so the delegation / status cards
             // resolve instead of a generic tool. Gated to ids this connection
             // announced with the identity-less title (see the
@@ -29144,7 +29144,7 @@ mod tests {
     #[test]
     fn codeg_ask_auto_allow_option_picks_allow_once_for_codegs_own_ask_tool() {
         let req = claude_mcp_permission_request(
-            "mcp__codeg-mcp__ask_user_question",
+            "mcp__yoyocode-mcp__ask_user_question",
             claude_permission_options(),
         );
         assert_eq!(
@@ -29154,7 +29154,7 @@ mod tests {
         // The title alone is enough: an agent that sends no request-level
         // `_meta.permission` block still gets the shortcut.
         let mut bare = claude_mcp_permission_request(
-            "mcp__codeg-mcp__ask_user_question",
+            "mcp__yoyocode-mcp__ask_user_question",
             claude_permission_options(),
         );
         bare.meta = None;
@@ -29170,7 +29170,7 @@ mod tests {
         // codeg's, even though the tool half of the name matches.
         for foreign in [
             "mcp__other-server__ask_user_question",
-            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__delegate_to_agent",
             "Bash",
         ] {
             let req = claude_mcp_permission_request(foreign, claude_permission_options());
@@ -29182,7 +29182,7 @@ mod tests {
         // An agent offering only a DURABLE allow writes a rule into the user's
         // own settings — that outlives this turn, so it stays their decision.
         let always_only = claude_mcp_permission_request(
-            "mcp__codeg-mcp__ask_user_question",
+            "mcp__yoyocode-mcp__ask_user_question",
             vec![
                 agent_client_protocol::schema::v1::PermissionOption::new(
                     "allow-with-updates",
@@ -29210,25 +29210,25 @@ mod tests {
             )
         };
         assert_eq!(
-            pick("mcp__codeg-mcp__submit_result", true).as_deref(),
+            pick("mcp__yoyocode-mcp__submit_result", true).as_deref(),
             Some("allow-once")
         );
         assert!(
-            pick("mcp__codeg-mcp__submit_result", false).is_none(),
+            pick("mcp__yoyocode-mcp__submit_result", false).is_none(),
             "a connection codeg did not give the tool keeps its card"
         );
         for foreign in [
             "mcp__other-server__submit_result",
             // A server whose name only ends in codeg's is someone else's.
-            "mcp__other-codeg-mcp__submit_result",
-            "mcp__codeg-mcp__ask_user_question",
+            "mcp__other-yoyocode-mcp__submit_result",
+            "mcp__yoyocode-mcp__ask_user_question",
             "Bash",
         ] {
             assert!(pick(foreign, true).is_none(), "{foreign} keeps its card");
         }
         // Only ever once: a durable allow is the user's to give.
         let always_only = claude_mcp_permission_request(
-            "mcp__codeg-mcp__submit_result",
+            "mcp__yoyocode-mcp__submit_result",
             vec![agent_client_protocol::schema::v1::PermissionOption::new(
                 "allow-with-updates",
                 "Yes, and don't ask again",
@@ -30452,7 +30452,7 @@ mod tests {
     #[test]
     fn codex_env_policy_forces_mcp_filter_off_and_overrides_user_twin() {
         // Codex gets the flag injected so codex-acp never drops the injected
-        // `codeg-mcp` server on a config.toml name collision.
+        // `yoyocode-mcp` server on a config.toml name collision.
         let mut env = vec![("PATH".to_string(), "/usr/bin".to_string())];
         apply_codex_env_policy(AgentType::Codex, &mut env, None, None);
         assert!(env
@@ -35260,7 +35260,7 @@ mod tests {
     // that field on NewSessionRequest/LoadSessionRequest, so it always
     // serializes as `[]`; every agent (OpenClaw included) already receives
     // `mcpServers: []` on a fresh install with no servers configured and
-    // codeg-mcp off — the known-good payload. The connection-layer gate
+    // yoyocode-mcp off — the known-good payload. The connection-layer gate
     // (`supports_mcp == false`) forces OpenClaw onto that empty payload
     // unconditionally. This pins the wire contract: both builders emit an
     // empty list, so no server entry can ever reach OpenClaw.
@@ -36897,7 +36897,7 @@ mod tests {
         assert_eq!(grok_live_tool_output(&None, &None), None);
     }
 
-    /// The captured opencode 1.18.23 completion envelope for a codeg-mcp
+    /// The captured opencode 1.18.23 completion envelope for a yoyocode-mcp
     /// `ask_user_question` — the clean answer text on both channels, the
     /// `rawOutput` one wrapped in `{output, metadata}`.
     fn opencode_ask_raw_output() -> serde_json::Value {
@@ -37136,7 +37136,7 @@ mod tests {
     }
 
     /// End-to-end over the frames opencode 1.18.23 actually put on the wire for a
-    /// codeg-mcp `ask_user_question` (captured by driving `opencode acp` against a
+    /// yoyocode-mcp `ask_user_question` (captured by driving `opencode acp` against a
     /// stub MCP server). The card reconstructs the answer from the result TEXT —
     /// opencode drops the MCP `structuredContent` — so the completion must hand
     /// the frontend that text, not the `{output, metadata}` blob that shadows it
@@ -37153,7 +37153,7 @@ mod tests {
             serde_json::json!({
                 "sessionUpdate": "tool_call",
                 "toolCallId": "call_probe_1",
-                "title": "codeg-mcp_ask_user_question",
+                "title": "yoyocode-mcp_ask_user_question",
                 "kind": "other",
                 "status": "pending",
                 "locations": [],
@@ -40519,7 +40519,7 @@ mod tests {
     /// The `_meta` Antigravity puts on every MCP frame (`unwrap_mcp_tool_call`).
     fn antigravity_mcp_meta(prompt: Option<&str>) -> serde_json::Value {
         let mut meta = serde_json::json!({
-            "mcp": {"tool": "browser_navigate", "server": "codeg-mcp"},
+            "mcp": {"tool": "browser_navigate", "server": "yoyocode-mcp"},
             "is_mcp_tool_call": true,
         });
         if let Some(prompt) = prompt {
@@ -40571,7 +40571,7 @@ mod tests {
                 "_meta": antigravity_mcp_meta(Some("Opening the example page")),
             });
             if session_update == "tool_call" {
-                wire["title"] = serde_json::json!("codeg-mcp_browser_navigate");
+                wire["title"] = serde_json::json!("yoyocode-mcp_browser_navigate");
             }
             let (_, emitted, _, _) =
                 pi_emit(AgentType::Antigravity, &mut cache, &mut cb, wire).await;
@@ -41231,11 +41231,11 @@ mod tests {
     fn unwrap_grok_use_tool_peels_mcp_envelope() {
         // Grok's `use_tool` envelope nests the real MCP tool name + args.
         let raw = serde_json::json!({
-            "tool_name": "codeg-mcp__delegate_to_agent",
+            "tool_name": "yoyocode-mcp__delegate_to_agent",
             "tool_input": {"agent_type": "codex", "task": "build", "working_dir": "/w"},
         });
         let (name, input) = unwrap_grok_use_tool(Some(&raw)).expect("envelope peels");
-        assert_eq!(name, "codeg-mcp__delegate_to_agent");
+        assert_eq!(name, "yoyocode-mcp__delegate_to_agent");
         assert_eq!(input.get("task").and_then(|v| v.as_str()), Some("build"));
         assert_eq!(
             input.get("agent_type").and_then(|v| v.as_str()),
@@ -41302,11 +41302,11 @@ mod tests {
                    Call get_delegation_status with this id in the task_ids array.";
         assert_eq!(
             cursor_companion_title_from_content(Some(ack)),
-            Some("codeg-mcp__delegate_to_agent")
+            Some("yoyocode-mcp__delegate_to_agent")
         );
         assert_eq!(
             cursor_companion_title_from_content(Some(&format!("  {ack}"))),
-            Some("codeg-mcp__delegate_to_agent")
+            Some("yoyocode-mcp__delegate_to_agent")
         );
     }
 
@@ -41316,13 +41316,13 @@ mod tests {
         let report = r#"{"tasks":[{"agent_type":"claude_code","child_conversation_id":1576,"duration_ms":27288,"status":"completed","task_id":"799467c7-0188-4e7a-b5ef-241d4b141a83","text":"done"}]}"#;
         assert_eq!(
             cursor_companion_title_from_content(Some(report)),
-            Some("codeg-mcp__get_delegation_status")
+            Some("yoyocode-mcp__get_delegation_status")
         );
         // Mixed batch with a running item still resolves.
         let mixed = r#"{"tasks":[{"task_id":"a","status":"running"},{"task_id":"b","status":"unknown"}]}"#;
         assert_eq!(
             cursor_companion_title_from_content(Some(mixed)),
-            Some("codeg-mcp__get_delegation_status")
+            Some("yoyocode-mcp__get_delegation_status")
         );
     }
 
@@ -41359,7 +41359,7 @@ mod tests {
         let raw = Some(serde_json::json!({
             "type": "MCP",
             "tool_name": "delegate_to_agent",
-            "server_name": "codeg-mcp",
+            "server_name": "yoyocode-mcp",
             "output": {"OkayOutput": "Delegation successful. task_id=2dc85849-5426."},
         }));
         assert_eq!(
@@ -41395,7 +41395,7 @@ mod tests {
             "toolCallId": "call-d",
             "title": "use_tool",
             "rawInput": {
-                "tool_name": "codeg-mcp__delegate_to_agent",
+                "tool_name": "yoyocode-mcp__delegate_to_agent",
                 "tool_input": {"agent_type": "codex", "working_dir": "/w", "task": "run build"},
             },
         }))
@@ -41423,7 +41423,7 @@ mod tests {
             "rawOutput": {
                 "type": "MCP",
                 "tool_name": "delegate_to_agent",
-                "server_name": "codeg-mcp",
+                "server_name": "yoyocode-mcp",
                 "output": {"OkayOutput": "Delegation successful. task_id=2dc85849-5426-44f7."},
             },
         }))
@@ -41453,7 +41453,7 @@ mod tests {
                 _ => None,
             })
             .expect("a tool_call event is emitted");
-        assert_eq!(title, "codeg-mcp__delegate_to_agent");
+        assert_eq!(title, "yoyocode-mcp__delegate_to_agent");
         let raw_input = raw_input.expect("raw_input present after unwrap");
         assert!(
             raw_input.contains("\"agent_type\":\"codex\""),
@@ -41486,7 +41486,7 @@ mod tests {
         );
         assert_eq!(
             upd_title.as_deref(),
-            Some("codeg-mcp__delegate_to_agent"),
+            Some("yoyocode-mcp__delegate_to_agent"),
             "the sparse-update wrapper title is overridden by the recorded name"
         );
         // No emitted event ever ships the generic `use_tool` wrapper title.
@@ -41525,7 +41525,7 @@ mod tests {
             "title": "use_tool",
             "status": "in_progress",
             "rawInput": {
-                "tool_name": "codeg-mcp__cancel_delegation",
+                "tool_name": "yoyocode-mcp__cancel_delegation",
                 "tool_input": {"task_id": "abc-123"},
             },
         }))
@@ -41552,7 +41552,7 @@ mod tests {
                 _ => None,
             })
             .expect("a tool_call_update event is emitted");
-        assert_eq!(title.as_deref(), Some("codeg-mcp__cancel_delegation"));
+        assert_eq!(title.as_deref(), Some("yoyocode-mcp__cancel_delegation"));
         let raw_input = raw_input.expect("raw_input present after unwrap");
         assert!(
             raw_input.contains("\"task_id\":\"abc-123\""),
@@ -42098,26 +42098,26 @@ mod tests {
     fn deferred_unwraps_codebuddy_mcp_tool_name() {
         // CodeBuddy wraps MCP calls as `{toolName, params}` via DeferExecuteTool.
         let input = Some(
-            r#"{"params":{"agent_type":"codex","task":"build"},"toolName":"mcp__codeg-mcp__delegate_to_agent"}"#
+            r#"{"params":{"agent_type":"codex","task":"build"},"toolName":"mcp__yoyocode-mcp__delegate_to_agent"}"#
                 .to_string(),
         );
         assert_eq!(
             codebuddy_deferred_tool_name(AgentType::CodeBuddy, &input).as_deref(),
-            Some("mcp__codeg-mcp__delegate_to_agent")
+            Some("mcp__yoyocode-mcp__delegate_to_agent")
         );
     }
 
     #[test]
     fn deferred_gates_on_codebuddy_and_shape() {
         let wrapped = Some(
-            r#"{"params":{"task_id":"a"},"toolName":"mcp__codeg-mcp__cancel_delegation"}"#
+            r#"{"params":{"task_id":"a"},"toolName":"mcp__yoyocode-mcp__cancel_delegation"}"#
                 .to_string(),
         );
         // Only CodeBuddy is unwrapped.
         assert!(codebuddy_deferred_tool_name(AgentType::OpenCode, &wrapped).is_none());
         // Missing `params`, missing/blank `toolName`, or non-wrapper shapes → None.
         for raw in [
-            r#"{"toolName":"mcp__codeg-mcp__delegate_to_agent"}"#, // no params
+            r#"{"toolName":"mcp__yoyocode-mcp__delegate_to_agent"}"#, // no params
             r#"{"params":{"x":1},"toolName":""}"#,                 // blank toolName
             r#"{"params":{"x":1}}"#,                               // no toolName
             r#"{"command":"ls"}"#,                                 // plain tool
@@ -42210,18 +42210,18 @@ mod tests {
         );
         // Deferred MCP tool: inner name recorded, then re-asserted on a bare update.
         let deferred = Some(
-            r#"{"params":{"agent_type":"codex","task":"x"},"toolName":"mcp__codeg-mcp__delegate_to_agent"}"#
+            r#"{"params":{"agent_type":"codex","task":"x"},"toolName":"mcp__yoyocode-mcp__delegate_to_agent"}"#
                 .to_string(),
         );
         assert_eq!(
             resolve_rewritten_title(AgentType::CodeBuddy, &deferred, "tc3", false, false, &mut overrides)
                 .as_deref(),
-            Some("mcp__codeg-mcp__delegate_to_agent")
+            Some("mcp__yoyocode-mcp__delegate_to_agent")
         );
         assert_eq!(
             resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc3", true, false, &mut overrides)
                 .as_deref(),
-            Some("mcp__codeg-mcp__delegate_to_agent")
+            Some("mcp__yoyocode-mcp__delegate_to_agent")
         );
         // Non-CodeBuddy agent with no prior classification: never rewritten.
         assert_eq!(
@@ -42283,7 +42283,7 @@ mod tests {
         );
         // DeferExecuteTool still wins over the meta path (distinct mechanism).
         let deferred = Some(
-            r#"{"params":{"agent_type":"codex","task":"x"},"toolName":"mcp__codeg-mcp__delegate_to_agent"}"#
+            r#"{"params":{"agent_type":"codex","task":"x"},"toolName":"mcp__yoyocode-mcp__delegate_to_agent"}"#
                 .to_string(),
         );
         assert_eq!(
@@ -42296,7 +42296,7 @@ mod tests {
                 &mut overrides
             )
             .as_deref(),
-            Some("mcp__codeg-mcp__delegate_to_agent")
+            Some("mcp__yoyocode-mcp__delegate_to_agent")
         );
     }
 
@@ -42967,7 +42967,7 @@ mod tests {
         DelegationInjection {
             broker,
             tokens: Arc::new(TokenRegistry::default()),
-            socket_path: std::path::PathBuf::from("/tmp/codeg-mcp.sock"),
+            socket_path: std::path::PathBuf::from("/tmp/yoyocode-mcp.sock"),
             agent_availability,
             feedback: crate::acp::feedback::FeedbackRuntimeConfig::new(),
             ask: crate::acp::question::QuestionRuntimeConfig::new(),
@@ -42989,7 +42989,7 @@ mod tests {
     // delegate-MCP injection must not push a server entry and must not
     // register a per-launch token. The early return at the top of
     // `inject_codeg_mcp` is the single chokepoint that keeps a
-    // codeg-mcp stdio MCP out of every ACP session until the user
+    // yoyocode-mcp stdio MCP out of every ACP session until the user
     // opts in via the settings panel.
     #[tokio::test]
     async fn inject_codeg_delegate_skipped_when_broker_disabled() {
@@ -43045,7 +43045,7 @@ mod tests {
                 result: true,
             },
             HostToolsPolicy::Agent,
-            || Some(PathBuf::from("/opt/codeg/codeg-mcp")),
+            || Some(PathBuf::from("/opt/codeg/yoyocode-mcp")),
         )
         .await
         .expect("a companion for submit_result alone");
@@ -46255,8 +46255,8 @@ mod tests {
 
     fn fork_test_servers() -> Vec<McpServer> {
         vec![McpServer::Stdio(McpServerStdio::new(
-            "codeg-mcp",
-            "/bin/codeg-mcp",
+            "yoyocode-mcp",
+            "/bin/yoyocode-mcp",
         ))]
     }
 
@@ -46289,7 +46289,7 @@ mod tests {
         assert_eq!((forks.len(), resumes.len()), (1, 1));
         assert_eq!(resumes[0]["sessionId"], "child");
         assert_eq!(forks[0]["mcpServers"], resumes[0]["mcpServers"]);
-        assert_eq!(forks[0]["mcpServers"][0]["name"], "codeg-mcp");
+        assert_eq!(forks[0]["mcpServers"][0]["name"], "yoyocode-mcp");
         assert_eq!(forks[0]["_meta"], resumes[0]["_meta"]);
         assert_eq!(forks[0]["_meta"]["claudeCode"]["emitRawSDKMessages"], true);
         assert_eq!(fork.shutdown().await, vec!["parent".to_string()]);
@@ -46330,7 +46330,7 @@ mod tests {
         assert_eq!((forks.len(), resumes.len()), (2, 2));
         assert_eq!(forks[1]["sessionId"], "child");
         for (fork_request, resume) in forks.iter().zip(&resumes) {
-            assert_eq!(fork_request["mcpServers"][0]["name"], "codeg-mcp");
+            assert_eq!(fork_request["mcpServers"][0]["name"], "yoyocode-mcp");
             assert_eq!(fork_request["mcpServers"], resume["mcpServers"]);
             assert_eq!(fork_request["_meta"], resume["_meta"]);
         }
@@ -46365,7 +46365,7 @@ mod tests {
             vec![serde_json::json!({"sessionId": "parent", "cwd": "/tmp"})]
         );
         assert_eq!(resumes.len(), 1);
-        assert_eq!(resumes[0]["mcpServers"][0]["name"], "codeg-mcp");
+        assert_eq!(resumes[0]["mcpServers"][0]["name"], "yoyocode-mcp");
         fork.shutdown().await;
     }
 
@@ -49329,7 +49329,7 @@ mod wire_mcp_gate_tests {
     use super::*;
 
     // Cline keeps the `mcpServers` it is sent and never connects them, so the
-    // codeg-mcp companion must not be injected: its delegation and feedback
+    // yoyocode-mcp companion must not be injected: its delegation and feedback
     // tools would be advertised to a model that never gets them. Its user
     // servers travel through its own settings file instead.
     #[test]
@@ -49362,7 +49362,7 @@ mod wire_mcp_gate_tests {
 
     // TRAE CLI starts both the servers in its `traecli.toml` and the ones on
     // `session/new`, so the file's servers stay off the wire (or each would be
-    // mounted twice) while the wire still carries the codeg-mcp companion.
+    // mounted twice) while the wire still carries the yoyocode-mcp companion.
     #[test]
     fn trae_takes_user_servers_from_its_config_and_the_companion_from_the_wire() {
         assert!(agent_delivers_wire_mcp(AgentType::Trae));

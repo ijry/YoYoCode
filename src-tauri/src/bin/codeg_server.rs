@@ -491,13 +491,13 @@ async fn async_main(
     }
     // A server an earlier install.ps1 put in %LOCALAPPDATA%\codeg shares that
     // folder with the desktop app once it is installed there too: each
-    // install replaces the other's codeg-mcp.exe, codeg-computer-helper.exe
+    // install replaces the other's yoyocode-mcp.exe, codeg-computer-helper.exe
     // and web\. install.ps1 moves the server out.
     #[cfg(windows)]
     if std::env::current_exe().is_ok_and(|exe| beside_the_desktop_app(&exe)) {
         eprintln!(
             "[SERVER] This codeg-server is in the codeg desktop app's folder, where each \
-             replaces the other's codeg-mcp.exe, codeg-computer-helper.exe and web\\. Re-run \
+             replaces the other's yoyocode-mcp.exe, codeg-computer-helper.exe and web\\. Re-run \
              install.ps1 to move it to %LOCALAPPDATA%\\codeg-server."
         );
     }
@@ -922,7 +922,7 @@ mod tests {
         let exe = dir.path().join("codeg-server.exe");
         std::fs::write(&exe, b"").unwrap();
         assert!(!beside_the_desktop_app(&exe));
-        std::fs::write(dir.path().join("codeg-mcp.exe"), b"").unwrap();
+        std::fs::write(dir.path().join("yoyocode-mcp.exe"), b"").unwrap();
         std::fs::create_dir(dir.path().join("codeg")).unwrap();
         assert!(!beside_the_desktop_app(&exe));
         std::fs::write(dir.path().join("codeg.exe"), b"").unwrap();

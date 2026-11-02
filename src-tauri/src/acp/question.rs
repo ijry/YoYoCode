@@ -2,7 +2,7 @@
 //!
 //! Mid-turn an agent can ask the user one or more multiple-choice questions and
 //! BLOCK until the user answers — the `ask_user_question` MCP tool exposed by
-//! `codeg-mcp`. Unlike live-feedback ([`crate::acp::feedback`]), which is a
+//! `yoyocode-mcp`. Unlike live-feedback ([`crate::acp::feedback`]), which is a
 //! non-blocking pull the user pushes into, a question PAUSES the agent's tool
 //! call: the questions render as an interactive card above the conversation
 //! input box (driven by [`crate::acp::session_state::SessionState`], in-memory
@@ -83,7 +83,7 @@ pub struct QuestionSpec {
     /// The choices (0..=[`MAX_OPTIONS`]). Empty means free-text: the card
     /// renders only its always-present "Other" input (codex `request_user_input`
     /// and MCP-server elicitations both ask open questions this way; the
-    /// codeg-mcp ask tool still requires [`MIN_OPTIONS`] at its own parse
+    /// yoyocode-mcp ask tool still requires [`MIN_OPTIONS`] at its own parse
     /// layer).
     pub options: Vec<QuestionOption>,
     /// True when the answer is a secret (codex `request_user_input` marks API
@@ -339,7 +339,7 @@ pub fn validate_specs(specs: &[QuestionSpec]) -> Result<(), String> {
                 "questions[{qi}] `header` exceeds {MAX_HEADER_CHARS} characters"
             ));
         }
-        // Unlike `parse_questions` (the codeg-mcp tool contract, which keeps
+        // Unlike `parse_questions` (the yoyocode-mcp tool contract, which keeps
         // its [`MIN_OPTIONS`] floor), typed specs allow 0..=[`MAX_OPTIONS`]:
         // a question with no options is a legal free-text ask — the card
         // renders its always-present "Other" input alone (codex elicitation
@@ -459,7 +459,7 @@ pub(crate) fn synthesize_header(question: &str) -> String {
 
 /// Convert grok's native `_x.ai/ask_user_question` ext-request params into codeg
 /// [`QuestionSpec`]s, so grok's own questions render in the SAME interactive card
-/// as the `codeg-mcp` ask tool (grok emits an ACP ext request and blocks on the
+/// as the `yoyocode-mcp` ask tool (grok emits an ACP ext request and blocks on the
 /// reply; if codeg doesn't answer it, grok falls back to inert fire-and-forget
 /// rendering — see the connection handler). Grok's wire shape per question is
 /// `{question, options:[{label, description}], multiSelect}` — no `header`, which
@@ -581,7 +581,7 @@ pub struct PiSelectAsk {
 
 /// Recognize a `session/request_permission` that is really pi asking the user a
 /// multiple-choice question, and convert it into a [`QuestionSpec`] so it renders
-/// in the SAME interactive card as the codeg-mcp ask tool.
+/// in the SAME interactive card as the yoyocode-mcp ask tool.
 ///
 /// pi has no dedicated question channel: `ctx.ui.select` from an extension
 /// becomes an `extension_ui_request`, which pi-acp translates into a permission
@@ -681,13 +681,13 @@ pub fn pi_select_option_id(outcome: &QuestionOutcome, ask: &PiSelectAsk) -> Opti
 
 /// True when a host's name for a tool is codeg's OWN `ask_user_question`
 /// companion tool, in whatever spelling the host composed it
-/// (`mcp__codeg-mcp__ask_user_question` from claude-agent-acp,
-/// `codeg-mcp/ask_user_question`, `codeg-mcp: ask_user_question`, …). Separators
+/// (`mcp__yoyocode-mcp__ask_user_question` from claude-agent-acp,
+/// `yoyocode-mcp/ask_user_question`, `yoyocode-mcp: ask_user_question`, …). Separators
 /// are folded and case is ignored ([`crate::acp::delegation::is_codeg_mcp_tool`]).
 ///
 /// BOTH halves have to be present, and nothing else — the server name codeg
-/// itself injects (`codeg-mcp`, see `acp::connection::inject_codeg_mcp`) AND the
-/// tool name: a server named `other-codeg-mcp` is not codeg's.
+/// itself injects (`yoyocode-mcp`, see `acp::connection::inject_codeg_mcp`) AND the
+/// tool name: a server named `other-yoyocode-mcp` is not codeg's.
 /// The frontend can afford a bare `*ask_user_question` suffix rule because a
 /// wrong match there only picks a nicer card; this one unlocks an AUTO-APPROVAL
 /// of a blocked `session/request_permission`, and a third-party MCP server's
@@ -1396,7 +1396,7 @@ fn is_mcp_tool_call_approval(raw: &Value) -> bool {
 ///   * MCP tool-call approvals (`_meta.codex_approval_kind`) → [`ElicitationApproval`]
 ///     with the persist choices (`once`/`session`/`always`) + Decline — the
 ///     permission card, exactly like the pre-capability `request_permission`
-///     fallback. This includes approvals for codeg-mcp's OWN tools in
+///     fallback. This includes approvals for yoyocode-mcp's OWN tools in
 ///     consent-requiring permission modes, so declining them here would break
 ///     ask/delegation for codex outright.
 ///   * Forms with no renderable fields (message-only MCP confirms) →
@@ -1905,7 +1905,7 @@ pub fn grok_result_card_input(specs: &[QuestionSpec]) -> Value {
 }
 
 /// Build the `raw_output` (`{answers, declined}` envelope) for the in-stream
-/// `AskQuestionResultCard` — the codeg-mcp `structuredContent` shape the frontend
+/// `AskQuestionResultCard` — the yoyocode-mcp `structuredContent` shape the frontend
 /// already parses (`parseAskQuestionOutcome`). Emits `header:""` to match
 /// [`grok_result_card_input`] (see its docs). Companion to [`grok_result_card_input`].
 pub fn grok_result_card_output(outcome: &QuestionOutcome) -> Value {
@@ -1926,7 +1926,7 @@ pub fn grok_result_card_output(outcome: &QuestionOutcome) -> Value {
 
 /// The hot-swappable feature config read at MCP injection time. Kept tiny and
 /// separate from `FeedbackConfig` / `DelegationConfig` so the three features
-/// toggle independently — `codeg-mcp` is injected when ANY is enabled, and each
+/// toggle independently — `yoyocode-mcp` is injected when ANY is enabled, and each
 /// tool is listed only when its own feature is on.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QuestionConfig {
@@ -3711,10 +3711,10 @@ mod tests {
         for spelling in [
             // claude-agent-acp: an MCP tool's permission card title IS the
             // raw tool name.
-            "mcp__codeg-mcp__ask_user_question",
-            "codeg-mcp/ask_user_question",
-            "codeg-mcp: ask_user_question",
-            "mcp.codeg-mcp.ask_user_question",
+            "mcp__yoyocode-mcp__ask_user_question",
+            "yoyocode-mcp/ask_user_question",
+            "yoyocode-mcp: ask_user_question",
+            "mcp.yoyocode-mcp.ask_user_question",
             // Hosts that title-case or pad it.
             "  MCP__Codeg-MCP__Ask_User_Question  ",
         ] {
@@ -3733,18 +3733,18 @@ mod tests {
             "mcp__other-server__ask_user_question",
             "ask_user_question",
             // grok's NATIVE ask arrives on its own ext channel, never as a
-            // permission request — and it is not codeg-mcp's tool either.
+            // permission request — and it is not yoyocode-mcp's tool either.
             "_x.ai/ask_user_question",
             // Codeg's other companion tools keep their approval gate.
-            "mcp__codeg-mcp__delegate_to_agent",
-            "mcp__codeg-mcp__check_user_feedback",
+            "mcp__yoyocode-mcp__delegate_to_agent",
+            "mcp__yoyocode-mcp__check_user_feedback",
             // Right server, right words, wrong tool — the match is anchored at
             // the END so a longer name cannot borrow it.
-            "mcp__codeg-mcp__ask_user_question_twice",
-            // …and at the start: a server whose name only ends in codeg-mcp
+            "mcp__yoyocode-mcp__ask_user_question_twice",
+            // …and at the start: a server whose name only ends in yoyocode-mcp
             // is another one, and so is a server `codeg` whose tool is
             // `mcp_ask_user_question`.
-            "mcp__other-codeg-mcp__ask_user_question",
+            "mcp__other-yoyocode-mcp__ask_user_question",
             "mcp__codeg__mcp_ask_user_question",
             "",
         ] {

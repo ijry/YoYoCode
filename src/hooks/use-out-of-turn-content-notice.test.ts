@@ -44,7 +44,7 @@ const toolCall = (toolCallId: string): EventEnvelope => ({
   connection_id: "conn-1",
   type: "tool_call",
   tool_call_id: toolCallId,
-  title: "mcp__codeg-mcp__startup",
+  title: "mcp__yoyocode-mcp__startup",
   kind: "other",
   status: "failed",
   content: null,
@@ -67,11 +67,11 @@ describe("useOutOfTurnContentNotice", () => {
   })
 
   it("flags nothing a new conversation's agent sends before its first turn", () => {
-    // codex-acp reporting a codeg-mcp that failed to start, while the welcome
+    // codex-acp reporting a yoyocode-mcp that failed to start, while the welcome
     // screen hides the thread — the notice then showed with the first message.
     stored = { status: "connected", hasPrompted: false, agentType: "codex" }
     mount()
-    fire!(toolCall("mcp_startup.codeg-mcp.4f1c2b9e"))
+    fire!(toolCall("mcp_startup.yoyocode-mcp.4f1c2b9e"))
     fire!(toolCall("call_1"))
     fire!(text())
     expect(markOutOfTurnContent).not.toHaveBeenCalled()
@@ -81,7 +81,7 @@ describe("useOutOfTurnContentNotice", () => {
     // A server slow to fail reports after a quick first turn has ended.
     stored = { status: "connected", hasPrompted: true, agentType: "codex" }
     mount()
-    fire!(toolCall("mcp_startup.codeg-mcp.4f1c2b9e"))
+    fire!(toolCall("mcp_startup.yoyocode-mcp.4f1c2b9e"))
     expect(markOutOfTurnContent).not.toHaveBeenCalled()
     fire!(toolCall("call_1"))
     expect(markOutOfTurnContent).toHaveBeenCalledTimes(1)

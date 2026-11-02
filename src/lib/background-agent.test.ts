@@ -168,13 +168,13 @@ describe("isOutOfTurnContentEvent", () => {
   })
 
   it("rejects codex-acp's MCP start-up report, which no transcript holds", () => {
-    // As codex-acp 2.2.2 sends it for a codeg-mcp that could not start: right
+    // As codex-acp 2.2.2 sends it for a yoyocode-mcp that could not start: right
     // after session/new, before any prompt.
     expect(
       isOutOfTurnContentEvent({
         type: "tool_call",
         tool_call_id:
-          "mcp_startup.codeg-mcp.4f1c2b9e-8d7a-4c3e-9b1a-2f6d5e8c7a90",
+          "mcp_startup.yoyocode-mcp.4f1c2b9e-8d7a-4c3e-9b1a-2f6d5e8c7a90",
       })
     ).toBe(false)
     // Every other tool call is still turn material, whatever its id.
@@ -184,7 +184,7 @@ describe("isOutOfTurnContentEvent", () => {
     expect(
       isOutOfTurnContentEvent({
         type: "tool_call",
-        tool_call_id: "mcp__codeg-mcp__check_user_feedback",
+        tool_call_id: "mcp__yoyocode-mcp__check_user_feedback",
       })
     ).toBe(true)
   })

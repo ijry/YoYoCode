@@ -360,7 +360,7 @@ mod tests {
                 &SessionId::new("sess-1"),
                 agent_type,
                 "/work",
-                &[server("codeg-mcp")],
+                &[server("yoyocode-mcp")],
                 &ClaudeSessionOptions::new(true),
                 None,
             ))
@@ -379,7 +379,7 @@ mod tests {
     /// that session only when the two agree (anything else restarts it).
     #[test]
     fn a_claude_fork_names_the_settings_its_resume_sends() {
-        let servers = vec![server("codeg-mcp"), server("docs")];
+        let servers = vec![server("yoyocode-mcp"), server("docs")];
         let fork = serde_json::to_value(build_fork_request(
             &SessionId::new("sess-1"),
             AgentType::ClaudeCode,
@@ -433,7 +433,7 @@ mod tests {
             &SessionId::new("sess-1"),
             AgentType::ClaudeCode,
             "/work",
-            &[server("codeg-mcp")],
+            &[server("yoyocode-mcp")],
             &ClaudeSessionOptions::new(false),
             None,
         ))
@@ -442,7 +442,7 @@ mod tests {
             AgentType::ClaudeCode,
             SessionId::new("sess-2"),
             std::path::Path::new("/work"),
-            vec![server("codeg-mcp")],
+            vec![server("yoyocode-mcp")],
             &ClaudeSessionOptions::new(false),
         ))
         .unwrap();

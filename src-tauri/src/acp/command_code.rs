@@ -24,7 +24,7 @@
 //!   still connects one through its HTTP client (see the Command Code notes in
 //!   `commands/mcp.rs`). `command-code acp` loads this file itself and ALSO
 //!   starts the servers `session/new` carries (both reach the model as
-//!   deferred `mcp__<server>__<tool>` tools), which is how the codeg-mcp
+//!   deferred `mcp__<server>__<tool>` tools), which is how the yoyocode-mcp
 //!   companion gets in.
 //! * Skills are directory bundles (`<id>/SKILL.md`, found recursively; a flat
 //!   `<id>.md` is not loaded) from `.commandcode/skills` and the shared

@@ -147,8 +147,8 @@ mkdir -p "$T/install" "$T/other" "$T/stale" "$T/elsewhere" "$T/stale-link" \
   "$T/releases" "$T/install2" "$T/alias"
 # INSTALL_DIR is given through a symlink, as /usr/local/bin may be.
 ln -s "$T/install" "$T/linked"
-for _f in install/codeg-server install/codeg-mcp other/codeg-server other/codeg-mcp \
-  stale/codeg-server stale/codeg-mcp stale/yoyo-cli elsewhere/codeg-server \
+for _f in install/codeg-server install/yoyocode-mcp other/codeg-server other/yoyocode-mcp \
+  stale/codeg-server stale/yoyocode-mcp stale/yoyo-cli elsewhere/codeg-server \
   releases/codeg-server-v1 mapper; do
   cp "$T/fake" "$T/$_f"
 done
@@ -256,11 +256,11 @@ ABSOLUTE="$(spawn "$T/install/codeg-server")"
 RELATIVE="$(spawn sh -c 'cd "$1" && exec ./codeg-server' _ "$T/install")"
 LINKED="$(spawn "$T/linked/codeg-server")"
 STUBBORN="$(spawn "$T/install/codeg-server" --ignore-term)"
-MCP="$(spawn "$T/install/codeg-mcp")"
+MCP="$(spawn "$T/install/yoyocode-mcp")"
 OTHER="$(spawn "$T/other/codeg-server")"
-OTHER_MCP="$(spawn "$T/other/codeg-mcp")"
+OTHER_MCP="$(spawn "$T/other/yoyocode-mcp")"
 STALE="$(spawn "$T/stale/codeg-server")"
-STALE_MCP="$(spawn "$T/stale/codeg-mcp")"
+STALE_MCP="$(spawn "$T/stale/yoyocode-mcp")"
 STALE_CLI="$(spawn "$T/stale/yoyo-cli")"
 LINK_TARGET="$(spawn "$T/elsewhere/codeg-server")"
 # A program that has the install's file mapped, without running it.
@@ -308,17 +308,17 @@ if [ "$IS_ROOT" -eq 0 ]; then
 fi
 
 section "1. cleanup on" "$T/linked" 1 \
-  "$T/stale/codeg-server" "$T/stale/codeg-mcp" "$T/stale/yoyo-cli" "$T/stale-link/codeg-server"
+  "$T/stale/codeg-server" "$T/stale/yoyocode-mcp" "$T/stale/yoyo-cli" "$T/stale-link/codeg-server"
 expect_stopped "1: started from a file since replaced" "$DELETED"
 expect_stopped "1: started by its absolute path" "$ABSOLUTE"
 expect_stopped "1: started by a relative path" "$RELATIVE"
 expect_stopped "1: started through a symlinked directory" "$LINKED"
 expect_stopped "1: one that ignores SIGTERM" "$STUBBORN"
-expect_stopped "1: the install's codeg-mcp" "$MCP"
+expect_stopped "1: the install's yoyocode-mcp" "$MCP"
 expect_stopped "1: a stale codeg-server cleanup removes" "$STALE"
-expect_stopped "1: a stale codeg-mcp cleanup removes" "$STALE_MCP"
+expect_stopped "1: a stale yoyocode-mcp cleanup removes" "$STALE_MCP"
 expect_running "1: a codeg-server of another directory" "$OTHER"
-expect_running "1: a codeg-mcp of another directory" "$OTHER_MCP"
+expect_running "1: a yoyocode-mcp of another directory" "$OTHER_MCP"
 expect_running "1: a stale yoyo-cli" "$STALE_CLI"
 expect_running "1: what a stale link that cleanup removes points to" "$LINK_TARGET"
 expect_running "1: a program that only maps the install's file" "$MAPPER"
@@ -332,20 +332,20 @@ if [ -n "$ROOTS" ]; then
 fi
 expect_out "1" "Force stopping codeg-server"
 expect_out "1" "codeg-server stopped."
-expect_out "1" "codeg-mcp stopped."
+expect_out "1" "yoyocode-mcp stopped."
 expect_out "1" "SERVER_STOPPED=1"
 expect_no_out "1" "Warning:"
 
 # ── 2. Cleanup off: a stale copy's processes stay ──
 
 STALE="$(spawn "$T/stale/codeg-server")"
-STALE_MCP="$(spawn "$T/stale/codeg-mcp")"
-MCP="$(spawn "$T/install/codeg-mcp")"
-section "2. cleanup off" "$T/install" 0 "$T/stale/codeg-server" "$T/stale/codeg-mcp"
+STALE_MCP="$(spawn "$T/stale/yoyocode-mcp")"
+MCP="$(spawn "$T/install/yoyocode-mcp")"
+section "2. cleanup off" "$T/install" 0 "$T/stale/codeg-server" "$T/stale/yoyocode-mcp"
 expect_running "2: a stale codeg-server, kept" "$STALE"
-expect_running "2: a stale codeg-mcp, kept" "$STALE_MCP"
+expect_running "2: a stale yoyocode-mcp, kept" "$STALE_MCP"
 expect_running "2: a codeg-server of another directory" "$OTHER"
-expect_stopped "2: the install's codeg-mcp" "$MCP"
+expect_stopped "2: the install's yoyocode-mcp" "$MCP"
 expect_no_out "2" "Stopping codeg-server"
 # Only a codeg-server stopping asks for a restart.
 expect_out "2" "SERVER_STOPPED=0"

@@ -1,5 +1,5 @@
 /**
- * Shared parsing + status-resolution helpers for the codeg-mcp delegation
+ * Shared parsing + status-resolution helpers for the yoyocode-mcp delegation
  * companion tools (`get_delegation_status` / `cancel_delegation`).
  *
  * Extracted from `delegation-status-card.tsx` so both the single card and the

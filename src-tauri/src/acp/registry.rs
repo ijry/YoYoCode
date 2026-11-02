@@ -153,7 +153,7 @@ impl BinaryDirEntry {
 pub struct AcpAgentMeta {
     pub agent_type: AgentType,
     /// 是否经 ACP 线缆（session/new 的 `mcpServers` 字段）向该 agent 转发 MCP
-    /// 服务器——既包括用户配置的服务器，也包括内置 codeg-mcp 伴生进程。
+    /// 服务器——既包括用户配置的服务器，也包括内置 yoyocode-mcp 伴生进程。
     /// OpenClaw 拒绝 `mcpServers` 中的任何服务器条目（会使 session/new 失败），
     /// 故置 false。注意空列表 `[]` 仍会按 ACP schema 序列化、OpenClaw 可接受——
     /// 闸门只是保证该列表对 OpenClaw 恒为空（不含任何条目）。
@@ -1296,7 +1296,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `_meta.claudeCode.mcpServer` (SDK 0.3.274's `McpServerProvenance`,
             // `{name, source}`) is NOT consumed. It answers "which server serves
             // this `mcp__*` tool, and was it registered in-process by the host
-            // (`source: "sdk"`) or configured"; codeg injects codeg-mcp over
+            // (`source: "sdk"`) or configured"; codeg injects yoyocode-mcp over
             // stdio, which is a configured source and never reads `sdk`, and the
             // only trust question codeg asks of an MCP tool call — is this one of
             // the companions I minted? — it already answers from the tool name
@@ -1304,7 +1304,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // the block is now emitted when `mcpServer` is present even with no
             // `parentToolUseId`, so `_meta.claudeCode.toolName` reaches a
             // top-level MCP tool's PERMISSION frame for the first time. That is
-            // the signal `inferLiveToolName` resolves the codeg-mcp companion
+            // the signal `inferLiveToolName` resolves the yoyocode-mcp companion
             // cards on, so a pending MCP approval now shows the right card
             // instead of flipping to it once the call runs and the streamed
             // frame (which always carried `toolName`) refines it.
@@ -1930,7 +1930,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             //     surface or a `diffPatch` client, and codeg is neither for
             //     Claude.
             //   * CLI 2.1.287 offers MCP servers on the 2025-11-25 protocol
-            //     `elicitation: {form, url}` where 2.1.286 sent `{}`. codeg-mcp
+            //     `elicitation: {form, url}` where 2.1.286 sent `{}`. yoyocode-mcp
             //     answers 2024-11-05 and reads no client capability, and a probe
             //     server with the same handshake still lists its tools.
             //   * A `context: fork` skill typed as `/<skill>` now streams its
@@ -2039,7 +2039,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             //
             // (iii) **MCP handshake** (CLI 2.1.292). A stdio server is first
             // offered protocol 2026-07-28 through a `server/discover` probe, with
-            // up to 3 s to answer before the 2025-11-25 `initialize`. codeg-mcp
+            // up to 3 s to answer before the 2025-11-25 `initialize`. yoyocode-mcp
             // answers it at once with -32601 (method not found), and the CLI
             // falls back at once. Measured with the real binary: `initialize`
             // follows 6 ms after the probe, and `session/new` takes as long as
@@ -2831,7 +2831,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // as a warning notice, `MCP server "<name>" failed to start` with
             // "Its tools are unavailable in this session. Run /mcp for the
             // error.", once per server per session. Only the servers
-            // `session/new` passed count (codeg-mcp among them), not the ones
+            // `session/new` passed count (yoyocode-mcp among them), not the ones
             // in Claude Code's own settings. It arrives within the first
             // prompt's turn, when the CLI reports its MCP state, and codeg
             // shows it as a toast like any notice. `/mcp` works over ACP and
@@ -2994,7 +2994,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // 1.1.5 (#322) also widened codex-acp's MCP config filtering to
             // project `.codex` layers, which is why codeg forces
             // `DISABLE_MCP_CONFIG_FILTERING` (see `apply_codex_env_policy`) so
-            // the injected `codeg-mcp` server always survives. 1.1.6 adds
+            // the injected `yoyocode-mcp` server always survives. 1.1.6 adds
             // steering (#309): `_session/steering` injects a user prompt into
             // the LIVE turn (initialize advertises `_meta.steering.supported`)
             // — codeg keeps codex on the MCP pull channel because 1.1.9 still
@@ -3893,8 +3893,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // (ee) `/mcp` (#579) reports each server's live status in markdown
             // and takes `reconnect`, which its entry now names as the input
             // hint `[reconnect]`. Every status read briefly starts one more copy
-            // of each session MCP server, codeg-mcp included, which is harmless:
-            // codeg-mcp opens its socket on `tools/call` only. `$skill` commands
+            // of each session MCP server, yoyocode-mcp included, which is harmless:
+            // yoyocode-mcp opens its socket on `tools/call` only. `$skill` commands
             // carry their SKILL.md path in `_meta.jetbrains.air.skillPath`,
             // which codeg does not show.
             //
@@ -4286,7 +4286,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `mcp-client.ts` now drops MCP-server env entries whose key is in
             // `BLOCKED_EXECUTION_ENVS`. That list is loader/interpreter hijacks
             // (`NODE_OPTIONS`, `LD_PRELOAD`, `DYLD_*`, `PYTHONPATH`, `BASH_ENV`,
-            // …); codeg injects `codeg-mcp` with `CODEG_*`, so nothing we send
+            // …); codeg injects `yoyocode-mcp` with `CODEG_*`, so nothing we send
             // is dropped. `engines.node` stays `>=20`.
             distribution: AgentDistribution::Npx {
                 version: "0.60.0",
@@ -4300,7 +4300,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
         AgentType::OpenClaw => AcpAgentMeta {
             agent_type,
             // OpenClaw 拒绝 `mcpServers` 中的任何服务器条目（会使 session/new 失败），
-            // 故不向其转发任何 MCP 条目（含 codeg-mcp 伴生进程）。详见 supports_mcp 字段注释。
+            // 故不向其转发任何 MCP 条目（含 yoyocode-mcp 伴生进程）。详见 supports_mcp 字段注释。
             supports_mcp: false,
             name: "OpenClaw",
             description: "OpenClaw is a personal AI assistant you run on your own devices.",
@@ -4479,7 +4479,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // and never connects them (the same in every release from 3.0.55
             // through 3.0.74; live on 3.0.71 through 3.0.74, a stdio server sent
             // there is never started), so codeg forwards none and injects no
-            // codeg-mcp companion (see `agent_delivers_wire_mcp`). The servers
+            // yoyocode-mcp companion (see `agent_delivers_wire_mcp`). The servers
             // codeg's MCP settings write to
             // `~/.cline/data/settings/cline_mcp_settings.json` are started, and
             // their tools reach the model. Their connect budget has been 10 s
@@ -4645,7 +4645,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // codeg's assumptions standing: the per-platform toolset resolver
             // (`platform_toolsets.acp`, `agent.disabled_toolsets`; codeg writes
             // neither), every enabled `mcp_servers` entry switched on by
-            // default, and servers handed over on `session/new` (codeg-mcp
+            // default, and servers handed over on `session/new` (yoyocode-mcp
             // included) appended unconditionally as `mcp-<name>`, their tools
             // named `mcp__<server>__<tool>`. A fresh session's default toolset
             // carries `browser_exec` and a single `browser_vault` tool; by
@@ -4662,7 +4662,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // codeg's process-tree stop takes the daemon down with the viewer
             // that started it, so the other Hermes conversations lose it too
             // (their next prompt starts a new one). And in a session that also
-            // got MCP servers over the wire, as every session with codeg-mcp
+            // got MCP servers over the wire, as every session with yoyocode-mcp
             // injected does, each call to a config.yaml `mcp_servers` entry
             // fails with "MCP server '<name>' is not connected" (upstream issue
             // #143502, open as of 0.22.5). Re-check both before moving the pin.
@@ -4916,7 +4916,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `codebuddy.ai/outcome: "PERMISSION_DENIED"`. Only Always Allow on
             // the first ask lets the call through, and codeg cannot choose that
             // for the user. Measured with a stdio MCP server handed over on
-            // `session/new`, the way codeg-mcp arrives; 2.177.1 asks once and
+            // `session/new`, the way yoyocode-mcp arrives; 2.177.1 asks once and
             // runs the tool. 2.178.1 also stops offering Code Mode to a client
             // that does not declare `mainAgentSupport`, as codeg does not
             // (`codeModeSupport: false`, and setting `codeMode` fails -32602).
@@ -4939,7 +4939,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `session/new` (and `session/load` / `session/resume`) with "ACP
             // stdio MCP server <name> does not declare a runtime identity" as
             // soon as any stdio server rides the wire — for Kimi that is always
-            // the codeg-mcp companion, so the whole agent was unusable, not
+            // the yoyocode-mcp companion, so the whole agent was unusable, not
             // just delegation. codeg sat on 0.36.1 until 0.39.0 restored it.
             //
             // Root cause, if it ever regresses: 0.37.x added a SECOND converter
@@ -5134,7 +5134,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // on), so config.toml, `mcp.json` and skill roots are no longer
             // watched mid-process.
             // Nothing codeg does at launch depends on that — config.toml is
-            // written before the spawn and codeg-mcp rides `session/new` — but
+            // written before the spawn and yoyocode-mcp rides `session/new` — but
             // an MCP server or skill added from codeg's settings while a Kimi
             // session is open now lands on the next connect. The bundled
             // models.dev catalog grew, yet its `moonshotai` rows are untouched,
@@ -5361,7 +5361,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // from `mcp.json` that fails to start is now retried with backoff,
             // and Kimi logs `mcp.server_failed` / `mcp.server_failure_resolved`
             // in `wire.jsonl`, which the parser skips; a stdio server handed over
-            // on `session/new`, like codeg-mcp, is not retried. `/import-sessions`
+            // on `session/new`, like yoyocode-mcp, is not retried. `/import-sessions`
             // belongs to the TUI: over ACP it answers "Unknown ACP command". The
             // interrupted-turn and cancelled-question fixes live in the `kimi
             // web` transcript and change nothing on disk, and only the TUI's
@@ -5382,7 +5382,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `true` only to satisfy the `only_openclaw_opts_out_of_mcp`
             // invariant — actual wire forwarding is short-circuited in
             // `connection.rs` (see the skip-list), so neither user servers nor
-            // the codeg-mcp companion are futilely forwarded.
+            // the yoyocode-mcp companion are futilely forwarded.
             supports_mcp: true,
             name: "Pi",
             description: "Self-extensible coding agent (ACP via pi-acp)",
@@ -5630,7 +5630,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // from zod 3.25.76 to zod 4.6.5. Replayed against unauthenticated
             // processes of both builds, every request codeg sends Cursor
             // (`initialize`, `session/new` and `session/load` carrying
-            // codeg-mcp, `session/prompt` with each content block kind,
+            // yoyocode-mcp, `session/prompt` with each content block kind,
             // `session/set_mode`, `session/set_config_option` with a select
             // value, `session/cancel`) gets the same answer. Only a
             // request that fails validation is reported differently: -32602
@@ -5907,7 +5907,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // It advertises loadSession + sessionCapabilities.list/resume and
             // accepts wire `mcpServers` (stdio + streamable HTTP; SSE and the
             // `acp` transport are explicitly rejected), so both the resume rung
-            // and the codeg-mcp companion work out of the box. Since 0.3.0 it
+            // and the yoyocode-mcp companion work out of the box. Since 0.3.0 it
             // mounts the upstream skills chain (`skill_storage_spec` mirrors
             // its roots) and, since 0.2.0, offers `--setup` terminal auth for
             // storing the key in `$DSH_HOME/.credentials.yaml`.
@@ -6066,7 +6066,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // community bridge): verified handshake advertises `loadSession`
             // plus the full `sessionCapabilities` set (list/resume/fork/close/
             // delete/additionalDirectories), image + embeddedContext prompts,
-            // and MCP http+sse — so the resume rung and the codeg-mcp
+            // and MCP http+sse — so the resume rung and the yoyocode-mcp
             // companion work with no adapters in between. Auth is the qoder
             // account (`qoder login`, or the IDE's qoder-browser flow); there
             // is no API-key env to manage. Model, mode and reasoning effort
@@ -7322,7 +7322,7 @@ mod tests {
             Some("22.0.0"),
         );
         // Kimi Code must never land on 0.37.0–0.38.0: every session in that
-        // range dies on the codeg-mcp stdio entry (see the registry entry).
+        // range dies on the yoyocode-mcp stdio entry (see the registry entry).
         assert_npx_version(
             AgentType::KimiCode,
             "2.4.0",

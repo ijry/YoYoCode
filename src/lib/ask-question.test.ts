@@ -218,7 +218,7 @@ describe("parseAskQuestionInput", () => {
     // CodexToolCallMapper.ts::createMcpToolCallUpdate. The questions live under
     // `arguments`, not the top level.
     const input = JSON.stringify({
-      server: "codeg-mcp",
+      server: "yoyocode-mcp",
       tool: "ask_user_question",
       arguments: {
         questions: [
@@ -427,7 +427,7 @@ describe("parseAskQuestionOutcome", () => {
   it("parses codex request_user_input's object-keyed answers", () => {
     // Verbatim function_call_output shape from ~/.codex/sessions: answers are
     // keyed by the question id, each carrying its own `answers` array — NOT the
-    // codeg-mcp `{answers:[{…,selected}]}` envelope. Without this the card shows
+    // yoyocode-mcp `{answers:[{…,selected}]}` envelope. Without this the card shows
     // "no selection" (the reported bug).
     const output = JSON.stringify({
       answers: { drink_preference: { answers: ["咖啡（推荐）"] } },
@@ -904,7 +904,7 @@ describe("parseAskQuestionOutcome", () => {
     })
   })
 
-  // codeg-mcp mirrors its "do not ask again to confirm" instruction into the
+  // yoyocode-mcp mirrors its "do not ask again to confirm" instruction into the
   // structured envelope as `hint` (issue #861) and appends it to the text.
   // Neither may change what the card reads.
   const PROCEED_INSTRUCTION =

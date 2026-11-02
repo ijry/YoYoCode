@@ -1,4 +1,4 @@
-//! Main-process side of the `codeg-mcp` round-trip: accept UDS / named-pipe
+//! Main-process side of the `yoyocode-mcp` round-trip: accept UDS / named-pipe
 //! connections from companion processes, validate the per-launch token,
 //! resolve the parent's current conversation, and hand off to the broker.
 //!
@@ -116,7 +116,7 @@ impl TokenRegistry {
 
     /// How many companions are currently reachable, and across how many
     /// distinct parent ACP connections. One token is minted per companion
-    /// launch, so `companions` counts injected `codeg-mcp` processes; the two
+    /// launch, so `companions` counts injected `yoyocode-mcp` processes; the two
     /// numbers differ when a connection was re-injected without its old token
     /// having been revoked yet. Read-only — used by the service-status
     /// indicator, never by the wire path.

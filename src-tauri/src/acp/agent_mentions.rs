@@ -104,7 +104,7 @@ fn visible_agent_reference_types(blocks: &[PromptInputBlock]) -> Vec<String> {
 }
 
 /// Append prompt-local routing for every agent the user visibly linked, when
-/// this connection actually received the codeg-mcp companion's delegation
+/// this connection actually received the yoyocode-mcp companion's delegation
 /// group.
 ///
 /// The prompt IS the input: a visible `[label](codeg://agent/<type>)` link is
@@ -203,7 +203,7 @@ fn render_internal_agent_routes_body(frame: &InternalAgentRoutes) -> String {
         "{descriptor}\n\
 Codeg composer routing metadata (authoritative): {routes}\n\
 When you delegate any of this work, route it through the `delegate_to_agent` \
-tool from the `codeg-mcp` server with `agent_type` taken from the matching \
+tool from the `yoyocode-mcp` server with `agent_type` taken from the matching \
 route: do not substitute your own native sub-agent, task, or spawn mechanism, \
 and do not route it through any other delegation tool.\n"
     )
@@ -320,7 +320,7 @@ fn visible_assistant_reference_ids(blocks: &[PromptInputBlock]) -> Vec<i32> {
 
 /// Append prompt-local routing for every assistant the user visibly linked,
 /// under the same single gate as [`append_agent_routes`]: the connection
-/// received the codeg-mcp companion's delegation group.
+/// received the yoyocode-mcp companion's delegation group.
 ///
 /// Whether an id names a live, enabled assistant is NOT checked here: the
 /// broker resolves it at call time and answers a stale id with an error the
@@ -362,7 +362,7 @@ fn render_assistant_routes_body(descriptor: &FrameDescriptor, routes: &[Assistan
         "{descriptor}\n\
 {ASSISTANT_ROUTES_LINE_PREFIX}{routes}\n\
 When you delegate any of this work to a linked assistant, call the \
-`delegate_to_agent` tool from the `codeg-mcp` server with `assistant_id` taken \
+`delegate_to_agent` tool from the `yoyocode-mcp` server with `assistant_id` taken \
 from the matching route and without `agent_type`: do not substitute your own \
 native sub-agent, task, or spawn mechanism, and do not route it through any \
 other delegation tool.\n"
@@ -567,7 +567,7 @@ fn find_separated_frame(input: &str, from: usize) -> Option<(usize, usize)> {
 /// the prompt verbatim — and one does not. Antigravity's ACP server joins the
 /// prompt's text blocks with a space and replaces each separator with one, so a
 /// routed turn lands in `conversations/<id>.db` as
-/// `…（使用codeg-mcp工具）  {"kind":…delegation tool.\n ` — the same body, both
+/// `…（使用yoyocode-mcp工具）  {"kind":…delegation tool.\n ` — the same body, both
 /// separators now spaces. The separated pass cannot see that, and the whole
 /// frame renders inside the user's bubble when the session is reopened.
 ///
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn a_closed_delegation_gate_is_the_only_check_on_the_parent_agent() {
-        // A parent that never received codeg-mcp (OpenClaw's supports_mcp=false,
+        // A parent that never received yoyocode-mcp (OpenClaw's supports_mcp=false,
         // pi's wire exclusion) reaches this function with the gate closed. There
         // is no agent-type check here on purpose: the injection gate is the
         // single source of truth.
@@ -1081,7 +1081,7 @@ mod tests {
     /// Exactly what Antigravity's ACP server writes into its trajectory: the
     /// prompt's text blocks joined with a space, and each separator replaced by
     /// one. Verified against a real `conversations/<id>.db`, where a routed turn
-    /// reads `…（使用codeg-mcp工具）  {"kind":…delegation tool.\n ` — note the
+    /// reads `…（使用yoyocode-mcp工具）  {"kind":…delegation tool.\n ` — note the
     /// body's own newlines came through, which is why the scan can count them.
     fn as_antigravity_persists(blocks: &[PromptInputBlock]) -> String {
         blocks

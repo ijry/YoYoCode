@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::AgentType;
 
-/// Per-agent defaults applied when codeg-mcp spawns a subagent on behalf of a
+/// Per-agent defaults applied when yoyocode-mcp spawns a subagent on behalf of a
 /// `delegate_to_agent` call. Mirrors the two knobs `ConnectionManager::spawn_agent`
 /// already accepts:
 ///   * `mode_id` → forwarded as `preferred_mode_id`

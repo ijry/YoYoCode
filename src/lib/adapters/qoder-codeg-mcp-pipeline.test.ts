@@ -4,19 +4,19 @@
  * and arrive at the renderer under the canonical name its card dispatches on.
  *
  * `tool-call-normalization.test.ts` pins the identity resolution and
- * `codeg-mcp-tool-card.test.tsx` pins the rendering, but the passes BETWEEN them
- * are where a codeg-mcp call would silently disappear: `dropEmptyInFlightToolCalls`
+ * `yoyocode-mcp-tool-card.test.tsx` pins the rendering, but the passes BETWEEN them
+ * are where a yoyocode-mcp call would silently disappear: `dropEmptyInFlightToolCalls`
  * can delete an arg-less in-flight call, and the timeline folds runs of some
  * kinds into one row — either one and the card never renders no matter how
  * correct the name is. The drop is gated on `isAgentLikeToolName`, so this
  * asserts the whole chain rather than that one predicate.
  *
  * Frames below are the real thing. Captured with a throwaway stdio MCP server
- * named `codeg-mcp` wired into `session/new`, driving one live turn:
+ * named `yoyocode-mcp` wired into `session/new`, driving one live turn:
  *
- *   TOOL_CALL        {"title":"get_delegation_status (codeg-mcp MCP Server)",
+ *   TOOL_CALL        {"title":"get_delegation_status (yoyocode-mcp MCP Server)",
  *                     "kind":"other","status":"pending",
- *                     "_meta":{"qoder":{"toolName":"mcp__codeg-mcp__get_delegation_status"}}}
+ *                     "_meta":{"qoder":{"toolName":"mcp__yoyocode-mcp__get_delegation_status"}}}
  *   TOOL_CALL_UPDATE {"status":"completed"}          ← no `_meta` at all
  *
  * That second frame is why the reducer's `meta: action.meta ?? block.info.meta`
@@ -74,10 +74,10 @@ const QODER_FRAMES: ReadonlyArray<{
 /** Exactly what Qoder's `AOn` puts on the wire for an MCP call. */
 function qoderFrame(tool: string, rawInput: unknown) {
   return {
-    title: `${tool} (codeg-mcp MCP Server)`,
+    title: `${tool} (yoyocode-mcp MCP Server)`,
     kind: "other",
     rawInput: JSON.stringify(rawInput),
-    meta: { qoder: { toolName: `mcp__codeg-mcp__${tool}` } },
+    meta: { qoder: { toolName: `mcp__yoyocode-mcp__${tool}` } },
   }
 }
 
@@ -120,7 +120,7 @@ describe("Qoder live frames reach their card through every adapter pass", () => 
     expect(dropEmptyInFlightToolCalls([part])).toEqual([part])
   })
 
-  it("does not let a run of codeg-mcp calls collapse into one row", () => {
+  it("does not let a run of yoyocode-mcp calls collapse into one row", () => {
     // A real delegation turn is a burst of calls; if they folded, the user
     // would see one tally instead of a row per call.
     const parts: AdaptedContentPart[] = QODER_FRAMES.map(({ tool, rawInput }) =>

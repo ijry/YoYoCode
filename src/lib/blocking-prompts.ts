@@ -9,7 +9,7 @@ import type {
 
 /**
  * What a connection is parked on until the user answers: the three prompts
- * that resolve WITHOUT driving a new turn — a permission request, a codeg-mcp
+ * that resolve WITHOUT driving a new turn — a permission request, a yoyocode-mcp
  * `ask_user_question`, a plan approval. The same three the backend's
  * `blocked_on` reports for a delegated task (Rust `BlockedKind`). The legacy
  * free-text `pendingQuestion` is not one of them: it is answered by sending a

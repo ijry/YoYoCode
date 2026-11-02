@@ -1,10 +1,10 @@
-//! Health report for the codeg-mcp service, and the one action that can fix
+//! Health report for the yoyocode-mcp service, and the one action that can fix
 //! it from the UI.
 //!
-//! "The codeg-mcp service" is really three things stacked, and a session loses
+//! "The yoyocode-mcp service" is really three things stacked, and a session loses
 //! its codeg tools if ANY of them is missing:
 //!
-//!   1. the **companion binary** on disk — `codeg-mcp`, which the agent CLI
+//!   1. the **companion binary** on disk — `yoyocode-mcp`, which the agent CLI
 //!      spawns as a stdio MCP server (see `acp::connection::inject_codeg_mcp`);
 //!   2. the **broker socket** inside this process, which every companion
 //!      round-trips through (see `acp::delegation::service`);
@@ -52,7 +52,7 @@ pub enum CodegMcpServiceState {
     /// The broker socket isn't answering. Companions would launch and fail to
     /// reach codeg. Fixable here — see [`start_codeg_mcp_service_core`].
     Stopped,
-    /// The socket is fine but the `codeg-mcp` binary isn't on disk, so nothing
+    /// The socket is fine but the `yoyocode-mcp` binary isn't on disk, so nothing
     /// gets injected into an agent's MCP config. Needs a reinstall or
     /// `CODEG_MCP_BIN`; there is nothing to start.
     Unavailable,
@@ -104,7 +104,7 @@ pub struct CodegMcpServiceStatus {
     pub listening: bool,
     /// UDS path (unix) or named-pipe name (Windows) the companions dial.
     pub socket_path: String,
-    /// Resolved `codeg-mcp` path, or `None` when the lookup came up empty.
+    /// Resolved `yoyocode-mcp` path, or `None` when the lookup came up empty.
     pub binary_path: Option<String>,
     /// Tool groups and their current switches, in companion `--features` order.
     pub tool_groups: Vec<CodegMcpToolGroup>,
@@ -346,7 +346,7 @@ pub async fn set_codeg_mcp_tool_group_core(
         // position no setting backs.
         other => {
             return Err(AppCommandError::configuration_invalid(format!(
-                "unknown codeg-mcp tool group: {other}"
+                "unknown yoyocode-mcp tool group: {other}"
             )))
         }
     }
@@ -359,7 +359,7 @@ pub async fn set_codeg_mcp_tool_group_core(
 pub async fn start_codeg_mcp_service_core() -> Result<(), AppCommandError> {
     let Some(handle) = service::current() else {
         return Err(AppCommandError::configuration_invalid(
-            "codeg-mcp broker socket is not managed by this process",
+            "yoyocode-mcp broker socket is not managed by this process",
         ));
     };
     handle

@@ -1864,7 +1864,7 @@
     "customAgentSkillsDirLabel": "專屬技能目錄",
     "customAgentSkillsDirHint": "該智慧體自身載入技能的目錄絕對路徑 —— 可與共享目錄並存，也可單獨使用。~ 會展開為主目錄；連結技能時優先放入此目錄。",
     "customAgentMcpLabel": "MCP 支援",
-    "customAgentMcpHint": "工作階段建立時向該智慧體注入 codeg 內建的 codeg-mcp 伴生行程 —— 委派、即時回饋與任務工具都依賴它。若該智慧體不支援 MCP、連線時報錯，請關閉此項；設定會在下次連線時生效。",
+    "customAgentMcpHint": "工作階段建立時向該智慧體注入 codeg 內建的 yoyocode-mcp 伴生行程 —— 委派、即時回饋與任務工具都依賴它。若該智慧體不支援 MCP、連線時報錯，請關閉此項；設定會在下次連線時生效。",
     "customAgentIconNotAnImage": "請選擇圖片檔案。",
     "customAgentIconTooLarge": "圖示需小於 {limit} KB。",
     "customAgentIconReadFailed": "無法讀取該圖片。",
@@ -2481,7 +2481,7 @@
         "showPet": "顯示寵物"
       },
       "mcp": {
-        "title": "codeg-mcp 服務",
+        "title": "yoyocode-mcp 服務",
         "state": {
           "running": "執行中",
           "stopped": "未執行",
@@ -2493,7 +2493,7 @@
           "running": "從這裡啟動的代理可使用 codeg 內建的工具。",
           "stopped": "Broker 通訊端沒有回應，伴生程序連不回 codeg。",
           "disabled": "所有工具群組都已關閉，不會注入伴生程序。",
-          "unavailable": "磁碟上找不到 codeg-mcp 執行檔。",
+          "unavailable": "磁碟上找不到 yoyocode-mcp 執行檔。",
           "unknown": "無法讀取狀態。"
         },
         "socketPath": "位址",

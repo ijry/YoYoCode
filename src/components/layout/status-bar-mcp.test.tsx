@@ -25,7 +25,7 @@ function makeStatus(
     state: "running",
     listening: true,
     socket_path: "/tmp/codeg-delegation-4242.sock",
-    binary_path: "/Applications/codeg.app/Contents/MacOS/codeg-mcp",
+    binary_path: "/Applications/codeg.app/Contents/MacOS/yoyocode-mcp",
     tool_groups: [
       { key: "delegation", enabled: true },
       { key: "feedback", enabled: true },
@@ -116,7 +116,7 @@ describe("StatusBarMcp", () => {
     expect(glyph).toHaveAttribute(
       "title",
       expect.stringContaining(
-        "/Applications/codeg.app/Contents/MacOS/codeg-mcp"
+        "/Applications/codeg.app/Contents/MacOS/yoyocode-mcp"
       )
     )
   })
@@ -291,7 +291,7 @@ describe("StatusBarMcp", () => {
     await openPopover()
 
     expect(
-      screen.getByText("The codeg-mcp binary is not on disk.")
+      screen.getByText("The yoyocode-mcp binary is not on disk.")
     ).toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: /Start service/ })

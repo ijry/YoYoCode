@@ -8875,14 +8875,14 @@ describe("hasPrompted: whether a turn has run on the connection", () => {
       type: "status_changed",
       status: "connected",
     })
-    // What codex-acp sends for a codeg-mcp that could not start, while the
+    // What codex-acp sends for a yoyocode-mcp that could not start, while the
     // conversation still shows its welcome screen. Not a turn.
     emitAcpEvent(handlers, {
       seq: 2,
       connection_id: "spawned-conn",
       type: "tool_call",
-      tool_call_id: "mcp_startup.codeg-mcp.1",
-      title: "mcp__codeg-mcp__startup",
+      tool_call_id: "mcp_startup.yoyocode-mcp.1",
+      title: "mcp__yoyocode-mcp__startup",
       kind: "other",
       status: "failed",
       content: null,

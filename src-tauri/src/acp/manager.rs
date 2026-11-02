@@ -446,7 +446,7 @@ pub struct ConnectionManager {
     /// Delegation broker + token registry + UDS path installed during app
     /// bootstrap (`install_delegation`). When present, `spawn_agent` propagates
     /// the injection to `spawn_agent_connection`, which makes
-    /// `codeg-mcp` appear in the agent's MCP server list during ACP
+    /// `yoyocode-mcp` appear in the agent's MCP server list during ACP
     /// init. `Arc<OnceLock>` so the inner `Self` cloned from `clone_ref` sees
     /// the install too — the lock is set once at startup and never mutated.
     delegation_injection: Arc<std::sync::OnceLock<crate::acp::connection::DelegationInjection>>,
@@ -747,7 +747,7 @@ impl ConnectionManager {
 
     /// A fresh connection for the root of a `yoyo-cli` run, marked as the
     /// run's from the moment it exists — before its agent starts, so the
-    /// codeg-mcp it is given knows the run ([`crate::cli_run::RootSeed`]).
+    /// yoyocode-mcp it is given knows the run ([`crate::cli_run::RootSeed`]).
     #[allow(clippy::too_many_arguments)]
     pub async fn spawn_cli_root(
         &self,
@@ -2740,7 +2740,7 @@ impl ConnectionManager {
     ///
     /// Used by the delegation-settings UI to enumerate the options the user
     /// can override, with the guarantee that what the UI shows is exactly
-    /// what `codeg-mcp` will pass through to `session/set_config_option`
+    /// what `yoyocode-mcp` will pass through to `session/set_config_option`
     /// when a delegation actually fires.
     ///
     /// `preferred_config_values` are applied on the probe session before the

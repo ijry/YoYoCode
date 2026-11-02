@@ -121,7 +121,7 @@ identifier "codeg-server" and anchor apple generic and certificate 1[field.1.2.8
 ```
 
 Once everything is built, the server job's macOS entries import the certificate
-into a temporary keychain and sign `codeg-server`, `codeg-mcp` and `yoyo-cli`.
+into a temporary keychain and sign `codeg-server`, `yoyocode-mcp` and `yoyo-cli`.
 Each is signed under its file name as its identifier, with the hardened runtime,
 a secure timestamp and no entitlements, then checked against that requirement.
 The keychain is deleted before the bundle is archived and the archive is signed

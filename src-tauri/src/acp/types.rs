@@ -1716,7 +1716,7 @@ pub struct AcpAgentInfo {
     pub env: BTreeMap<String, String>,
     /// The RESOLVED `CODEG_ACP_HOST_TOOLS` verdict for this agent — whether the
     /// next launch hands the `fs/*` + `terminal/*` channels (and, with them,
-    /// codeg-mcp's delegation tools) back to the agent.
+    /// yoyocode-mcp's delegation tools) back to the agent.
     ///
     /// Resolved by [`crate::acp::host_tools_policy::HostToolsPolicy::from_env`],
     /// the same function the launch uses, so it accounts for BOTH layers: the

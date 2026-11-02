@@ -120,7 +120,7 @@ function delegateCall(id: string, taskId: string): ContentBlock[] {
     {
       type: "tool_use",
       tool_use_id: id,
-      tool_name: "mcp__codeg-mcp__delegate_to_agent",
+      tool_name: "mcp__yoyocode-mcp__delegate_to_agent",
       input_preview: JSON.stringify({ agent_type: "codex", task: "dig" }),
     },
     {

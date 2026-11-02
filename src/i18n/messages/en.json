@@ -2481,7 +2481,7 @@
         "showPet": "Show pet"
       },
       "mcp": {
-        "title": "codeg-mcp service",
+        "title": "yoyocode-mcp service",
         "state": {
           "running": "Running",
           "stopped": "Not running",
@@ -2493,7 +2493,7 @@
           "running": "Agents launched here can use codeg's own tools.",
           "stopped": "The broker socket is not answering.",
           "disabled": "Every tool group is off — nothing is injected.",
-          "unavailable": "The codeg-mcp binary is not on disk.",
+          "unavailable": "The yoyocode-mcp binary is not on disk.",
           "unknown": "The status could not be read."
         },
         "socketPath": "Address",

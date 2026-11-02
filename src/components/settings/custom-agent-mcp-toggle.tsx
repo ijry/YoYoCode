@@ -3,7 +3,7 @@
 /**
  * MCP declaration card on a custom agent's settings page.
  *
- * codeg injects its built-in codeg-mcp companion into `session/new`'s
+ * codeg injects its built-in yoyocode-mcp companion into `session/new`'s
  * `mcpServers` — that is what backs delegation, live feedback and the task
  * tools. Most ACP agents accept it, but some reject any entry in that field
  * and fail session creation outright, so the agent cannot be connected to at

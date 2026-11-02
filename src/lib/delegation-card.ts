@@ -234,7 +234,7 @@ function findDelegationArgs(
 // opencode code-mode (`execute`) payloads
 //
 // opencode 2.x runs MCP tools through its built-in `execute` tool: the model
-// writes `tools["codeg-mcp"].delegate_to_agent({…})` as JS source packed into
+// writes `tools["yoyocode-mcp"].delegate_to_agent({…})` as JS source packed into
 // a `{code: "…"}` raw input. These helpers recognize such a payload and read
 // the argument values back out of the JS source — the same structural scanner
 // as `acp/lifecycle.rs` (`code_mode_call_span` and friends), so the backend's

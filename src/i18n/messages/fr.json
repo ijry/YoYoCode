@@ -2481,7 +2481,7 @@
         "showPet": "Afficher la mascotte"
       },
       "mcp": {
-        "title": "Service codeg-mcp",
+        "title": "Service yoyocode-mcp",
         "state": {
           "running": "En cours",
           "stopped": "Arrêté",
@@ -2493,7 +2493,7 @@
           "running": "Les agents lancés ici peuvent utiliser les outils de codeg.",
           "stopped": "Le socket du broker ne répond pas.",
           "disabled": "Tous les groupes d'outils sont désactivés.",
-          "unavailable": "Le binaire codeg-mcp est introuvable.",
+          "unavailable": "Le binaire yoyocode-mcp est introuvable.",
           "unknown": "Impossible de lire l'état."
         },
         "socketPath": "Adresse",

@@ -100,8 +100,8 @@ required-features = ["server-bin"]
 # The MCP companion each agent session runs. Built only with `mcp-bin` (and,
 # for the real thing, without the default features).
 [[bin]]
-name = "codeg-mcp"
-path = "src/bin/codeg_mcp.rs"
+name = "yoyocode-mcp"
+path = "src/bin/yoyocode_mcp.rs"
 required-features = ["mcp-bin"]
 
 # The command-line client: a thin HTTP client of a running desktop app or

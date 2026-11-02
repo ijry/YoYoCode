@@ -40,6 +40,7 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | 本 commit | CI 发布流水线接入身份注入 | `.github/workflows/release.yml`（上游文件，上游改动时需手动合并，低频） | 永不 —— fork 发布就需要 | 见下文「CI 发布」 |
 | （品牌 commit） | 品牌 → YoYoCode：logo / 显示名 / README | `public/icon*.svg`、`src-tauri/icons/`、`src/app/favicon.ico`、`README.md`、`docs/readme/`×9 | 永不 —— fork 品牌就是需要 | 赞助段已删；显示名与仓库 slug 统一为 YoYoCode（原 Go 项目让出名字后改名 GoCode）；上游动这些文件时需手动合并 |
 | （CLI/端口 commit） | 命令行改 `yoyo-cli` + Web 端口默认 18080 | `Cargo.toml`、`src/bin/yoyo_cli.rs`、`cli_run/`（shim/command_tool/hello 等）、`bin/codeg_server.rs`、`tauri.conf.json`、`prepare-sidecars.mjs`、`release.yml`、install 脚本、`docs/cli.md`、README×10 | 永不 —— fork 品牌就是需要 | 握手域串 `codeg-cli-hello` 保留（CLI↔运行时协议，两端同版才可改）；DB `source=cli` 与 `CODEG_CLI` env 名不变；上游动这些文件时需手动合并 |
+| （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
 
 ### CI 发布
 

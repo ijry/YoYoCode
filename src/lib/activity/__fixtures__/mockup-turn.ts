@@ -174,7 +174,7 @@ export const MOCKUP_ASSISTANT_TURN: MessageTurn = {
     },
     toolUse(
       "t10",
-      "mcp__codeg-mcp__delegate_to_agent",
+      "mcp__yoyocode-mcp__delegate_to_agent",
       { agent_type: "codex", task: DELEGATION_TASK },
       {
         "codeg.delegation": {
@@ -189,7 +189,7 @@ export const MOCKUP_ASSISTANT_TURN: MessageTurn = {
       "t10",
       JSON.stringify({ task_id: DELEGATION_TASK_ID, status: "started" })
     ),
-    toolUse("t11", "mcp__codeg-mcp__get_delegation_status", {
+    toolUse("t11", "mcp__yoyocode-mcp__get_delegation_status", {
       task_ids: [DELEGATION_TASK_ID],
       wait_ms: 60000,
     }),

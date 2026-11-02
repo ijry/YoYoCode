@@ -123,7 +123,7 @@ function delegation(
   return {
     type: "tool-call",
     toolCallId: props.id ?? "pt-1",
-    toolName: "mcp__codeg-mcp__delegate_to_agent",
+    toolName: "mcp__yoyocode-mcp__delegate_to_agent",
     input: props.input ?? null,
     state: props.state ?? "input-available",
     output: props.output ?? null,
@@ -584,7 +584,7 @@ describe("delegation row: the running acknowledgement", () => {
         {
           type: "tool-call",
           toolCallId: "poll-1",
-          toolName: "mcp__codeg-mcp__get_delegation_status",
+          toolName: "mcp__yoyocode-mcp__get_delegation_status",
           input: JSON.stringify({ task_ids: ["t1"] }),
           state: "output-available",
           output: JSON.stringify({ task_id: "t1", ...report }),
@@ -748,7 +748,7 @@ describe("delegation row: its checks", () => {
     ): AdaptedToolCallPart => ({
       type: "tool-call",
       toolCallId: id,
-      toolName: "mcp__codeg-mcp__get_delegation_status",
+      toolName: "mcp__yoyocode-mcp__get_delegation_status",
       input: JSON.stringify({ task_ids: [TASK], wait_ms: 3000 }),
       output: JSON.stringify({ task_id: TASK, ...report }),
       state: "output-available",

@@ -670,7 +670,7 @@ export const FEEDBACK_SETTINGS_CHANGED_EVENT = "feedback-settings://changed"
 /** Global side-channel announcing a create-from-chat switch move (payload is
  *  `ChatAuthoringSettings`). Load-bearing rather than cosmetic: these two flags
  *  share one record and have two editors — the settings form, which writes the
- *  pair, and the status-bar codeg-mcp popover, which writes one key. Without
+ *  pair, and the status-bar yoyocode-mcp popover, which writes one key. Without
  *  this broadcast an open settings form keeps a stale value for the switch it
  *  did not touch and reverts it on the next save. Mirrors the Rust
  *  `CHAT_AUTHORING_SETTINGS_CHANGED_EVENT`. */
@@ -681,7 +681,7 @@ export const CHAT_AUTHORING_SETTINGS_CHANGED_EVENT =
  *  `BrowserToolsSettings`). The same two-editor problem as
  *  [CHAT_AUTHORING_SETTINGS_CHANGED_EVENT], and for the same reason: the
  *  group and `browser_eval` are two keys of one record, the settings form
- *  writes the pair, and the status-bar codeg-mcp popover — which now carries
+ *  writes the pair, and the status-bar yoyocode-mcp popover — which now carries
  *  both rows — writes one key. Mirrors the Rust
  *  `BROWSER_TOOLS_SETTINGS_CHANGED_EVENT`. */
 export const BROWSER_TOOLS_SETTINGS_CHANGED_EVENT =
@@ -690,7 +690,7 @@ export const BROWSER_TOOLS_SETTINGS_CHANGED_EVENT =
 /** Global side-channel announcing a delegation-settings write (payload is
  *  `DelegationSettings`). Same two-editor problem as
  *  [CHAT_AUTHORING_SETTINGS_CHANGED_EVENT]: the settings form writes all four
- *  keys, the status-bar codeg-mcp popover writes only `enabled`. Mirrors the
+ *  keys, the status-bar yoyocode-mcp popover writes only `enabled`. Mirrors the
  *  Rust `DELEGATION_SETTINGS_CHANGED_EVENT`. */
 export const DELEGATION_SETTINGS_CHANGED_EVENT = "delegation-settings://changed"
 
@@ -3916,7 +3916,7 @@ export interface AcpAgentInfo {
   env: Record<string, string>
   /**
    * The RESOLVED `CODEG_ACP_HOST_TOOLS` verdict: whether the next launch hands
-   * the `fs/*` + `terminal/*` channels — and, with them, codeg-mcp's delegation
+   * the `fs/*` + `terminal/*` channels — and, with them, yoyocode-mcp's delegation
    * tools — back to the agent. Resolved by the same Rust function the launch
    * uses, so it covers BOTH the per-agent `env` above and codeg's own process
    * env; reading `env` here would miss the second.

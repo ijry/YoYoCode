@@ -21,7 +21,7 @@ function poll(
   id: string,
   taskIds: string[],
   reports?: Record<string, unknown>[],
-  toolName = "mcp__codeg-mcp__get_delegation_status"
+  toolName = "mcp__yoyocode-mcp__get_delegation_status"
 ): AdaptedToolCallPart {
   return {
     type: "tool-call",

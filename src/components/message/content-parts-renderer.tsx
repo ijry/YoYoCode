@@ -25,7 +25,7 @@ import { useChatMotion } from "@/hooks/use-chat-motion"
 import { JsonRenderScope } from "@/components/ai-elements/json-render-pre"
 import { ActivityTimeline } from "./activity/activity-timeline"
 import type { ActivityFoot } from "./activity/timeline-foot"
-import { CodegMcpToolCard } from "./codeg-mcp-tool-card"
+import { CodegMcpToolCard } from "./yoyocode-mcp-tool-card"
 import { CodexVisualizeCard } from "./codex-visualize-card"
 import { CollabAgentCard } from "./collab-agent-card"
 import {
@@ -228,7 +228,7 @@ type ToolCallPart = Extract<AdaptedContentPart, { type: "tool-call" }>
 /**
  * The tool calls whose own cards the timeline hosts on its rail: codex-acp's
  * context compaction (tagged by `_meta.contextCompaction`, not by name),
- * codex's live collab sub-agent activity, and codeg-mcp's `resume_delegation`
+ * codex's live collab sub-agent activity, and yoyocode-mcp's `resume_delegation`
  * (the sub-agent that came back, drawn as the delegation card itself, with
  * the generic workbench card for a refused resume, where there is no sub-agent
  * to draw and only the reason is worth reading).

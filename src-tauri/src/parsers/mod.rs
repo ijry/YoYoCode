@@ -392,7 +392,7 @@ pub trait AgentParser {
 ///
 /// Every caller goes through here so the internal `@agent` routing frame is
 /// stripped from every agent's history — not just the one agent whose parser
-/// happens to know about it. `codeg-mcp` is injected into every MCP-capable
+/// happens to know about it. `yoyocode-mcp` is injected into every MCP-capable
 /// agent, so the frame lands in each of their native transcripts; a per-parser
 /// fix would silently miss whichever parser was written next.
 ///

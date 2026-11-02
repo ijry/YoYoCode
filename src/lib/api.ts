@@ -1288,7 +1288,7 @@ export interface CustomAgentInfo {
   versionProbe: string | null
   /**
    * User declaration that the agent accepts MCP servers on the ACP wire —
-   * for a custom agent, codeg's built-in codeg-mcp companion. Off means the
+   * for a custom agent, codeg's built-in yoyocode-mcp companion. Off means the
    * connection is made without it, for agents that fail `session/new` when
    * any server is sent.
    */
@@ -5575,7 +5575,7 @@ export interface DelegationSettings {
   /** Per-parent byte budget (in MB) for the broker's in-memory cache of
    * completed sub-agent result text. `0` = unlimited. */
   completed_cache_max_mb: number
-  /** Optional per-agent overrides applied when codeg-mcp spawns a subagent.
+  /** Optional per-agent overrides applied when yoyocode-mcp spawns a subagent.
    * Keyed by `agent_type`. Missing entries mean "use agent defaults." */
   agent_defaults?: Partial<Record<AgentType, AgentDelegationDefaults>>
 }
@@ -5590,7 +5590,7 @@ export async function setDelegationSettings(
   return getTransport().call("set_delegation_settings", { settings })
 }
 
-// ─── codeg-mcp service status ──────────────────────────────────────────
+// ─── yoyocode-mcp service status ──────────────────────────────────────────
 
 /** Headline verdict from Rust `CodegMcpServiceState`. Ordered by which problem
  * to solve first: only `stopped` is repairable from this process. */
@@ -5617,7 +5617,7 @@ export interface CodegMcpServiceStatus {
   /** Whether the broker socket answered a liveness ping just now. */
   listening: boolean
   socket_path: string
-  /** Resolved `codeg-mcp` path; `null` when the lookup came up empty. */
+  /** Resolved `yoyocode-mcp` path; `null` when the lookup came up empty. */
   binary_path: string | null
   tool_groups: CodegMcpToolGroup[]
   companion_count: number
@@ -5818,7 +5818,7 @@ export async function setChatAuthoringSettings(
 /** Live probe — opens a transient ACP connection to `agent_type`, reads what
  * it advertises (modes / config_options), and tears down. Used by the
  * delegation-settings UI so the option set on screen matches exactly what
- * codeg-mcp will receive when a subagent is spawned for delegation.
+ * yoyocode-mcp will receive when a subagent is spawned for delegation.
  *
  * Does NOT touch chat-side `selectorsCache` or `localStorage` preferences. */
 export async function describeAgentOptions(

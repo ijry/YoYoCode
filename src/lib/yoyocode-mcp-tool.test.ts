@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseCodegMcpToolCall } from "./codeg-mcp-tool"
+import { parseCodegMcpToolCall } from "./yoyocode-mcp-tool"
 
 const progress = (output: string | null, extra = {}) =>
   parseCodegMcpToolCall({

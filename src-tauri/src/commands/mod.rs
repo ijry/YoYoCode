@@ -8,7 +8,7 @@ pub mod backup;
 #[cfg(feature = "tauri-runtime")]
 pub mod browser;
 /// The browser tool group's on/off switch. Unlike `browser` itself this is not
-/// desktop-only: the shared codeg-mcp plumbing reads it in both runtimes.
+/// desktop-only: the shared yoyocode-mcp plumbing reads it in both runtimes.
 pub mod browser_tools;
 pub mod canvas;
 pub mod chat_authoring;
@@ -29,7 +29,7 @@ pub mod commit_message;
 /// app's, and codeg-server's where it is let share the screen it runs on.
 pub mod computer;
 /// The computer-use switches. Like `browser_tools`, compiled in both runtimes:
-/// the shared codeg-mcp plumbing reads them.
+/// the shared yoyocode-mcp plumbing reads them.
 pub mod computer_tools;
 pub mod config_sync;
 pub mod conversation_tags;

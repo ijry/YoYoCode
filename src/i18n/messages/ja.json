@@ -1864,7 +1864,7 @@
     "customAgentSkillsDirLabel": "専用スキルディレクトリ",
     "customAgentSkillsDirHint": "このエージェントがスキルを読み込むディレクトリの絶対パスです。共有ストアと併用も単独利用も可能です。~ はホームディレクトリに展開され、リンクしたスキルはまずここに配置されます。",
     "customAgentMcpLabel": "MCP サポート",
-    "customAgentMcpHint": "セッション開始時に codeg 内蔵の codeg-mcp コンパニオンをこのエージェントへ渡します。委任・リアルタイムフィードバック・タスクツールはこの経路を使います。MCP サーバーを受け付けず接続に失敗するエージェントではオフにしてください。設定は次回の接続から有効になります。",
+    "customAgentMcpHint": "セッション開始時に codeg 内蔵の yoyocode-mcp コンパニオンをこのエージェントへ渡します。委任・リアルタイムフィードバック・タスクツールはこの経路を使います。MCP サーバーを受け付けず接続に失敗するエージェントではオフにしてください。設定は次回の接続から有効になります。",
     "customAgentIconNotAnImage": "画像ファイルを選んでください。",
     "customAgentIconTooLarge": "アイコンは {limit} KB 未満にしてください。",
     "customAgentIconReadFailed": "その画像を読み込めませんでした。",
@@ -2481,7 +2481,7 @@
         "showPet": "ペットを表示"
       },
       "mcp": {
-        "title": "codeg-mcp サービス",
+        "title": "yoyocode-mcp サービス",
         "state": {
           "running": "実行中",
           "stopped": "停止中",
@@ -2493,7 +2493,7 @@
           "running": "ここから起動したエージェントは codeg のツールを使えます。",
           "stopped": "Broker ソケットが応答していません。",
           "disabled": "すべてのツールグループが無効です。",
-          "unavailable": "codeg-mcp の実行ファイルが見つかりません。",
+          "unavailable": "yoyocode-mcp の実行ファイルが見つかりません。",
           "unknown": "状態を読み取れませんでした。"
         },
         "socketPath": "アドレス",

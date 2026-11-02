@@ -1194,7 +1194,7 @@ pub(crate) fn qoder_ask_envelope_from_reply(
 
 /// The answer envelope codeg's question card reads (`parseAskQuestionOutcome`
 /// in `src/lib/ask-question.ts`): the `{answers: [{header, question, selected}],
-/// declined}` shape codeg-mcp's `ask_user_question` records, and the one the
+/// declined}` shape yoyocode-mcp's `ask_user_question` records, and the one the
 /// OpenCode and Grok history parsers rebuild for their own native asks.
 fn qoder_ask_envelope(answered: Vec<(&QoderAskQuestion, Vec<String>)>) -> String {
     let answers: Vec<Value> = answered

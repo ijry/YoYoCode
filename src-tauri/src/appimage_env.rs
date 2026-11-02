@@ -27,7 +27,7 @@
 //! image's libraries, find them only through the `LD_LIBRARY_PATH` they
 //! inherit from codeg. So it is put back for each program codeg starts
 //! instead: [`restore`], [`restore_tokio`] and [`restore_pty`]. The image's
-//! own programs (`codeg-mcp`, `yoyo-cli`, `codeg` as git's credential
+//! own programs (`yoyocode-mcp`, `yoyo-cli`, `codeg` as git's credential
 //! helper) run without it, through a RUNPATH to the image's library directory.
 //!
 //! Programs the Tauri plugins start (the opener's `xdg-open`, deep-link's

@@ -29,7 +29,7 @@ export const CODE_MODE_CALLS_META_KEY = "codeg.codeModeCalls"
 
 /** One call a code-mode script made, as OpenCode reports it. */
 export interface CodeModeCall {
-  /** The catalog path the script called: `probe.echo`, `codeg-mcp.ask_user_question`. */
+  /** The catalog path the script called: `probe.echo`, `yoyocode-mcp.ask_user_question`. */
   tool: string
   status: "running" | "completed" | "error"
   /** The call's arguments as the agent shows them; null when not reported. */

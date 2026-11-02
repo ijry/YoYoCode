@@ -54,7 +54,7 @@ pub enum HostToolsPolicy {
     /// The agent falls back to its own file and shell backends, so its own
     /// OS sandbox and permission rules govern every read, write and command.
     ///
-    /// It also withholds codeg-mcp's `delegation` tool group (see
+    /// It also withholds yoyocode-mcp's `delegation` tool group (see
     /// `inject_codeg_mcp`). `delegate_to_agent` is a third door into the same
     /// room: it has codeg spawn a SECOND agent, in codeg's process tree under
     /// that agent's own policy, and relays its output back — so a sandboxed

@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Inline card for the codeg-mcp *workbench* companion tools — `get_session_info`,
+ * Inline card for the yoyocode-mcp *workbench* companion tools — `get_session_info`,
  * `task_progress`, `task_complete`, `create_automation`, `create_work_task` and
  * `resume_delegation`.
  *
@@ -9,11 +9,11 @@
  * #2122", "进度：tests passing", "任务完成 · 成功"), with a status badge and an
  * inline expansion for the result text — for a work-task report, the whole
  * report plus what the board did with it. Deliberately the same shape and visual
- * language as `DelegationStatusRow` so every codeg-mcp
+ * language as `DelegationStatusRow` so every yoyocode-mcp
  * companion reads as one family in the transcript instead of these five landing
  * on the generic tool shell as a raw `{"message": "…"}` argument dump.
  *
- * Parsing lives in `@/lib/codeg-mcp-tool` — it handles the per-host argument
+ * Parsing lives in `@/lib/yoyocode-mcp-tool` — it handles the per-host argument
  * wrapping and result envelopes, so this component is presentation-only.
  */
 
@@ -38,7 +38,7 @@ import {
   parseCodegMcpToolCall,
   type CodegMcpWorkbenchTool,
   type TaskReportAck,
-} from "@/lib/codeg-mcp-tool"
+} from "@/lib/yoyocode-mcp-tool"
 import type { ToolCallState } from "@/lib/adapters/ai-elements-adapter"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { Shimmer } from "@/components/ai-elements/shimmer"
@@ -244,7 +244,7 @@ export function CodegMcpToolCard({
 
   return (
     <div
-      data-testid="codeg-mcp-tool-card"
+      data-testid="yoyocode-mcp-tool-card"
       data-tool={tool}
       className={cn(
         "text-xs",

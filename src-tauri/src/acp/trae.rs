@@ -28,7 +28,7 @@
 //! * MCP servers live in `traecli.toml` as Codex's `[mcp_servers.<name>]`
 //!   tables, and `traecli acp serve` loads them itself. Servers sent over ACP
 //!   `session/new` are loaded too (both reach the model as `mcp__<server>__*`),
-//!   which is how the codeg-mcp companion gets in.
+//!   which is how the yoyocode-mcp companion gets in.
 //! * Skills are directory bundles (`<id>/SKILL.md`; a flat `<id>.md` is not
 //!   loaded) from `<TRAE_HOME>/skills`, `~/.agents/skills`, and the project's
 //!   `.trae/skills` and `.agents/skills`.

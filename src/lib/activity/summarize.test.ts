@@ -164,7 +164,7 @@ describe("summarizeActivity", () => {
     const summary = summarizeActivity([
       tool("TodoWrite", { todos: [] }),
       tool("wait", { cell_id: "1" }),
-      tool("mcp__codeg-mcp__get_delegation_status", { task_ids: ["t"] }),
+      tool("mcp__yoyocode-mcp__get_delegation_status", { task_ids: ["t"] }),
     ])
     expect(summary.steps).toBe(0)
   })
@@ -184,14 +184,14 @@ describe("summarizeActivity", () => {
     const check = (id: string, status: string): AdaptedToolCallPart => ({
       type: "tool-call",
       toolCallId: id,
-      toolName: "mcp__codeg-mcp__get_delegation_status",
+      toolName: "mcp__yoyocode-mcp__get_delegation_status",
       input: JSON.stringify({ task_ids: [TASK] }),
       state: "output-available",
       output: JSON.stringify({ task_id: TASK, status }),
     })
     const polls = [check("c1", "running"), check("c2", "failed")]
     const delegation = tool(
-      "mcp__codeg-mcp__delegate_to_agent",
+      "mcp__yoyocode-mcp__delegate_to_agent",
       { agent_type: "codex", task: "Run the checks." },
       { output: JSON.stringify({ task_id: TASK, status: "started" }) }
     )
@@ -205,7 +205,7 @@ describe("summarizeActivity", () => {
           status: "succeeded",
         })
       ),
-      tool("mcp__codeg-mcp__get_delegation_status", { task_ids: [TASK] }),
+      tool("mcp__yoyocode-mcp__get_delegation_status", { task_ids: [TASK] }),
     ])
     expect(summary.failed).toBe(1)
     expect(summary.firstUnrecoveredKey).toBe(delegation.key)
