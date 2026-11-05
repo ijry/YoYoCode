@@ -36,6 +36,7 @@ export const AUX_PANEL_TABS = [
   "tasks",
   "issues",
   "pull_requests",
+  "comic",
 ] as const
 
 export type AuxPanelTab = (typeof AUX_PANEL_TABS)[number]

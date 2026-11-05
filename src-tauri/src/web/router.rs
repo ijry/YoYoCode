@@ -470,6 +470,142 @@ pub fn build_router_with_proxy_auth(
             "/canvas_create_node",
             post(handlers::canvas::canvas_create_node),
         )
+        // ─── Comic (漫剧) ───
+        .route(
+            "/comic_get_overview",
+            post(handlers::comic::comic_get_overview),
+        )
+        .route(
+            "/comic_init_project",
+            post(handlers::comic::comic_init_project),
+        )
+        .route(
+            "/comic_ingest_source",
+            post(handlers::comic::comic_ingest_source),
+        )
+        .route(
+            "/comic_read_source",
+            post(handlers::comic::comic_read_source),
+        )
+        .route(
+            "/comic_list_chapters",
+            post(handlers::comic::comic_list_chapters),
+        )
+        .route(
+            "/comic_list_assets",
+            post(handlers::comic::comic_list_assets),
+        )
+        .route("/comic_get_asset", post(handlers::comic::comic_get_asset))
+        .route(
+            "/comic_upsert_series",
+            post(handlers::comic::comic_upsert_series),
+        )
+        .route(
+            "/comic_set_provider",
+            post(handlers::comic::comic_set_provider),
+        )
+        .route(
+            "/comic_upsert_episode",
+            post(handlers::comic::comic_upsert_episode),
+        )
+        .route(
+            "/comic_write_script",
+            post(handlers::comic::comic_write_script),
+        )
+        .route(
+            "/comic_replace_storyboard",
+            post(handlers::comic::comic_replace_storyboard),
+        )
+        .route(
+            "/comic_upsert_shot",
+            post(handlers::comic::comic_upsert_shot),
+        )
+        .route(
+            "/comic_delete_shot",
+            post(handlers::comic::comic_delete_shot),
+        )
+        .route(
+            "/comic_reorder_shots",
+            post(handlers::comic::comic_reorder_shots),
+        )
+        .route(
+            "/comic_upsert_character",
+            post(handlers::comic::comic_upsert_character),
+        )
+        .route(
+            "/comic_upsert_scene",
+            post(handlers::comic::comic_upsert_scene),
+        )
+        .route(
+            "/comic_upsert_prop",
+            post(handlers::comic::comic_upsert_prop),
+        )
+        .route(
+            "/comic_save_asset_image",
+            post(handlers::comic::comic_save_asset_image),
+        )
+        .route("/comic_list_tasks", post(handlers::comic::comic_list_tasks))
+        .route(
+            "/comic_request_speech",
+            post(handlers::comic::comic_request_speech),
+        )
+        .route(
+            "/comic_set_shot_audio",
+            post(handlers::comic::comic_set_shot_audio),
+        )
+        .route(
+            "/comic_request_video",
+            post(handlers::comic::comic_request_video),
+        )
+        .route(
+            "/comic_set_shot_video",
+            post(handlers::comic::comic_set_shot_video),
+        )
+        .route(
+            "/comic_clear_shot_video",
+            post(handlers::comic::comic_clear_shot_video),
+        )
+        .route(
+            "/comic_list_provider_models",
+            post(handlers::comic::comic_list_provider_models),
+        )
+        .route(
+            "/comic_request_video_preview",
+            post(handlers::comic::comic_request_video_preview),
+        )
+        .route(
+            "/comic_compose_episode",
+            post(handlers::comic::comic_compose_episode),
+        )
+        .route(
+            "/comic_check_compose",
+            post(handlers::comic::comic_check_compose),
+        )
+        .route(
+            "/comic_bind_candidate",
+            post(handlers::comic::comic_bind_candidate),
+        )
+        .route("/comic_read_image", post(handlers::comic::comic_read_image))
+        .route(
+            "/list_media_providers",
+            post(handlers::comic::list_media_providers),
+        )
+        .route(
+            "/create_media_provider",
+            post(handlers::comic::create_media_provider),
+        )
+        .route(
+            "/update_media_provider",
+            post(handlers::comic::update_media_provider),
+        )
+        .route(
+            "/delete_media_provider",
+            post(handlers::comic::delete_media_provider),
+        )
+        .route(
+            "/test_media_provider",
+            post(handlers::comic::test_media_provider),
+        )
         .route(
             "/canvas_group_into_region",
             post(handlers::canvas::canvas_group_into_region),
@@ -652,10 +788,7 @@ pub fn build_router_with_proxy_auth(
         .route("/git_pull", post(handlers::git::git_pull))
         .route("/git_push", post(handlers::git::git_push))
         .route("/git_fetch", post(handlers::git::git_fetch))
-        .route(
-            "/git_update_branch",
-            post(handlers::git::git_update_branch),
-        )
+        .route("/git_update_branch", post(handlers::git::git_update_branch))
         .route("/git_commit", post(handlers::git::git_commit))
         .route(
             "/git_generate_commit_message",
@@ -1023,10 +1156,7 @@ pub fn build_router_with_proxy_auth(
             "/acp_set_config_option",
             post(handlers::acp::acp_set_config_option),
         )
-        .route(
-            "/acp_goal_control",
-            post(handlers::acp::acp_goal_control),
-        )
+        .route("/acp_goal_control", post(handlers::acp::acp_goal_control))
         .route(
             "/acp_describe_agent_options",
             post(handlers::acp::acp_describe_agent_options),
@@ -1715,7 +1845,10 @@ pub fn build_router_with_proxy_auth(
             "/automation_list",
             post(handlers::automation::automation_list),
         )
-        .route("/automation_get", post(handlers::automation::automation_get))
+        .route(
+            "/automation_get",
+            post(handlers::automation::automation_get),
+        )
         .route(
             "/automation_runs",
             post(handlers::automation::automation_runs),
@@ -1828,10 +1961,7 @@ pub fn build_router_with_proxy_auth(
             "/forge_list_issues",
             post(handlers::forge::forge_list_issues),
         )
-        .route(
-            "/forge_tab_count",
-            post(handlers::forge::forge_tab_count),
-        )
+        .route("/forge_tab_count", post(handlers::forge::forge_tab_count))
         .route(
             "/forge_list_labels",
             post(handlers::forge::forge_list_labels),
@@ -2097,9 +2227,8 @@ pub fn build_router_with_proxy_auth(
         // happens. See `handlers::forge::forge_webhook`.
         .route(
             "/forge_webhook",
-            post(handlers::forge::forge_webhook).layer(DefaultBodyLimit::max(
-                handlers::forge::WEBHOOK_BODY_LIMIT,
-            )),
+            post(handlers::forge::forge_webhook)
+                .layer(DefaultBodyLimit::max(handlers::forge::WEBHOOK_BODY_LIMIT)),
         )
         .route(
             "/workspace_download/{ticket}",
@@ -2125,6 +2254,14 @@ pub fn build_router_with_proxy_auth(
         .route(
             "/office-watch-proxy/{port}/{*rest}",
             any(handlers::office_watch_proxy::proxy),
+        )
+        // Comic video preview byte serving: self-authenticates via a
+        // short-lived task-scoped grant (`?`-less opaque token in the path),
+        // re-validating the task, folder, and story jail on every request.
+        // Range-bounded so no response can carry a whole 256 MiB clip.
+        .route(
+            "/comic_video_preview/{token}",
+            get(handlers::comic::comic_video_preview),
         );
 
     // Wrap every API request in an `http` span (method, path, request id) so a
@@ -2230,10 +2367,7 @@ pub fn build_router_with_proxy_auth(
 /// of the file's age) and could open the previous release for hours after the
 /// server was upgraded. `no-cache` still lets it keep its copy, revalidated on
 /// every use.
-async fn static_cache_control(
-    req: axum::extract::Request,
-    next: Next,
-) -> axum::response::Response {
+async fn static_cache_control(req: axum::extract::Request, next: Next) -> axum::response::Response {
     let fingerprinted = req.uri().path().starts_with("/_next/static/");
     let mut response = next.run(req).await;
     // An asset that is not there is answered with index.html, which must not

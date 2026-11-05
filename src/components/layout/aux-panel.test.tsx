@@ -5,6 +5,8 @@ import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AuxPanelTab } from "@/lib/aux-panel-tab-order"
+import { useComicStore } from "@/stores/comic-store"
+import type { ComicOverviewPayload } from "@/lib/comic"
 
 // jsdom has no layout, so Motion can never decide that a dragged tab crossed
 // its neighbour. The fake keeps the wiring that matters here — the order the
@@ -89,6 +91,22 @@ vi.mock("./aux-panel-forge-tab", () => ({
   ),
 }))
 
+const comic = vi.hoisted(() => ({
+  overview: vi.fn(),
+  tasks: vi.fn(),
+  openWorkbench: vi.fn(),
+}))
+vi.mock("@/lib/comic", () => ({
+  comicApi: { getOverview: comic.overview, listTasks: comic.tasks },
+}))
+vi.mock("@/lib/transport", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getTransport: () => ({ subscribe: async () => () => {} }),
+}))
+vi.mock("@/contexts/workspace-context", () => ({
+  useWorkspaceActions: () => ({ openComicWorkbench: comic.openWorkbench }),
+}))
+
 const scene = vi.hoisted(() => ({
   isOpen: true,
   initialTab: "session_details" as AuxPanelTab,
@@ -156,10 +174,12 @@ const BUILT_IN = [
   "To-dos",
   "Issues",
   "Pull requests",
+  "Comic overview",
 ]
 
 /** A full custom order, and the same order by name. */
 const REVERSED: AuxPanelTab[] = [
+  "comic",
   "pull_requests",
   "issues",
   "tasks",
@@ -260,6 +280,51 @@ describe("AuxPanel", () => {
     scene.isOpen = false
     const { container } = renderPanel()
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("shows only comic resources and opens their editors in the wide workspace", async () => {
+    scene.initialTab = "comic"
+    const overview: ComicOverviewPayload = {
+      folderId: 1,
+      has_source: true,
+      episodes: [
+        {
+          id: "ep002",
+          title: "Episode two",
+          status: "storyboarded",
+          shots_total: 4,
+          shots_done: 2,
+        },
+      ],
+      characters: [],
+      scenes: [],
+      props: [],
+      providerPool: [],
+    }
+    comic.overview.mockResolvedValue(overview)
+    comic.tasks.mockResolvedValue([])
+    comic.openWorkbench.mockClear()
+    useComicStore.setState({
+      overviews: { 1: overview },
+      errors: {},
+      loading: {},
+      panel: { 1: { kind: "providers" } },
+      wizardOpen: {},
+    })
+    renderPanel()
+    await screen.findByRole("region", { name: "Comic overview" })
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: "Adapt source into episodes",
+      })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Episode two/ }))
+    expect(comic.openWorkbench).toHaveBeenCalledWith(1)
+    expect(useComicStore.getState().panel[1]).toEqual({
+      kind: "storyboard",
+      episodeId: "ep002",
+    })
   })
 
   it("lists every tab on the vertical rail, in the built-in order by default", () => {
@@ -369,6 +434,7 @@ describe("AuxPanel", () => {
         "git_log",
         "changes",
         "pull_requests",
+        "comic",
         "automations",
       ])
     )
@@ -380,6 +446,7 @@ describe("AuxPanel", () => {
       "Commits",
       "Changes",
       "Pull requests",
+      "Comic overview",
       "Automations",
     ])
   })
@@ -396,6 +463,7 @@ describe("AuxPanel", () => {
       "To-dos",
       "Issues",
       "Pull requests",
+      "Comic overview",
       "Changes",
       "Files",
       "Session Details",
@@ -413,6 +481,7 @@ describe("AuxPanel", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
     ]
     const draggedNames = [
       "Changes",
@@ -423,6 +492,7 @@ describe("AuxPanel", () => {
       "To-dos",
       "Issues",
       "Pull requests",
+      "Comic overview",
     ]
 
     // Mid-drag the tabs follow the pointer, but nothing is written yet — other
@@ -474,6 +544,7 @@ describe("AuxPanel", () => {
       "To-dos",
       "Issues",
       "Pull requests",
+      "Comic overview",
     ])
     expect(storedOrder()).toEqual([
       "session_details",
@@ -484,6 +555,7 @@ describe("AuxPanel", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
     ])
     expect(screen.getByRole("tab", { name: "Changes" })).toHaveFocus()
 

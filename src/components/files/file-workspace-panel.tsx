@@ -25,6 +25,7 @@ import {
   type FileWorkspaceTab,
 } from "@/contexts/workspace-context"
 import { BrowserTabView } from "@/components/browser/browser-tab-view"
+import { ComicWorkbenchPanel } from "@/components/comic/comic-workbench-panel"
 import { ImagePreview } from "@/components/files/image-preview"
 import { HtmlPreview } from "@/components/files/html-preview"
 import { MarkdownDocumentPreview } from "@/components/files/markdown-document-preview"
@@ -1700,6 +1701,15 @@ function FileWorkspacePanelBody() {
     // Keyed by tab so switching between two browser tabs remounts the surface
     // host (which hides the old webview and shows the new one).
     return <BrowserTabView key={activeFileTab.id} tab={activeFileTab} />
+  }
+
+  if (activeFileTab.kind === "comic") {
+    return (
+      <ComicWorkbenchPanel
+        key={activeFileTab.id}
+        folderId={activeFileTab.folderId}
+      />
+    )
   }
 
   if (activeFileTab.kind === "rich-diff") {

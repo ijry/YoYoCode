@@ -50,6 +50,7 @@ interface SettingsNavItem {
     | "appearance"
     | "agents"
     | "model_providers"
+    | "media_providers"
     | "mcp"
     | "skills"
     | "skill_packs"
@@ -106,6 +107,11 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   {
     href: "/settings/model-providers",
     labelKey: "model_providers",
+    icon: Server,
+  },
+  {
+    href: "/settings/media-providers",
+    labelKey: "media_providers",
     icon: Server,
   },
   {

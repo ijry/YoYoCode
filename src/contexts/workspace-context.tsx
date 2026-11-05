@@ -127,7 +127,7 @@ function closedBrowserTab(tab: BrowserWorkspaceTab, index: number) {
 export type WorkspacePane = "conversation" | "files"
 
 type FileLikeTabKind = "file" | "diff" | "rich-diff"
-type FileWorkspaceTabKind = FileLikeTabKind | "browser"
+type FileWorkspaceTabKind = FileLikeTabKind | "browser" | "comic"
 type FileSaveState = "idle" | "saving" | "error"
 type LineEnding = "lf" | "crlf" | "mixed" | "none"
 
@@ -207,10 +207,20 @@ export interface BrowserWorkspaceTab extends FileWorkspaceTabBase {
   browser: BrowserTabSeed
 }
 
-// A discriminated union rather than optional fields on one shape: a `file`
-// tab can never carry browser state and a `browser` tab can never be dirty,
-// and the compiler should say so at every switch on `kind`.
-export type FileWorkspaceTab = FileLikeWorkspaceTab | BrowserWorkspaceTab
+/** A project-scoped workbench; resource editors own their content. */
+export interface ComicWorkspaceTab extends FileWorkspaceTabBase {
+  kind: "comic"
+  folderId: number
+  path: null
+  language: "comic"
+  browser?: never
+}
+
+// A discriminated union keeps project/browser surfaces out of file editors.
+export type FileWorkspaceTab =
+  | FileLikeWorkspaceTab
+  | BrowserWorkspaceTab
+  | ComicWorkspaceTab
 
 // The provider value is split across three contexts so high-frequency
 // fileTabs churn (per-keystroke content updates, watcher-driven reloads)
@@ -223,6 +233,7 @@ export interface WorkspaceActionsValue {
   setActivePane: (pane: WorkspacePane) => void
   activateConversationPane: () => void
   activateFilePane: () => void
+  openComicWorkbench: (folderId: number) => void
   switchFileTab: (tabId: string) => void
   closeFileTab: (tabId: string, options?: { allScopes?: boolean }) => void
   closeOtherFileTabs: (tabId: string) => void
@@ -630,6 +641,7 @@ interface WorkspaceProviderProps {
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const t = useTranslations("Folder.workspaceContext")
+  const tComic = useTranslations("Comic")
   const { activeFolder } = useActiveFolder()
   // Reactive: `useOpenFileTabsWatch` re-derives its per-root FS subscriptions
   // when the registered-folder set changes. Low-frequency (open/close folder).
@@ -1066,6 +1078,40 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
     },
     [setActiveFileTabId, activateFilePane]
+  )
+
+  const openComicWorkbench = useCallback(
+    (folderId: number) => {
+      if (!Number.isSafeInteger(folderId) || folderId <= 0) return
+      const folder = useAppWorkspaceStore
+        .getState()
+        .allFolders.find((item) => item.id === folderId)
+      if (!folder || folder.kind === "chat") return
+      const id = buildFileTabId({ kind: "comic", folderId })
+      const scope = openingScope(folderId)
+      if (fileTabsRef.current.some((tab) => tab.id === id)) {
+        activateTab(id, false, scope)
+        return
+      }
+      seedLoadingTab(
+        {
+          id,
+          kind: "comic",
+          folderId,
+          title: `${tComic("title")} · ${folder.name || folder.path}`,
+          description: folder.path,
+          path: null,
+          language: "comic",
+          content: "",
+          loading: false,
+          readonly: true,
+        },
+        false,
+        undefined,
+        scope
+      )
+    },
+    [activateTab, seedLoadingTab, tComic]
   )
 
   const browserTabRecord = useCallback(
@@ -3653,6 +3699,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActivePane,
       activateConversationPane,
       activateFilePane,
+      openComicWorkbench,
       switchFileTab,
       closeFileTab,
       closeOtherFileTabs,
@@ -3687,6 +3734,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActivePane,
       activateConversationPane,
       activateFilePane,
+      openComicWorkbench,
       switchFileTab,
       closeFileTab,
       closeOtherFileTabs,

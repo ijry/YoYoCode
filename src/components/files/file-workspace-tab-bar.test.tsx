@@ -185,6 +185,29 @@ function detectedService(
   }
 }
 
+describe("FileWorkspaceTabBar — comic project surface", () => {
+  it("distinguishes the project workbench from filesystem tabs", () => {
+    mocks.fileTabs = [
+      {
+        id: "comic:7",
+        kind: "comic",
+        folderId: 7,
+        title: "Comic Studio · Project seven",
+        description: "/project-seven",
+        path: null,
+        language: "comic",
+        content: "",
+        loading: false,
+        readonly: true,
+      },
+    ]
+    const { container } = renderStrip()
+    expect(screen.getByText("Comic Studio · Project seven")).toBeInTheDocument()
+    expect(container.querySelector(".lucide-clapperboard")).toBeInTheDocument()
+    expect(container.querySelector(".lucide-file-text")).toBeNull()
+  })
+})
+
 describe("FileWorkspaceTabBar — the add-tab '+'", () => {
   it("opens an empty browser tab", async () => {
     renderStrip()

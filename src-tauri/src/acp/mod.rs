@@ -8,6 +8,9 @@ pub mod binary_cache;
 pub mod browser_tools;
 pub mod chat_authoring;
 pub mod claude_model_picker;
+/// Comic (漫剧) production tool surface: one trait method carrying every
+/// comic tool call from yoyocode-mcp into the story-tree backend.
+pub mod comic_tools;
 pub mod codex_catalog_commit;
 pub mod codex_catalog_refresh;
 pub mod codex_catalog_source;

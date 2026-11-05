@@ -124,6 +124,7 @@ pub enum AppErrorCode {
     NotFound,
     NotAGitRepository,
     AlreadyExists,
+    Conflict,
     PermissionDenied,
     DependencyMissing,
     NetworkError,

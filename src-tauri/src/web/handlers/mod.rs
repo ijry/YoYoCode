@@ -3,6 +3,7 @@ pub mod app_update;
 pub mod assistants;
 pub mod automation;
 pub mod canvas;
+pub mod comic;
 pub mod cli_access;
 pub mod background;
 pub mod backup;

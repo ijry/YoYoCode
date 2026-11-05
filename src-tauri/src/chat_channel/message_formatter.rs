@@ -222,6 +222,7 @@ mod question_request_tests {
             options: options
                 .iter()
                 .map(|l| QuestionOption {
+                    image: None,
                     label: (*l).into(),
                     description: String::new(),
                 })

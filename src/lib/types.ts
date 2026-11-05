@@ -56,6 +56,7 @@ export type AppErrorCode =
   | "not_found"
   | "not_a_git_repository"
   | "already_exists"
+  | "conflict"
   | "permission_denied"
   | "dependency_missing"
   | "network_error"
@@ -1617,6 +1618,9 @@ export interface ToolApprovalInfo {
 export interface QuestionOption {
   label: string
   description: string
+  /** Host-validated comic asset, loaded by the UI without putting bytes in
+   *  the model's context. Paths are relative to this project's story root. */
+  image?: { folder_id: number; path: string } | null
 }
 
 /** A single multiple-choice question (mirror of Rust `QuestionSpec`). `id` is

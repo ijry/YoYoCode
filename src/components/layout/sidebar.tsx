@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import {
+  Clapperboard,
   Crosshair,
   Eye,
   FolderSync,
@@ -30,6 +31,10 @@ import { useTabActions } from "@/contexts/tab-context"
 import { useAutomationsView } from "@/contexts/automations-view-context"
 import { useTasksView } from "@/contexts/tasks-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
+import {
+  useOptionalWorkspaceActions,
+  useWorkspaceFileTabs,
+} from "@/contexts/workspace-context"
 import { useFolderTabsStore } from "@/stores/folder-tabs-store"
 import {
   SidebarConversationList,
@@ -126,6 +131,7 @@ const NAV_ITEM_ICONS: Record<SidebarNavItemId, LucideIcon> = {
   tasks: ListTodo,
   forge: LayoutTemplate,
   canvas: MapIcon,
+  comic: Clapperboard,
 }
 
 /**
@@ -177,6 +183,8 @@ export function Sidebar() {
   const { unseenFailures } = useAutomationsView()
   const { attentionCount } = useTasksView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
+  const workspaceActions = useOptionalWorkspaceActions()
+  const { activeFileTab } = useWorkspaceFileTabs()
   const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
   const { zoomLevel } = useZoomLevel()
@@ -658,6 +666,23 @@ export function Sidebar() {
                 useCanvasBoardsStore.getState().closeBoard()
               }
               setRoute("canvas")
+            }}
+          />
+        )}
+        {isNavItemVisible(navItems, "comic") && (
+          <SidebarNavButton
+            icon={Clapperboard}
+            label={t("comic")}
+            active={
+              routeId === "conversations" &&
+              activeFileTab?.kind === "comic" &&
+              activeFileTab.folderId === activeFolder?.id
+            }
+            onClick={() => {
+              if (!activeFolder || !workspaceActions) return
+              if (isMobile) toggle()
+              openConversations()
+              workspaceActions.openComicWorkbench(activeFolder.id)
             }}
           />
         )}

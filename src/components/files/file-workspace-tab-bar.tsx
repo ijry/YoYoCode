@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Reorder } from "motion/react"
 import {
   Bot,
+  Clapperboard,
   FileText,
   GitCompare,
   Maximize2,
@@ -568,6 +569,8 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
                 className={cn("h-3.5 w-3.5", unloaded && "opacity-50")}
                 data-unloaded={unloaded ? "true" : undefined}
               />
+            ) : tab.kind === "comic" ? (
+              <Clapperboard className="h-3.5 w-3.5" />
             ) : isDiff ? (
               <GitCompare className="h-3.5 w-3.5" />
             ) : (

@@ -10425,10 +10425,12 @@ mod tests {
             multi_select: false,
             options: vec![
                 crate::acp::question::QuestionOption {
+                    image: None,
                     label: "A".into(),
                     description: String::new(),
                 },
                 crate::acp::question::QuestionOption {
+                    image: None,
                     label: "B".into(),
                     description: String::new(),
                 },
