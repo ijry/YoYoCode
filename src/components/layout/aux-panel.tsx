@@ -189,7 +189,11 @@ export function AuxPanel() {
         case "comic":
           return tComic("overviewTitle")
         case "pull_requests":
-          return tForge(forgeProvider === "gitlab" ? "tabMrs" : "tabPrs")
+          return tForge(
+            forgeProvider === "gitlab" || forgeProvider === "cnb"
+              ? "tabMrs"
+              : "tabPrs"
+          )
         default:
           return t(FOLDER_TAB_LABEL_KEY[tab])
       }
