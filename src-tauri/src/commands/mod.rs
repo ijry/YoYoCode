@@ -30,6 +30,7 @@ pub mod commit_message;
 pub mod computer;
 /// The computer-use switches. Like `browser_tools`, compiled in both runtimes:
 /// the shared yoyocode-mcp plumbing reads them.
+pub mod comic;
 pub mod computer_tools;
 pub mod config_sync;
 pub mod conversation_tags;

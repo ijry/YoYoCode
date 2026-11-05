@@ -7884,6 +7884,9 @@ struct CompanionFeatureFlags {
     computer_launch: bool,
     /// `computer_clipboard_read` / `computer_clipboard_write`, the same.
     computer_clipboard: bool,
+    /// The comic (漫剧) production tools, scoped by project type: on when the
+    /// session's working directory is a comic project (`story/` exists).
+    comic: bool,
 }
 
 /// The `--features` value for a companion launch, or `None` when no group is
@@ -7935,6 +7938,9 @@ fn companion_features_arg(flags: CompanionFeatureFlags) -> Option<String> {
     }
     if flags.computer && flags.computer_clipboard {
         features.push("computer_clipboard");
+    }
+    if flags.comic {
+        features.push("comic");
     }
     if features.is_empty() {
         return None;
@@ -8063,6 +8069,13 @@ where
             && injection.computer.is_launch_enabled().await,
         computer_clipboard: injection.computer.is_served()
             && injection.computer.is_clipboard_enabled().await,
+        // Comic (漫剧) tools: scoped by PROJECT TYPE, not a settings toggle —
+        // a session launched inside a comic project (its folder has a
+        // `story/` root) carries the surface; any other session never sees
+        // it. No separate switch: the surface only ever touches this
+        // project's own story tree, and `comic_get_project` is how the LLM
+        // orients at all. The listener backend re-checks the root per call.
+        comic: crate::comic::paths::is_comic_project(working_dir),
     };
     // `None` (no feature enabled) short-circuits BEFORE the binary lookup, the
     // token registration and the server append: there is no companion to launch,
@@ -43223,10 +43236,11 @@ mod tests {
                 computer: true,
                 computer_launch: true,
                 computer_clipboard: true,
+                comic: true,
             }),
             Some(
                 "delegation,feedback,ask,sessions,tasks,result,automations,taskboard,browser,\
-                 browser_eval,computer,computer_launch,computer_clipboard"
+                 browser_eval,computer,computer_launch,computer_clipboard,comic"
                     .to_string()
             )
         );
@@ -48339,6 +48353,7 @@ mod tests {
             options: ["(Recommended) Backend API", "Frontend UI"]
                 .into_iter()
                 .map(|label| crate::acp::question::QuestionOption {
+                    image: None,
                     label: label.into(),
                     description: String::new(),
                 })

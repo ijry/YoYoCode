@@ -227,6 +227,23 @@ pub struct BrokerTaskCompleteRequest {
     pub summary: Option<String>,
 }
 
+/// One comic (漫剧) tool call — the tool name plus its raw arguments.
+/// Backs every `comic_*` MCP tool. A single envelope (rather than a request
+/// struct per tool) keeps the wire stable while the comic surface grows: the
+/// listener validates the token, resolves the session's `working_dir` from
+/// it, and hands the pair to [`crate::acp::comic_tools::ComicAccess`], which
+/// routes by `tool`. The outcome is the serialized
+/// [`crate::acp::comic_tools::ComicOutcome`] — a refusal is a value, never a
+/// transport error.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrokerComicRequest {
+    pub token: String,
+    pub parent_connection_id: String,
+    pub tool: String,
+    #[serde(default)]
+    pub args: Value,
+}
+
 /// The JSON Schema `submit_result` takes, for the companion's `tools/list`.
 /// Answered `{"schema": <schema>}` — `null` when the caller's connection was
 /// asked for no result.
@@ -467,6 +484,9 @@ pub enum BrokerMessage {
     ComputerAct(BrokerComputerActRequest),
     ComputerLaunch(BrokerComputerLaunchRequest),
     ComputerClipboard(BrokerComputerClipboardRequest),
+    /// One comic (漫剧) tool call, routed by `tool` — see
+    /// [`BrokerComicRequest`].
+    Comic(BrokerComicRequest),
     /// Who may be delegated to as an assistant right now, for the
     /// companion's `tools/list` schema roster. Answered
     /// `{"assistants": [AssistantRosterEntry, ...]}` — always answered, an
@@ -732,6 +752,16 @@ pub async fn client_session_round_trip(
     req: &BrokerSessionRequest,
 ) -> io::Result<BrokerResponse> {
     message_round_trip(socket_path, &BrokerMessage::SessionInfo(req.clone())).await
+}
+
+/// Dispatch one comic (漫剧) tool call and read back the serialized
+/// [`crate::acp::comic_tools::ComicOutcome`]. Bounded: comic tools are
+/// resource CRUD and reads capped by the story store — none parks on a human.
+pub async fn client_comic_round_trip(
+    socket_path: &str,
+    req: &BrokerComicRequest,
+) -> io::Result<BrokerResponse> {
+    message_round_trip(socket_path, &BrokerMessage::Comic(req.clone())).await
 }
 
 /// Dispatch a `task_progress` report and read back the `{ recorded }` ack.

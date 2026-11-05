@@ -15,41 +15,41 @@ use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 
-use crate::acp::delegation::broker::{DelegationBroker, StatusWait};
 use crate::acp::browser_tools::{
     BrowserActOutcome, BrowserCaptureOutcome, BrowserConsoleOutcome, BrowserEvalOutcome,
     BrowserSnapshotOutcome, BrowserTabOutcome, BrowserTabsOutcome, BrowserToolAccess,
     ERROR_NO_SUCH_TAB,
 };
+use crate::acp::chat_authoring::{AuthoringContext, AuthoringOutcome, ChatAuthoringAccess};
+use crate::acp::comic_tools::{ComicAccess, ComicOutcome};
 use crate::acp::computer_tools::{
     ComputerActOutcome, ComputerAppsOutcome, ComputerCaptureOutcome, ComputerSnapshotOutcome,
     ComputerToolAccess, ComputerVerifyOutcome, ComputerWindowsOutcome, ERROR_NO_SUCH_TARGET,
 };
+use crate::acp::delegation::assistants::assistant_not_found_message;
+use crate::acp::delegation::broker::{DelegationBroker, StatusWait};
 use crate::acp::delegation::transport::{
     read_frame, write_frame, BrokerAskRequest, BrokerBrowserActRequest,
     BrokerBrowserCaptureRequest, BrokerBrowserConsoleRequest, BrokerBrowserEvalRequest,
     BrokerBrowserSnapshotRequest, BrokerBrowserTabOpRequest, BrokerBrowserTabsRequest,
-    BrokerCancelRequest, BrokerCancelTaskRequest, BrokerComputerActRequest,
-    BrokerComputerAppsRequest, BrokerComputerCaptureRequest, BrokerComputerLaunchRequest,
-    BrokerComputerSnapshotRequest,
-    BrokerComputerVerifyRequest, BrokerComputerWindowsRequest, BrokerCommitFeedbackRequest,
+    BrokerCancelRequest, BrokerCancelTaskRequest, BrokerComicRequest, BrokerCommitFeedbackRequest,
+    BrokerComputerActRequest, BrokerComputerAppsRequest, BrokerComputerCaptureRequest,
+    BrokerComputerLaunchRequest, BrokerComputerSnapshotRequest, BrokerComputerVerifyRequest,
+    BrokerComputerWindowsRequest, BrokerCreateAutomationRequest, BrokerCreateWorkTaskRequest,
     BrokerFeedbackRequest, BrokerListAssistantsRequest, BrokerMessage, BrokerRequest,
-    BrokerCreateAutomationRequest, BrokerCreateWorkTaskRequest, BrokerResponse,
-    BrokerResultSchemaRequest, BrokerResumeTaskRequest, BrokerSessionRequest,
+    BrokerResponse, BrokerResultSchemaRequest, BrokerResumeTaskRequest, BrokerSessionRequest,
     BrokerStatusRequest, BrokerSubmitResultRequest, BrokerTaskCompleteRequest,
     BrokerTaskProgressRequest,
 };
-use crate::acp::delegation::assistants::assistant_not_found_message;
 use crate::acp::delegation::types::{
     delegation_target_from_args, DelegationRequest, DelegationTarget, DelegationTargetError,
     DelegationTaskReport, ResumeDelegationRequest, TaskStatus,
 };
 use crate::acp::feedback::{PendingFeedback, SessionFeedbackAccess};
 use crate::acp::question::{QuestionOutcome, SessionQuestionAccess};
+use crate::acp::result_tool::ResultToolAccess;
 #[cfg(unix)]
 use crate::acp::scratch_dir::{is_inside_sweep_scope, SUN_PATH_CAP};
-use crate::acp::chat_authoring::{AuthoringContext, AuthoringOutcome, ChatAuthoringAccess};
-use crate::acp::result_tool::ResultToolAccess;
 use crate::acp::session_info::{SessionInfo, SessionInfoAccess};
 use crate::acp::work_task_tools::{TaskReportAck, WorkTaskToolAccess};
 use serde_json::Value;
@@ -59,7 +59,6 @@ use serde_json::Value;
 /// keeps running past this; the LLM simply re-issues the wait. An explicit
 /// `wait_ms = 0` opts out of the ceiling and blocks until the task is terminal.
 const STATUS_WAIT_MAX_MS: u64 = 60_000;
-
 
 /// The bound-but-not-yet-served socket handed from [`DelegationListener::bind`]
 /// to [`DelegationListener::accept_loop`]. A UDS listener on unix; on Windows,
@@ -179,6 +178,13 @@ pub struct DelegationListener {
     /// on the root connection of a `yoyo-cli` run given `--output-schema`.
     /// Same token → parent-connection scoping as the delegation arms.
     pub results: Arc<dyn ResultToolAccess>,
+    /// Comic (漫剧) production tools (`comic_get_project`, `comic_set_source`,
+    /// the resource readers/writers). Attached via [`Self::with_comic`] after
+    /// `new` — a listener built without it answers every comic call with the
+    /// uniform not-a-comic-project refusal, exactly like a folder without a
+    /// `story/` root does, so tests and embedders without a comic backend
+    /// need no stub of their own.
+    pub comic: Arc<dyn ComicAccess>,
 }
 
 impl DelegationListener {
@@ -208,6 +214,27 @@ impl DelegationListener {
             browser,
             computer,
             results,
+            comic: Arc::new(crate::acp::comic_tools::NoComicAccess),
+        })
+    }
+
+    /// Attach the comic (漫剧) backend. Optional so existing `new()` call
+    /// sites keep compiling; production install sites chain this once.
+    /// Cheap: every field is an `Arc`, so the rebuild is reference bumps.
+    pub fn with_comic(self: Arc<Self>, comic: Arc<dyn ComicAccess>) -> Arc<Self> {
+        Arc::new(Self {
+            comic,
+            broker: self.broker.clone(),
+            tokens: self.tokens.clone(),
+            parent_lookup: self.parent_lookup.clone(),
+            feedback: self.feedback.clone(),
+            questions: self.questions.clone(),
+            session_info: self.session_info.clone(),
+            tasks: self.tasks.clone(),
+            authoring: self.authoring.clone(),
+            browser: self.browser.clone(),
+            computer: self.computer.clone(),
+            results: self.results.clone(),
         })
     }
 
@@ -352,11 +379,7 @@ impl DelegationListener {
     #[cfg(unix)]
     fn staging_socket_path(socket_path: &Path) -> PathBuf {
         let salt = uuid::Uuid::new_v4().simple().to_string();
-        socket_path.with_file_name(format!(
-            ".stg-{}-{}",
-            std::process::id(),
-            &salt[..8]
-        ))
+        socket_path.with_file_name(format!(".stg-{}-{}", std::process::id(), &salt[..8]))
     }
 
     #[cfg(windows)]
@@ -489,10 +512,7 @@ impl DelegationListener {
                         write_frame(conn, &feedback_response(&[])?).await?;
                     }
                     Some(parent_conn_id) => {
-                        let pending = self
-                            .feedback
-                            .read_pending_feedback(&parent_conn_id)
-                            .await;
+                        let pending = self.feedback.read_pending_feedback(&parent_conn_id).await;
                         // Read-only: the response carries the note ids
                         // (`_commit_ids`); delivery is committed LATER, by the
                         // companion's `CommitFeedback` once it actually returns
@@ -575,6 +595,24 @@ impl DelegationListener {
                 // a long-poll or a human — the bounded parse always completes —
                 // and there is nothing to tear down on cancel.
                 session_response(self.process_session_info(req).await)?
+            }
+            BrokerMessage::Comic(req) => {
+                let cancel = tokio_util::sync::CancellationToken::new();
+                let _guard = cancel.clone().drop_guard();
+                let call = self.process_comic(req, cancel.clone());
+                tokio::pin!(call);
+                let mut probe = [0_u8; 1];
+                tokio::select! {
+                    biased;
+                    _ = conn.read(&mut probe) => {
+                        cancel.cancel();
+                        // The pending card owns a registry entry, not just a
+                        // future. Let the backend remove that entry before exit.
+                        let _ = call.await;
+                        return Ok(());
+                    }
+                    outcome = &mut call => comic_response(outcome)?,
+                }
             }
             BrokerMessage::TaskProgress(req) => {
                 task_ack_response(self.process_task_progress(req).await)?
@@ -914,6 +952,36 @@ impl DelegationListener {
             .await
     }
 
+    /// Validate the token and route one comic (漫剧) tool call.
+    ///
+    /// The token entry's `working_dir` is the project folder the comic tools
+    /// operate on — the session was launched inside it, so the LLM's "this
+    /// project" is exactly that directory. An invalid token gets the same
+    /// not-a-comic-project refusal a comic-less folder gets (a caller that
+    /// cannot prove it is a companion learns nothing about whether any
+    /// project exists); the backend itself re-checks the story root.
+    async fn process_comic(
+        &self,
+        req: BrokerComicRequest,
+        cancel: tokio_util::sync::CancellationToken,
+    ) -> ComicOutcome {
+        let Some(entry) = self.tokens.lookup(&req.token).await else {
+            return ComicOutcome::not_comic_project();
+        };
+        if entry.parent_connection_id != req.parent_connection_id {
+            return ComicOutcome::not_comic_project();
+        }
+        self.comic
+            .call(
+                &entry.parent_connection_id,
+                &entry.working_dir,
+                &req.tool,
+                &req.args,
+                cancel,
+            )
+            .await
+    }
+
     /// Validate the token and list the browser tabs an agent may know about.
     ///
     /// An invalid token gets the same answer a runtime with no browser gets:
@@ -1074,7 +1142,9 @@ impl DelegationListener {
                 crate::acp::computer_tools::no_such_target_note(&req.target_id),
             );
         }
-        self.computer.capture(&req.target_id, req.max_dimension).await
+        self.computer
+            .capture(&req.target_id, req.max_dimension)
+            .await
     }
 
     async fn process_computer_snapshot(
@@ -1395,6 +1465,16 @@ fn session_response(info: SessionInfo) -> std::io::Result<BrokerResponse> {
     })
 }
 
+/// Serialize a [`ComicOutcome`] into a [`BrokerResponse`] for the `Comic`
+/// arm — the companion renders it into the comic tool result.
+fn comic_response(outcome: ComicOutcome) -> std::io::Result<BrokerResponse> {
+    Ok(BrokerResponse {
+        outcome: serde_json::to_value(&outcome).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}"))
+        })?,
+    })
+}
+
 /// Serialize a [`BrowserTabsOutcome`] into a [`BrokerResponse`] for the
 /// `BrowserTabs` arm — the companion renders it into the `browser_list_tabs`
 /// tool result.
@@ -1409,9 +1489,7 @@ fn browser_tabs_response(outcome: BrowserTabsOutcome) -> std::io::Result<BrokerR
 /// Serialize a [`BrowserSnapshotOutcome`] into a [`BrokerResponse`] for the
 /// `BrowserSnapshot` arm — the companion renders it into the `browser_snapshot`
 /// tool result.
-fn browser_snapshot_response(
-    outcome: BrowserSnapshotOutcome,
-) -> std::io::Result<BrokerResponse> {
+fn browser_snapshot_response(outcome: BrowserSnapshotOutcome) -> std::io::Result<BrokerResponse> {
     Ok(BrokerResponse {
         outcome: serde_json::to_value(&outcome).map_err(|e| {
             std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}"))
@@ -1754,16 +1832,16 @@ pub fn default_socket_path(_temp_dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
-    use crate::acp::scratch_dir::short_root;
+    use crate::acp::browser_tools::{NoBrowserTabs, ERROR_GRANT_REQUIRED};
+    use crate::acp::computer_tools::NoComputerDesktop;
     use crate::acp::delegation::broker::{ConversationDepthLookup, DelegationConfig};
-    use crate::models::AgentType;
     use crate::acp::delegation::spawner::{
         mock::MockSpawner, ConnectionSpawner, ResumedSpawn, SpawnerError,
     };
-    use crate::acp::browser_tools::{NoBrowserTabs, ERROR_GRANT_REQUIRED};
-    use crate::acp::computer_tools::NoComputerDesktop;
     use crate::acp::delegation::types::{DelegationError, DelegationOutcome, DelegationSuccess};
+    #[cfg(unix)]
+    use crate::acp::scratch_dir::short_root;
+    use crate::models::AgentType;
     use serde_json::json;
     use std::time::Duration;
     use tokio::io::duplex;
@@ -1797,10 +1875,7 @@ mod tests {
     }
     #[async_trait]
     impl SessionFeedbackAccess for StubFeedback {
-        async fn read_pending_feedback(
-            &self,
-            parent_connection_id: &str,
-        ) -> Vec<PendingFeedback> {
+        async fn read_pending_feedback(&self, parent_connection_id: &str) -> Vec<PendingFeedback> {
             *self.read_conn.lock().await = Some(parent_connection_id.to_string());
             self.items.lock().await.clone()
         }
@@ -1820,9 +1895,7 @@ mod tests {
     #[derive(Default)]
     struct StubQuestion {
         pending: tokio::sync::Mutex<HashMap<String, oneshot::Sender<QuestionOutcome>>>,
-        registered: tokio::sync::Mutex<
-            Vec<(String, Vec<crate::acp::question::QuestionSpec>)>,
-        >,
+        registered: tokio::sync::Mutex<Vec<(String, Vec<crate::acp::question::QuestionSpec>)>>,
         canceled: tokio::sync::Mutex<Vec<String>>,
     }
     #[async_trait]
@@ -1907,11 +1980,7 @@ mod tests {
                 note: None,
             }
         }
-        async fn snapshot(
-            &self,
-            tab_id: &str,
-            max_chars: Option<usize>,
-        ) -> BrowserSnapshotOutcome {
+        async fn snapshot(&self, tab_id: &str, max_chars: Option<usize>) -> BrowserSnapshotOutcome {
             self.calls
                 .lock()
                 .await
@@ -1965,10 +2034,7 @@ mod tests {
             ));
             BrowserActOutcome::control_required(tab_id)
         }
-        async fn tab_op(
-            &self,
-            op: crate::acp::browser_tools::BrowserTabOp,
-        ) -> BrowserTabOutcome {
+        async fn tab_op(&self, op: crate::acp::browser_tools::BrowserTabOp) -> BrowserTabOutcome {
             self.calls
                 .lock()
                 .await
@@ -2797,7 +2863,8 @@ mod tests {
         }
 
         let mock = Arc::new(MockSpawner::new());
-        mock.queue_resume_spawn(Ok(ResumedSpawn::fresh("child-conn-2"))).await;
+        mock.queue_resume_spawn(Ok(ResumedSpawn::fresh("child-conn-2")))
+            .await;
         mock.queue_resume_send(Ok(())).await;
         let broker = Arc::new(
             DelegationBroker::new(
@@ -3046,7 +3113,10 @@ mod tests {
         let commit_ids = resp.outcome["_commit_ids"].as_array().unwrap();
         assert_eq!(commit_ids, &vec!["f1", "f2"]);
         // Read was scoped to the token's parent connection id.
-        assert_eq!(feedback.read_conn.lock().await.as_deref(), Some("parent-conn"));
+        assert_eq!(
+            feedback.read_conn.lock().await.as_deref(),
+            Some("parent-conn")
+        );
         // The Feedback arm is READ-ONLY — it does NOT commit (delivery is
         // committed later, by the companion's CommitFeedback).
         assert!(feedback.committed.lock().await.is_empty());
@@ -3386,10 +3456,12 @@ mod tests {
                 multi_select: false,
                 options: vec![
                     crate::acp::question::QuestionOption {
+                        image: None,
                         label: "Incremental".into(),
                         description: String::new(),
                     },
                     crate::acp::question::QuestionOption {
+                        image: None,
                         label: "Rewrite".into(),
                         description: String::new(),
                     },
@@ -3490,7 +3562,10 @@ mod tests {
             .await
             .expect("serve_one must return after peer close");
         result.unwrap().unwrap();
-        assert_eq!(questions.canceled.lock().await.as_slice(), &["q-1".to_string()]);
+        assert_eq!(
+            questions.canceled.lock().await.as_slice(),
+            &["q-1".to_string()]
+        );
     }
 
     /// An invalid token never registers a question and returns a `declined`
@@ -3498,7 +3573,8 @@ mod tests {
     #[tokio::test]
     async fn ask_invalid_token_declined() {
         let questions = Arc::new(StubQuestion::default());
-        let listener = make_question_listener(Arc::new(TokenRegistry::default()), questions.clone());
+        let listener =
+            make_question_listener(Arc::new(TokenRegistry::default()), questions.clone());
         let (mut client, mut server) = duplex(8 * 1024);
         let server_task = tokio::spawn(async move {
             listener.serve_one(&mut server).await.unwrap();
@@ -3549,7 +3625,9 @@ mod tests {
 
         let listed = browser_round_trip(
             listener.clone(),
-            BrokerMessage::BrowserTabs(BrokerBrowserTabsRequest { token: "tok".into() }),
+            BrokerMessage::BrowserTabs(BrokerBrowserTabsRequest {
+                token: "tok".into(),
+            }),
         )
         .await;
         assert_eq!(listed.outcome["tabs"][0]["tabId"], "t1");
@@ -3704,7 +3782,10 @@ mod tests {
             },
         );
         let response = browser_capture_response(huge).unwrap();
-        assert_eq!(response.outcome["error"], crate::acp::browser_tools::ERROR_READ_FAILED);
+        assert_eq!(
+            response.outcome["error"],
+            crate::acp::browser_tools::ERROR_READ_FAILED
+        );
         assert_eq!(response.outcome["tabId"], "t1");
         assert!(response.outcome.get("capture").is_none());
         assert!(serde_json::to_vec(&response.outcome).unwrap().len() < 4096);
@@ -3726,7 +3807,10 @@ mod tests {
                 clipped: false,
             },
         );
-        assert_eq!(browser_capture_response(small).unwrap().outcome["capture"]["data"], "AAAA");
+        assert_eq!(
+            browser_capture_response(small).unwrap().outcome["capture"]["data"],
+            "AAAA"
+        );
     }
 
     /// A caller who cannot prove it is a companion is told the same thing a
@@ -3957,7 +4041,9 @@ mod tests {
             fits_sun_path(&socket),
             "the real path must fit, or this tests the wrong check"
         );
-        assert!(!fits_sun_path(&DelegationListener::staging_socket_path(&socket)));
+        assert!(!fits_sun_path(&DelegationListener::staging_socket_path(
+            &socket
+        )));
 
         let err = DelegationListener::bind(&socket).await.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
@@ -4313,7 +4399,9 @@ mod tests {
                 mock as Arc<dyn ConnectionSpawner>,
                 Arc::new(AlwaysRootLookup) as Arc<dyn ConversationDepthLookup>,
             )
-            .with_assistants(Arc::new(StubAssistants(vec![assistant_info(3, "Reviewer")]))),
+            .with_assistants(Arc::new(StubAssistants(vec![assistant_info(
+                3, "Reviewer",
+            )]))),
         );
         broker
             .set_config(DelegationConfig {
@@ -4375,7 +4463,10 @@ mod tests {
         let spawn = mock.spawn_args.lock().await[0].clone();
         assert_eq!(spawn.agent_type, AgentType::Codex);
         assert_eq!(
-            spawn.preferred_config_values.get("model").map(String::as_str),
+            spawn
+                .preferred_config_values
+                .get("model")
+                .map(String::as_str),
             Some("gpt-5.5")
         );
         let send = mock.send_args.lock().await[0].clone();
@@ -4386,7 +4477,11 @@ mod tests {
     async fn an_unusable_assistant_is_refused_with_the_usable_roster() {
         let mock = Arc::new(MockSpawner::new());
         let (listener, _tokens) = assistant_listener(mock.clone()).await;
-        let refusal = serve(listener.clone(), call(json!({"assistant_id": 9, "task": "x"}))).await;
+        let refusal = serve(
+            listener.clone(),
+            call(json!({"assistant_id": 9, "task": "x"})),
+        )
+        .await;
         assert_eq!(refusal["status"], "failed");
         assert_eq!(refusal["error_code"], "assistant_not_found");
         let message = refusal["message"].as_str().unwrap();
@@ -4402,11 +4497,17 @@ mod tests {
         )
         .await;
         assert_eq!(refusal["error_code"], "assistant_not_found");
-        assert!(mock.spawn_args.lock().await.is_empty(), "nothing was spawned");
+        assert!(
+            mock.spawn_args.lock().await.is_empty(),
+            "nothing was spawned"
+        );
 
         let missing = serve(listener, call(json!({"task": "x"}))).await;
         assert_eq!(missing["error_code"], "invalid_agent_type");
-        assert!(missing["message"].as_str().unwrap().contains("assistant_id"));
+        assert!(missing["message"]
+            .as_str()
+            .unwrap()
+            .contains("assistant_id"));
     }
 
     #[tokio::test]

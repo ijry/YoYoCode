@@ -545,10 +545,12 @@ async fn end_to_end_uds_ask_question_round_trip() {
                 multi_select: false,
                 options: vec![
                     QuestionOption {
+                        image: None,
                         label: "A".into(),
                         description: String::new(),
                     },
                     QuestionOption {
+                        image: None,
                         label: "B".into(),
                         description: String::new(),
                     },
@@ -688,10 +690,12 @@ async fn end_to_end_uds_ask_revoked_after_register_declines() {
             multi_select: false,
             options: vec![
                 QuestionOption {
+                    image: None,
                     label: "A".into(),
                     description: String::new(),
                 },
                 QuestionOption {
+                    image: None,
                     label: "B".into(),
                     description: String::new(),
                 },

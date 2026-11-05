@@ -179,6 +179,23 @@ describe("FileWorkspaceHeader", () => {
     expect(screen.queryByText("Example")).toBeNull()
   })
 
+  it("self-hides for the project workbench instead of showing file controls", () => {
+    mocks.activeFileTab = {
+      id: "comic:1",
+      kind: "comic",
+      folderId: 1,
+      title: "Comic Studio · repo",
+      description: "/repo",
+      path: null,
+      language: "comic",
+      content: "",
+      loading: false,
+      readonly: true,
+    } as FileWorkspaceTab
+    const { container } = renderHeader()
+    expect(container.firstChild).toBeNull()
+  })
+
   it("renders nothing with no active tab", () => {
     const { container } = renderHeader()
     expect(container.firstChild).toBeNull()

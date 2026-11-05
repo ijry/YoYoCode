@@ -103,7 +103,12 @@ export function FileWorkspaceHeader() {
   // did not — the page title is already on the tab (in full on hover), and
   // the address bar names the page better than a repeated title. None of the
   // actions below apply to a browser tab either; they are all `kind: "file"`.
-  if (!activeFileTab || activeFileTab.kind === "browser") return null
+  if (
+    !activeFileTab ||
+    activeFileTab.kind === "browser" ||
+    activeFileTab.kind === "comic"
+  )
+    return null
 
   const displayTitle = activeFileTab.title
 

@@ -5313,6 +5313,142 @@ function FolderTabsProbe() {
   )
 }
 
+describe("Comic project workspace tabs", () => {
+  beforeEach(() => {
+    resetTabStore()
+    resetClosedTabStackForTests()
+    seedConversationTabs([seededConversationTab])
+    useTabStore.setState({ activeTabId: seededConversationTab.id })
+    vi.mocked(api.readFileForEdit).mockClear()
+    vi.mocked(api.saveFileContent).mockClear()
+    render(
+      <WorkspaceProvider>
+        <FolderTabsProbe />
+      </WorkspaceProvider>
+    )
+    expect(scopedWorkspace.openComicWorkbench).toBeTypeOf("function")
+  })
+
+  it("opens a project tab beside the unchanged current conversation without file IO", () => {
+    const conversation = useTabStore.getState()
+    act(() => scopedWorkspace.openComicWorkbench(1))
+
+    expect(scopedWorkspace.mode).toBe("fusion")
+    expect(scopedWorkspace.activePane).toBe("files")
+    expect(scopedWorkspace.activeFileTab).toMatchObject({
+      kind: "comic",
+      folderId: 1,
+      path: null,
+      content: "",
+      loading: false,
+      readonly: true,
+    })
+    expect(useTabStore.getState().activeTabId).toBe(conversation.activeTabId)
+    expect(useTabStore.getState().tabs).toEqual(conversation.tabs)
+    expect(api.readFileForEdit).not.toHaveBeenCalled()
+    expect(api.saveFileContent).not.toHaveBeenCalled()
+  })
+
+  it("focuses the same project tab instead of duplicating it", () => {
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    const first = scopedWorkspace.activeFileTabId
+    act(() => scopedWorkspace.openSessionFileDiff("a.ts", "diff", "A"))
+    act(() => {
+      scopedWorkspace.openComicWorkbench(1)
+      scopedWorkspace.openComicWorkbench(1)
+    })
+    expect(scopedWorkspace.activeFileTabId).toBe(first)
+    expect(
+      scopedWorkspace.fileTabs.filter((tab) => tab.kind === "comic")
+    ).toHaveLength(1)
+  })
+
+  it("retains distinct captured project tabs when the current project changes", () => {
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    const first = scopedWorkspace.activeFileTabId!
+    act(() => foldersMock.setActiveFolderId(2))
+    expect(scopedWorkspace.activeFileTab?.folderId).toBe(1)
+    act(() => scopedWorkspace.openComicWorkbench(2))
+    expect(scopedWorkspace.activeFileTab?.folderId).toBe(2)
+    act(() => scopedWorkspace.switchFileTab(first))
+    expect(scopedWorkspace.activeFileTab?.folderId).toBe(1)
+    expect(scopedWorkspace.fileTabs).toHaveLength(2)
+  })
+
+  it("returns to the conversation when the last project tab closes without a file prompt", () => {
+    const confirm = vi.spyOn(window, "confirm")
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    act(() => scopedWorkspace.closeFileTab(scopedWorkspace.activeFileTabId!))
+    expect(scopedWorkspace.mode).toBe("conversation")
+    expect(scopedWorkspace.activePane).toBe("conversation")
+    expect(scopedWorkspace.fileTabs).toEqual([])
+    expect(confirm).not.toHaveBeenCalled()
+    expect(peekClosedTab()).toBeNull()
+    confirm.mockRestore()
+  })
+
+  it("keeps a dirty editor draft unsaved when opening or refocusing the workbench", async () => {
+    vi.mocked(api.readFileForEdit).mockResolvedValue({
+      path: "a.ts",
+      content: "disk",
+      etag: "e1",
+      mtime_ms: 1,
+      readonly: false,
+      line_ending: "lf",
+    })
+    vi.mocked(api.gitIsTracked).mockResolvedValue(false)
+    await act(async () => {
+      await scopedWorkspace.openFilePreview("/repo/a.ts")
+    })
+    const fileId = scopedWorkspace.activeFileTabId!
+    act(() => scopedWorkspace.updateActiveFileContent("unsaved draft"))
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    act(() => scopedWorkspace.switchFileTab(fileId))
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    expect(
+      scopedWorkspace.fileTabs.find((tab) => tab.id === fileId)
+    ).toMatchObject({ content: "unsaved draft", isDirty: true })
+    expect(api.saveFileContent).not.toHaveBeenCalled()
+  })
+
+  it("respects follow-folder scopes without an off-scope opener stealing the conversation", () => {
+    act(() => {
+      useAppWorkspaceStore.setState({ activeFolderId: 1 })
+      useFolderTabsStore.getState().setEnabled(true)
+      useFolderTabsStore.getState().activateScope(1)
+      scopedWorkspace.openComicWorkbench(1)
+    })
+    const first = scopedWorkspace.activeFileTabId
+    act(() => useFolderTabsStore.getState().activateScope(2))
+    expect(scopedWorkspace.fileTabs).toEqual([])
+    act(() => scopedWorkspace.openComicWorkbench(2))
+    const second = scopedWorkspace.activeFileTabId
+    const conversation = useTabStore.getState().activeTabId
+    act(() => {
+      scopedWorkspace.activateConversationPane()
+      scopedWorkspace.openComicWorkbench(1)
+    })
+    expect(useFolderTabsStore.getState().scope).toBe(2)
+    expect(useTabStore.getState().activeTabId).toBe(conversation)
+    expect(scopedWorkspace.activePane).toBe("conversation")
+    expect(scopedWorkspace.activeFileTabId).toBe(second)
+    act(() => useFolderTabsStore.getState().activateScope(1))
+    expect(scopedWorkspace.activeFileTabId).toBe(first)
+    expect(scopedWorkspace.activeFileTab?.folderId).toBe(1)
+    act(() => useFolderTabsStore.getState().activateScope(2))
+    expect(scopedWorkspace.activeFileTabId).toBe(second)
+  })
+
+  it("releases a conversation-only maximize when opening the wide project tab", () => {
+    act(() => scopedWorkspace.openSessionFileDiff("a.ts", "diff", "A"))
+    act(() => scopedWorkspace.toggleConversationMaximized())
+    expect(scopedWorkspace.conversationMaximized).toBe(true)
+    act(() => scopedWorkspace.openComicWorkbench(1))
+    expect(scopedWorkspace.conversationMaximized).toBe(false)
+    expect(scopedWorkspace.activePane).toBe("files")
+  })
+})
+
 it("retains mobile conversation identity, connection and runtime through A(files) → B → A → B", async () => {
   resetConversationRuntimeStore()
   vi.mocked(api.acpGetAgentStatus).mockResolvedValue({

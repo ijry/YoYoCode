@@ -43,6 +43,7 @@ export type FileTabIdParts =
   // `<opener-uuid>-p<n>` for a popup adopted from another tab); it never
   // contains ":" so it needs no encoding, but goes through the encoder anyway.
   | { kind: "browser"; id: string }
+  | { kind: "comic"; folderId: number }
 
 export type FileTabIdKind = FileTabIdParts["kind"]
 
@@ -93,6 +94,8 @@ export function buildFileTabId(parts: FileTabIdParts): string {
       return `diff:external-conflict:${encodeToken(parts.path)}`
     case "browser":
       return `browser:${encodeToken(parts.id)}`
+    case "comic":
+      return `comic:${parts.folderId}`
   }
 }
 
@@ -121,6 +124,12 @@ export function parseFileTabId(id: string): FileTabIdParts | null {
   if (head === "browser") {
     if (segments.length !== 2 || segments[1] === "") return null
     return { kind: "browser", id: decodeToken(segments[1]) }
+  }
+
+  if (head === "comic") {
+    if (segments.length !== 2) return null
+    const folderId = parseFolderIdSegment(segments[1])
+    return folderId == null ? null : { kind: "comic", folderId }
   }
 
   if (head !== "diff") return null

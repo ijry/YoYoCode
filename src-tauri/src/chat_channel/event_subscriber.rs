@@ -637,10 +637,12 @@ mod permission_push_tests {
                     multi_select: false,
                     options: vec![
                         QuestionOption {
+                            image: None,
                             label: "MVP first".into(),
                             description: String::new(),
                         },
                         QuestionOption {
+                            image: None,
                             label: "Risk first".into(),
                             description: String::new(),
                         },

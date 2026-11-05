@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   CircleDot,
+  Clapperboard,
   Folder,
   FolderPen,
   GitCommit,
@@ -39,6 +40,7 @@ import { GitLogTab } from "./aux-panel-git-log-tab"
 import { AutomationsAuxTab } from "./aux-panel-automations-tab"
 import { TasksAuxTab } from "./aux-panel-tasks-tab"
 import { ForgeAuxTab } from "./aux-panel-forge-tab"
+import { ComicAuxTab } from "./aux-panel-comic-tab"
 
 const LAZY_TABS: AuxPanelTab[] = [
   "file_tree",
@@ -48,6 +50,7 @@ const LAZY_TABS: AuxPanelTab[] = [
   "tasks",
   "issues",
   "pull_requests",
+  "comic",
 ]
 
 // Icon for every aux tab. The desktop rail and the mobile tab row both map the
@@ -65,6 +68,7 @@ const TAB_ICONS: Record<AuxPanelTab, LucideIcon> = {
   tasks: ListTodo,
   issues: CircleDot,
   pull_requests: GitPullRequestArrow,
+  comic: Clapperboard,
 }
 // The three folder-content tabs share one label namespace (Folder.auxPanel.tabs);
 // session details resolves from its own (Folder.sessionDetails.menuLabel), and
@@ -110,6 +114,7 @@ export function AuxPanel() {
   const tAutomations = useTranslations("Automations")
   const tTasks = useTranslations("Tasks")
   const tForge = useTranslations("Forge")
+  const tComic = useTranslations("Comic")
   const { isOpen, activeTab, setActiveTab, setOpen } = useAuxPanelContext()
   const { activeFolderId } = useActiveFolder()
   const isChatMode = useIsActiveChatMode()
@@ -181,13 +186,15 @@ export function AuxPanel() {
           return tTasks("title")
         case "issues":
           return tForge("tabIssues")
+        case "comic":
+          return tComic("overviewTitle")
         case "pull_requests":
           return tForge(forgeProvider === "gitlab" ? "tabMrs" : "tabPrs")
         default:
           return t(FOLDER_TAB_LABEL_KEY[tab])
       }
     },
-    [t, tDetails, tAutomations, tTasks, tForge, forgeProvider]
+    [t, tDetails, tAutomations, tTasks, tForge, tComic, forgeProvider]
   )
 
   const shownTabs = showFolderTabs ? tabOrder : SESSION_DETAILS_ONLY
@@ -237,6 +244,13 @@ export function AuxPanel() {
         className="mt-0 flex-1 min-h-0 overflow-hidden"
       >
         {mountedTabs.has("tasks") ? <TasksAuxTab /> : null}
+      </TabsContent>
+      <TabsContent
+        value="comic"
+        forceMount
+        className="mt-0 flex-1 min-h-0 overflow-hidden"
+      >
+        {mountedTabs.has("comic") && showFolderTabs ? <ComicAuxTab /> : null}
       </TabsContent>
       <TabsContent
         value="issues"

@@ -33,6 +33,8 @@ const spies = vi.hoisted(() => ({
   openChatModeTab: vi.fn(),
   setRoute: vi.fn(),
   openConversations: vi.fn(),
+  openAuxTab: vi.fn(),
+  openComicWorkbench: vi.fn(),
   // The list's imperative handle, driven by the header buttons.
   scrollToActive: vi.fn(),
   expandAll: vi.fn(),
@@ -111,6 +113,19 @@ vi.mock("@/contexts/tasks-view-context", () => ({
     refetch: async () => {},
   }),
 }))
+vi.mock("@/contexts/aux-panel-context", () => ({
+  useAuxPanelContext: () => ({
+    openTab: spies.openAuxTab,
+    isOpen: false,
+    activeTab: "session_details",
+  }),
+}))
+vi.mock("@/contexts/workspace-context", () => ({
+  useOptionalWorkspaceActions: () => ({
+    openComicWorkbench: spies.openComicWorkbench,
+  }),
+  useWorkspaceFileTabs: () => ({ activeFileTab: null }),
+}))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({
     routeId: "conversations",
@@ -166,6 +181,18 @@ describe("Sidebar — fixed nav region", () => {
     spies.setRoute.mockClear()
     spies.openConversations.mockClear()
     mockState.activeFolder = { id: 7, path: "/x" }
+  })
+
+  it("Comic Studio opens the wide project tab instead of the narrow auxiliary pane", () => {
+    spies.openAuxTab.mockClear()
+    spies.openComicWorkbench.mockClear()
+    renderSidebar()
+    fireEvent.click(screen.getByRole("button", { name: "Comic Studio" }))
+    expect(spies.openComicWorkbench).toHaveBeenCalledWith(7)
+    expect(spies.openAuxTab).not.toHaveBeenCalled()
+    expect(spies.openConversations).toHaveBeenCalled()
+    expect(spies.setRoute).not.toHaveBeenCalled()
+    expect(spies.openNewConversationTab).not.toHaveBeenCalled()
   })
 
   it("Automations navigates to the automations route", () => {

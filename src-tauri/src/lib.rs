@@ -35,6 +35,9 @@ pub mod chat_channel;
 #[cfg(feature = "cli-bin")]
 pub mod cli;
 pub mod cli_run;
+/// Comic (漫剧) production: story-tree resources, source-novel ingestion,
+/// media generation. Compiles in both desktop and server modes.
+pub mod comic;
 pub mod commands;
 pub mod commit_message;
 pub mod computer;
@@ -110,6 +113,7 @@ mod tauri_app {
         config_sync,
         conversation_tags,
         conversations,
+        comic as comic_commands,
         custom_skills as custom_skills_commands,
         deepseek_settings as deepseek_settings_commands, delegation as delegation_commands,
         experts as experts_commands, feedback as feedback_commands, file_io, folder_commands,
@@ -727,6 +731,51 @@ mod tauri_app {
             .manage(windows::AuxWindowState::new())
             .manage(workspace_windows::WorkspaceWindowSession::new())
             .manage(web::WebServerState::new())
+            // Comic (漫剧) video preview: a task-scoped byte server under the
+            // app's own scheme. The workbench mints a short-lived grant (via
+            // `comic_request_video_preview`), then plays the artifact from
+            // `codeg-media://…/<token>` (WebView2: `http://codeg-media.localhost/<token>`),
+            // where every range request re-validates task ownership and the
+            // story jail and answers at most 16 MiB (`comic::preview`).
+            .register_asynchronous_uri_scheme_protocol("codeg-media", |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                std::thread::spawn(move || {
+                    let token = request
+                        .uri()
+                        .path()
+                        .trim_start_matches('/')
+                        .split('?')
+                        .next()
+                        .unwrap_or_default()
+                        .to_string();
+                    let range = request
+                        .headers()
+                        .get(http::header::RANGE)
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_owned);
+                    let conn = app.state::<crate::db::AppDatabase>().conn.clone();
+                    let response = tauri::async_runtime::block_on(async move {
+                        match crate::comic::preview::serve(&conn, &token, range.as_deref()).await {
+                            Ok(chunk) => {
+                                let mut builder = http::Response::builder()
+                                    .status(chunk.status)
+                                    .header(http::header::CONTENT_TYPE, chunk.content_type)
+                                    .header(http::header::ACCEPT_RANGES, "bytes")
+                                    .header(http::header::CACHE_CONTROL, "no-store")
+                                    .header(http::header::X_CONTENT_TYPE_OPTIONS, "nosniff");
+                                if let Some(content_range) = &chunk.content_range {
+                                    builder = builder.header(http::header::CONTENT_RANGE, content_range);
+                                }
+                                builder.body(chunk.bytes).unwrap_or_else(|_| {
+                                    crate::comic::preview::denied_response()
+                                })
+                            }
+                            Err(_) => crate::comic::preview::denied_response(),
+                        }
+                    });
+                    responder.respond(response);
+                });
+            })
             // Remote-workspace IPC proxy. Routes HTTP / WS for windows
             // opened against a remote codeg-server through Rust so we
             // bypass webview mixed-content blocking and can centrally
@@ -1288,6 +1337,7 @@ mod tauri_app {
                     );
                     app.manage(computer_service.clone());
 
+                    let cm_state_for_comic = cm_state.clone();
                     let listener_broker = broker.clone();
                     let listener = crate::acp::delegation::listener::DelegationListener::new(
                         listener_broker,
@@ -1341,6 +1391,22 @@ mod tauri_app {
                             },
                         ),
                     );
+                    // Comic (漫剧) tools ride the same listener; the comic
+                    // group is only injected into sessions launched inside a
+                    // comic project (connection.rs checks `story/`), but the
+                    // backend itself is always attached and re-checks the
+                    // story root per call.
+                    let listener = listener.with_comic(std::sync::Arc::new(
+                        crate::commands::comic::McpComicTools::new(
+                            db_conn.clone(),
+                            crate::web::event_bridge::EventEmitter::Tauri(app.handle().clone()),
+                            std::sync::Arc::new(
+                                crate::acp::manager::ConnectionManagerQuestionLookup {
+                                    manager: std::sync::Arc::new(cm_state_for_comic.clone_ref()),
+                                },
+                            ),
+                        ),
+                    ));
                     // Bind through the service handle rather than a bare
                     // `listener.run` spawn: it keeps the bind error and the
                     // accept-loop handle around, which is what lets the
@@ -1351,6 +1417,17 @@ mod tauri_app {
                         socket_path,
                     );
                     crate::acp::delegation::service::install(service.clone());
+                    // Comic generation tasks interrupted by the last shutdown
+                    // re-queue and finish here.
+                    {
+                        let conn = db_conn.clone();
+                        let emitter = crate::web::event_bridge::EventEmitter::Tauri(
+                            app.handle().clone(),
+                        );
+                        tauri::async_runtime::spawn(async move {
+                            crate::comic::task::recover_pending(conn, emitter).await;
+                        });
+                    }
                     tauri::async_runtime::spawn(async move {
                         if let Err(e) = service.start().await {
                             tracing::error!("[delegation] listener failed to start: {e}");
@@ -2421,6 +2498,43 @@ mod tauri_app {
                 chat_channel_commands::weixin_get_qrcode,
                 chat_channel_commands::weixin_check_qrcode,
                 model_provider_commands::list_model_providers,
+                // Comic (漫剧) production
+                comic_commands::comic_init_project,
+                comic_commands::comic_get_overview,
+                comic_commands::comic_ingest_source,
+                comic_commands::comic_read_source,
+                comic_commands::comic_list_chapters,
+                comic_commands::comic_list_assets,
+                comic_commands::comic_get_asset,
+                comic_commands::comic_upsert_series,
+                comic_commands::comic_set_provider,
+                comic_commands::comic_upsert_episode,
+                comic_commands::comic_write_script,
+                comic_commands::comic_replace_storyboard,
+                comic_commands::comic_upsert_shot,
+                comic_commands::comic_delete_shot,
+                comic_commands::comic_reorder_shots,
+                comic_commands::comic_upsert_character,
+                comic_commands::comic_upsert_scene,
+                comic_commands::comic_upsert_prop,
+                comic_commands::comic_save_asset_image,
+                comic_commands::comic_list_tasks,
+                comic_commands::comic_request_speech,
+                comic_commands::comic_set_shot_audio,
+                comic_commands::comic_request_video,
+                comic_commands::comic_request_video_preview,
+                comic_commands::comic_set_shot_video,
+                comic_commands::comic_clear_shot_video,
+                comic_commands::comic_list_provider_models,
+                comic_commands::comic_compose_episode,
+                comic_commands::comic_check_compose,
+                comic_commands::comic_bind_candidate,
+                comic_commands::comic_read_image,
+                comic_commands::list_media_providers,
+                comic_commands::create_media_provider,
+                comic_commands::update_media_provider,
+                comic_commands::delete_media_provider,
+                comic_commands::test_media_provider,
                 model_provider_commands::create_model_provider,
                 model_provider_commands::update_model_provider,
                 model_provider_commands::delete_model_provider,

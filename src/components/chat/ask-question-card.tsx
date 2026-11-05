@@ -19,9 +19,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { splitRecommended } from "@/lib/ask-question"
+import { ComicImage } from "@/components/comic/comic-image"
+import { ImagePreviewDialog } from "@/components/ui/image-preview-dialog"
 import type {
   PendingQuestionState,
   QuestionAnswer,
+  QuestionOption,
   QuestionSpec,
 } from "@/lib/types"
 
@@ -100,6 +103,9 @@ export function AskQuestionCard({
   const [activeId, setActiveId] = useState(() => questions[0]?.id ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(false)
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
+    null
+  )
   // Synchronous guard against a double-submit before `submitting` re-renders.
   const inFlight = useRef(false)
   // Tracks which question set the above state belongs to. If the card is reused
@@ -296,9 +302,18 @@ export function AskQuestionCard({
   const optionBody = (
     text: string,
     recommended: boolean,
-    description?: string
+    description?: string,
+    image?: QuestionOption["image"]
   ) => (
     <span className="min-w-0 flex-1">
+      {image && (
+        <ComicImage
+          folderId={image.folder_id}
+          path={image.path}
+          alt={text}
+          onPreview={(src) => setPreview({ src, alt: text })}
+        />
+      )}
       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
         {text}
         {recommended && (
@@ -373,7 +388,7 @@ export function AskQuestionCard({
                   onCheckedChange={() => select(q, opt.label)}
                   className="mt-0.5"
                 />
-                {optionBody(text, recommended, opt.description)}
+                {optionBody(text, recommended, opt.description, opt.image)}
               </Label>
             )
           })}
@@ -405,7 +420,10 @@ export function AskQuestionCard({
           value={value}
           onValueChange={(v) => onRadioChange(q, v)}
           disabled={locked}
-          className="gap-1.5"
+          className={cn(
+            "gap-1.5",
+            q.options.some((option) => option.image) && "grid-cols-2"
+          )}
         >
           {q.options.map((opt, i) => {
             const selected = s?.chosen.includes(opt.label) ?? false
@@ -419,7 +437,7 @@ export function AskQuestionCard({
                   }}
                   className="mt-0.5 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                {optionBody(text, recommended, opt.description)}
+                {optionBody(text, recommended, opt.description, opt.image)}
               </Label>
             )
           })}
@@ -467,6 +485,16 @@ export function AskQuestionCard({
         readOnly ? "shadow-sm" : "shadow-lg"
       )}
     >
+      {preview && (
+        <ImagePreviewDialog
+          src={preview.src}
+          alt={preview.alt}
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreview(null)
+          }}
+        />
+      )}
       {isMulti && !collapsed && (
         <Progress
           value={(answeredCount / questions.length) * 100}

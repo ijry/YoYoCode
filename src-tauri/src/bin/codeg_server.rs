@@ -557,6 +557,17 @@ async fn async_main(
                 manager: Arc::new(state.connection_manager.clone_ref()),
             }),
         );
+        // Comic (漫剧) backend rides the same listener; per-session injection
+        // is gated by the `story/` project check in connection.rs.
+        let listener = listener.with_comic(Arc::new(
+            codeg_lib::commands::comic::McpComicTools::new(
+                state.db.conn.clone(),
+                state.emitter.clone(),
+                Arc::new(codeg_lib::acp::manager::ConnectionManagerQuestionLookup {
+                    manager: Arc::new(state.connection_manager.clone_ref()),
+                }),
+            ),
+        ));
         // Bind through the service handle rather than a bare `listener.run`
         // spawn: it keeps the bind error and the accept-loop handle around, so
         // the workspace status indicator can report why the broker socket is
@@ -566,6 +577,14 @@ async fn async_main(
             delegation_socket_path.clone(),
         );
         codeg_lib::acp::delegation::service::install(service.clone());
+        // Comic generation tasks interrupted by the last shutdown re-queue here.
+        {
+            let conn = state.db.conn.clone();
+            let emitter = state.emitter.clone();
+            tokio::spawn(async move {
+                codeg_lib::comic::task::recover_pending(conn, emitter).await;
+            });
+        }
         tokio::spawn(async move {
             if let Err(e) = service.start().await {
                 tracing::error!("[delegation] listener failed to start: {e}");

@@ -23,6 +23,7 @@ const custom: AuxTabOrder = [
   "session_details",
   "changes",
   "pull_requests",
+  "comic",
   "issues",
   "tasks",
   "automations",
@@ -50,6 +51,23 @@ describe("aux panel tab order", () => {
     vi.restoreAllMocks()
   })
 
+  it("adds the comic workbench to a rail saved before it existed without reordering older tabs", () => {
+    const legacy = [
+      "git_log",
+      "file_tree",
+      "session_details",
+      "changes",
+      "pull_requests",
+      "issues",
+      "tasks",
+      "automations",
+    ]
+    const order = parseAuxTabOrder(legacy)
+    expect(order).toContain("comic")
+    expect(order.filter((tab) => tab !== "comic")).toEqual(legacy)
+    expect(parseAuxTabOrder(order)).toEqual(order)
+  })
+
   it("defaults to the built-in order: the folder's tabs, then the project's work", () => {
     expect(loadAuxTabOrder()).toEqual([
       "session_details",
@@ -60,6 +78,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
     ])
     expect(DEFAULT_AUX_TAB_ORDER).toEqual(AUX_PANEL_TABS)
   })
@@ -94,6 +113,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
     ])
     expect(parseAuxTabOrder(["git_log", "session_details"])).toEqual([
       "git_log",
@@ -101,6 +121,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
       "session_details",
       "file_tree",
       "changes",
@@ -120,6 +141,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
       "changes",
       "file_tree",
       "session_details",
@@ -138,6 +160,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
     ])
   })
 
@@ -163,6 +186,7 @@ describe("aux panel tab order", () => {
       "tasks",
       "issues",
       "pull_requests",
+      "comic",
       "changes",
     ])
   })
@@ -191,6 +215,7 @@ describe("aux panel tab order", () => {
         "tasks",
         "issues",
         "pull_requests",
+        "comic",
       ])
       expect(moveAuxTab(DEFAULT_AUX_TAB_ORDER, "session_details", 3)).toEqual([
         "file_tree",
@@ -201,6 +226,7 @@ describe("aux panel tab order", () => {
         "tasks",
         "issues",
         "pull_requests",
+        "comic",
       ])
     })
 

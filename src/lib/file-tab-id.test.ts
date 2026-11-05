@@ -102,6 +102,17 @@ describe("file-tab-id build↔parse round-trip", () => {
   })
 })
 
+describe("comic project tab ids", () => {
+  it("keeps project identity separate from file and browser identities", () => {
+    expect(buildFileTabId({ kind: "comic", folderId: 7 })).toBe("comic:7")
+    expect(parseFileTabId("comic:7")).toEqual({ kind: "comic", folderId: 7 })
+    expect(browserTabBackendId("comic:7")).toBeNull()
+    expect(parseFileTabId("comic:")).toBeNull()
+    expect(parseFileTabId("comic:7:extra")).toBeNull()
+    expect(parseFileTabId("comic:wrong")).toBeNull()
+  })
+})
+
 describe("browser tab ids", () => {
   it("round-trips the backend tab id, including adopted popups", () => {
     for (const id of ["b7e2c1d0-1a2b-4c3d-9e8f-0a1b2c3d4e5f", "abc-p1", "t1"]) {

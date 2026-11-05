@@ -207,6 +207,12 @@ zstd = "0.13"
 tar = "0.4"
 zip = "2"
 regex = "1"
+# Comic (漫剧) source-novel ingestion: many Chinese web novels ship as GBK/GB18030
+# txt; encoding_rs decodes them to UTF-8 before the chapter splitter runs.
+encoding_rs = "0.8"
+# Comic media providers read response bodies through a capped byte reader
+# (reqwest's `bytes()`), named here so the adapters can size-check payloads.
+bytes = "1"
 portable-pty = "0.8"
 urlencoding = "2"
 # WHATWG URL parsing outside the desktop runtime. `tauri::Url` is this same

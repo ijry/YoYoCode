@@ -465,6 +465,36 @@ pub enum AutomationChange {
 /// task advanced. Payload is id-only — clients refetch.
 pub const WORK_TASK_CHANGED_EVENT: &str = "task://changed";
 
+/// Broadcast when any comic (漫剧) resource under a project's `story/` tree
+/// changes — via an MCP comic tool, a workbench edit, or a generation task
+/// finishing. Ids only: clients refetch what they show.
+pub const COMIC_CHANGED_EVENT: &str = "comic://changed";
+
+/// Payload for [`COMIC_CHANGED_EVENT`]. Ids only — clients respond with a
+/// refetch of the affected view.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ComicChange {
+    /// A resource document changed (`resource` = `series` | `source` |
+    /// `episode` | `character` | `scene` | `prop`; `id` = episode id or asset
+    /// slug; empty for `series`/`source`).
+    Upsert {
+        folder_id: i32,
+        resource: String,
+        #[serde(default)]
+        id: String,
+    },
+    /// A generation task advanced (created / finished / failed).
+    Task {
+        folder_id: i32,
+        task_id: i32,
+    },
+    /// The project was created or its tree replaced — refetch everything.
+    Refresh {
+        folder_id: i32,
+    },
+}
+
 /// Payload for [`WORK_TASK_CHANGED_EVENT`]. Ids only — clients respond with a
 /// refetch of the task list (and badge count).
 #[derive(Debug, Clone, Serialize)]

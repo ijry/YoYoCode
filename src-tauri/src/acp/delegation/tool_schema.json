@@ -117,7 +117,7 @@
   },
   {
     "name": "ask_user_question",
-    "description": "Ask the user one or more multiple-choice questions and BLOCK until they answer. The questions render as interactive cards above the user's input box; this call returns only once the user submits their choices (or dismisses the card). Use ONLY when you are blocked on a decision that is genuinely the user's to make — one you cannot resolve from the request, the code, or sensible defaults (e.g. which approach, which format, which library, which of several files). Do NOT use it to ask 'should I proceed?' or to confirm an obvious default, and do NOT use it for open-ended questions that aren't a small set of discrete choices. The user can always pick 'Other' and type a custom answer, so don't add your own 'Other' option. If you want to recommend a choice, put it first and append ' (Recommended)' to its label. Prefer ONE call with a few related questions over many sequential calls. Once the user has answered \u2014 including picking a recommended option or telling you to proceed \u2014 act on the answer immediately. Do NOT call this tool again to confirm execution or to ask whether you should proceed.",
+    "description": "Ask the user one or more multiple-choice questions and BLOCK until they answer. The questions render as interactive cards above the user's input box; this call returns only once the user submits their choices (or dismisses the card). Use ONLY when you are blocked on a decision that is genuinely the user's to make — one you cannot resolve from the request, the code, or sensible defaults (e.g. which approach, which format, which library, which of several files). Do NOT use it to ask 'should I proceed?' or to confirm an obvious default, and do NOT use it for open-ended questions that aren't a small set of discrete choices. The user can always pick 'Other' and type a custom answer, so don't add your own 'Other' option. If you want to recommend a choice, put it first and append ' (Recommended)' to its label. Prefer ONE call with a few related questions over many sequential calls. Once the user has answered — including picking a recommended option or telling you to proceed — act on the answer immediately. Do NOT call this tool again to confirm execution or to ask whether you should proceed.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -1391,6 +1391,845 @@
           "description": "The text to put on the clipboard."
         }
       }
+    }
+  },
+  {
+    "name": "comic_get_project",
+    "description": "Read the comic (漫剧) project this session works in: series config, novel-source status, episode list with per-episode shot progress, character/scene/prop rosters, the current media-provider pointers, and next_action — the pipeline's suggestion of what to do next (provide source → adapt → design assets → storyboard → images → videos → compose). CALL THIS FIRST before any comic work, and again whenever you resume: file state is the truth, so a fresh session reconstructs exactly where the last one stopped. If has_source is false and source_hint is set, the project cannot be adapted yet: ask the user to upload the full novel (they can drag the txt into this chat) or give a local path to it — do NOT start writing a script from nothing unless the user says it is an original work. Results are size-capped; images are NEVER returned here, only story-relative paths the workbench renders.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "comic_set_source",
+    "description": "Register the novel source of the comic project and split it into chapters. Exactly one of: upload — pass `upload_base64` (the full novel text, e.g. the txt the user just dragged into the chat) and optionally `title`; external_path — pass `path`, an absolute local file path the user gave you (it is COPIED into the project; the original is never referenced again); original — pass `original: true` when the user says this is an original screenplay with no novel. The file is decoded (UTF-8 / GB18030 / UTF-16 auto-detected), written to story/source/, and split into chapters by heading patterns (第一章 / Chapter N / 卷 / 番外) with fixed-size windows as fallback. The report previews the first chapter titles and the strategy — RELAY IT to the user for confirmation, and if the split looks wrong (too few/many chapters, headings missed) call again with adjusted `max_heading_len` or `fallback_window_chars`, or use the same tool to re-split.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "upload_base64": {
+          "type": "string",
+          "description": "Full novel file content, base64-encoded. Mutually exclusive with path/original."
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute local path of the novel file. Mutually exclusive with upload_base64/original."
+        },
+        "title": {
+          "type": "string",
+          "description": "Novel title, when known."
+        },
+        "original": {
+          "type": "boolean",
+          "description": "true marks the project as an original work — no novel source will ever be requested."
+        },
+        "max_heading_len": {
+          "type": "integer",
+          "description": "Re-split knob: max characters a heading line may carry (default 40)."
+        },
+        "fallback_window_chars": {
+          "type": "integer",
+          "description": "Re-split knob: window size when no heading pattern matches (default 6000)."
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_read_source",
+    "description": "Read a bounded window of the ingested novel: a chapter range (1-based, inclusive from_chapter/to_chapter) with a hard character cap (default 8000, max 20000) and pagination (offset_chars) for chapters longer than the cap. The response says has_more and next_offset when the window was cut — keep calling with the next offset rather than raising max_chars. This is the ONLY way to read novel text during adaptation; never ask the user to paste chapters.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "from_chapter"
+      ],
+      "properties": {
+        "from_chapter": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "to_chapter": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_chars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "offset_chars": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_get_source_outline",
+    "description": "List the chapter index of the ingested novel: number, title, char count per chapter (up to `limit`, default all). Use it to plan which chapters adapt into which episode BEFORE reading them — read the outline, pick a chapter span, then read those chapters with comic_read_source.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_list_assets",
+    "description": "List comic resources of one kind: kind = episode | character | scene | prop. Episodes return id/title/status/shot progress; the asset kinds return slug/name/whether reference images exist. Paginated with offset/limit when a project grows large.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "episode",
+            "character",
+            "scene",
+            "prop"
+          ]
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_get_asset",
+    "description": "Read one comic resource in full: kind + its id (episode id like ep001, or asset slug). Returns the JSON document — for a shot-bearing episode also its storyboard summary; for a character its description, prompt_fragment, seed, turnaround image paths and outfits. Image paths are story-relative for the workbench to render; they are NOT embedded.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "episode",
+            "character",
+            "scene",
+            "prop"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_search_assets",
+    "description": "Case-insensitive substring search across character/scene/prop cards (name, description, prompt fragment). Use it to recall whether an asset exists before creating a duplicate — prefer reusing an existing scene card over writing a near-copy.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_series",
+    "description": "Create or update the project-level series config: title, adapted_from note, style_bible summary, bible_refs (story-relative paths of bible/*.md you wrote via your file tools), global_seed, default_candidate_count, and the cost guardrails (max_images_per_request, max_concurrent_tasks). Provider pointers are NOT set here — use comic_set_project_provider. Call once when setting up a new project's style bible, and whenever the user revises global style.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "adapted_from": {
+          "type": "string"
+        },
+        "style_bible": {
+          "type": "string",
+          "description": "Compact style summary injected into every image prompt."
+        },
+        "bible_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "global_seed": {
+          "type": "integer"
+        },
+        "default_candidate_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "max_images_per_request": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "max_concurrent_tasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_episode",
+    "description": "Create or update one episode: id (slug like ep001), title, synopsis, source_chapters (which chapter numbers it adapts — for adapted projects cite them so the workbench can show the source alongside the script), status (draft/scripted/storyboarded/rendering/done). The status is YOURS to maintain honestly: the workbench's pipeline view and next_action derive from it.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "synopsis": {
+          "type": "string"
+        },
+        "source_chapters": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "scripted",
+            "storyboarded",
+            "rendering",
+            "done"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_write_script",
+    "description": "Write or replace one episode's full script (Markdown) — the scene-by-scene screenplay the storyboard will be cut from. Always write the WHOLE script for that episode in one call (it replaces the file); read it first with comic_get_asset when editing. Mark the episode status scripted afterwards via comic_upsert_episode if you have not already.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "script"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "script": {
+          "type": "string",
+          "maxLength": 200000
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_storyboard",
+    "description": "Replace an episode's ENTIRE storyboard in one validated call — shots is the full ordered array, each shot: id (shot-0001 style), description (the visual brief for the frame), dialogue (lines with character slugs), duration_secs, camera (推/拉/摇/移/static), shot_size (远景/全景/中景/近景/特写), transition, refs (characters as {slug, outfit}, scene, props) — every ref must name an EXISTING card (create those first with comic_upsert_character/scene/prop), state (draft), selected (leave unset). Shot numbering is re-derived from order. Whole-array semantics: read the current storyboard with comic_get_asset first when editing, or you will silently drop shots. An invalid reference rejects the WHOLE call with a value-level error naming the bad slug — fix it and call again.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shots"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shots": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "description"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "description": {
+                "type": "string"
+              },
+              "dialogue": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "character": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                }
+              },
+              "duration_secs": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 60
+              },
+              "camera": {
+                "type": "string"
+              },
+              "shot_size": {
+                "type": "string"
+              },
+              "transition": {
+                "type": "string"
+              },
+              "refs": {
+                "type": "object",
+                "properties": {
+                  "characters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "outfit": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "slug"
+                      ]
+                    }
+                  },
+                  "scene": {
+                    "type": "string"
+                  },
+                  "props": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "prompted",
+                  "generating",
+                  "candidate",
+                  "selected",
+                  "rendering",
+                  "done"
+                ]
+              },
+              "selected": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_shot",
+    "description": "Upsert ONE shot into an episode's storyboard (create or replace by id) without touching the others — the surgical edit when the user asks to change a single frame. Same shot shape and reference validation as comic_upsert_storyboard.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shot"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shot": {
+          "type": "object",
+          "description": "One shot object, same shape as comic_upsert_storyboard's items."
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_character",
+    "description": "Create or update a character card: slug, name, description (physical), personality, prompt_fragment (the prompt snippet injected into every shot featuring them — keep it concrete and visual), seed, turnaround (front / side_45 / side — the standard three-view; set paths only when the images exist, the workbench uploads them), outfits (per-look prompt fragments and turnaround paths), expressions, refs. Call BEFORE storyboarding that references the character. If a character's look changed, the response lists shots still referencing the old one — offer the user a batch re-render.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "slug",
+        "name"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "personality": {
+          "type": "string"
+        },
+        "prompt_fragment": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "turnaround": {
+          "type": "object",
+          "properties": {
+            "front": {
+              "type": "string"
+            },
+            "side_45": {
+              "type": "string"
+            },
+            "side": {
+              "type": "string"
+            }
+          }
+        },
+        "outfits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "slug",
+              "name"
+            ],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "prompt_fragment": {
+                "type": "string"
+              },
+              "front": {
+                "type": "string"
+              },
+              "side_45": {
+                "type": "string"
+              },
+              "side": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "expressions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_scene",
+    "description": "Create or update a scene card (a recurring location): slug, name, description, prompt_fragment, refs. Create before storyboarding shots that take place there.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "slug",
+        "name"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "prompt_fragment": {
+          "type": "string"
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_upsert_prop",
+    "description": "Create or update a prop card (a recurring significant object): slug, name, description, prompt_fragment, refs.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "slug",
+        "name"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "prompt_fragment": {
+          "type": "string"
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_set_project_provider",
+    "description": "Point the project's image / video / tts generation at a provider from the global media-provider pool (configured in codeg settings → 媒体服务). kind selects the media type; provider_id or provider_name selects the entry (name works when the project was carried from another machine). Omitting provider_id and provider_name clears the pointer. Switching affects only FUTURE requests — finished artifacts and their per-task provider snapshots stay as they are. comic_get_project returns the pool the user configured; if none exists for a kind, tell the user to add one in settings rather than guessing credentials.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "tts"
+          ]
+        },
+        "provider_id": {
+          "type": "integer"
+        },
+        "provider_name": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_build_shot_prompt",
+    "description": "Assemble (and persist) the image prompt for one shot from the project's style bible, the referenced cards' prompt fragments (characters with their outfit, scene, props), and the shot's own description/dialogue — the consistency core. Returns the prompt, negative_prompt, seed and the reference image set (story-relative turnaround/scene paths the adapters may attach). CALL THIS before comic_request_generation for each shot; regeneration reuses the stored prompt from shot.json. Marks the shot state draft→prompted.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shot"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shot": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_request_generation",
+    "description": "Start an image generation job for one shot: the prompt built by comic_build_shot_prompt goes to the project's image provider (or a per-call override), and `count` candidates are queued. ASYNCHRONOUS: returns a taskId right away; poll with comic_check_generation (wait_ms up to ~30000 per call), and present the finished candidates with comic_present_candidates. COST GUARDRAIL: count above the project's max_images_per_request is refused with code `comic_confirm_batch` — ask the user with ask_user_question first, then retry with confirmed=true. Only ONE batch per shot is in flight at a time; do not re-request while a task is running.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shot"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shot": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "provider_id": {
+          "type": "integer",
+          "description": "One-call provider override (does not change the project pointer)."
+        },
+        "provider_name": {
+          "type": "string"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Set true after the user confirmed an oversized batch."
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_check_generation",
+    "description": "Read one generation task's state — queued/running/succeeded/failed/cancelled, with its candidate paths when succeeded and a classified error (content_policy/network/quota/auth/bad_request/internal) when failed. Long-polls up to `wait_ms` (0 = snapshot). On success, present the candidates with comic_present_candidates. On content_policy, rewrite the prompt and retry; on quota/auth, tell the user — do not retry blindly.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "task_id"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "integer"
+        },
+        "wait_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_cancel_generation",
+    "description": "Cancel a queued or running generation task. The worker drops out between polls; finished candidates of a cancelled task are not written. Use when the user changes their mind mid-batch.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "task_id"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_set_shot_image",
+    "description": "Bind one candidate image as the shot's definitive frame (storyboard selected path + state → selected; losing candidates are cleaned per the project's retention policy). comic_present_candidates already binds the user's choice — call this directly only when the user picked a candidate in the workbench UI or re-binds an existing one. The path must live under the shot's own candidates/ directory.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shot",
+        "candidate"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shot": {
+          "type": "string"
+        },
+        "candidate": {
+          "type": "string",
+          "description": "Story-relative candidate path, e.g. episodes/ep001/shots/shot-0003/candidates/cand-02.png"
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_present_candidates",
+    "description": "Show the finished candidates of one shot to the user as a blocking pick-one card (renders through the same mechanism as ask_user_question — the tool parks until the user chooses, declines, or the card is cancelled). The chosen candidate is BOUND to the shot automatically and the answer names it; on decline, adjust the prompt or regenerate and present again. Candidates are the story-relative paths comic_check_generation returned. The card lists file names — tell the user they can preview the images in the workbench before choosing.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "episode",
+        "shot",
+        "candidates"
+      ],
+      "properties": {
+        "episode": {
+          "type": "string"
+        },
+        "shot": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_list_tasks",
+    "description": "List the project's recent generation tasks (newest first): status, provider, target shot, candidates, errors. Pass episode to scope to one episode before the limit applies. Use it to recover context after an interruption — finished tasks' candidates can still be presented/bound.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "episode": { "type": "string" },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      }
+    }
+  },
+  {
+    "name": "comic_compose_episode",
+    "description": "Queue a local FFmpeg motion-comic export from every selected episode keyframe in storyboard order. Writes an immutable task-ID MP4 plus dialogue SRT in the episode export directory. Requires 1–200 shots with selected PNG/JPEG/WebP frames and finite durations; refuses missing frames and non-cut transitions. Supports Ken Burns and subtitle burn-in. Bound shot video clips replace their still frame (Ken Burns applies to still frames only); shots extend to fit bound speech or clips instead of truncating them. Default vertical 1080x1920 at 24fps. Returns taskId immediately; poll comic_check_compose and use comic_cancel_generation to cancel. Never returns media bytes.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode"],
+      "properties": {
+        "episode": { "type": "string" },
+        "width": { "type": "integer", "minimum": 64, "maximum": 3840 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 3840 },
+        "fps": { "type": "integer", "minimum": 12, "maximum": 60 },
+        "ken_burns": { "type": "boolean" },
+        "burn_subtitles": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_check_compose",
+    "description": "Read or long-poll a composition task belonging to this project. Returns status, classified error, and a story-relative MP4 artifact path when completed; associated SRT uses the same task filename. Does not download or embed video bytes. Use wait_ms <=60000; a timeout is only a snapshot, not remote cancellation.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["task_id"],
+      "properties": {
+        "task_id": { "type": "integer", "minimum": 1 },
+        "wait_ms": { "type": "integer", "minimum": 0, "maximum": 60000 }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_request_speech",
+    "description": "Queue speech for one storyboard shot using the project's TTS provider or a one-call override. Text defaults to the shot's dialogue; supply text explicitly for narration. Read provider capabilities in comic_get_project, choose a supported voice and MP3/WAV format; refuses unsupported image options, voices, speed or instructions before submission. A missing voice needs a real user choice or configured default. Returns taskId; poll comic_check_generation and bind completed audio with comic_set_shot_audio. Does not replace previous bound audio or return binary media.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode", "shot"],
+      "properties": {
+        "episode": { "type": "string" },
+        "shot": { "type": "string" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "voice": { "type": "string" },
+        "speed": { "type": "number", "minimum": 0.25, "maximum": 4 },
+        "response_format": { "type": "string", "enum": ["mp3", "wav"] },
+        "instructions": { "type": "string" },
+        "provider_id": { "type": "integer" },
+        "provider_name": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_set_shot_audio",
+    "description": "Bind a succeeded TTS task as this shot's audio after reviewing it with the user. Requires the task to belong to this project and shot and the MP3/WAV to be valid. Preserves the selected frame and prior artifact files; only the active audio reference changes. Composition extends still-frame shot duration to fit speech instead of silently truncating dialogue. Returns audio path/duration, never bytes.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode", "shot", "task_id"],
+      "properties": {
+        "episode": { "type": "string" },
+        "shot": { "type": "string" },
+        "task_id": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_request_video",
+    "description": "Queue video generation for one storyboard shot with a job-based vendor. Default protocol \"ark\" (Volcengine Ark / Seedance-style); a provider row configured with protocol \"newapi\" speaks the new-api /v1/video/generations contract (e.g. an ai-switch gateway) — set the provider's api_url to the gateway base and its api_key to a gateway video key. The prompt is the shot's brief plus its camera move; card references are not attached. If the shot has a bound frame it is used as the image-to-video first frame automatically; pass use_first_frame=false to force text-to-video, or true to require a bound frame. duration_secs must be within the provider's configured range (default 4–30); the composer extends the still-frame shot to fit the finished clip, so a clip may play longer than the storyboard duration. Returns taskId; poll comic_check_generation, then bind with comic_set_shot_video. Never returns video bytes.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode", "shot"],
+      "properties": {
+        "episode": { "type": "string" },
+        "shot": { "type": "string" },
+        "duration_secs": { "type": "number", "minimum": 1, "maximum": 120 },
+        "ratio": { "type": "string" },
+        "use_first_frame": { "type": "boolean" },
+        "provider_id": { "type": "integer" },
+        "provider_name": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_set_shot_video",
+    "description": "Bind a succeeded video task only after explicit user review and confirmation. Supply expected_current_task_id from the storyboard observed when confirmation opened, or null if unbound. A changed binding refuses with conflict; refresh and ask again, never retry by silently adopting a newer binding. Preserves the selected frame and bound speech. When generation was requested for workbench review, leave binding to the workbench.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode", "shot", "task_id", "expected_current_task_id"],
+      "properties": {
+        "episode": { "type": "string" },
+        "shot": { "type": "string" },
+        "task_id": { "type": "integer", "minimum": 1 },
+        "expected_current_task_id": { "type": ["integer", "null"], "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "comic_clear_shot_video",
+    "description": "Remove a shot's bound video clip only after explicit user confirmation. Supply expected_current_task_id from the storyboard observed when the confirmation opened (null when already unbound). A changed binding refuses with conflict; refresh and ask again. The bound frame and speech are preserved; ordinary shot edits can never clear the clip, only this confirmed action can.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["episode", "shot", "expected_current_task_id"],
+      "properties": {
+        "episode": { "type": "string" },
+        "shot": { "type": "string" },
+        "expected_current_task_id": { "type": ["integer", "null"], "minimum": 1 }
+      },
+      "additionalProperties": false
     }
   }
 ]

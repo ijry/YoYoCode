@@ -165,6 +165,7 @@ pub fn parse_cursor_ask_questions(params: &Value) -> Result<Vec<CursorAskQuestio
                 .to_string();
             let clipped: String = label.chars().take(MAX_QUESTION_TEXT_CHARS).collect();
             options.push(QuestionOption {
+                image: None,
                 label: clipped.clone(),
                 description: String::new(),
             });
