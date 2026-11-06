@@ -3533,7 +3533,21 @@
         "continueTask": "繼續未完成任務",
         "continuingTask": "正在繼續未完成任務…",
         "steerItemNow": "插入目前回合",
-        "steerItemAsNote": "作為留言，供下次檢查時讀取"
+        "steerItemAsNote": "作為留言，供下次檢查時讀取",
+        "scheduledSend": "定時傳送",
+        "scheduleItem": "設定定時傳送",
+        "scheduleTitle": "定時傳送這則訊息",
+        "scheduleDescription": "選擇訊息的傳送時間，時間到前它依佇列順序等待。",
+        "scheduleDateLabel": "日期",
+        "scheduleTimeLabel": "時間",
+        "schedulePickDate": "選擇日期",
+        "schedulePastHint": "所選時間已過去，請選擇未來的時間。",
+        "schedulePreview": "將於 {time} 傳送",
+        "scheduleClear": "改回普通佇列",
+        "scheduleConfirm": "定時",
+        "scheduleCancel": "取消",
+        "preset30m": "30 分鐘後",
+        "preset2h": "2 小時後"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "設定 > Agents",

@@ -3533,7 +3533,21 @@
         "continueTask": "Unerledigte Aufgabe fortsetzen",
         "continuingTask": "Aufgabe wird fortgesetzt…",
         "steerItemNow": "In aktuellen Turn einfügen",
-        "steerItemAsNote": "Als Notiz für die nächste Abfrage senden"
+        "steerItemAsNote": "Als Notiz für die nächste Abfrage senden",
+        "scheduledSend": "Später senden",
+        "scheduleItem": "Senden planen",
+        "scheduleTitle": "Diese Nachricht planen",
+        "scheduleDescription": "Wähle, wann die Nachricht rausgehen soll. Bis dahin wartet sie in der Warteschlange.",
+        "scheduleDateLabel": "Datum",
+        "scheduleTimeLabel": "Uhrzeit",
+        "schedulePickDate": "Datum wählen",
+        "schedulePastHint": "Diese Zeit liegt vorbei — wähle eine zukünftige Zeit.",
+        "schedulePreview": "Wird gesendet um {time}",
+        "scheduleClear": "Zur normalen Warteschlange",
+        "scheduleConfirm": "Planen",
+        "scheduleCancel": "Abbrechen",
+        "preset30m": "In 30 Minuten",
+        "preset2h": "In 2 Stunden"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "Einstellungen > Agenten",

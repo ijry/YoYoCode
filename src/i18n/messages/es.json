@@ -3533,7 +3533,21 @@
         "continueTask": "Continuar tarea pendiente",
         "continuingTask": "Continuando tarea pendiente…",
         "steerItemNow": "Insertar en el turno actual",
-        "steerItemAsNote": "Enviar como nota para la próxima comprobación"
+        "steerItemAsNote": "Enviar como nota para la próxima comprobación",
+        "scheduledSend": "Enviar más tarde",
+        "scheduleItem": "Programar envío",
+        "scheduleTitle": "Programar este mensaje",
+        "scheduleDescription": "Elige cuándo debe enviarse el mensaje. Hasta entonces espera su turno en la cola.",
+        "scheduleDateLabel": "Fecha",
+        "scheduleTimeLabel": "Hora",
+        "schedulePickDate": "Elegir fecha",
+        "schedulePastHint": "Esa hora ya pasó: elige una hora futura.",
+        "schedulePreview": "Se enviará el {time}",
+        "scheduleClear": "Volver a la cola normal",
+        "scheduleConfirm": "Programar",
+        "scheduleCancel": "Cancelar",
+        "preset30m": "En 30 minutos",
+        "preset2h": "En 2 horas"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "Ajustes > Agentes",

@@ -55,6 +55,19 @@ interface ChatInputProps {
   queueControl?: import("@/lib/types").MessageQueueState | null
   onQueueContinue?: () => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
+  /** One-off scheduled send (see `MessageInput.onEnqueueScheduled`); present
+   *  only on hosts that declare `scheduled_send`. */
+  onEnqueueScheduled?: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
+  /** Move one queued item between ordinary and scheduled (see
+   *  `MessageQueueDisplayProps.onScheduleItem`). */
+  onQueueSchedule?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
@@ -134,6 +147,8 @@ export const ChatInput = memo(function ChatInput({
   queueControl,
   onQueueContinue,
   onEnqueue,
+  onEnqueueScheduled,
+  onQueueSchedule,
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
@@ -207,6 +222,7 @@ export const ChatInput = memo(function ChatInput({
             onEdit={onQueueEdit}
             onDelete={onQueueDelete}
             onRetry={onQueueRetry}
+            onScheduleItem={onQueueSchedule}
             editingItemId={editingItemId ?? null}
             onSteerItem={onQueueSteer}
             steerChannel={steerChannel}
@@ -242,6 +258,7 @@ export const ChatInput = memo(function ChatInput({
         isActive={isActive}
         showActiveFlow={showActiveFlow}
         onEnqueue={onEnqueue}
+        onEnqueueScheduled={onEnqueueScheduled}
         editingItemId={editingItemId}
         editingDraftText={editingDraftText}
         editingDraftBlocks={editingDraftBlocks}

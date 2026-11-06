@@ -128,6 +128,18 @@ interface ConversationShellProps {
   queueControl?: import("@/lib/types").MessageQueueState | null
   onQueueContinue?: () => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
+  /** One-off scheduled send (see `ChatInputProps.onEnqueueScheduled`). */
+  onEnqueueScheduled?: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
+  /** Move one queued item between ordinary and scheduled (see
+   *  `ChatInputProps.onQueueSchedule`). */
+  onQueueSchedule?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
@@ -221,6 +233,8 @@ export function ConversationShell({
   queueControl,
   onQueueContinue,
   onEnqueue,
+  onEnqueueScheduled,
+  onQueueSchedule,
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
@@ -356,6 +370,8 @@ export function ConversationShell({
               queueControl={queueControl}
               onQueueContinue={onQueueContinue}
               onEnqueue={onEnqueue}
+              onEnqueueScheduled={onEnqueueScheduled}
+              onQueueSchedule={onQueueSchedule}
               onQueueReorder={onQueueReorder}
               onQueueEdit={onQueueEdit}
               onQueueDelete={onQueueDelete}

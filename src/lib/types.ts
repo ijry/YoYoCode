@@ -4777,6 +4777,8 @@ export interface PersistedQueueItem {
   adopt_send_time_mode: boolean
   delivery_state?: "claimed" | "sending" | "failed" | "uncertain"
   last_error?: string | null
+  /** RFC 3339 one-off schedule instant; absent on ordinary items. */
+  scheduled_at?: string | null
 }
 
 // Shape accepted by `message_queue_save`. camelCase because both the Tauri

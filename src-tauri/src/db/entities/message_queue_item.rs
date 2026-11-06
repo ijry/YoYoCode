@@ -17,6 +17,7 @@ pub struct Model {
     pub draft_json: String,
     pub mode_id: Option<String>,
     pub adopt_send_time_mode: bool,
+    pub scheduled_at: Option<DateTimeUtc>,
     pub sort_order: i32,
     /// pending -> claimed -> sending -> submitted. Failed or uncertain
     /// deliveries stay visible; submitted ids remain as stale-save watermarks.

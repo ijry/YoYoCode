@@ -3533,7 +3533,21 @@
         "continueTask": "Continuar tarefa inacabada",
         "continuingTask": "Continuando tarefa…",
         "steerItemNow": "Inserir na vez atual",
-        "steerItemAsNote": "Enviar como nota para a próxima verificação"
+        "steerItemAsNote": "Enviar como nota para a próxima verificação",
+        "scheduledSend": "Enviar mais tarde",
+        "scheduleItem": "Agendar envio",
+        "scheduleTitle": "Agendar esta mensagem",
+        "scheduleDescription": "Escolha quando a mensagem deve sair. Até lá ela aguarda a vez na fila.",
+        "scheduleDateLabel": "Data",
+        "scheduleTimeLabel": "Hora",
+        "schedulePickDate": "Escolher data",
+        "schedulePastHint": "Essa hora já passou — escolha uma hora futura.",
+        "schedulePreview": "Será enviada às {time}",
+        "scheduleClear": "Voltar para a fila normal",
+        "scheduleConfirm": "Agendar",
+        "scheduleCancel": "Cancelar",
+        "preset30m": "Em 30 minutos",
+        "preset2h": "Em 2 horas"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "Configurações > Agentes",

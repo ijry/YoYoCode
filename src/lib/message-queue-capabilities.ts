@@ -3,6 +3,8 @@ import type { Transport } from "@/lib/transport/types"
 export interface MessageQueueCapabilities {
   backend_drain: boolean
   pause_recovery?: boolean
+  /** Atomic enqueue/set-schedule/remove APIs exist (one-off timed sends). */
+  scheduled_send?: boolean
 }
 
 /** Missing-command is a legacy host; offline/auth errors are not permission

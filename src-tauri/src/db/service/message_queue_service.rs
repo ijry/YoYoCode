@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    DatabaseTransaction, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    Statement, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, Condition, ConnectionTrait,
+    DatabaseConnection, DatabaseTransaction, DbBackend, EntityTrait, QueryFilter, QueryOrder,
+    Set, Statement, TransactionTrait,
 };
 use serde::Deserialize;
 
@@ -28,6 +28,7 @@ const PENDING: &str = "pending";
 const CLAIMED: &str = "claimed";
 const SENDING: &str = "sending";
 const SUBMITTED: &str = "submitted";
+const REMOVED: &str = "removed";
 const FAILED: &str = "failed";
 const UNCERTAIN: &str = "uncertain";
 
@@ -37,6 +38,7 @@ fn to_item(m: message_queue_item::Model) -> MessageQueueItem {
         draft_json: m.draft_json,
         mode_id: m.mode_id,
         adopt_send_time_mode: m.adopt_send_time_mode,
+        scheduled_at: m.scheduled_at,
         delivery_state: (m.delivery_state != PENDING).then_some(m.delivery_state),
         last_error: m.last_error,
     }
@@ -48,7 +50,9 @@ async fn list_on<C: ConnectionTrait>(
 ) -> Result<Vec<MessageQueueItem>, DbError> {
     let rows = message_queue_item::Entity::find()
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
-        .filter(message_queue_item::Column::DeliveryState.ne(SUBMITTED))
+        .filter(
+            message_queue_item::Column::DeliveryState.is_not_in([SUBMITTED, REMOVED]),
+        )
         .order_by_asc(message_queue_item::Column::SortOrder)
         .order_by_asc(message_queue_item::Column::Id)
         .all(conn)
@@ -109,7 +113,12 @@ pub async fn save(
         .collect();
     let retained: HashSet<&str> = items.iter().map(|item| item.id.as_str()).collect();
     for row in &rows {
-        if !matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED)
+        // Scheduled rows are only touched through the schedule/remove patch
+        // APIs: a legacy full save that omits one keeps it (and its time)
+        // instead of deleting it, and removed ids stay tombstoned so a stale
+        // list cannot resurrect them.
+        if !matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED | REMOVED)
+            && row.scheduled_at.is_none()
             && !retained.contains(row.item_uid.as_str())
         {
             message_queue_item::Entity::delete_by_id(row.id)
@@ -126,7 +135,7 @@ pub async fn save(
     let mut position = protected.len() as i32;
     for item in items {
         if let Some(row) = existing.get(item.id.as_str()) {
-            if matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED) {
+            if matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED | REMOVED) {
                 continue;
             }
             let changed = row.draft_json != item.draft_json
@@ -152,6 +161,7 @@ pub async fn save(
                 draft_json: Set(item.draft_json),
                 mode_id: Set(item.mode_id),
                 adopt_send_time_mode: Set(item.adopt_send_time_mode),
+                scheduled_at: Set(None),
                 sort_order: Set(position),
                 delivery_state: Set(PENDING.into()),
                 claim_token: Set(None),
@@ -197,9 +207,21 @@ pub async fn claim_next(
         txn.commit().await?;
         return Ok(None);
     }
+    let now = Utc::now();
     let head = message_queue_item::Entity::find()
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
-        .filter(message_queue_item::Column::DeliveryState.ne(SUBMITTED))
+        .filter(
+            message_queue_item::Column::DeliveryState.is_not_in([SUBMITTED, REMOVED]),
+        )
+        // A pending message whose schedule has not arrived is transparent:
+        // the head skips it so ordinary messages keep flowing. Failed,
+        // uncertain and in-flight items still block the queue until resolved.
+        .filter(
+            Condition::any()
+                .add(message_queue_item::Column::DeliveryState.ne(PENDING))
+                .add(message_queue_item::Column::ScheduledAt.is_null())
+                .add(message_queue_item::Column::ScheduledAt.lte(now)),
+        )
         .order_by_asc(message_queue_item::Column::SortOrder)
         .order_by_asc(message_queue_item::Column::Id)
         .one(&txn)
@@ -232,6 +254,14 @@ async fn settle_claim(
         .col_expr(
             message_queue_item::Column::DeliveryState,
             sea_orm::sea_query::Expr::value(state),
+        )
+        // A settled delivery is no longer a scheduled one: only pending items
+        // may carry a schedule, so a failed/uncertain row must not keep the
+        // past instant — that would shield it from legacy full saves forever
+        // (a zombie) and make `retry` fire immediately with a stale plan.
+        .col_expr(
+            message_queue_item::Column::ScheduledAt,
+            sea_orm::sea_query::Expr::value(None::<DateTime<Utc>>),
         )
         .col_expr(
             message_queue_item::Column::LastError,
@@ -337,6 +367,12 @@ pub async fn recover_abandoned_claims(conn: &DatabaseConnection) -> Result<(), D
             message_queue_item::Column::ClaimToken,
             sea_orm::sea_query::Expr::value(None::<String>),
         )
+        // Same rule as `settle_claim`: uncertain means the outcome is unknown,
+        // not scheduled — retrying it is an explicit "send now".
+        .col_expr(
+            message_queue_item::Column::ScheduledAt,
+            sea_orm::sea_query::Expr::value(None::<DateTime<Utc>>),
+        )
         .col_expr(
             message_queue_item::Column::LastError,
             sea_orm::sea_query::Expr::value("host stopped before queue delivery was confirmed"),
@@ -360,16 +396,236 @@ pub async fn recover_abandoned_claims(conn: &DatabaseConnection) -> Result<(), D
 }
 
 pub async fn pending_owners(conn: &DatabaseConnection) -> Result<Vec<String>, DbError> {
-    Ok(message_queue_item::Entity::find()
-        .select_only()
-        .column(message_queue_item::Column::OwnerId)
-        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
-        .distinct()
-        .order_by_asc(message_queue_item::Column::OwnerId)
-        .into_tuple::<String>()
-        .all(conn)
-        .await?)
+    let now = Utc::now();
+    let rows = conn
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            r#"
+            SELECT DISTINCT m.owner_id
+            FROM message_queue_item m
+            WHERE m.delivery_state = 'pending'
+              AND (m.scheduled_at IS NULL OR m.scheduled_at <= ?)
+              AND NOT EXISTS (
+                  SELECT 1 FROM message_queue_item h
+                  WHERE h.owner_id = m.owner_id
+                    AND h.delivery_state NOT IN ('submitted', 'removed')
+                    AND NOT (h.delivery_state = 'pending'
+                             AND h.scheduled_at IS NOT NULL AND h.scheduled_at > ?)
+                    AND (h.sort_order < m.sort_order
+                         OR (h.sort_order = m.sort_order AND h.id < m.id))
+              )
+            ORDER BY m.owner_id
+            "#,
+            [now.into(), now.into()],
+        ))
+        .await?;
+    let mut owners = Vec::new();
+    for row in rows {
+        owners.push(row.try_get::<String>("", "owner_id")?);
+    }
+    Ok(owners)
 }
+
+/// RFC 3339 wire input for a one-off schedule time; absent or empty means
+/// ordinary. Parsed here so the Tauri command and the HTTP handler accept
+/// exactly the same shape as `work_task_schedule`.
+pub fn parse_schedule_input(raw: Option<String>) -> Result<Option<DateTime<Utc>>, DbError> {
+    match raw.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        None => Ok(None),
+        Some(raw) => Ok(Some(
+            chrono::DateTime::parse_from_rfc3339(raw)
+                .map_err(|error| DbError::Validation(format!("invalid scheduled_at: {error}")))?
+                .with_timezone(&Utc),
+        )),
+    }
+}
+
+/// Append one message atomically, optionally with a one-off schedule time.
+/// Concurrent enqueues from several clients serialize on the writer lock,
+/// and a retry with the same id updates the row instead of duplicating it.
+/// The full-queue save never carries a schedule, so a time only enters the
+/// queue through this path or `set_schedule`.
+pub async fn enqueue(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item: QueueItemInput,
+    scheduled_at: Option<DateTime<Utc>>,
+) -> Result<(), DbError> {
+    if item.id.is_empty() {
+        return Err(DbError::Validation(
+            "queue item ids must be non-empty".into(),
+        ));
+    }
+    if scheduled_at.is_some_and(|at| at <= Utc::now()) {
+        return Err(DbError::Validation(
+            "a scheduled time must be in the future".into(),
+        ));
+    }
+    let txn = write_transaction(conn).await?;
+    let existing = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(&item.id))
+        .one(&txn)
+        .await?;
+    let tail = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .order_by_desc(message_queue_item::Column::SortOrder)
+        .one(&txn)
+        .await?
+        .map_or(-1, |row| row.sort_order);
+    let now = Utc::now();
+    match existing {
+        Some(row) if matches!(row.delivery_state.as_str(), CLAIMED | SENDING) => {
+            return Err(DbError::Conflict(
+                "the queue item is being delivered".into(),
+            ));
+        }
+        Some(row) if matches!(row.delivery_state.as_str(), SUBMITTED | REMOVED) => {
+            return Err(DbError::Conflict(
+                "the queue item id was already delivered or removed".into(),
+            ));
+        }
+        Some(row) => {
+            let mut active: message_queue_item::ActiveModel = row.into();
+            active.draft_json = Set(item.draft_json);
+            active.mode_id = Set(item.mode_id);
+            active.adopt_send_time_mode = Set(item.adopt_send_time_mode);
+            active.scheduled_at = Set(scheduled_at);
+            active.sort_order = Set(tail + 1);
+            active.delivery_state = Set(PENDING.into());
+            active.claim_token = Set(None);
+            active.last_error = Set(None);
+            active.updated_at = Set(now);
+            active.update(&txn).await?;
+        }
+        None => {
+            message_queue_item::ActiveModel {
+                id: NotSet,
+                owner_id: Set(owner_id.into()),
+                item_uid: Set(item.id),
+                draft_json: Set(item.draft_json),
+                mode_id: Set(item.mode_id),
+                adopt_send_time_mode: Set(item.adopt_send_time_mode),
+                scheduled_at: Set(scheduled_at),
+                sort_order: Set(tail + 1),
+                delivery_state: Set(PENDING.into()),
+                claim_token: Set(None),
+                last_error: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+            }
+            .insert(&txn)
+            .await?;
+        }
+    }
+    txn.commit().await?;
+    Ok(())
+}
+
+/// Move one pending item between ordinary and scheduled, keeping its id,
+/// body, attachments and mode. Anything not pending (in flight, failed,
+/// uncertain, settled or removed) is rejected so the time can never change
+/// behind a live claim; `Some(past)` is rejected outright.
+pub async fn set_schedule(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item_id: &str,
+    scheduled_at: Option<DateTime<Utc>>,
+) -> Result<(), DbError> {
+    if scheduled_at.is_some_and(|at| at <= Utc::now()) {
+        return Err(DbError::Validation(
+            "a scheduled time must be in the future".into(),
+        ));
+    }
+    let txn = write_transaction(conn).await?;
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::ScheduledAt,
+            sea_orm::sea_query::Expr::value(scheduled_at),
+        )
+        .col_expr(
+            message_queue_item::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(Utc::now()),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(item_id))
+        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
+        .exec(&txn)
+        .await?;
+    txn.commit().await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict(
+            "only a pending queue item can be rescheduled".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Explicit delete for ordinary and scheduled items alike. The row becomes a
+/// tombstone (like a submitted watermark) so a stale full save that still
+/// lists the id cannot bring it back.
+pub async fn remove(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item_id: &str,
+) -> Result<(), DbError> {
+    let txn = write_transaction(conn).await?;
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(REMOVED),
+        )
+        .col_expr(
+            message_queue_item::Column::ScheduledAt,
+            sea_orm::sea_query::Expr::value(None::<DateTime<Utc>>),
+        )
+        .col_expr(
+            message_queue_item::Column::ClaimToken,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .col_expr(
+            message_queue_item::Column::LastError,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .col_expr(
+            message_queue_item::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(Utc::now()),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(item_id))
+        .filter(
+            message_queue_item::Column::DeliveryState.is_in([PENDING, FAILED, UNCERTAIN]),
+        )
+        .exec(&txn)
+        .await?;
+    txn.commit().await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict(
+            "only a pending, failed or uncertain queue item can be removed".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// The earliest schedule that has not arrived yet, across every
+/// conversation. Due-but-unclaimed items are excluded: the periodic scan
+/// already covers them, and returning them here would wake the drainer in a
+/// tight loop while an owner is busy or paused.
+pub async fn next_schedule(
+    conn: &DatabaseConnection,
+) -> Result<Option<DateTime<Utc>>, DbError> {
+    let row = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
+        .filter(message_queue_item::Column::ScheduledAt.gt(Utc::now()))
+        .order_by_asc(message_queue_item::Column::ScheduledAt)
+        .one(conn)
+        .await?;
+    Ok(row.and_then(|row| row.scheduled_at))
+}
+
+#[cfg(test)]
+#[path = "message_queue_schedule_tests.rs"]
+mod schedule_tests;
 
 #[cfg(test)]
 mod tests {

@@ -5,6 +5,7 @@ import {
   screen,
   cleanup,
   waitFor,
+  within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
@@ -251,5 +252,80 @@ describe("MessageQueueDisplay click-to-insert", () => {
       editingItemId: "q1",
     })
     expect(screen.getAllByTitle(TQ.steerItemNow)).toHaveLength(1)
+  })
+})
+
+describe("MessageQueueDisplay scheduled sends", () => {
+  it("schedules an ordinary row through the dialog at the picked instant", async () => {
+    const onScheduleItem = vi.fn(async () => {})
+    renderDisplay({ onScheduleItem })
+
+    await userEvent.click(screen.getAllByTitle(TQ.scheduleItem)[0])
+    const dialog = screen.getByRole("dialog")
+    expect(
+      within(dialog).getByText(TQ.scheduleTitle)
+    ).toBeInTheDocument()
+    // Nothing picked yet — no instant, no confirm.
+    expect(
+      within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
+    ).toBeDisabled()
+
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.preset30m })
+    )
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
+    )
+    await waitFor(() =>
+      expect(onScheduleItem).toHaveBeenCalledWith("q1", expect.any(String))
+    )
+  })
+
+  it("shows a scheduled row's time and can put it back into the ordinary queue", async () => {
+    const onScheduleItem = vi.fn(async () => {})
+    renderDisplay({
+      queue: [{ ...item("q1", "later"), scheduledAt: "2026-11-08T09:00:00+00:00" }],
+      onScheduleItem,
+    })
+    expect(screen.getByTitle("2026-11-08T09:00:00+00:00")).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTitle(TQ.scheduleItem))
+    const dialog = screen.getByRole("dialog")
+    // The existing plan seeds the fields — modifying, not starting over.
+    expect(
+      within(dialog).getByRole("button", { name: TQ.scheduleClear })
+    ).toBeInTheDocument()
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.scheduleClear })
+    )
+    await waitFor(() => expect(onScheduleItem).toHaveBeenCalledWith("q1", null))
+  })
+
+  it("keeps the dialog open and the row intact when the host rejects the schedule", async () => {
+    const onScheduleItem = vi.fn(async () => {
+      throw new Error("only pending items can be scheduled")
+    })
+    renderDisplay({ onScheduleItem })
+    await userEvent.click(screen.getAllByTitle(TQ.scheduleItem)[0])
+    const dialog = screen.getByRole("dialog")
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.preset30m })
+    )
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
+    )
+    await waitFor(() => expect(onScheduleItem).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("offers no clock without a schedule handler or on non-pending rows", () => {
+    renderDisplay({
+      queue: [
+        { ...item("q1", "in flight"), deliveryState: "claimed" },
+        { ...item("q2", "failed"), deliveryState: "failed" },
+      ],
+      onScheduleItem: vi.fn(async () => {}),
+    })
+    expect(screen.queryByTitle(TQ.scheduleItem)).toBeNull()
   })
 })

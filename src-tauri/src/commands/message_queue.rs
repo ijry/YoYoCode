@@ -16,7 +16,7 @@ use crate::web::event_bridge::{
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub fn message_queue_capabilities() -> serde_json::Value {
-    serde_json::json!({ "backend_drain": true, "pause_recovery": true })
+    serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true })
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -96,4 +96,81 @@ pub async fn message_queue_save(
     // periodic sweep.
     drain.notify(owner_id);
     Ok(())
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_enqueue(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item: QueueItemInput,
+    scheduled_at: Option<String>,
+    origin: String,
+) -> Result<Vec<MessageQueueItem>, DbError> {
+    let at = message_queue_service::parse_schedule_input(scheduled_at)?;
+    message_queue_service::enqueue(&db.conn, &owner_id, item, at).await?;
+    let items = message_queue_service::list(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::Tauri(app),
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: owner_id.clone(),
+            origin,
+            items: items.clone(),
+        },
+    );
+    drain.notify(owner_id);
+    Ok(items)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_set_schedule(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item_id: String,
+    scheduled_at: Option<String>,
+) -> Result<Vec<MessageQueueItem>, DbError> {
+    let at = message_queue_service::parse_schedule_input(scheduled_at)?;
+    message_queue_service::set_schedule(&db.conn, &owner_id, &item_id, at).await?;
+    let items = message_queue_service::list(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::Tauri(app),
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: owner_id.clone(),
+            origin: "backend-schedule".into(),
+            items: items.clone(),
+        },
+    );
+    drain.notify(owner_id);
+    Ok(items)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_remove(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item_id: String,
+) -> Result<Vec<MessageQueueItem>, DbError> {
+    message_queue_service::remove(&db.conn, &owner_id, &item_id).await?;
+    let items = message_queue_service::list(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::Tauri(app),
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: owner_id.clone(),
+            origin: "backend-remove".into(),
+            items: items.clone(),
+        },
+    );
+    drain.notify(owner_id);
+    Ok(items)
 }

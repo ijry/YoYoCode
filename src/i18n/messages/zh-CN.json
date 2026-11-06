@@ -3572,7 +3572,21 @@
         "continueTask": "继续未完成任务",
         "continuingTask": "正在继续未完成任务…",
         "steerItemNow": "插入当前回合",
-        "steerItemAsNote": "作为留言，供下次检查时读取"
+        "steerItemAsNote": "作为留言，供下次检查时读取",
+        "scheduledSend": "定时发送",
+        "scheduleItem": "设置定时发送",
+        "scheduleTitle": "定时发送这条消息",
+        "scheduleDescription": "选择消息的发送时间，到点前它按队列顺序等待。",
+        "scheduleDateLabel": "日期",
+        "scheduleTimeLabel": "时间",
+        "schedulePickDate": "选择日期",
+        "schedulePastHint": "所选时间已过去，请选择未来的时间。",
+        "schedulePreview": "将于 {time} 发送",
+        "scheduleClear": "改回普通队列",
+        "scheduleConfirm": "定时",
+        "scheduleCancel": "取消",
+        "preset30m": "30 分钟后",
+        "preset2h": "2 小时后"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "设置 > Agents",

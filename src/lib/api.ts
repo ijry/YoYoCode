@@ -4008,6 +4008,34 @@ export async function messageQueueRetry(ownerId: string, itemId: string): Promis
   return getTransport().call("message_queue_retry", { ownerId, itemId })
 }
 
+// One-off scheduled sends. `scheduledAt` is an RFC 3339 instant; null clears
+// a schedule (back to ordinary). The enqueue/set-schedule/remove calls are
+// atomic host-side patches — the full-queue save never carries a schedule.
+
+export async function messageQueueEnqueue(
+  ownerId: string,
+  item: MessageQueueSaveItem,
+  scheduledAt: string | null,
+  origin: string
+): Promise<PersistedQueueItem[]> {
+  return getTransport().call("message_queue_enqueue", { ownerId, item, scheduledAt, origin })
+}
+
+export async function messageQueueSetSchedule(
+  ownerId: string,
+  itemId: string,
+  scheduledAt: string | null
+): Promise<PersistedQueueItem[]> {
+  return getTransport().call("message_queue_set_schedule", { ownerId, itemId, scheduledAt })
+}
+
+export async function messageQueueRemove(
+  ownerId: string,
+  itemId: string
+): Promise<PersistedQueueItem[]> {
+  return getTransport().call("message_queue_remove", { ownerId, itemId })
+}
+
 // Token usage dashboard
 
 export async function tokenUsageReport(

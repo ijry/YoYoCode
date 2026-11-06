@@ -3572,7 +3572,21 @@
         "continueTask": "Continue unfinished task",
         "continuingTask": "Continuing unfinished task…",
         "steerItemNow": "Insert into current turn",
-        "steerItemAsNote": "Send as note for next check"
+        "steerItemAsNote": "Send as note for next check",
+        "scheduledSend": "Send later",
+        "scheduleItem": "Schedule send",
+        "scheduleTitle": "Schedule this message",
+        "scheduleDescription": "Pick when the message should go out. It keeps its place in the queue until then.",
+        "scheduleDateLabel": "Date",
+        "scheduleTimeLabel": "Time",
+        "schedulePickDate": "Select date",
+        "schedulePastHint": "That time has passed — pick a future time.",
+        "schedulePreview": "Will send {time}",
+        "scheduleClear": "Back to ordinary queue",
+        "scheduleConfirm": "Schedule",
+        "scheduleCancel": "Cancel",
+        "preset30m": "In 30 minutes",
+        "preset2h": "In 2 hours"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "Settings > Agents",

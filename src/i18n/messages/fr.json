@@ -3533,7 +3533,21 @@
         "continueTask": "Continuer la tâche inachevée",
         "continuingTask": "Reprise de la tâche…",
         "steerItemNow": "Insérer dans le tour en cours",
-        "steerItemAsNote": "Envoyer comme note pour la prochaine vérification"
+        "steerItemAsNote": "Envoyer comme note pour la prochaine vérification",
+        "scheduledSend": "Envoyer plus tard",
+        "scheduleItem": "Planifier l'envoi",
+        "scheduleTitle": "Planifier ce message",
+        "scheduleDescription": "Choisissez quand le message doit partir. D'ici là, il attend son tour dans la file.",
+        "scheduleDateLabel": "Date",
+        "scheduleTimeLabel": "Heure",
+        "schedulePickDate": "Choisir une date",
+        "schedulePastHint": "Cette heure est déjà passée — choisissez une heure future.",
+        "schedulePreview": "Envoi prévu à {time}",
+        "scheduleClear": "Revenir à la file normale",
+        "scheduleConfirm": "Planifier",
+        "scheduleCancel": "Annuler",
+        "preset30m": "Dans 30 minutes",
+        "preset2h": "Dans 2 heures"
       },
       "welcomeInputPanel": {
         "agentsSettingsPath": "Paramètres > Agents",

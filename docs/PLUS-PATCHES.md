@@ -52,6 +52,8 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 
 - 会话执行错误暂停/原上下文继续：`message_queue_state/attempt` 持久化恢复gate，实际轮次success才释放后续，UI空队列也有固定继续提示，CAS防多端重复点击。见 [message-queue-error-recovery.md](message-queue-error-recovery.md)。
 
+- 一次性定时发送：`scheduled_at` 列 + `message_queue_enqueue/set_schedule/remove` 原子 patch API + capabilities `scheduled_send`；claim 头跳过未到期项（未来定时不挡普通消息），drainer 按最近 deadline 唤醒；旧 full-save 不触碰时间、漏列不删定时行、显式删除走 REMOVED 墓碑。desktop/Web/App 弹窗（30 分钟/2 小时预设）与行内转换。
+
 ### CI 发布
 
 - **tag 规则（强制）**：`v<app version>-plus.N`，如 `v0.41.3-plus.1`。不带

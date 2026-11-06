@@ -1866,6 +1866,18 @@ pub fn build_router_with_proxy_auth(
             "/message_queue_save",
             post(handlers::message_queue::message_queue_save),
         )
+        .route(
+            "/message_queue_enqueue",
+            post(handlers::message_queue::message_queue_enqueue),
+        )
+        .route(
+            "/message_queue_set_schedule",
+            post(handlers::message_queue::message_queue_set_schedule),
+        )
+        .route(
+            "/message_queue_remove",
+            post(handlers::message_queue::message_queue_remove),
+        )
         // ─── Automations ───
         .route(
             "/automation_list",

@@ -2388,9 +2388,33 @@ const ConversationTabView = memo(function ConversationTabView({
       queueControl={messageQueue.control}
       onQueueContinue={async () => { try { await messageQueue.continueTask() } catch (error) { toast.error(toErrorMessage(error)) } }}
       onEnqueue={mqEnqueue}
+      onEnqueueScheduled={
+        // The composer owns the failure UX (toast + keep draft); passing the
+        // hook's async action straight through keeps that contract.
+        messageQueue.scheduledSend
+          ? messageQueue.enqueueScheduled
+          : undefined
+      }
+      onQueueSchedule={
+        // The queue display owns the failure UX (toast + keep the dialog).
+        messageQueue.scheduledSend ? messageQueue.scheduleItem : undefined
+      }
       onQueueReorder={mqReorder}
       onQueueEdit={handleQueueEdit}
-      onQueueDelete={mqRemove}
+      onQueueDelete={
+        // A capable host deletes through the tombstoning remove API (a stale
+        // full save cannot resurrect the row); older hosts keep the legacy
+        // full-save delete. The wrapper is the row button's error surface.
+        messageQueue.scheduledSend
+          ? async (id) => {
+              try {
+                await messageQueue.removeItem(id)
+              } catch (error) {
+                toast.error(toErrorMessage(error))
+              }
+            }
+          : mqRemove
+      }
       onQueueRetry={messageQueue.backendDrain === true ? async (id) => {
         try { await messageQueue.retryItem(id) }
         catch (error) { toast.error(toErrorMessage(error)) }

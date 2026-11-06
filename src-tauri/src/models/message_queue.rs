@@ -11,6 +11,8 @@ pub struct MessageQueueItem {
     pub draft_json: String,
     pub mode_id: Option<String>,
     pub adopt_send_time_mode: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Absent for ordinary pending items, preserving the existing wire shape.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery_state: Option<String>,

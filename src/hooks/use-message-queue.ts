@@ -15,6 +15,9 @@ import {
   messageQueueRetry,
   messageQueueState,
   messageQueueContinue,
+  messageQueueEnqueue,
+  messageQueueSetSchedule,
+  messageQueueRemove,
 } from "@/lib/api"
 import { getTransport } from "@/lib/transport"
 import { readMessageQueueCapabilities } from "@/lib/message-queue-capabilities"
@@ -51,6 +54,8 @@ export interface QueuedMessage {
   adoptSendTimeMode?: boolean
   deliveryState?: PersistedQueueItem["delivery_state"]
   lastError?: string | null
+  /** RFC 3339 one-off schedule instant; absent = ordinary send-later. */
+  scheduledAt?: string | null
   persistedDraftJson?: string
 }
 
@@ -58,6 +63,8 @@ export interface UseMessageQueueReturn {
   queue: QueuedMessage[]
   /** null while checking the host (fail closed), true = Rust owns drain. */
   backendDrain: boolean | null
+  /** True only when the host accepts the atomic schedule/enqueue/remove APIs. */
+  scheduledSend: boolean
   control: MessageQueueState | null
   continueTask: () => Promise<void>
   enqueue: (
@@ -65,6 +72,27 @@ export interface UseMessageQueueReturn {
     modeId: string | null,
     opts?: { adoptSendTimeMode?: boolean }
   ) => void
+  /**
+   * Append a message with a one-off schedule time through the host's atomic
+   * enqueue. Rejects when the host does not declare `scheduled_send`; callers
+   * keep the draft on failure.
+   */
+  enqueueScheduled: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
+  /**
+   * Move one pending item between ordinary (`null`) and scheduled, keeping
+   * its id, body and mode. Rejects on non-capable hosts or non-pending items.
+   */
+  scheduleItem: (id: string, scheduledAt: string | null) => Promise<void>
+  /**
+   * Explicit delete through the host API (tombstoned server-side, so a stale
+   * full save cannot resurrect it); falls back to the legacy full save on
+   * older hosts.
+   */
+  removeItem: (id: string) => Promise<void>
   /**
    * Put a draft back at the FRONT of the queue. Used when an auto-flushed item
    * was dequeued, sent, and bounced (TurnBusyError): it must return to the head
@@ -112,6 +140,7 @@ function parseItem(item: PersistedQueueItem): QueuedMessage | null {
       adoptSendTimeMode: item.adopt_send_time_mode || undefined,
       ...(item.delivery_state ? { deliveryState: item.delivery_state } : {}),
       ...(item.last_error ? { lastError: item.last_error } : {}),
+      ...(item.scheduled_at ? { scheduledAt: item.scheduled_at } : {}),
     }
   } catch {
     if (item.delivery_state !== "failed" && item.delivery_state !== "uncertain")
@@ -162,6 +191,8 @@ export function useMessageQueue(
     ownerId ? null : false
   )
   const backendDrainRef = useRef<boolean | null>(ownerId ? null : false)
+  const [scheduledSend, setScheduledSend] = useState(false)
+  const scheduledSendRef = useRef(false)
   const queueRevision = useRef(0)
   const persistChain = useRef<Promise<void>>(Promise.resolve())
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
@@ -225,6 +256,26 @@ export function useMessageQueue(
     setQueue(next)
   }, [])
 
+  // Adopt an authoritative server list (API returns / hydrations), keeping
+  // any not-yet-hydrated parked drafts at the tail. A parked merge persists
+  // so the host learns the draft the server list could not include.
+  const adoptServerItems = useCallback(
+    (items: PersistedQueueItem[]) => {
+      const parsed = items
+        .map(parseItem)
+        .filter((item): item is QueuedMessage => item !== null)
+      const parked = ownerHydratedRef.current ? [] : queueRef.current
+      const ids = new Set(parsed.map((item) => item.id))
+      const merged = [...parsed, ...parked.filter((item) => !ids.has(item.id))]
+      queueRef.current = merged
+      ownerHydratedRef.current = true
+      queueRevision.current += 1
+      setQueue(merged)
+      if (parked.length > 0) persist(merged)
+    },
+    [persist]
+  )
+
   // Host capability is independent of a live ACP connection. An unresolved
   // or offline probe never enables legacy dequeue on an owned queue.
   useEffect(() => {
@@ -233,6 +284,8 @@ export function useMessageQueue(
       if (!ownerId) {
         backendDrainRef.current = false
         setBackendDrain(false)
+        scheduledSendRef.current = false
+        setScheduledSend(false)
         return
       }
       backendDrainRef.current = null
@@ -242,6 +295,10 @@ export function useMessageQueue(
         if (cancelled) return
         backendDrainRef.current = capabilities.backend_drain
         setBackendDrain(capabilities.backend_drain)
+        const canSchedule =
+          capabilities.backend_drain && capabilities.scheduled_send === true
+        scheduledSendRef.current = canSchedule
+        setScheduledSend(canSchedule)
         if (capabilities.pause_recovery) {
           const next = await messageQueueState(ownerId)
           if (
@@ -544,12 +601,83 @@ export function useMessageQueue(
     }
   }, [])
 
+  const requireScheduleCapability = useCallback(() => {
+    const owner = ownerIdRef.current
+    if (!owner || !scheduledSendRef.current) {
+      throw new Error("scheduled send is not available on this host")
+    }
+    return owner
+  }, [])
+
+  const enqueueScheduled = useCallback(
+    async (draft: PromptDraft, modeId: string | null, scheduledAt: string) => {
+      const owner = requireScheduleCapability()
+      const revision = queueRevision.current
+      const items = await messageQueueEnqueue(
+        owner,
+        {
+          id: randomUUID(),
+          draftJson: serializeDraft(draft),
+          modeId,
+          adoptSendTimeMode: false,
+        },
+        scheduledAt,
+        clientIdRef.current
+      )
+      if (
+        ownerIdRef.current !== owner ||
+        revision !== queueRevision.current
+      )
+        return
+      adoptServerItems(items)
+    },
+    [adoptServerItems, requireScheduleCapability]
+  )
+
+  const scheduleItem = useCallback(
+    async (id: string, scheduledAt: string | null) => {
+      const owner = requireScheduleCapability()
+      const revision = queueRevision.current
+      const items = await messageQueueSetSchedule(owner, id, scheduledAt)
+      if (
+        ownerIdRef.current !== owner ||
+        revision !== queueRevision.current
+      )
+        return
+      adoptServerItems(items)
+    },
+    [adoptServerItems, requireScheduleCapability]
+  )
+
+  const removeItem = useCallback(
+    async (id: string) => {
+      if (!scheduledSendRef.current) {
+        remove(id)
+        return
+      }
+      const owner = requireScheduleCapability()
+      const revision = queueRevision.current
+      const items = await messageQueueRemove(owner, id)
+      if (
+        ownerIdRef.current !== owner ||
+        revision !== queueRevision.current
+      )
+        return
+      adoptServerItems(items)
+    },
+    [remove, requireScheduleCapability, adoptServerItems]
+  )
+
   return {
     queue,
     control,
     continueTask,
     backendDrain,
+    scheduledSend,
     enqueue,
+    enqueueScheduled,
+    scheduleItem,
+    removeItem,
     requeueFront,
     dequeue,
     remove,

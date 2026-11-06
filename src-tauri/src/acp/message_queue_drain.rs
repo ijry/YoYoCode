@@ -1,7 +1,8 @@
 //! Rust owns the persisted send-later queue in desktop and server mode.
 //! Saves and completed lifecycle writes wake it; boot and periodic scans
-//! cover abandoned clients. Per-owner workers claim atomically in SQLite,
-//! keep content until prompt admission, and retain uncertain deliveries.
+//! cover abandoned clients, and the nearest future schedule wakes it for
+//! timed messages. Per-owner workers claim atomically in SQLite, keep
+//! content until prompt admission, and retain uncertain deliveries.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::{File, OpenOptions, TryLockError};
@@ -115,6 +116,21 @@ async fn run(
             .map(|(_, (_, at))| *at)
             .min()
             .unwrap_or_else(|| Instant::now() + Duration::from_secs(SWEEP_INTERVAL_SECS));
+        // The 30s sweep is only a safety net: the drainer wakes exactly for
+        // the nearest future schedule so a timed message goes out on time
+        // without busy-spinning on owners that are not due yet.
+        let schedule_wake = match message_queue_service::next_schedule(&db).await {
+            Ok(next) => next.and_then(|at| {
+                (at - chrono::Utc::now())
+                    .to_std()
+                    .ok()
+                    .map(|delta| Instant::now() + delta)
+            }),
+            Err(error) => {
+                tracing::warn!(%error, "[message-queue] schedule scan failed");
+                None
+            }
+        };
         let mut scan = false;
         tokio::select! {
             _ = tick.tick() => scan = true,
@@ -126,6 +142,9 @@ async fn run(
                     pending.insert(owner);
                 }
             }
+            _ = tokio::time::sleep_until(
+                schedule_wake.unwrap_or_else(|| Instant::now() + Duration::from_secs(SWEEP_INTERVAL_SECS)),
+            ), if schedule_wake.is_some() => scan = true,
             owner = rx.recv() => {
                 let Some(owner) = owner else { return; };
                 pending.insert(owner);

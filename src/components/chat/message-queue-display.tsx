@@ -2,7 +2,15 @@
 
 import { useCallback, useRef, useState, type PointerEvent } from "react"
 import { Reorder, useDragControls } from "motion/react"
-import { Clock, GripVertical, Pencil, RotateCcw, X, Zap } from "lucide-react"
+import {
+  CalendarClock,
+  Clock,
+  GripVertical,
+  Pencil,
+  RotateCcw,
+  X,
+  Zap,
+} from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,10 +22,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useTranslations } from "next-intl"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { toErrorMessage } from "@/lib/app-error"
+import { formatScheduleShort } from "@/lib/task-schedule"
 import { draftRidesBlocks } from "@/lib/prompt-draft"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
 import type { MessageQueueState } from "@/lib/types"
+import { MessageScheduleDialog } from "./message-schedule-dialog"
 
 interface MessageQueueDisplayProps {
   queue: QueuedMessage[]
@@ -28,6 +40,15 @@ interface MessageQueueDisplayProps {
   onDelete: (id: string) => void
   onRetry?: (id: string) => Promise<void> | void
   editingItemId: string | null
+  /**
+   * Move one pending item between ordinary (`null`) and a one-off schedule.
+   * Present only on hosts that declare `scheduled_send`; without it the clock
+   * actions are hidden rather than offered-but-broken.
+   */
+  onScheduleItem?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   /**
    * Send one queued item straight into the RUNNING turn over the session's
    * live-feedback channel (same delivery as the composer's mid-turn send).
@@ -49,12 +70,14 @@ interface QueueItemProps {
   onEdit: (id: string) => void
   onDelete: (id: string) => void
   onRetry?: (id: string) => void
+  onScheduleItem?: (id: string, scheduledAt: string | null) => Promise<void> | void
   onSteerItem?: (id: string) => Promise<void> | void
   steerChannel: "native" | "pull"
   /** Whether an insert from ANY row is in flight — every row's button is
    *  disabled for the duration, so two rows can't race the one channel. */
   steering: boolean
   onSteerStart: (id: string) => Promise<void>
+  onScheduleOpen: (id: string) => void
 }
 
 function QueueItem({
@@ -64,10 +87,12 @@ function QueueItem({
   onEdit,
   onDelete,
   onRetry,
+  onScheduleItem,
   onSteerItem,
   steerChannel,
   steering,
   onSteerStart,
+  onScheduleOpen,
 }: QueueItemProps) {
   const t = useTranslations("Folder.chat.messageQueue")
   const dragControls = useDragControls()
@@ -125,12 +150,37 @@ function QueueItem({
       <span className="min-w-0 flex-1 truncate text-3xs text-foreground/80">
         {item.draft.displayText}
       </span>
+      {item.scheduledAt && (
+        // The raw ISO rides as the title: the short text is locale-rendered,
+        // the tooltip is the exact instant the host will honor.
+        <span
+          className="shrink-0 text-3xs text-muted-foreground"
+          title={item.scheduledAt}
+        >
+          {formatScheduleShort(item.scheduledAt)}
+        </span>
+      )}
       {item.lastError && (
         <span className="text-destructive text-3xs" title={item.lastError}>
           !
         </span>
       )}
       {claimed && <Clock className="h-2.5 w-2.5 text-muted-foreground" />}
+      {onScheduleItem && !claimed && !isEditing &&
+        item.deliveryState !== "failed" &&
+        item.deliveryState !== "uncertain" && (
+          <button
+            type="button"
+            onClick={() => onScheduleOpen(item.id)}
+            title={t("scheduleItem")}
+            className={cn(
+              "shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground",
+              item.scheduledAt && "text-primary"
+            )}
+          >
+            <CalendarClock className="h-2.5 w-2.5" />
+          </button>
+        )}
       {onRetry &&
         (item.deliveryState === "failed" ||
           item.deliveryState === "uncertain") && (
@@ -190,6 +240,7 @@ export function MessageQueueDisplay({
   onEdit,
   onDelete,
   onRetry,
+  onScheduleItem,
   editingItemId,
   onSteerItem,
   steerChannel = "pull",
@@ -198,6 +249,13 @@ export function MessageQueueDisplay({
   const [retryId, setRetryId] = useState<string | null>(null)
   const [continuing, setContinuing] = useState(false)
   const continuingRef = useRef(false)
+  // The row whose clock is open: its id plus the schedule it already carries
+  // (seeds the picker and offers "back to ordinary").
+  const [scheduleTarget, setScheduleTarget] = useState<{
+    id: string
+    initialAt: string | null
+  } | null>(null)
+  const [scheduling, setScheduling] = useState(false)
   const paused = queueControl && queueControl.status !== "open"
   const resumeRunning =
     continuing ||
@@ -245,6 +303,37 @@ export function MessageQueueDisplay({
     [onSteerItem]
   )
 
+  const confirmSchedule = useCallback(
+    async (iso: string) => {
+      if (!scheduleTarget || !onScheduleItem) return
+      setScheduling(true)
+      try {
+        await onScheduleItem(scheduleTarget.id, iso)
+        setScheduleTarget(null)
+      } catch (error) {
+        // The row keeps its current state; the dialog stays open with the
+        // picked time so the user can correct rather than re-pick.
+        toast.error(toErrorMessage(error))
+      } finally {
+        setScheduling(false)
+      }
+    },
+    [scheduleTarget, onScheduleItem]
+  )
+
+  const clearSchedule = useCallback(async () => {
+    if (!scheduleTarget || !onScheduleItem) return
+    setScheduling(true)
+    try {
+      await onScheduleItem(scheduleTarget.id, null)
+      setScheduleTarget(null)
+    } catch (error) {
+      toast.error(toErrorMessage(error))
+    } finally {
+      setScheduling(false)
+    }
+  }, [scheduleTarget, onScheduleItem])
+
   if (queue.length === 0 && !paused) return null
 
   return (
@@ -283,6 +372,14 @@ export function MessageQueueDisplay({
             onEdit={onEdit}
             onDelete={onDelete}
             onRetry={onRetry ? setRetryId : undefined}
+            onScheduleItem={onScheduleItem}
+            onScheduleOpen={(id) =>
+              setScheduleTarget({
+                id,
+                initialAt:
+                  queue.find((entry) => entry.id === id)?.scheduledAt ?? null,
+              })
+            }
             onSteerItem={onSteerItem}
             steerChannel={steerChannel}
             steering={steeringId !== null}
@@ -290,6 +387,16 @@ export function MessageQueueDisplay({
           />
         ))}
       </Reorder.Group>
+      <MessageScheduleDialog
+        open={scheduleTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setScheduleTarget(null)
+        }}
+        initialAt={scheduleTarget?.initialAt ?? null}
+        busy={scheduling}
+        onConfirm={confirmSchedule}
+        onClear={clearSchedule}
+      />
       <AlertDialog
         open={retryId !== null}
         onOpenChange={(open) => {

@@ -56,3 +56,17 @@ pending -> claimed -> sending -> submitted
 ## 验证记录
 
 测试与完整日志位于 `docs/superpowers/plans/2026-11-06-*`（未提交的实施记录）。当前已验证 SQLite state/claim、防陈旧保存、mode admission lock、启动扫描和 turn-status 顺序；最终验证结果以交付报告为准，不以管道退出码推断。
+
+## 一次性定时发送（2026-11-07）
+
+- 新列 `message_queue_item.scheduled_at`（nullable UTC，migration `m20261107_000001_message_queue_schedule`）；`MessageQueueItem` 输出可选 `scheduled_at`（RFC 3339，普通条目省略，wire 向后兼容）。
+- 新 patch API（Tauri command 与 `POST /api/<name>` 同形，返回权威 `MessageQueueItem[]` 并广播 `message-queue://changed` + notify drainer）：
+  - `message_queue_enqueue {ownerId,item,scheduledAt,origin}`：原子追加；同 id 幂等更新；`claimed/sending/submitted/removed` 拒绝；过去时间拒绝。
+  - `message_queue_set_schedule {ownerId,itemId,scheduledAt}`：仅 `pending` 可转（`null` 转回普通），保持 id/正文/附件/mode。
+  - `message_queue_remove {ownerId,itemId}`：显式删除 → `removed` 墓碑（同 submitted 水位：save 不复活、list/claim/scan 排除）。
+- capabilities 增加 `scheduled_send: true`；客户端 fail-closed，未知/旧宿主隐藏全部定时入口。
+- 认领语义：队列头扫描**跳过未到期 pending 定时条目**（未来定时不挡普通消息），failed/uncertain/claimed 仍阻塞；到期判定在 pause/active 闸门之后。`pending_owners` 只返回 head 可认领的 owner；drainer 新增最近 deadline 唤醒（`next_schedule()` 只含未来时刻，due-but-busy 不进 deadline 防止 busy-spin），30s 扫描降级为兜底。
+- 旧 `message_queue_save` 兼容规则：不写时间（更新行不触碰 `scheduled_at`）；陈旧列表遗漏的定时行不删除（**仅 pending 且带时刻的行受保护**——failed/uncertain 已在结算时清掉时刻）；`removed` 行视为水位不可复活。定时修改/删除只能走 patch API。
+- 结算即去定时：`settle_claim`（acknowledge/release/fail）与 `recover_abandoned_claims`（sending→uncertain）都清 `scheduled_at`——只有 pending 行承载时刻；failed/uncertain 行 retry 即「立即发送」，不会带着过期计划复活，legacy save 也能正常删除它们。
+- 重排注意：legacy save 漏列保留的定时行保持旧 `sort_order`，其余条目从 protected 数之后重新编号——混合旧客户端的保存可能让相对顺序漂移，新客户端对定时条目请用 patch API 而不是全量重排。
+- 到点只给发送资格：busy/paused 照常等待，不插入当前回合；宿主关闭期间不执行，启动补扫按到期 head 处理。不承诺关机期间补发。
