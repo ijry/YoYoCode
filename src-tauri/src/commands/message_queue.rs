@@ -1,13 +1,47 @@
 #[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+use crate::acp::message_queue_drain::DrainHandle;
 #[cfg(feature = "tauri-runtime")]
 use crate::db::error::DbError;
 #[cfg(feature = "tauri-runtime")]
 use crate::db::service::message_queue_service::{self, QueueItemInput};
 #[cfg(feature = "tauri-runtime")]
+use crate::db::AppDatabase;
+#[cfg(feature = "tauri-runtime")]
 use crate::models::MessageQueueItem;
 #[cfg(feature = "tauri-runtime")]
-use crate::web::event_bridge::{emit_event, EventEmitter, MessageQueueChange, MESSAGE_QUEUE_CHANGED_EVENT};
+use crate::web::event_bridge::{
+    emit_event, EventEmitter, MessageQueueChange, MESSAGE_QUEUE_CHANGED_EVENT,
+};
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub fn message_queue_capabilities() -> serde_json::Value {
+    serde_json::json!({ "backend_drain": true })
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_retry(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item_id: String,
+) -> Result<(), DbError> {
+    message_queue_service::retry(&db.conn, &owner_id, &item_id).await?;
+    let items = message_queue_service::list(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::Tauri(app),
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: owner_id.clone(),
+            origin: "backend-retry".into(),
+            items,
+        },
+    );
+    drain.notify(owner_id);
+    Ok(())
+}
 
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
@@ -23,6 +57,7 @@ pub async fn message_queue_list(
 pub async fn message_queue_save(
     db: tauri::State<'_, AppDatabase>,
     app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
     owner_id: String,
     items: Vec<QueueItemInput>,
     origin: String,
@@ -33,10 +68,14 @@ pub async fn message_queue_save(
         &emitter,
         MESSAGE_QUEUE_CHANGED_EVENT,
         MessageQueueChange {
-            owner_id,
+            owner_id: owner_id.clone(),
             origin,
             items: saved,
         },
     );
+    // A save onto an idle conversation is a drain trigger of its own: the
+    // first item of a fresh queue should go out without waiting for the
+    // periodic sweep.
+    drain.notify(owner_id);
     Ok(())
 }

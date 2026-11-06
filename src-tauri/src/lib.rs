@@ -16,7 +16,9 @@
 pub mod acp;
 pub mod acp_transcript;
 pub use acp::{
-    idle_sweep_task, idle_timeout_from_env, lifecycle_subscriber_task, SWEEP_INTERVAL_SECS,
+    idle_sweep_task, idle_timeout_from_env, lifecycle_subscriber_task,
+    message_queue_drain::{spawn_drain_task, DrainHandle},
+    SWEEP_INTERVAL_SECS,
 };
 pub use acp::scratch_dir::scratch_sweep_task;
 pub use network::proxy::init_proxy_from_db;
@@ -1457,6 +1459,33 @@ mod tauri_app {
                     ));
                 }
 
+                // Backend drain for the persisted message queue: queue saves
+                // and turn settlements nudge it to claim the head of a
+                // conversation's queue and send it — with no client open.
+                // Clients gate their own flush off via the snapshot flag; the
+                // host is the only drainer. Managed before the embedded web
+                // service builds its AppState below, which reuses this handle.
+                {
+                    let drain_db = app.state::<db::AppDatabase>().conn.clone();
+                    let drain_cm = app.state::<ConnectionManager>().clone_ref();
+                    let drain_bus = app
+                        .state::<std::sync::Arc<crate::acp::InternalEventBus>>()
+                        .inner()
+                        .clone();
+                    let drain_emitter =
+                        crate::web::event_bridge::EventEmitter::Tauri(app.handle().clone());
+                    let drain_data_dir =
+                        std::sync::Arc::from(effective_data_dir.clone());
+                    let drain_handle = crate::acp::message_queue_drain::spawn_drain_task(
+                        drain_db,
+                        drain_cm,
+                        drain_emitter,
+                        drain_data_dir,
+                        drain_bus,
+                    );
+                    app.manage(drain_handle);
+                }
+
                 // Headless `yoyo-cli` runs: the service and its loopback
                 // access. Managed before the web service may start below,
                 // which serves the same routes from this state.
@@ -2363,6 +2392,8 @@ mod tauri_app {
                 quick_messages_commands::quick_messages_delete,
                 quick_messages_commands::quick_messages_reorder,
                 message_queue_commands::message_queue_list,
+                message_queue_commands::message_queue_capabilities,
+                message_queue_commands::message_queue_retry,
                 message_queue_commands::message_queue_save,
                 automation_commands::automation_list,
                 automation_commands::automation_get,

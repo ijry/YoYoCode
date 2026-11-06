@@ -3525,6 +3525,10 @@
         "cancelEdit": "Cancelar edição",
         "editItem": "Editar",
         "deleteItem": "Remover",
+        "retryItem": "Tentar mensagem da fila novamente",
+        "retryConfirm": "Tentar novamente",
+        "retryWarning": "A entrega não foi confirmada. Tentar novamente pode duplicar esta mensagem. Continuar?",
+        "retryCancel": "Cancelar",
         "steerItemNow": "Inserir na vez atual",
         "steerItemAsNote": "Enviar como nota para a próxima verificação"
       },

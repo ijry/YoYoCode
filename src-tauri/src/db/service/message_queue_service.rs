@@ -1,7 +1,10 @@
+use std::collections::{HashMap, HashSet};
+
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, ConnectionTrait, DatabaseConnection,
+    DatabaseTransaction, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    Statement, TransactionTrait,
 };
 use serde::Deserialize;
 
@@ -21,61 +24,519 @@ pub struct QueueItemInput {
     pub adopt_send_time_mode: bool,
 }
 
+const PENDING: &str = "pending";
+const CLAIMED: &str = "claimed";
+const SENDING: &str = "sending";
+const SUBMITTED: &str = "submitted";
+const FAILED: &str = "failed";
+const UNCERTAIN: &str = "uncertain";
+
 fn to_item(m: message_queue_item::Model) -> MessageQueueItem {
     MessageQueueItem {
         id: m.item_uid,
         draft_json: m.draft_json,
         mode_id: m.mode_id,
         adopt_send_time_mode: m.adopt_send_time_mode,
+        delivery_state: (m.delivery_state != PENDING).then_some(m.delivery_state),
+        last_error: m.last_error,
     }
+}
+
+async fn list_on<C: ConnectionTrait>(
+    conn: &C,
+    owner_id: &str,
+) -> Result<Vec<MessageQueueItem>, DbError> {
+    let rows = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::DeliveryState.ne(SUBMITTED))
+        .order_by_asc(message_queue_item::Column::SortOrder)
+        .order_by_asc(message_queue_item::Column::Id)
+        .all(conn)
+        .await?;
+    Ok(rows.into_iter().map(to_item).collect())
 }
 
 pub async fn list(
     conn: &DatabaseConnection,
     owner_id: &str,
 ) -> Result<Vec<MessageQueueItem>, DbError> {
-    let rows = message_queue_item::Entity::find()
-        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
-        .order_by_asc(message_queue_item::Column::SortOrder)
-        .all(conn)
-        .await?;
-    Ok(rows.into_iter().map(to_item).collect())
+    list_on(conn, owner_id).await
 }
 
-/// Replace the entire queue for `owner_id` with `items` (in order). Simple and
-/// idempotent: last-writer-wins, and the broadcast converges every client to the
-/// same list. Multi-end sync is the goal, so the frontend is the source of
-/// truth for ordering and the backend just persists the canonical list. The
-/// whole replace runs in one transaction so a concurrent reader never sees a
-/// half-written queue.
+/// Take SQLite's writer lock before reading the queue. A deferred transaction
+/// that reads first races another writer when promoted; the harmless UPDATE
+/// reserves the writer without changing any item or its timestamps.
+async fn write_transaction(conn: &DatabaseConnection) -> Result<DatabaseTransaction, DbError> {
+    let txn = conn.begin().await?;
+    txn.execute(Statement::from_string(
+        DbBackend::Sqlite,
+        "UPDATE message_queue_item SET id = id WHERE id = -1".to_owned(),
+    ))
+    .await?;
+    Ok(txn)
+}
+
+/// Replace editable items while protecting the backend's live claim and
+/// submitted-id watermarks. Old clients may save an outdated whole queue;
+/// they must not resurrect a delivered prompt or delete an admitted one.
 pub async fn save(
     conn: &DatabaseConnection,
     owner_id: &str,
     items: Vec<QueueItemInput>,
 ) -> Result<Vec<MessageQueueItem>, DbError> {
-    let txn = conn.begin().await?;
-    message_queue_item::Entity::delete_many()
-        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
-        .exec(&txn)
-        .await?;
-
-    let mut saved = Vec::with_capacity(items.len());
-    for (idx, item) in items.into_iter().enumerate() {
-        let now = Utc::now();
-        let active = message_queue_item::ActiveModel {
-            id: NotSet,
-            owner_id: Set(owner_id.to_string()),
-            item_uid: Set(item.id),
-            draft_json: Set(item.draft_json),
-            mode_id: Set(item.mode_id),
-            adopt_send_time_mode: Set(item.adopt_send_time_mode),
-            sort_order: Set(idx as i32),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-        let m = active.insert(&txn).await?;
-        saved.push(to_item(m));
+    let mut seen = HashSet::new();
+    for item in &items {
+        if item.id.is_empty() || !seen.insert(item.id.as_str()) {
+            return Err(DbError::Validation(
+                "queue item ids must be non-empty and unique".into(),
+            ));
+        }
     }
+    let txn = write_transaction(conn).await?;
+    let rows = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .order_by_asc(message_queue_item::Column::SortOrder)
+        .order_by_asc(message_queue_item::Column::Id)
+        .all(&txn)
+        .await?;
+    let existing: HashMap<&str, &message_queue_item::Model> = rows
+        .iter()
+        .map(|row| (row.item_uid.as_str(), row))
+        .collect();
+    let protected: Vec<&message_queue_item::Model> = rows
+        .iter()
+        .filter(|row| matches!(row.delivery_state.as_str(), CLAIMED | SENDING))
+        .collect();
+    let retained: HashSet<&str> = items.iter().map(|item| item.id.as_str()).collect();
+    for row in &rows {
+        if !matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED)
+            && !retained.contains(row.item_uid.as_str())
+        {
+            message_queue_item::Entity::delete_by_id(row.id)
+                .exec(&txn)
+                .await?;
+        }
+    }
+    let now = Utc::now();
+    for (position, row) in protected.iter().enumerate() {
+        let mut active: message_queue_item::ActiveModel = (*row).clone().into();
+        active.sort_order = Set(position as i32);
+        active.update(&txn).await?;
+    }
+    let mut position = protected.len() as i32;
+    for item in items {
+        if let Some(row) = existing.get(item.id.as_str()) {
+            if matches!(row.delivery_state.as_str(), CLAIMED | SENDING | SUBMITTED) {
+                continue;
+            }
+            let changed = row.draft_json != item.draft_json
+                || row.mode_id != item.mode_id
+                || row.adopt_send_time_mode != item.adopt_send_time_mode;
+            let mut active: message_queue_item::ActiveModel = (*row).clone().into();
+            active.draft_json = Set(item.draft_json);
+            active.mode_id = Set(item.mode_id);
+            active.adopt_send_time_mode = Set(item.adopt_send_time_mode);
+            active.sort_order = Set(position);
+            active.updated_at = Set(now);
+            if changed {
+                active.delivery_state = Set(PENDING.into());
+                active.claim_token = Set(None);
+                active.last_error = Set(None);
+            }
+            active.update(&txn).await?;
+        } else {
+            message_queue_item::ActiveModel {
+                id: NotSet,
+                owner_id: Set(owner_id.into()),
+                item_uid: Set(item.id),
+                draft_json: Set(item.draft_json),
+                mode_id: Set(item.mode_id),
+                adopt_send_time_mode: Set(item.adopt_send_time_mode),
+                sort_order: Set(position),
+                delivery_state: Set(PENDING.into()),
+                claim_token: Set(None),
+                last_error: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+            }
+            .insert(&txn)
+            .await?;
+        }
+        position += 1;
+    }
+    let saved = list_on(&txn, owner_id).await?;
     txn.commit().await?;
     Ok(saved)
+}
+
+/// A database claim keeps the item's original body until prompt admission
+/// succeeds. The token prevents a stale task from settling a later retry.
+#[derive(Debug, Clone)]
+pub struct QueueClaim {
+    pub owner_id: String,
+    pub token: String,
+    pub item: MessageQueueItem,
+}
+
+pub async fn claim_next(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    token: &str,
+) -> Result<Option<QueueClaim>, DbError> {
+    let txn = write_transaction(conn).await?;
+    let active = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::DeliveryState.is_in([CLAIMED, SENDING]))
+        .one(&txn)
+        .await?;
+    if active.is_some() {
+        txn.commit().await?;
+        return Ok(None);
+    }
+    let head = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::DeliveryState.ne(SUBMITTED))
+        .order_by_asc(message_queue_item::Column::SortOrder)
+        .order_by_asc(message_queue_item::Column::Id)
+        .one(&txn)
+        .await?;
+    let Some(head) = head.filter(|head| head.delivery_state == PENDING) else {
+        txn.commit().await?;
+        return Ok(None);
+    };
+    let mut active: message_queue_item::ActiveModel = head.into();
+    active.delivery_state = Set(CLAIMED.into());
+    active.claim_token = Set(Some(token.into()));
+    active.last_error = Set(None);
+    active.updated_at = Set(Utc::now());
+    let claimed = active.update(&txn).await?;
+    txn.commit().await?;
+    Ok(Some(QueueClaim {
+        owner_id: owner_id.into(),
+        token: token.into(),
+        item: to_item(claimed),
+    }))
+}
+
+async fn settle_claim(
+    conn: &DatabaseConnection,
+    claim: &QueueClaim,
+    state: &str,
+    error: Option<&str>,
+) -> Result<(), DbError> {
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(state),
+        )
+        .col_expr(
+            message_queue_item::Column::LastError,
+            sea_orm::sea_query::Expr::value(error),
+        )
+        .col_expr(
+            message_queue_item::Column::ClaimToken,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .col_expr(
+            message_queue_item::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(Utc::now()),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(&claim.owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(&claim.item.id))
+        .filter(message_queue_item::Column::ClaimToken.eq(&claim.token))
+        .filter(message_queue_item::Column::DeliveryState.is_in([CLAIMED, SENDING]))
+        .exec(conn)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict(
+            "queue claim no longer belongs to this sender".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub async fn mark_sending(conn: &DatabaseConnection, claim: &QueueClaim) -> Result<(), DbError> {
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(SENDING),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(&claim.owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(&claim.item.id))
+        .filter(message_queue_item::Column::ClaimToken.eq(&claim.token))
+        .filter(message_queue_item::Column::DeliveryState.eq(CLAIMED))
+        .exec(conn)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict("queue item is no longer claimed".into()));
+    }
+    Ok(())
+}
+
+pub async fn acknowledge(conn: &DatabaseConnection, claim: &QueueClaim) -> Result<(), DbError> {
+    settle_claim(conn, claim, SUBMITTED, None).await
+}
+
+pub async fn release(
+    conn: &DatabaseConnection,
+    claim: &QueueClaim,
+    error: Option<&str>,
+) -> Result<(), DbError> {
+    settle_claim(conn, claim, PENDING, error).await
+}
+
+pub async fn fail(
+    conn: &DatabaseConnection,
+    claim: &QueueClaim,
+    error: &str,
+) -> Result<(), DbError> {
+    settle_claim(conn, claim, FAILED, Some(error)).await
+}
+
+pub async fn retry(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item_id: &str,
+) -> Result<(), DbError> {
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(PENDING),
+        )
+        .col_expr(
+            message_queue_item::Column::LastError,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(item_id))
+        .filter(message_queue_item::Column::DeliveryState.is_in([FAILED, UNCERTAIN]))
+        .exec(conn)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict(
+            "only a failed or uncertain queue item can be retried".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Only the elected drainer calls this on boot. A sending item has crossed
+/// the dispatch boundary; leave it visible and require confirmation, rather
+/// than automatically repeating a prompt the agent may already have run.
+pub async fn recover_abandoned_claims(conn: &DatabaseConnection) -> Result<(), DbError> {
+    message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(UNCERTAIN),
+        )
+        .col_expr(
+            message_queue_item::Column::ClaimToken,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .col_expr(
+            message_queue_item::Column::LastError,
+            sea_orm::sea_query::Expr::value("host stopped before queue delivery was confirmed"),
+        )
+        .filter(message_queue_item::Column::DeliveryState.eq(SENDING))
+        .exec(conn)
+        .await?;
+    message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(PENDING),
+        )
+        .col_expr(
+            message_queue_item::Column::ClaimToken,
+            sea_orm::sea_query::Expr::value(None::<String>),
+        )
+        .filter(message_queue_item::Column::DeliveryState.eq(CLAIMED))
+        .exec(conn)
+        .await?;
+    Ok(())
+}
+
+pub async fn pending_owners(conn: &DatabaseConnection) -> Result<Vec<String>, DbError> {
+    Ok(message_queue_item::Entity::find()
+        .select_only()
+        .column(message_queue_item::Column::OwnerId)
+        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
+        .distinct()
+        .order_by_asc(message_queue_item::Column::OwnerId)
+        .into_tuple::<String>()
+        .all(conn)
+        .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::test_helpers;
+
+    fn item(id: &str, text: &str) -> QueueItemInput {
+        QueueItemInput {
+            id: id.into(),
+            draft_json: serde_json::json!({
+                "blocks": [{"type": "text", "text": text}], "displayText": text,
+            })
+            .to_string(),
+            mode_id: None,
+            adopt_send_time_mode: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn submitted_ids_cannot_be_resurrected_by_a_stale_client_save() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A"), item("b", "B")])
+            .await
+            .unwrap();
+        let claim = claim_next(&db.conn, "42", "claim-a")
+            .await
+            .unwrap()
+            .unwrap();
+        acknowledge(&db.conn, &claim).await.unwrap();
+        save(
+            &db.conn,
+            "42",
+            vec![item("a", "A"), item("b", "B"), item("c", "C")],
+        )
+        .await
+        .unwrap();
+        let queue = list(&db.conn, "42").await.unwrap();
+        assert_eq!(
+            queue.iter().map(|q| q.id.as_str()).collect::<Vec<_>>(),
+            ["b", "c"]
+        );
+    }
+
+    #[tokio::test]
+    async fn claiming_is_atomic_and_keeps_the_payload_until_acceptance() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A"), item("b", "B")])
+            .await
+            .unwrap();
+        let (first, second) = tokio::join!(
+            claim_next(&db.conn, "42", "first"),
+            claim_next(&db.conn, "42", "second"),
+        );
+        assert_eq!(
+            usize::from(first.unwrap().is_some()) + usize::from(second.unwrap().is_some()),
+            1
+        );
+        let queue = list(&db.conn, "42").await.unwrap();
+        assert_eq!(
+            queue.len(),
+            2,
+            "claimed content stays recoverable until admission succeeds"
+        );
+        assert_eq!(queue[0].delivery_state.as_deref(), Some("claimed"));
+    }
+
+    #[tokio::test]
+    async fn client_edits_cannot_replace_or_drop_an_in_flight_claim() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A"), item("b", "B")])
+            .await
+            .unwrap();
+        let claim = claim_next(&db.conn, "42", "claim-a")
+            .await
+            .unwrap()
+            .unwrap();
+        save(&db.conn, "42", vec![item("b", "edited B"), item("c", "C")])
+            .await
+            .unwrap();
+        let queue = list(&db.conn, "42").await.unwrap();
+        assert_eq!(
+            queue.iter().map(|q| q.id.as_str()).collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
+        release(&db.conn, &claim, Some("turn busy")).await.unwrap();
+        assert!(list(&db.conn, "42").await.unwrap()[1]
+            .draft_json
+            .contains("edited B"));
+        assert!(claim_next(&db.conn, "42", "second")
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn failed_head_is_retained_and_blocks_fifo_until_edited_or_retried() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A"), item("b", "B")])
+            .await
+            .unwrap();
+        let claim = claim_next(&db.conn, "42", "claim-a")
+            .await
+            .unwrap()
+            .unwrap();
+        fail(&db.conn, &claim, "invalid draft").await.unwrap();
+        assert!(claim_next(&db.conn, "42", "second")
+            .await
+            .unwrap()
+            .is_none());
+        let failed = list(&db.conn, "42").await.unwrap();
+        assert_eq!(failed[0].last_error.as_deref(), Some("invalid draft"));
+        save(&db.conn, "42", vec![item("a", "A"), item("b", "B")])
+            .await
+            .unwrap();
+        assert!(
+            claim_next(&db.conn, "42", "third").await.unwrap().is_none(),
+            "an unrelated stale save cannot retry a failed send"
+        );
+        save(&db.conn, "42", vec![item("a", "fixed A"), item("b", "B")])
+            .await
+            .unwrap();
+        assert!(claim_next(&db.conn, "42", "fixed").await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn restart_preserves_ambiguous_delivery_without_automatic_resend() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A")]).await.unwrap();
+        let claim = claim_next(&db.conn, "42", "before-crash")
+            .await
+            .unwrap()
+            .unwrap();
+        mark_sending(&db.conn, &claim).await.unwrap();
+        recover_abandoned_claims(&db.conn).await.unwrap();
+        assert!(claim_next(&db.conn, "42", "after-restart")
+            .await
+            .unwrap()
+            .is_none());
+        let queue = list(&db.conn, "42").await.unwrap();
+        assert_eq!(queue[0].delivery_state.as_deref(), Some("uncertain"));
+        assert!(queue[0].draft_json.contains('A'));
+        retry(&db.conn, "42", "a").await.unwrap();
+        assert!(claim_next(&db.conn, "42", "confirmed-retry")
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn scan_lists_persisted_pending_owners_without_any_live_connection() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A")]).await.unwrap();
+        save(&db.conn, "43", vec![item("b", "B")]).await.unwrap();
+        assert_eq!(pending_owners(&db.conn).await.unwrap(), ["42", "43"]);
+        let claim = claim_next(&db.conn, "42", "claim-a")
+            .await
+            .unwrap()
+            .unwrap();
+        acknowledge(&db.conn, &claim).await.unwrap();
+        assert_eq!(pending_owners(&db.conn).await.unwrap(), ["43"]);
+    }
+
+    #[tokio::test]
+    async fn bad_queue_save_rolls_back_without_dropping_existing_content() {
+        let db = test_helpers::fresh_in_memory_db().await;
+        save(&db.conn, "42", vec![item("a", "A")]).await.unwrap();
+        assert!(
+            save(&db.conn, "42", vec![item("b", "B"), item("b", "duplicate")])
+                .await
+                .is_err()
+        );
+        assert_eq!(list(&db.conn, "42").await.unwrap()[0].id, "a");
+    }
 }

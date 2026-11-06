@@ -324,6 +324,11 @@ export interface ConnectionState {
   status: ConnectionStatus
   promptCapabilities: PromptCapabilitiesInfo
   supportsFork: boolean
+  /** Host drains the persisted message queue backend-side (latched from the
+   *  snapshot's `message_queue_backend_drain`). When true the per-tab flush
+   *  effect must stay off — the host is the only drainer. Absent on older
+   *  hosts → `false`. */
+  messageQueueBackendDrain: boolean
   selectorsReady: boolean
   sessionId: string | null
   modes: SessionModeStateInfo | null
@@ -1928,6 +1933,7 @@ function connectionsReducer(
           embedded_context: false,
         },
         supportsFork: false,
+        messageQueueBackendDrain: false,
         selectorsReady: false,
         sessionId: null,
         modes: null,
@@ -1994,6 +2000,7 @@ function connectionsReducer(
           embedded_context: false,
         },
         supportsFork: false,
+        messageQueueBackendDrain: false,
         selectorsReady: true,
         sessionId: null,
         modes: null,
@@ -2066,6 +2073,11 @@ function connectionsReducer(
         action.patch.selectorsReady || current.selectorsReady
       const mergedSupportsFork =
         action.patch.supportsFork || current.supportsFork
+      // Host property: latches true like the capability fields above. Every
+      // snapshot from the same host reports the same value, so a stale one
+      // cannot downgrade it.
+      const mergedMessageQueueBackendDrain =
+        action.patch.messageQueueBackendDrain || current.messageQueueBackendDrain
       const mergedModes = current.modes ?? action.patch.modes
       const mergedConfigOptions =
         current.configOptions ?? action.patch.configOptions
@@ -2135,6 +2147,7 @@ function connectionsReducer(
         if (
           mergedSelectorsReady === current.selectorsReady &&
           mergedSupportsFork === current.supportsFork &&
+          mergedMessageQueueBackendDrain === current.messageQueueBackendDrain &&
           mergedModes === current.modes &&
           mergedConfigOptions === current.configOptions &&
           mergedAvailableCommands === current.availableCommands &&
@@ -2155,6 +2168,7 @@ function connectionsReducer(
           promptCapabilities: mergedPromptCapabilities,
           selectorsReady: mergedSelectorsReady,
           supportsFork: mergedSupportsFork,
+          messageQueueBackendDrain: mergedMessageQueueBackendDrain,
           hasPrompted: mergedHasPrompted,
           sessionFailures: mergedSessionFailures,
           toolApprovals: mergedToolApprovals,
@@ -2212,6 +2226,7 @@ function connectionsReducer(
         promptCapabilities: mergedPromptCapabilities,
         selectorsReady: mergedSelectorsReady,
         supportsFork: mergedSupportsFork,
+        messageQueueBackendDrain: mergedMessageQueueBackendDrain,
         hasPrompted: mergedHasPrompted,
         // Staleness is a current-state field (like status): apply the snapshot's
         // value on the fresh path. `configStaleDismissed` is client-local and

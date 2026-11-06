@@ -454,6 +454,7 @@ pub struct ConnectionManager {
     /// can sync Telegram topic names without threading the manager through
     /// every `send_prompt_linked` caller. Optional in tests.
     chat_channel: Arc<std::sync::OnceLock<crate::chat_channel::manager::ChatChannelManager>>,
+    message_queue_drain: Arc<std::sync::OnceLock<crate::acp::message_queue_drain::DrainHandle>>,
     /// Per-agent-type serialization for `probe_agent_options`. Without
     /// this, rapid agent-tab clicks in the settings UI would fan out one
     /// real CLI process per click — each one running up to 60s. The
@@ -521,6 +522,7 @@ impl ConnectionManager {
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
             delegation_injection: Arc::new(std::sync::OnceLock::new()),
             chat_channel: Arc::new(std::sync::OnceLock::new()),
+            message_queue_drain: Arc::new(std::sync::OnceLock::new()),
             probe_locks: Arc::new(Mutex::new(HashMap::new())),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
             pending_plan_approvals: Arc::new(Mutex::new(HashMap::new())),
@@ -538,6 +540,7 @@ impl ConnectionManager {
             terminal_shell_config: self.terminal_shell_config.clone(),
             delegation_injection: self.delegation_injection.clone(),
             chat_channel: self.chat_channel.clone(),
+            message_queue_drain: self.message_queue_drain.clone(),
             probe_locks: self.probe_locks.clone(),
             pending_questions: self.pending_questions.clone(),
             pending_plan_approvals: self.pending_plan_approvals.clone(),
@@ -559,6 +562,16 @@ impl ConnectionManager {
         manager: crate::chat_channel::manager::ChatChannelManager,
     ) {
         let _ = self.chat_channel.set(manager);
+    }
+
+    pub(crate) fn install_message_queue_drain(&self, handle: crate::acp::message_queue_drain::DrainHandle) {
+        let _ = self.message_queue_drain.set(handle);
+    }
+
+    pub(crate) fn notify_message_queue(&self, conversation_id: i32) {
+        if let Some(handle) = self.message_queue_drain.get() {
+            handle.notify(conversation_id.to_string());
+        }
     }
 
     pub(crate) fn chat_channel(
@@ -591,6 +604,7 @@ impl ConnectionManager {
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
             delegation_injection: Arc::new(std::sync::OnceLock::new()),
             chat_channel: Arc::new(std::sync::OnceLock::new()),
+            message_queue_drain: Arc::new(std::sync::OnceLock::new()),
             probe_locks: Arc::new(Mutex::new(HashMap::new())),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
             pending_plan_approvals: Arc::new(Mutex::new(HashMap::new())),
@@ -1308,8 +1322,35 @@ impl ConnectionManager {
             delegation,
             client_message_id,
             Vec::new(),
+            None,
         )
         .await
+    }
+
+    /// Submit a persisted queue item under the same admission lock as direct
+    /// prompts. Mode application cannot be interleaved with another sender.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_queued_prompt(
+        &self,
+        db: &AppDatabase,
+        conn_id: &str,
+        blocks: Vec<PromptInputBlock>,
+        folder_id: i32,
+        conversation_id: i32,
+        mode_id: Option<String>,
+        message_id: String,
+    ) -> Result<Option<i32>, AcpError> {
+        self.send_prompt_linked_full(
+            db,
+            conn_id,
+            blocks,
+            Some(folder_id),
+            Some(conversation_id),
+            None,
+            Some(message_id),
+            Vec::new(),
+            Some(mode_id),
+        ).await
     }
 
     /// As [`send_prompt_linked`], plus `internal_suffix`: Codeg-authored
@@ -1337,6 +1378,7 @@ impl ConnectionManager {
             delegation,
             None,
             internal_suffix,
+            None,
         )
         .await
     }
@@ -1352,6 +1394,7 @@ impl ConnectionManager {
         delegation: Option<crate::acp::delegation::spawner::DelegationLink>,
         client_message_id: Option<String>,
         internal_suffix: Vec<PromptInputBlock>,
+        queued_mode: Option<Option<String>>,
     ) -> Result<Option<i32>, AcpError> {
         // Reject an empty prompt up front, BEFORE any side effects: linking /
         // creating the conversation row, flipping it to InProgress, or emitting
@@ -1419,6 +1462,25 @@ impl ConnectionManager {
                 in_flight,
             )
         };
+
+        if queued_mode.is_some() {
+            let state = state_arc.read().await;
+            if state.conversation_id.is_some() && state.conversation_id != conversation_id {
+                return Err(AcpError::protocol("queue connection belongs to another conversation"));
+            }
+        }
+        if let Some(Some(mode_id)) = queued_mode.filter(|_| !turn_in_flight) {
+            let outcome = tokio::time::timeout(
+                Duration::from_secs(30),
+                self.set_mode_and_wait(conn_id, mode_id.clone()),
+            ).await.map_err(|_| AcpError::protocol("queued mode change timed out"))??;
+            match outcome {
+                crate::acp::connection::SetterOutcome::Confirmed { current }
+                    if current == mode_id => {}
+                crate::acp::connection::SetterOutcome::Accepted => {}
+                _ => return Err(AcpError::protocol("queued mode change was not accepted")),
+            }
+        }
 
         // Reject a concurrent prompt while a turn is already in flight, BEFORE
         // any side effects (row creation, InProgress emit, user-message

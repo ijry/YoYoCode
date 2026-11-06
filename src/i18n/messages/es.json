@@ -3525,6 +3525,10 @@
         "cancelEdit": "Cancelar edición",
         "editItem": "Editar",
         "deleteItem": "Eliminar",
+        "retryItem": "Reintentar mensaje en cola",
+        "retryConfirm": "Reintentar",
+        "retryWarning": "La entrega no está confirmada. Reintentar puede enviar el mensaje otra vez. ¿Continuar?",
+        "retryCancel": "Cancelar",
         "steerItemNow": "Insertar en el turno actual",
         "steerItemAsNote": "Enviar como nota para la próxima comprobación"
       },

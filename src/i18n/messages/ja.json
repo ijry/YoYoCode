@@ -3525,6 +3525,10 @@
         "cancelEdit": "編集をキャンセル",
         "editItem": "編集",
         "deleteItem": "削除",
+        "retryItem": "待機中のメッセージを再試行",
+        "retryConfirm": "再試行",
+        "retryWarning": "前回の配信は未確認です。再試行すると同じメッセージが再送される場合があります。続行しますか？",
+        "retryCancel": "キャンセル",
         "steerItemNow": "現在のターンに挿入",
         "steerItemAsNote": "メモとして送信し次回チェック時に読ませる"
       },

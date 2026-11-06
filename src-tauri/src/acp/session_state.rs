@@ -2431,6 +2431,11 @@ impl SessionState {
             background_outstanding: self.background_outstanding,
             feedback_tool_available: self.feedback_tool_available,
             native_steering_available: self.native_steering_available,
+            // Host property, not session state: this build always drains the
+            // persisted message queue backend-side (see
+            // `acp/message_queue_drain.rs`). Clients gate their own flush off
+            // when they see it — the host is the only drainer.
+            message_queue_backend_drain: true,
             modes: self.modes.clone(),
             current_mode: self.current_mode.clone(),
             config_options: self.config_options.clone(),
@@ -2569,6 +2574,14 @@ pub struct LiveSessionSnapshot {
     /// like `feedback_tool_available` so the frontend can rely on it.
     #[serde(default)]
     pub native_steering_available: bool,
+    /// Whether this HOST drains the persisted message queue backend-side
+    /// (`acp/message_queue_drain.rs`: TurnComplete / queue-save / periodic
+    /// sweep triggers claim the head and send it). Host property, not session
+    /// state — always `true` on this build. `#[serde(default)]` so older host
+    /// payloads deserialize to `false` and clients keep their own flush;
+    /// always serialized so the clients that gate on it can rely on it.
+    #[serde(default)]
+    pub message_queue_backend_drain: bool,
     pub modes: Option<SessionModeStateInfo>,
     pub current_mode: Option<String>,
     pub config_options: Option<Vec<SessionConfigOptionInfo>>,

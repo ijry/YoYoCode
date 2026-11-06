@@ -58,6 +58,7 @@ mod m20261022_000001_tool_approval;
 mod m20261022_000001_work_task_delivery;
 mod m20261030_000001_message_queue;
 mod m20261103_000001_comic;
+mod m20261106_000001_message_queue_delivery;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -122,6 +123,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261022_000001_work_task_delivery::Migration),
             Box::new(m20261030_000001_message_queue::Migration),
             Box::new(m20261103_000001_comic::Migration),
+            Box::new(m20261106_000001_message_queue_delivery::Migration),
         ]
     }
 }

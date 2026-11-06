@@ -3525,6 +3525,10 @@
         "cancelEdit": "Bearbeitung abbrechen",
         "editItem": "Bearbeiten",
         "deleteItem": "Entfernen",
+        "retryItem": "Nachricht erneut senden",
+        "retryConfirm": "Erneut senden",
+        "retryWarning": "Die Zustellung ist nicht bestätigt. Ein neuer Versuch könnte die Nachricht doppelt senden. Fortfahren?",
+        "retryCancel": "Abbrechen",
         "steerItemNow": "In aktuellen Turn einfügen",
         "steerItemAsNote": "Als Notiz für die nächste Abfrage senden"
       },

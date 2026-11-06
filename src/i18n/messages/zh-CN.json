@@ -3564,6 +3564,10 @@
         "cancelEdit": "取消编辑",
         "editItem": "编辑",
         "deleteItem": "删除",
+        "retryItem": "重试队列消息",
+        "retryConfirm": "重试",
+        "retryWarning": "上次发送结果未确认，重试可能重复发送这条消息。确定重试？",
+        "retryCancel": "取消",
         "steerItemNow": "插入当前回合",
         "steerItemAsNote": "作为留言，供下次检查时读取"
       },

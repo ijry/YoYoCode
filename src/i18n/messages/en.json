@@ -3564,6 +3564,10 @@
         "cancelEdit": "Cancel edit",
         "editItem": "Edit",
         "deleteItem": "Remove",
+        "retryItem": "Retry queued message",
+        "retryConfirm": "Retry",
+        "retryWarning": "Delivery is not confirmed. Retrying may send this message again. Continue?",
+        "retryCancel": "Cancel",
         "steerItemNow": "Insert into current turn",
         "steerItemAsNote": "Send as note for next check"
       },

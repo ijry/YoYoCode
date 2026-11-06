@@ -8,8 +8,18 @@ import type {
   MessageQueueSaveItem,
 } from "@/lib/types"
 import { randomUUID } from "@/lib/utils"
-import { messageQueueList, messageQueueSave } from "@/lib/api"
-import { subscribe } from "@/lib/platform"
+import {
+  messageQueueList,
+  messageQueueSave,
+  messageQueueRetry,
+} from "@/lib/api"
+import { getTransport } from "@/lib/transport"
+import { readMessageQueueCapabilities } from "@/lib/message-queue-capabilities"
+import {
+  subscribe,
+  onTransportReconnect,
+  onTransportReady,
+} from "@/lib/platform"
 
 export const MESSAGE_QUEUE_CHANGED_EVENT = "message-queue://changed"
 
@@ -36,10 +46,15 @@ export interface QueuedMessage {
    * user's saved mode.
    */
   adoptSendTimeMode?: boolean
+  deliveryState?: PersistedQueueItem["delivery_state"]
+  lastError?: string | null
+  persistedDraftJson?: string
 }
 
 export interface UseMessageQueueReturn {
   queue: QueuedMessage[]
+  /** null while checking the host (fail closed), true = Rust owns drain. */
+  backendDrain: boolean | null
   enqueue: (
     draft: PromptDraft,
     modeId: string | null,
@@ -68,6 +83,7 @@ export interface UseMessageQueueReturn {
   editingItemId: string | null
   startEditing: (id: string) => void
   cancelEditing: () => void
+  retryItem: (id: string) => Promise<void>
 }
 
 function serializeDraft(draft: PromptDraft): string {
@@ -77,22 +93,39 @@ function serializeDraft(draft: PromptDraft): string {
 function parseItem(item: PersistedQueueItem): QueuedMessage | null {
   try {
     const draft = JSON.parse(item.draft_json) as PromptDraft
+    if (
+      !draft ||
+      typeof draft.displayText !== "string" ||
+      !Array.isArray(draft.blocks)
+    ) {
+      throw new Error("Invalid persisted prompt draft")
+    }
     return {
       id: item.id,
       draft,
       modeId: item.mode_id,
       adoptSendTimeMode: item.adopt_send_time_mode || undefined,
+      ...(item.delivery_state ? { deliveryState: item.delivery_state } : {}),
+      ...(item.last_error ? { lastError: item.last_error } : {}),
     }
   } catch {
-    // A corrupt persisted draft must not crash the queue; skip it.
-    return null
+    if (item.delivery_state !== "failed" && item.delivery_state !== "uncertain")
+      return null
+    return {
+      id: item.id,
+      draft: { blocks: [], displayText: item.id },
+      modeId: item.mode_id,
+      deliveryState: item.delivery_state,
+      lastError: item.last_error,
+      persistedDraftJson: item.draft_json,
+    }
   }
 }
 
 function toSaveItem(q: QueuedMessage): MessageQueueSaveItem {
   return {
     id: q.id,
-    draftJson: serializeDraft(q.draft),
+    draftJson: q.persistedDraftJson ?? serializeDraft(q.draft),
     modeId: q.modeId,
     adoptSendTimeMode: q.adoptSendTimeMode ?? false,
   }
@@ -118,6 +151,12 @@ export function useMessageQueue(
   ownerId?: string | null
 ): UseMessageQueueReturn {
   const [queue, setQueue] = useState<QueuedMessage[]>([])
+  const [backendDrain, setBackendDrain] = useState<boolean | null>(
+    ownerId ? null : false
+  )
+  const backendDrainRef = useRef<boolean | null>(ownerId ? null : false)
+  const queueRevision = useRef(0)
+  const persistChain = useRef<Promise<void>>(Promise.resolve())
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   // Authoritative copy of the queue, updated SYNCHRONOUSLY by every mutation
   // (before the React state commit). Reads that must observe the same-tick
@@ -144,15 +183,30 @@ export function useMessageQueue(
   }, [editingItemId])
   // Tracks the previously-bound owner so we can tell "bind" from "switch".
   const prevOwnerRef = useRef<string | null | undefined>(undefined)
+  const ownerHydratedRef = useRef(false)
 
   // Persist the current queue to the backend (if owned) and broadcast.
   const persist = useCallback((next: QueuedMessage[]) => {
     const owner = ownerIdRef.current
-    if (!owner) return
+    if (!owner || !ownerHydratedRef.current) return
     const items = next.map(toSaveItem)
-    // Fire-and-forget: a failed persist must not break the synchronous flush
-    // path. The broadcast converges other clients when it succeeds.
-    void messageQueueSave(owner, items, clientIdRef.current).catch(() => {})
+    const revision = queueRevision.current
+    // Reload the host after a save, but never overwrite a later local mutation
+    // or a newer drain broadcast with an earlier request's result.
+    persistChain.current = persistChain.current
+      .then(() => messageQueueSave(owner, items, clientIdRef.current))
+      .then(() => messageQueueList(owner))
+      .then((items) => {
+        if (ownerIdRef.current !== owner || queueRevision.current !== revision)
+          return
+        const parsed = items
+          .map(parseItem)
+          .filter((item): item is QueuedMessage => item !== null)
+        queueRef.current = parsed
+        queueRevision.current += 1
+        setQueue(parsed)
+      })
+      .catch(() => {})
   }, [])
 
   // Update the authoritative ref first, then schedule the render. A plain value
@@ -160,8 +214,62 @@ export function useMessageQueue(
   // the latest committed value.
   const commit = useCallback((next: QueuedMessage[]) => {
     queueRef.current = next
+    queueRevision.current += 1
     setQueue(next)
   }, [])
+
+  // Host capability is independent of a live ACP connection. An unresolved
+  // or offline probe never enables legacy dequeue on an owned queue.
+  useEffect(() => {
+    let cancelled = false
+    const check = async (refresh = false) => {
+      if (!ownerId) {
+        backendDrainRef.current = false
+        setBackendDrain(false)
+        return
+      }
+      backendDrainRef.current = null
+      setBackendDrain(null)
+      try {
+        const capabilities = await readMessageQueueCapabilities(getTransport())
+        if (cancelled) return
+        backendDrainRef.current = capabilities.backend_drain
+        setBackendDrain(capabilities.backend_drain)
+        if (!ownerHydratedRef.current && !refresh) return
+        const revision = queueRevision.current
+        const parked = ownerHydratedRef.current ? [] : queueRef.current
+        const items = await messageQueueList(ownerId)
+        if (cancelled || queueRevision.current !== revision) return
+        const parsed = items
+          .map(parseItem)
+          .filter((item): item is QueuedMessage => item !== null)
+        const ids = new Set(parsed.map((item) => item.id))
+        const merged = [
+          ...parsed,
+          ...parked.filter((item) => !ids.has(item.id)),
+        ]
+        queueRef.current = merged
+        ownerHydratedRef.current = true
+        queueRevision.current += 1
+        setQueue(merged)
+        if (parked.length > 0) persist(merged)
+      } catch {
+        // onReady/onReconnect retry when the actual host can answer.
+      }
+    }
+    void check()
+    const unsubscribeReady = ownerId
+      ? onTransportReady(() => void check(true))
+      : null
+    const unsubscribeReconnect = ownerId
+      ? onTransportReconnect(() => void check(true))
+      : null
+    return () => {
+      cancelled = true
+      unsubscribeReady?.()
+      unsubscribeReconnect?.()
+    }
+  }, [ownerId, persist])
 
   // Load the persisted queue when the owner appears or changes.
   useEffect(() => {
@@ -171,24 +279,31 @@ export function useMessageQueue(
     }
     const prev = prevOwnerRef.current
     prevOwnerRef.current = ownerId
+    if (prev && prev !== ownerId) commit([])
+    ownerHydratedRef.current = false
     let cancelled = false
+    const revision = queueRevision.current
     messageQueueList(ownerId)
       .then((items) => {
-        if (cancelled) return
+        if (
+          cancelled ||
+          (ownerHydratedRef.current && queueRevision.current !== revision)
+        )
+          return
+        const parked = ownerHydratedRef.current ? [] : queueRef.current
+        ownerHydratedRef.current = true
         const parsed = items
           .map(parseItem)
           .filter((x): x is QueuedMessage => x !== null)
-        const hadInMemory = queueRef.current.length > 0
-        if (prev === null || prev === undefined) {
-          // Binding from an unbound tab: keep any parked prompts (they have no
-          // persisted row yet) and persist them so they survive from here on.
-          if (hadInMemory) {
-            persist(queueRef.current)
-          } else {
-            commit(parsed)
-          }
+        if (parked.length > 0) {
+          const ids = new Set(parsed.map((item) => item.id))
+          const merged = [
+            ...parsed,
+            ...parked.filter((item) => !ids.has(item.id)),
+          ]
+          commit(merged)
+          persist(merged)
         } else {
-          // Switched to a different conversation: load its persisted queue.
           commit(parsed)
         }
       })
@@ -208,6 +323,8 @@ export function useMessageQueue(
       (payload) => {
         if (payload.owner_id !== ownerIdRef.current) return
         if (payload.origin === clientIdRef.current) return
+        const parked = ownerHydratedRef.current ? [] : queueRef.current
+        ownerHydratedRef.current = true
         const parsed = payload.items
           .map(parseItem)
           .filter((x): x is QueuedMessage => x !== null)
@@ -218,7 +335,13 @@ export function useMessageQueue(
         ) {
           setEditingItemId(null)
         }
-        commit(parsed)
+        const ids = new Set(parsed.map((item) => item.id))
+        const merged = [
+          ...parsed,
+          ...parked.filter((item) => !ids.has(item.id)),
+        ]
+        commit(merged)
+        if (parked.length > 0) persist(merged)
       }
     )
       .then((u) => {
@@ -229,7 +352,7 @@ export function useMessageQueue(
       cancelled = true
       unsub?.()
     }
-  }, [ownerId, commit])
+  }, [ownerId, commit, persist])
 
   const enqueue = useCallback(
     (
@@ -262,6 +385,8 @@ export function useMessageQueue(
   )
 
   const dequeue = useCallback((): QueuedMessage | undefined => {
+    if (ownerIdRef.current && backendDrainRef.current !== false)
+      return undefined
     const current = queueRef.current
     if (current.length === 0) return undefined
     const next = current.slice(1)
@@ -312,7 +437,9 @@ export function useMessageQueue(
   const updateItem = useCallback(
     (id: string, draft: PromptDraft) => {
       const next = queueRef.current.map((item) =>
-        item.id === id ? { ...item, draft } : item
+        item.id === id
+          ? { ...item, draft, persistedDraftJson: undefined }
+          : item
       )
       commit(next)
       persist(next)
@@ -343,8 +470,27 @@ export function useMessageQueue(
     setEditingItemId(null)
   }, [])
 
+  const retryItem = useCallback(
+    async (id: string) => {
+      const owner = ownerIdRef.current
+      if (!owner) return
+      const revision = queueRevision.current
+      await messageQueueRetry(owner, id)
+      const items = await messageQueueList(owner)
+      if (ownerIdRef.current !== owner || revision !== queueRevision.current)
+        return
+      commit(
+        items
+          .map(parseItem)
+          .filter((item): item is QueuedMessage => item !== null)
+      )
+    },
+    [commit]
+  )
+
   return {
     queue,
+    backendDrain,
     enqueue,
     requeueFront,
     dequeue,
@@ -356,5 +502,6 @@ export function useMessageQueue(
     editingItemId,
     startEditing,
     cancelEditing,
+    retryItem,
   }
 }

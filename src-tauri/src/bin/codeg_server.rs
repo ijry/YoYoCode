@@ -373,9 +373,20 @@ async fn async_main(
         db.conn.clone(),
         data_dir.clone(),
     );
+    // Backend drain for the persisted message queue: saves and turn
+    // settlements nudge it to claim the head of a conversation's queue and
+    // send it — with no client open at all.
+    let message_queue_drain = codeg_lib::acp::message_queue_drain::spawn_drain_task(
+        db.conn.clone(),
+        connection_manager.clone_ref(),
+        emitter.clone(),
+        std::sync::Arc::from(data_dir.clone()),
+        acp_event_bus.clone(),
+    );
     let state = Arc::new(AppState {
         db,
         connection_manager,
+        message_queue_drain,
         terminal_manager: codeg_lib::app_state::default_terminal_manager(),
         event_broadcaster: broadcaster,
         acp_event_bus: acp_event_bus.clone(),

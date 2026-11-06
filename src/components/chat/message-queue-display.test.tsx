@@ -66,6 +66,50 @@ function renderDisplay(
 afterEach(cleanup)
 
 describe("MessageQueueDisplay click-to-insert", () => {
+  it("does not offer edit, delete or steering for a backend-owned claim", () => {
+    renderDisplay({
+      queue: [{ ...item("q1", "A"), deliveryState: "claimed" }],
+      onSteerItem: vi.fn(async () => {}),
+      steerChannel: "native",
+    })
+    expect(screen.queryByTitle(TQ.steerItemNow)).toBeNull()
+    expect(screen.getByTitle(TQ.editItem)).toBeDisabled()
+    expect(screen.getByTitle(TQ.deleteItem)).toBeDisabled()
+  })
+
+  it("keeps an uncertain draft visible with its error rather than showing it as pending", () => {
+    renderDisplay({
+      queue: [
+        {
+          ...item("q1", "A"),
+          deliveryState: "uncertain",
+          lastError: "delivery not confirmed",
+        },
+      ],
+    })
+    expect(screen.getByText("A")).toBeInTheDocument()
+    expect(screen.getByTitle("delivery not confirmed")).toBeInTheDocument()
+  })
+
+  it("asks before retrying uncertain delivery to avoid an accidental duplicate", async () => {
+    const onRetry = vi.fn(async () => {})
+    renderDisplay({
+      queue: [
+        {
+          ...item("q1", "A"),
+          deliveryState: "uncertain",
+          lastError: "unknown delivery",
+        },
+      ],
+      onRetry,
+    })
+    await userEvent.click(screen.getByTitle("Retry queued message"))
+    expect(onRetry).not.toHaveBeenCalled()
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }))
+    expect(onRetry).toHaveBeenCalledWith("q1")
+  })
+
   it("offers no insert button without a steering handler", () => {
     renderDisplay()
     expect(screen.queryByTitle(TQ.steerItemNow)).toBeNull()

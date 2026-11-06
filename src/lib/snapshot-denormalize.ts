@@ -77,6 +77,10 @@ export interface SnapshotPatch {
   promptCapabilities: PromptCapabilitiesInfo | null
   selectorsReady: boolean
   supportsFork: boolean
+  /** Host drains the persisted message queue backend-side (see the wire
+   *  field's doc on `LiveSessionSnapshot`). `false` = older host, frontend
+   *  flush stays on. */
+  messageQueueBackendDrain: boolean
   /** Whether the running session is on stale (launch-time) config — recovered
    *  from the snapshot so a reconnect/refresh/new tile sees the banner state
    *  that the one-shot `session_config_stale` event won't replay. */
@@ -176,6 +180,11 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     promptCapabilities: wire.prompt_capabilities ?? DEFAULT_PROMPT_CAPS,
     selectorsReady: wire.selectors_ready,
     supportsFork: wire.fork_supported,
+    /** Host drains the persisted message queue backend-side. `false` when the
+     *  server omitted the field (older host) — the frontend then keeps its own
+     *  auto-flush. When true the frontend flush must stay off: the host is the
+     *  only drainer, and two drainers would race the same head. */
+    messageQueueBackendDrain: wire.message_queue_backend_drain ?? false,
     configStale: wire.config_stale ?? false,
     configStaleKind: wire.config_stale_kind ?? null,
     backgroundOutstanding: wire.background_outstanding ?? 0,

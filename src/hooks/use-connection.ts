@@ -70,6 +70,11 @@ export interface UseConnectionReturn {
   connectError: ConnectErrorInfo | null
   promptCapabilities: PromptCapabilitiesInfo
   supportsFork: boolean
+  /** Host drains the persisted message queue backend-side (snapshot flag,
+   *  latched in the connections store). When true this hook's consumers must
+   *  NOT auto-flush the queue — the host is the only drainer. Absent on older
+   *  hosts → `false`. */
+  messageQueueBackendDrain: boolean
   selectorsReady: boolean
   hasCachedSelectors: boolean
   sessionId: string | null
@@ -281,6 +286,7 @@ export function useConnection(contextKey: string): UseConnectionReturn {
   const promptCapabilities =
     connection?.promptCapabilities ?? DEFAULT_PROMPT_CAPABILITIES
   const supportsFork = connection?.supportsFork ?? false
+  const messageQueueBackendDrain = connection?.messageQueueBackendDrain ?? false
   const selectorsReady = connection?.selectorsReady ?? false
   const sessionId = connection?.sessionId ?? null
   const cached = connection?.agentType
@@ -397,6 +403,7 @@ export function useConnection(contextKey: string): UseConnectionReturn {
       connectError,
       promptCapabilities,
       supportsFork,
+      messageQueueBackendDrain,
       selectorsReady,
       hasCachedSelectors,
       sessionId,
@@ -443,6 +450,7 @@ export function useConnection(contextKey: string): UseConnectionReturn {
       connectError,
       promptCapabilities,
       supportsFork,
+      messageQueueBackendDrain,
       selectorsReady,
       hasCachedSelectors,
       sessionId,

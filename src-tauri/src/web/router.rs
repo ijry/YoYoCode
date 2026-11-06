@@ -1849,6 +1849,14 @@ pub fn build_router_with_proxy_auth(
         )
         // ─── Message Queue ───
         .route(
+            "/message_queue_capabilities",
+            post(handlers::message_queue::message_queue_capabilities),
+        )
+        .route(
+            "/message_queue_retry",
+            post(handlers::message_queue::message_queue_retry),
+        )
+        .route(
             "/message_queue_list",
             post(handlers::message_queue::message_queue_list),
         )

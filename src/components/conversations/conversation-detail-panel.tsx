@@ -102,6 +102,7 @@ import {
 import { isWindowedDetail } from "@/lib/turn-window"
 import {
   flushRetryDelayMs,
+  canFlushClientQueue,
   isConnectionReady,
   shouldQueueDirectSend,
   shouldRejectDuplicateCreate,
@@ -905,6 +906,13 @@ const ConversationTabView = memo(function ConversationTabView({
   // bounces and rolls back to idle to retry the next item). A bounce backoff
   // rate-limits retries against a still-busy backend.
   useEffect(() => {
+    // Backend drain: the host claims the head and sends it itself (with no
+    // client open at all — see `acp/message_queue_drain.rs`). The frontend
+    // must not dequeue at all — two drainers would race the same head into a
+    // double send. The direct-send tail-routing in `handleSend` and the
+    // TurnBusy bounce re-queue below STAY: direct sends still belong at the
+    // tail, and a client racing the backend can still bounce.
+    if (!canFlushClientQueue(dbConversationId != null, conn.messageQueueBackendDrain, messageQueue.backendDrain)) return
     // The SAME readiness predicate `handleSend` gates on — deliberately the one
     // variable, not a re-spelling of it. This effect DEQUEUES before handing the
     // message over, so any gate weaker than the send's own check takes a message
@@ -944,7 +952,15 @@ const ConversationTabView = memo(function ConversationTabView({
     return () => clearTimeout(timer)
     // `connectionReady` subsumes connStatus, the connection's cwd and its agent,
     // so it is the only connection dependency this effect needs.
-  }, [connectionReady, runtimeSyncState, msgQueue.length, queueSteerInFlight])
+  }, [
+    conn.messageQueueBackendDrain,
+    messageQueue.backendDrain,
+    dbConversationId,
+    connectionReady,
+    runtimeSyncState,
+    msgQueue.length,
+    queueSteerInFlight,
+  ])
 
   // Mirror the connection's liveMessage into the runtime session OUTSIDE React.
   // The connection dispatch invokes this sink synchronously whenever liveMessage
@@ -2235,6 +2251,7 @@ const ConversationTabView = memo(function ConversationTabView({
   // Failures keep the row available for retry.
   const handleQueueSteer = useCallback(
     async (id: string) => {
+      if (messageQueue.backendDrain !== false) return
       const item = msgQueue.find((m) => m.id === id)
       if (!item) return
       const payload = buildSteerPayload(item.draft)
@@ -2269,6 +2286,7 @@ const ConversationTabView = memo(function ConversationTabView({
       }
     },
     [
+      messageQueue.backendDrain,
       msgQueue,
       feedbackSteer,
       mqRemove,
@@ -2366,10 +2384,15 @@ const ConversationTabView = memo(function ConversationTabView({
       onQueueReorder={mqReorder}
       onQueueEdit={handleQueueEdit}
       onQueueDelete={mqRemove}
+      onQueueRetry={messageQueue.backendDrain === true ? async (id) => {
+        try { await messageQueue.retryItem(id) }
+        catch (error) { toast.error(toErrorMessage(error)) }
+      } : undefined}
       onQueueSteer={
         // Same gate as the composer's mid-turn send, plus a turn actually in
         // flight: a queued row can only be inserted into a RUNNING turn —
         // idle sessions have the queue's own auto-flush for that.
+        messageQueue.backendDrain === false &&
         feedback.featureEnabled &&
         feedback.steerAvailable &&
         connStatus === "prompting"

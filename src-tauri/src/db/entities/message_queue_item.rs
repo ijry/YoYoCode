@@ -18,6 +18,12 @@ pub struct Model {
     pub mode_id: Option<String>,
     pub adopt_send_time_mode: bool,
     pub sort_order: i32,
+    /// pending -> claimed -> sending -> submitted. Failed or uncertain
+    /// deliveries stay visible; submitted ids remain as stale-save watermarks.
+    pub delivery_state: String,
+    pub claim_token: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub last_error: Option<String>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

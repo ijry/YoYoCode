@@ -368,6 +368,9 @@ pub(crate) async fn handle_event(
                 )
                 .await;
             }
+            // Wake after the old turn's status is persisted, so the next
+            // queued prompt cannot be overwritten by this turn's status write.
+            manager.notify_message_queue(cid);
             Ok(())
         }
         AcpEvent::NativeSessionTitle { title } => {

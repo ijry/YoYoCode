@@ -3996,6 +3996,10 @@ export async function messageQueueSave(
   return getTransport().call("message_queue_save", { ownerId, items, origin })
 }
 
+export async function messageQueueRetry(ownerId: string, itemId: string): Promise<void> {
+  return getTransport().call("message_queue_retry", { ownerId, itemId })
+}
+
 // Token usage dashboard
 
 export async function tokenUsageReport(

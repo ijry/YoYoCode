@@ -2,7 +2,17 @@
 
 import { useCallback, useRef, useState, type PointerEvent } from "react"
 import { Reorder, useDragControls } from "motion/react"
-import { Clock, GripVertical, Pencil, X, Zap } from "lucide-react"
+import { Clock, GripVertical, Pencil, RotateCcw, X, Zap } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { draftRidesBlocks } from "@/lib/prompt-draft"
@@ -13,6 +23,7 @@ interface MessageQueueDisplayProps {
   onReorder: (items: QueuedMessage[]) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRetry?: (id: string) => Promise<void> | void
   editingItemId: string | null
   /**
    * Send one queued item straight into the RUNNING turn over the session's
@@ -34,6 +45,7 @@ interface QueueItemProps {
   isEditing: boolean
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onRetry?: (id: string) => void
   onSteerItem?: (id: string) => Promise<void> | void
   steerChannel: "native" | "pull"
   /** Whether an insert from ANY row is in flight — every row's button is
@@ -48,6 +60,7 @@ function QueueItem({
   isEditing,
   onEdit,
   onDelete,
+  onRetry,
   onSteerItem,
   steerChannel,
   steering,
@@ -66,7 +79,10 @@ function QueueItem({
   //   delivers text, so the backend rejects blocks there — every click would
   //   land on the turn-end fallback, which only moves the row to the front
   //   and never inserts it. It still goes out whole with the next turn.
+  const claimed =
+    item.deliveryState === "claimed" || item.deliveryState === "sending"
   const canSteer =
+    !claimed &&
     Boolean(onSteerItem) &&
     !isEditing &&
     (steerChannel === "native" || !draftRidesBlocks(item.draft))
@@ -96,6 +112,7 @@ function QueueItem({
         type="button"
         className="shrink-0 cursor-grab touch-none active:cursor-grabbing p-0"
         onPointerDown={startDrag}
+        disabled={claimed}
       >
         <GripVertical className="h-3 w-3 text-muted-foreground/60" />
       </button>
@@ -105,6 +122,24 @@ function QueueItem({
       <span className="min-w-0 flex-1 truncate text-3xs text-foreground/80">
         {item.draft.displayText}
       </span>
+      {item.lastError && (
+        <span className="text-destructive text-3xs" title={item.lastError}>
+          !
+        </span>
+      )}
+      {claimed && <Clock className="h-2.5 w-2.5 text-muted-foreground" />}
+      {onRetry &&
+        (item.deliveryState === "failed" ||
+          item.deliveryState === "uncertain") && (
+          <button
+            type="button"
+            onClick={() => onRetry(item.id)}
+            title={t("retryItem")}
+            className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground"
+          >
+            <RotateCcw className="h-2.5 w-2.5" />
+          </button>
+        )}
       {canSteer && (
         <button
           type="button"
@@ -125,6 +160,7 @@ function QueueItem({
       <button
         type="button"
         onClick={() => onEdit(item.id)}
+        disabled={claimed}
         className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground"
         title={t("editItem")}
       >
@@ -133,6 +169,7 @@ function QueueItem({
       <button
         type="button"
         onClick={() => onDelete(item.id)}
+        disabled={claimed}
         className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground"
         title={t("deleteItem")}
       >
@@ -147,10 +184,13 @@ export function MessageQueueDisplay({
   onReorder,
   onEdit,
   onDelete,
+  onRetry,
   editingItemId,
   onSteerItem,
   steerChannel = "pull",
 }: MessageQueueDisplayProps) {
+  const t = useTranslations("Folder.chat.messageQueue")
+  const [retryId, setRetryId] = useState<string | null>(null)
   // The id whose insert is in flight. A per-row `steering` would let a
   // concurrent click on another row race the same channel; one shared id
   // both disables the clicked row and (via `steeringId !== null`) the others
@@ -196,6 +236,7 @@ export function MessageQueueDisplay({
             isEditing={editingItemId === item.id}
             onEdit={onEdit}
             onDelete={onDelete}
+            onRetry={onRetry ? setRetryId : undefined}
             onSteerItem={onSteerItem}
             steerChannel={steerChannel}
             steering={steeringId !== null}
@@ -203,6 +244,30 @@ export function MessageQueueDisplay({
           />
         ))}
       </Reorder.Group>
+      <AlertDialog
+        open={retryId !== null}
+        onOpenChange={(open) => {
+          if (!open) setRetryId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("retryItem")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("retryWarning")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("retryCancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (retryId && onRetry) void onRetry(retryId)
+                setRetryId(null)
+              }}
+            >
+              {t("retryConfirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

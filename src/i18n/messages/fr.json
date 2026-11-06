@@ -3525,6 +3525,10 @@
         "cancelEdit": "Annuler la modification",
         "editItem": "Modifier",
         "deleteItem": "Supprimer",
+        "retryItem": "Réessayer le message en attente",
+        "retryConfirm": "Réessayer",
+        "retryWarning": "La livraison n’est pas confirmée. Un nouvel essai pourrait envoyer ce message deux fois. Continuer ?",
+        "retryCancel": "Annuler",
         "steerItemNow": "Insérer dans le tour en cours",
         "steerItemAsNote": "Envoyer comme note pour la prochaine vérification"
       },

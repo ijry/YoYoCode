@@ -525,7 +525,14 @@ describe("ConversationDetailPanel send-path hardening", () => {
     )
     expect(effectWithDeps).toContain("if (queueSteerInFlight) return")
     // …and as a dependency, so releasing the hold re-runs the flush.
-    expect(effectWithDeps).toContain("queueSteerInFlight])")
+    expect(effectWithDeps).toContain("queueSteerInFlight,")
+    // The backend-drain gate rides the same effect: when the host drains the
+    // persisted queue itself (`conn.messageQueueBackendDrain`), this effect
+    // must not dequeue at all — two drainers would race the same head.
+    expect(effectWithDeps).toContain(
+      "canFlushClientQueue(dbConversationId != null"
+    )
+    expect(effectWithDeps).toContain("conn.messageQueueBackendDrain,")
 
     const steerStart = source.indexOf("const handleQueueSteer = useCallback")
     expect(steerStart).toBeGreaterThan(-1)

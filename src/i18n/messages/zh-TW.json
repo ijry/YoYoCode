@@ -3525,6 +3525,10 @@
         "cancelEdit": "取消編輯",
         "editItem": "編輯",
         "deleteItem": "刪除",
+        "retryItem": "重試佇列訊息",
+        "retryConfirm": "重試",
+        "retryWarning": "上次傳送結果未確認，重試可能重複傳送這則訊息。確定重試？",
+        "retryCancel": "取消",
         "steerItemNow": "插入目前回合",
         "steerItemAsNote": "作為留言，供下次檢查時讀取"
       },
