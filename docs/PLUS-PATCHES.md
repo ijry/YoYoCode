@@ -43,6 +43,17 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
 | （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10 | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；上游动这些文件时需手动合并 |
 
+### 待发送队列后端自治（2026-11-06）
+
+- `acp/message_queue_drain.rs` + `message_queue_service.rs`：Rust 完全控制持久化队列的认领与发送，startup/30s scan + save/turn-status 触发；无页面/无连接时自行续会话建连，不再依赖前端 effect。
+- 新 migration `m20261106_000001_message_queue_delivery`，原子 claim/发送确认、陈旧保存防复活；sending 交付不确定时保留 uncertain 并要求确认后 retry，不宣称 exactly-once。
+- desktop/web 与 mcode-app 用 `message_queue_capabilities` fail-closed 门控；失败显示和确认重试，保留旧宿主兼容。
+- 冲突面：ACP manager/lifecycle、双 runtime bootstrap、队列 handlers/types、前端 queue hook/panel/display。详细协议与原生复制见 [backend-message-queue-drain.md](backend-message-queue-drain.md)。
+
+- 会话执行错误暂停/原上下文继续：`message_queue_state/attempt` 持久化恢复gate，实际轮次success才释放后续，UI空队列也有固定继续提示，CAS防多端重复点击。见 [message-queue-error-recovery.md](message-queue-error-recovery.md)。
+
+- 一次性定时发送：`scheduled_at` 列 + `message_queue_enqueue/set_schedule/remove` 原子 patch API + capabilities `scheduled_send`；claim 头跳过未到期项（未来定时不挡普通消息），drainer 按最近 deadline 唤醒；旧 full-save 不触碰时间、漏列不删定时行、显式删除走 REMOVED 墓碑。desktop/Web/App 弹窗（30 分钟/2 小时预设）与行内转换。
+
 ### CI 发布
 
 - **tag 规则（强制）**：`v<app version>-plus.N`，如 `v0.41.3-plus.1`。不带

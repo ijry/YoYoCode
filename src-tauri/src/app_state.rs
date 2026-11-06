@@ -16,6 +16,13 @@ use crate::workspace_transfer::WorkspaceTransferManager;
 pub struct AppState {
     pub db: AppDatabase,
     pub connection_manager: ConnectionManager,
+    /// Wake handle for the backend drain of the persisted message queue
+    /// (`acp::message_queue_drain`): queue saves and turn settlements nudge
+    /// it to claim the head of a conversation's queue and send it, so the
+    /// "send later" queue drains with no client open. The desktop web
+    /// AppState reuses the handle the Tauri setup spawned; tests use a
+    /// detached one.
+    pub message_queue_drain: crate::acp::message_queue_drain::DrainHandle,
     pub terminal_manager: TerminalManager,
     pub event_broadcaster: Arc<WebEventBroadcaster>,
     /// Process-wide bus for typed `Arc<EventEnvelope>` delivery to
@@ -276,6 +283,7 @@ impl AppState {
             db,
             connection_manager,
             terminal_manager: default_terminal_manager(),
+            message_queue_drain: crate::acp::message_queue_drain::DrainHandle::detached(),
             event_broadcaster: broadcaster,
             acp_event_bus,
             emitter,

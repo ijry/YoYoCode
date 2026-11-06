@@ -3806,6 +3806,14 @@ export interface LiveSessionSnapshot {
    *  version proof — the frontend must NOT re-derive it from agent type).
    *  Absent → `false`. */
   native_steering_available?: boolean
+  /** Whether this HOST drains the persisted message queue backend-side
+   *  (`acp/message_queue_drain.rs`: turn settlements, queue saves and a
+   *  periodic sweep claim the head and send it — with no client open). Host
+   *  property, not session state; always `true` on this build. The frontend
+   *  gates its own auto-flush off when true — the host is the only drainer,
+   *  and two drainers would race the same head into a double send. Absent on
+   *  older hosts → `false` (keep the frontend flush). */
+  message_queue_backend_drain?: boolean
   modes: SessionModeStateInfo | null
   current_mode: string | null
   config_options: SessionConfigOptionInfo[] | null
@@ -4767,6 +4775,10 @@ export interface PersistedQueueItem {
   draft_json: string
   mode_id: string | null
   adopt_send_time_mode: boolean
+  delivery_state?: "claimed" | "sending" | "failed" | "uncertain"
+  last_error?: string | null
+  /** RFC 3339 one-off schedule instant; absent on ordinary items. */
+  scheduled_at?: string | null
 }
 
 // Shape accepted by `message_queue_save`. camelCase because both the Tauri
@@ -4779,6 +4791,15 @@ export interface MessageQueueSaveItem {
 }
 
 // Payload of the `message-queue://changed` broadcast (snake_case on the wire).
+export interface MessageQueueState {
+  owner_id: string
+  status: "open" | "paused" | "resume_requested" | "resuming"
+  active_attempt_id: string | null
+  failed_attempt_id: string | null
+  error: string | null
+  revision: number
+}
+
 export interface MessageQueueChangedPayload {
   owner_id: string
   origin: string

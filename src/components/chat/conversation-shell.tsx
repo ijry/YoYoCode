@@ -125,10 +125,25 @@ interface ConversationShellProps {
    *  active tab only). Threaded straight through to the composer. */
   showActiveFlow?: boolean
   queue?: QueuedMessage[]
+  queueControl?: import("@/lib/types").MessageQueueState | null
+  onQueueContinue?: () => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
+  /** One-off scheduled send (see `ChatInputProps.onEnqueueScheduled`). */
+  onEnqueueScheduled?: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
+  /** Move one queued item between ordinary and scheduled (see
+   *  `ChatInputProps.onQueueSchedule`). */
+  onQueueSchedule?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
+  onQueueRetry?: (id: string) => Promise<void> | void
   /** Insert one queued item into the RUNNING turn over the session's
    *  live-feedback channel; threaded straight through to the composer's
    *  queue list. See `ChatInputProps.onQueueSteer`. */
@@ -215,10 +230,15 @@ export function ConversationShell({
   isActive,
   showActiveFlow,
   queue,
+  queueControl,
+  onQueueContinue,
   onEnqueue,
+  onEnqueueScheduled,
+  onQueueSchedule,
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
+  onQueueRetry,
   onQueueSteer,
   editingItemId,
   editingDraftText,
@@ -347,10 +367,15 @@ export function ConversationShell({
               isActive={isActive}
               showActiveFlow={showActiveFlow}
               queue={queue}
+              queueControl={queueControl}
+              onQueueContinue={onQueueContinue}
               onEnqueue={onEnqueue}
+              onEnqueueScheduled={onEnqueueScheduled}
+              onQueueSchedule={onQueueSchedule}
               onQueueReorder={onQueueReorder}
               onQueueEdit={onQueueEdit}
               onQueueDelete={onQueueDelete}
+              onQueueRetry={onQueueRetry}
               onQueueSteer={onQueueSteer}
               editingItemId={editingItemId}
               editingDraftText={editingDraftText}

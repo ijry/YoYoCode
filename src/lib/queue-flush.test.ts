@@ -5,7 +5,21 @@ import {
   QUEUE_FLUSH_RETRY_BACKOFF_MS,
   shouldQueueDirectSend,
   shouldRejectDuplicateCreate,
+  canFlushClientQueue,
 } from "./queue-flush"
+
+describe("client queue ownership", () => {
+  it("leaves an unbound draft queue drainable even on a new host", () => {
+    expect(canFlushClientQueue(false, true, null)).toBe(true)
+  })
+
+  it("blocks bound queues while host ownership is known or being probed", () => {
+    expect(canFlushClientQueue(true, true, false)).toBe(false)
+    expect(canFlushClientQueue(true, false, null)).toBe(false)
+    expect(canFlushClientQueue(true, false, true)).toBe(false)
+    expect(canFlushClientQueue(true, false, false)).toBe(true)
+  })
+})
 
 describe("flushRetryDelayMs", () => {
   it("returns 0 when no bounce has happened (lastBounceAt = 0)", () => {

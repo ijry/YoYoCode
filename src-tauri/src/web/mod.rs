@@ -831,6 +831,13 @@ pub(crate) async fn do_start_web_server_tauri(
             conn: app.state::<crate::db::AppDatabase>().conn.clone(),
         },
         connection_manager: (*app.state::<crate::acp::manager::ConnectionManager>()).clone_ref(),
+        // Spawned + managed in the Tauri setup: the backend drain of the
+        // persisted message queue. Reused so HTTP and webview saves nudge
+        // the same worker.
+        message_queue_drain: app
+            .state::<crate::acp::message_queue_drain::DrainHandle>()
+            .inner()
+            .clone(),
         terminal_manager: (*app.state::<crate::terminal::manager::TerminalManager>()).clone_ref(),
         event_broadcaster: app
             .state::<Arc<crate::web::event_bridge::WebEventBroadcaster>>()

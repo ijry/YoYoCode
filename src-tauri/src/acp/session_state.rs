@@ -819,6 +819,10 @@ pub struct SessionState {
     /// Which writer owns the conversation-status write of a `TurnComplete`,
     /// keyed by that event's envelope `seq`. See [`Self::claim_turn_status`].
     pub turn_status_claim: Option<(u64, TurnStatusWriter)>,
+    /// Persisted prompt attempt and completions captured at the emit boundary.
+    /// Lifecycle may run after a new event, so its result is keyed by event seq.
+    pub queue_attempt: Option<crate::db::service::message_queue_control_service::QueueTurnAttempt>,
+    pub queue_completions: BTreeMap<u64, crate::db::service::message_queue_control_service::QueueTurnCompletion>,
 }
 
 /// The two writers of a `TurnComplete`'s conversation status.
@@ -831,6 +835,27 @@ pub enum TurnStatusWriter {
 }
 
 impl SessionState {
+    pub(crate) fn capture_queue_completion(&mut self, event: &AcpEvent, seq: u64) {
+        use crate::db::service::message_queue_control_service::QueueTurnCompletion;
+        let Some(attempt) = self.queue_attempt.as_ref() else { return; };
+        let (success, cancelled, error) = match event {
+            AcpEvent::TurnComplete { stop_reason, .. } if !self.agent_initiated_turn => {
+                let failure = self.session_failures.values().find(|failure| !failure.resolved && failure.severity == "error");
+                let success = stop_reason == "end_turn" && failure.is_none();
+                let error = failure.map(|failure| failure.details.clone().unwrap_or_else(|| failure.title.clone()))
+                    .or_else(|| (!success).then(|| format!("previous turn ended with {stop_reason}")));
+                (success, stop_reason == "cancelled", error)
+            }
+            AcpEvent::Error { message, terminal: true, .. } => (false, false, Some(message.clone())),
+            AcpEvent::StatusChanged { status: ConnectionStatus::Disconnected } =>
+                (false, false, Some("connection ended before the task completed".into())),
+            _ => return,
+        };
+        let completion = QueueTurnCompletion { attempt_id: attempt.id.clone(), owner_id: attempt.owner_id.clone(), success, cancelled, error };
+        self.queue_attempt = None;
+        self.queue_completions.insert(seq, completion);
+    }
+
     /// Claim the conversation-status write of the `TurnComplete` at `seq` for
     /// `writer`. `true` when `writer` owns it — newly, or already (a retry of
     /// its own write runs again with the same envelope); `false` when the other
@@ -952,6 +977,8 @@ impl SessionState {
             cli_run: None,
             cli_output_schema: None,
             turn_status_claim: None,
+            queue_attempt: None,
+            queue_completions: BTreeMap::new(),
         }
     }
 
@@ -2431,6 +2458,11 @@ impl SessionState {
             background_outstanding: self.background_outstanding,
             feedback_tool_available: self.feedback_tool_available,
             native_steering_available: self.native_steering_available,
+            // Host property, not session state: this build always drains the
+            // persisted message queue backend-side (see
+            // `acp/message_queue_drain.rs`). Clients gate their own flush off
+            // when they see it — the host is the only drainer.
+            message_queue_backend_drain: true,
             modes: self.modes.clone(),
             current_mode: self.current_mode.clone(),
             config_options: self.config_options.clone(),
@@ -2569,6 +2601,14 @@ pub struct LiveSessionSnapshot {
     /// like `feedback_tool_available` so the frontend can rely on it.
     #[serde(default)]
     pub native_steering_available: bool,
+    /// Whether this HOST drains the persisted message queue backend-side
+    /// (`acp/message_queue_drain.rs`: TurnComplete / queue-save / periodic
+    /// sweep triggers claim the head and send it). Host property, not session
+    /// state — always `true` on this build. `#[serde(default)]` so older host
+    /// payloads deserialize to `false` and clients keep their own flush;
+    /// always serialized so the clients that gate on it can rely on it.
+    #[serde(default)]
+    pub message_queue_backend_drain: bool,
     pub modes: Option<SessionModeStateInfo>,
     pub current_mode: Option<String>,
     pub config_options: Option<Vec<SessionConfigOptionInfo>>,

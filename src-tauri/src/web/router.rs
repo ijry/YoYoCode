@@ -1849,12 +1849,34 @@ pub fn build_router_with_proxy_auth(
         )
         // ─── Message Queue ───
         .route(
+            "/message_queue_capabilities",
+            post(handlers::message_queue::message_queue_capabilities),
+        )
+        .route("/message_queue_state", post(handlers::message_queue::message_queue_state))
+        .route("/message_queue_continue", post(handlers::message_queue::message_queue_continue))
+        .route(
+            "/message_queue_retry",
+            post(handlers::message_queue::message_queue_retry),
+        )
+        .route(
             "/message_queue_list",
             post(handlers::message_queue::message_queue_list),
         )
         .route(
             "/message_queue_save",
             post(handlers::message_queue::message_queue_save),
+        )
+        .route(
+            "/message_queue_enqueue",
+            post(handlers::message_queue::message_queue_enqueue),
+        )
+        .route(
+            "/message_queue_set_schedule",
+            post(handlers::message_queue::message_queue_set_schedule),
+        )
+        .route(
+            "/message_queue_remove",
+            post(handlers::message_queue::message_queue_remove),
         )
         // ─── Automations ───
         .route(

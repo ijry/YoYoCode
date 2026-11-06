@@ -6,6 +6,7 @@ import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
 import {
   BookOpenText,
+  CalendarClock,
   Check,
   ChevronUp,
   ClipboardPaste,
@@ -19,6 +20,7 @@ import {
   X,
   Zap,
 } from "lucide-react"
+import { MessageScheduleDialog } from "./message-schedule-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -220,6 +222,17 @@ interface MessageInputProps {
    *  `isActive` (which still drives auto-focus/connect). */
   showActiveFlow?: boolean
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
+  /**
+   * One-off scheduled send on a capable host (`scheduled_send`): the composer's
+   * clock opens a picker and the picked instant rides with the draft to the
+   * host's atomic enqueue. Awaited — the draft clears only once the host
+   * accepted; a rejection keeps it (and the attachments) for retry.
+   */
+  onEnqueueScheduled?: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
   /** Id of the queue item being edited — the stable key for (re)hydration, so
    *  switching between two items with identical display text still reloads. */
   editingItemId?: string | null
@@ -357,6 +370,7 @@ export function MessageInput({
   isActive = false,
   showActiveFlow = false,
   onEnqueue,
+  onEnqueueScheduled,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -1686,6 +1700,62 @@ export function MessageInput({
     resetComposer,
   ])
 
+  // Scheduled send: the picked instant rides with the CURRENT composer draft
+  // to the host's atomic enqueue. Awaited — the draft clears only once the
+  // host accepted; a rejection keeps it (and the attachments) for retry, and
+  // a draft edited or swapped while the picker was open is never cleared.
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
+  const confirmScheduledSend = useCallback(
+    async (iso: string) => {
+      if (!onEnqueueScheduled || scheduling) return
+      if (hasUploadingImage) {
+        toast.error(tAttach("attachUploadInProgress"))
+        return
+      }
+      const draft = buildDraft()
+      if (!draft) {
+        setScheduleDialogOpen(false)
+        return
+      }
+      setScheduling(true)
+      try {
+        await onEnqueueScheduled(
+          draft,
+          showModeSelector ? effectiveModeId : null,
+          iso
+        )
+        const current = currentComposerRef.current
+        if (
+          current.draftStorageKey === effectiveDraftStorageKey &&
+          editorRef.current?.getEditor() &&
+          JSON.stringify(current.buildDraft()) === JSON.stringify(draft)
+        ) {
+          if (effectiveDraftStorageKey) {
+            clearMessageInputDraftV2(effectiveDraftStorageKey)
+          }
+          resetComposer()
+        }
+        setScheduleDialogOpen(false)
+      } catch (error) {
+        toast.error(toErrorMessage(error))
+      } finally {
+        setScheduling(false)
+      }
+    },
+    [
+      onEnqueueScheduled,
+      scheduling,
+      hasUploadingImage,
+      tAttach,
+      buildDraft,
+      showModeSelector,
+      effectiveModeId,
+      effectiveDraftStorageKey,
+      resetComposer,
+    ]
+  )
+
   // Mid-turn send over the session's live-feedback channel: a native push
   // inserts into the running turn; a pull-tool session records a waiting note
   // the agent reads on its next check (the copy is keyed on `steerChannel` so
@@ -1882,6 +1952,20 @@ export function MessageInput({
     [handleModeSelect, onConfigOptionChange]
   )
 
+  const scheduleButton = onEnqueueScheduled ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      disabled={disabled || !hasSendableContent || scheduling}
+      onClick={() => setScheduleDialogOpen(true)}
+      title={tQueue("scheduledSend")}
+    >
+      <CalendarClock className="size-4" />
+    </Button>
+  ) : null
+
   const actionButtons = isEditingQueueItem ? (
     <div className="flex items-center gap-1">
       <Button
@@ -1961,31 +2045,48 @@ export function MessageInput({
                 )}
                 {t(steerChannel === "pull" ? "steerAsNote" : "steerIntoTurn")}
               </DropdownMenuItem>
+              {onEnqueueScheduled && (
+                <DropdownMenuItem
+                  onSelect={() => setScheduleDialogOpen(true)}
+                  disabled={steering}
+                >
+                  {/* The calendar-clock is the send-later promise — distinct
+                      from the plain Clock that means "waits for this turn". */}
+                  <CalendarClock className="h-4 w-4" />
+                  {tQueue("scheduledSend")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
     ) : (
-      <Button
-        onClick={onCancel}
-        variant="destructive"
-        size="icon"
-        className="h-8 w-8"
-        title={t("cancel")}
-      >
-        <Square className="size-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        {scheduleButton}
+        <Button
+          onClick={onCancel}
+          variant="destructive"
+          size="icon"
+          className="h-8 w-8"
+          title={t("cancel")}
+        >
+          <Square className="size-4" />
+        </Button>
+      </div>
     )
   ) : (
-    <Button
-      onClick={handleSend}
-      disabled={disabled || !hasSendableContent}
-      size="icon"
-      className="h-8 w-8"
-      title={t("send")}
-    >
-      <Send className="size-4" />
-    </Button>
+    <div className="flex items-center gap-1">
+      {scheduleButton}
+      <Button
+        onClick={handleSend}
+        disabled={disabled || !hasSendableContent}
+        size="icon"
+        className="h-8 w-8"
+        title={t("send")}
+      >
+        <Send className="size-4" />
+      </Button>
+    </div>
   )
 
   return (
@@ -2335,6 +2436,14 @@ export function MessageInput({
           onOpenChange={attach.setServerFilePickerOpen}
           onSelect={attach.handleServerFilesSelected}
           initialPath={defaultPath ?? undefined}
+        />
+      )}
+      {onEnqueueScheduled && (
+        <MessageScheduleDialog
+          open={scheduleDialogOpen}
+          onOpenChange={setScheduleDialogOpen}
+          busy={scheduling}
+          onConfirm={confirmScheduledSend}
         />
       )}
     </div>

@@ -52,10 +52,26 @@ interface ChatInputProps {
    *  tab when tiled across multiple sessions; passed through to MessageInput. */
   showActiveFlow?: boolean
   queue?: QueuedMessage[]
+  queueControl?: import("@/lib/types").MessageQueueState | null
+  onQueueContinue?: () => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
+  /** One-off scheduled send (see `MessageInput.onEnqueueScheduled`); present
+   *  only on hosts that declare `scheduled_send`. */
+  onEnqueueScheduled?: (
+    draft: PromptDraft,
+    modeId: string | null,
+    scheduledAt: string
+  ) => Promise<void>
+  /** Move one queued item between ordinary and scheduled (see
+   *  `MessageQueueDisplayProps.onScheduleItem`). */
+  onQueueSchedule?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
+  onQueueRetry?: (id: string) => Promise<void> | void
   /** Insert one queued item into the RUNNING turn over the session's
    *  live-feedback channel (see `MessageQueueDisplayProps.onSteerItem`).
    *  Threaded straight through; present only while a turn is in flight and
@@ -128,10 +144,15 @@ export const ChatInput = memo(function ChatInput({
   isActive,
   showActiveFlow,
   queue,
+  queueControl,
+  onQueueContinue,
   onEnqueue,
+  onEnqueueScheduled,
+  onQueueSchedule,
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
+  onQueueRetry,
   onQueueSteer,
   editingItemId,
   editingDraftText,
@@ -189,15 +210,19 @@ export const ChatInput = memo(function ChatInput({
       }}
     >
       {queue &&
-        queue.length > 0 &&
+        (queue.length > 0 || (queueControl && queueControl.status !== "open")) &&
         onQueueReorder &&
         onQueueEdit &&
         onQueueDelete && (
           <MessageQueueDisplay
             queue={queue}
+            queueControl={queueControl}
+            onContinue={onQueueContinue}
             onReorder={onQueueReorder}
             onEdit={onQueueEdit}
             onDelete={onQueueDelete}
+            onRetry={onQueueRetry}
+            onScheduleItem={onQueueSchedule}
             editingItemId={editingItemId ?? null}
             onSteerItem={onQueueSteer}
             steerChannel={steerChannel}
@@ -233,6 +258,7 @@ export const ChatInput = memo(function ChatInput({
         isActive={isActive}
         showActiveFlow={showActiveFlow}
         onEnqueue={onEnqueue}
+        onEnqueueScheduled={onEnqueueScheduled}
         editingItemId={editingItemId}
         editingDraftText={editingDraftText}
         editingDraftBlocks={editingDraftBlocks}

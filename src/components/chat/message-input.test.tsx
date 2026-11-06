@@ -1123,6 +1123,136 @@ describe("MessageInput mid-turn send with no queue", () => {
   })
 })
 
+// A capable host offers one-off scheduled sends: the composer's clock opens a
+// dialog, the picked instant rides with the draft to the host's atomic enqueue,
+// and the composer only clears once the host accepted.
+describe("MessageInput scheduled send", () => {
+  const TQ = enMessages.Folder.chat.messageQueue
+  const MI = enMessages.Folder.chat.messageInput
+  const DRAFT_KEY = "schedule-draft:conv-1"
+
+  afterEach(() => {
+    cleanup()
+    composerHandle.current = null
+    clearMessageInputDraftV2(DRAFT_KEY)
+    vi.clearAllMocks()
+  })
+
+  function tree(props: Partial<React.ComponentProps<typeof MessageInput>>) {
+    return (
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageInput
+          onSend={vi.fn()}
+          promptCapabilities={CAPS}
+          draftStorageKey={DRAFT_KEY}
+          {...props}
+        />
+      </NextIntlClientProvider>
+    )
+  }
+
+  async function mountWithText(
+    props: Partial<React.ComponentProps<typeof MessageInput>>
+  ) {
+    const view = render(tree(props))
+    await waitFor(
+      () => expect(composerHandle.current?.getEditor()).toBeTruthy(),
+      { timeout: 5000 }
+    )
+    const editor = composerHandle.current!.getEditor()!
+    act(() => {
+      editor.commands.setContent("12")
+    })
+    await waitFor(() => expect(composerHandle.current?.getText()).toBe("12"))
+    return { view, editor }
+  }
+
+  it("opens the schedule dialog from the composer and enqueues at the picked instant", async () => {
+    const onEnqueueScheduled = vi.fn(
+      async (_draft: unknown, _modeId: string | null, _iso: string) => {}
+    )
+    await mountWithText({ onEnqueueScheduled })
+
+    await userEvent.click(screen.getByTitle(TQ.scheduledSend))
+    const dialog = screen.getByRole("dialog")
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.preset30m })
+    )
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
+    )
+
+    await waitFor(() => expect(onEnqueueScheduled).toHaveBeenCalledTimes(1))
+    const [draft, modeId, iso] = onEnqueueScheduled.mock.calls[0] as [
+      unknown,
+      string | null,
+      string,
+    ]
+    expect(draft).toEqual({
+      blocks: [{ type: "text", text: "12" }],
+      displayText: "12",
+    })
+    expect(modeId).toBeNull()
+    expect(new Date(iso).getTime()).not.toBeNaN()
+    expect(composerHandle.current?.getText()).toBe("")
+  })
+
+  it("keeps the draft when the host rejects the scheduled enqueue", async () => {
+    const onEnqueueScheduled = vi.fn(async () => {
+      throw new Error("a scheduled time must be in the future")
+    })
+    await mountWithText({ onEnqueueScheduled })
+
+    await userEvent.click(screen.getByTitle(TQ.scheduledSend))
+    const dialog = screen.getByRole("dialog")
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.preset30m })
+    )
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
+    )
+
+    await waitFor(() => expect(onEnqueueScheduled).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(composerHandle.current?.getText()).toBe("12")
+  })
+
+  it("renders the clock disabled on an empty composer and hides it without the handler", () => {
+    // Same convention as the send button: present but disabled while the
+    // composer has nothing to schedule.
+    render(tree({ onEnqueueScheduled: vi.fn(async () => {}) }))
+    expect(screen.getByTitle(TQ.scheduledSend)).toBeDisabled()
+  })
+
+  it("hides the clock on a surface without scheduled sends", () => {
+    render(tree({}))
+    expect(screen.queryByTitle(TQ.scheduledSend)).toBeNull()
+  })
+
+  it("offers the schedule entry in the busy dropdown beside the queue action", async () => {
+    const onEnqueueScheduled = vi.fn(async () => {})
+    const { editor } = await mountWithText({
+      isPrompting: true,
+      onCancel: vi.fn(),
+      onSteer: vi.fn(async () => {}),
+      onEnqueue: vi.fn(),
+      onEnqueueScheduled,
+    })
+    expect(editor).toBeTruthy()
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: MI.steerAsNote,
+      })
+    )
+    const menu = await screen.findByRole("menu")
+    await userEvent.click(
+      within(menu).getByRole("menuitem", { name: TQ.scheduledSend })
+    )
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+})
+
 // The sidebar's "add to session" drops a session mention — the same reference the
 // `@` panel's Sessions group builds — into the active tab's composer.
 describe("MessageInput session-mention attach", () => {

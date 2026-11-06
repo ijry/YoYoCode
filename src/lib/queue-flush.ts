@@ -9,6 +9,15 @@
  * one bounced send per round-trip. This backoff bounds the retry RATE.
  */
 
+export function canFlushClientQueue(
+  owned: boolean,
+  snapshotBackendDrain: boolean,
+  hostBackendDrain: boolean | null
+): boolean {
+  // An unbound draft has no persisted owner for Rust to drain yet.
+  return !owned || (!snapshotBackendDrain && hostBackendDrain === false)
+}
+
 /** Minimum gap between auto-flush retries after a bounced (busy) send. */
 export const QUEUE_FLUSH_RETRY_BACKOFF_MS = 1000
 
