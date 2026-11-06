@@ -400,6 +400,7 @@ pub const TABS_CHANGED_EVENT: &str = "tabs://changed";
 /// "send later" queue — which is persisted in the DB and edited from any window
 /// or web client — converges across all of them. Payload: [`MessageQueueChange`].
 pub const MESSAGE_QUEUE_CHANGED_EVENT: &str = "message-queue://changed";
+pub const MESSAGE_QUEUE_STATE_EVENT: &str = "message-queue://state";
 
 /// Payload for the [`TABS_CHANGED_EVENT`] side-channel. Carries the full
 /// conversation-bound tab set (a snapshot, not a delta) so every client
@@ -619,8 +620,10 @@ where
         let Some(payload) = build(&mut s) else {
             return false;
         };
+        let next_seq = s.event_seq + 1;
+        s.capture_queue_completion(&payload, next_seq);
         s.apply_event(&payload);
-        s.event_seq += 1;
+        s.event_seq = next_seq;
         let envelope = Arc::new(EventEnvelope {
             seq: s.event_seq,
             connection_id: s.connection_id.clone(),

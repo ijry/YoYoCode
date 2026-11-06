@@ -184,6 +184,10 @@ pub async fn claim_next(
     token: &str,
 ) -> Result<Option<QueueClaim>, DbError> {
     let txn = write_transaction(conn).await?;
+    if !super::message_queue_control_service::can_drain(&txn, owner_id).await? {
+        txn.commit().await?;
+        return Ok(None);
+    }
     let active = message_queue_item::Entity::find()
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
         .filter(message_queue_item::Column::DeliveryState.is_in([CLAIMED, SENDING]))

@@ -16,7 +16,25 @@ use crate::web::event_bridge::{
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub fn message_queue_capabilities() -> serde_json::Value {
-    serde_json::json!({ "backend_drain": true })
+    serde_json::json!({ "backend_drain": true, "pause_recovery": true })
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_state(db: tauri::State<'_, AppDatabase>, owner_id: String) -> Result<crate::db::service::message_queue_control_service::MessageQueueState, DbError> {
+    crate::db::service::message_queue_control_service::get_state(&db.conn, &owner_id).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_continue(
+    db: tauri::State<'_, AppDatabase>, app: tauri::AppHandle, drain: tauri::State<'_, DrainHandle>,
+    owner_id: String, failed_attempt_id: String,
+) -> Result<(), DbError> {
+    let state = crate::db::service::message_queue_control_service::request_continue(&db.conn, &owner_id, &failed_attempt_id).await?;
+    emit_event(&EventEmitter::Tauri(app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
+    drain.notify(owner_id);
+    Ok(())
 }
 
 #[cfg(feature = "tauri-runtime")]

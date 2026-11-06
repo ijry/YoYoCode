@@ -4789,6 +4789,15 @@ export interface MessageQueueSaveItem {
 }
 
 // Payload of the `message-queue://changed` broadcast (snake_case on the wire).
+export interface MessageQueueState {
+  owner_id: string
+  status: "open" | "paused" | "resume_requested" | "resuming"
+  active_attempt_id: string | null
+  failed_attempt_id: string | null
+  error: string | null
+  revision: number
+}
+
 export interface MessageQueueChangedPayload {
   owner_id: string
   origin: string

@@ -52,6 +52,8 @@ interface ChatInputProps {
    *  tab when tiled across multiple sessions; passed through to MessageInput. */
   showActiveFlow?: boolean
   queue?: QueuedMessage[]
+  queueControl?: import("@/lib/types").MessageQueueState | null
+  onQueueContinue?: () => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
@@ -129,6 +131,8 @@ export const ChatInput = memo(function ChatInput({
   isActive,
   showActiveFlow,
   queue,
+  queueControl,
+  onQueueContinue,
   onEnqueue,
   onQueueReorder,
   onQueueEdit,
@@ -191,12 +195,14 @@ export const ChatInput = memo(function ChatInput({
       }}
     >
       {queue &&
-        queue.length > 0 &&
+        (queue.length > 0 || (queueControl && queueControl.status !== "open")) &&
         onQueueReorder &&
         onQueueEdit &&
         onQueueDelete && (
           <MessageQueueDisplay
             queue={queue}
+            queueControl={queueControl}
+            onContinue={onQueueContinue}
             onReorder={onQueueReorder}
             onEdit={onQueueEdit}
             onDelete={onQueueDelete}

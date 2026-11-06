@@ -3529,6 +3529,9 @@
         "retryConfirm": "Reintentar",
         "retryWarning": "La entrega no está confirmada. Reintentar puede enviar el mensaje otra vez. ¿Continuar?",
         "retryCancel": "Cancelar",
+        "unfinishedTitle": "La tarea anterior se interrumpió por un error. ¿Continuar?",
+        "continueTask": "Continuar tarea pendiente",
+        "continuingTask": "Continuando tarea pendiente…",
         "steerItemNow": "Insertar en el turno actual",
         "steerItemAsNote": "Enviar como nota para la próxima comprobación"
       },

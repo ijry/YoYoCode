@@ -3529,6 +3529,9 @@
         "retryConfirm": "再試行",
         "retryWarning": "前回の配信は未確認です。再試行すると同じメッセージが再送される場合があります。続行しますか？",
         "retryCancel": "キャンセル",
+        "unfinishedTitle": "前のタスクがエラーで停止しました。未完了の作業を続けますか？",
+        "continueTask": "未完了のタスクを続行",
+        "continuingTask": "未完了のタスクを続行中…",
         "steerItemNow": "現在のターンに挿入",
         "steerItemAsNote": "メモとして送信し次回チェック時に読ませる"
       },

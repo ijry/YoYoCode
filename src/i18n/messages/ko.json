@@ -3529,6 +3529,9 @@
         "retryConfirm": "재시도",
         "retryWarning": "이전 전송 결과가 확인되지 않았습니다. 재시도하면 중복 전송될 수 있습니다. 계속할까요?",
         "retryCancel": "취소",
+        "unfinishedTitle": "이전 작업이 오류로 중단되었습니다. 미완료 작업을 계속할까요?",
+        "continueTask": "미완료 작업 계속",
+        "continuingTask": "미완료 작업 진행 중…",
         "steerItemNow": "현재 턴에 삽입",
         "steerItemAsNote": "메모로 보내 다음 점검 때 읽도록 함"
       },

@@ -6,12 +6,15 @@ import type {
   MessageQueueChangedPayload,
   PersistedQueueItem,
   MessageQueueSaveItem,
+  MessageQueueState,
 } from "@/lib/types"
 import { randomUUID } from "@/lib/utils"
 import {
   messageQueueList,
   messageQueueSave,
   messageQueueRetry,
+  messageQueueState,
+  messageQueueContinue,
 } from "@/lib/api"
 import { getTransport } from "@/lib/transport"
 import { readMessageQueueCapabilities } from "@/lib/message-queue-capabilities"
@@ -55,6 +58,8 @@ export interface UseMessageQueueReturn {
   queue: QueuedMessage[]
   /** null while checking the host (fail closed), true = Rust owns drain. */
   backendDrain: boolean | null
+  control: MessageQueueState | null
+  continueTask: () => Promise<void>
   enqueue: (
     draft: PromptDraft,
     modeId: string | null,
@@ -151,6 +156,8 @@ export function useMessageQueue(
   ownerId?: string | null
 ): UseMessageQueueReturn {
   const [queue, setQueue] = useState<QueuedMessage[]>([])
+  const [control, setControl] = useState<MessageQueueState | null>(null)
+  const controlRef = useRef<MessageQueueState | null>(null)
   const [backendDrain, setBackendDrain] = useState<boolean | null>(
     ownerId ? null : false
   )
@@ -235,6 +242,16 @@ export function useMessageQueue(
         if (cancelled) return
         backendDrainRef.current = capabilities.backend_drain
         setBackendDrain(capabilities.backend_drain)
+        if (capabilities.pause_recovery) {
+          const next = await messageQueueState(ownerId)
+          if (
+            !cancelled &&
+            next.revision >= (controlRef.current?.revision ?? -1)
+          ) {
+            controlRef.current = next
+            setControl(next)
+          }
+        }
         if (!ownerHydratedRef.current && !refresh) return
         const revision = queueRevision.current
         const parked = ownerHydratedRef.current ? [] : queueRef.current
@@ -312,6 +329,30 @@ export function useMessageQueue(
       cancelled = true
     }
   }, [ownerId, commit, persist])
+
+  useEffect(() => {
+    if (!ownerId) return
+    controlRef.current = null
+    setControl(null)
+    let cancelled = false
+    let unsubscribe: (() => void) | undefined
+    void subscribe<MessageQueueState>("message-queue://state", (next) => {
+      if (
+        next.owner_id !== ownerId ||
+        next.revision < (controlRef.current?.revision ?? -1)
+      )
+        return
+      controlRef.current = next
+      setControl(next)
+    }).then((fn) => {
+      if (cancelled) fn()
+      else unsubscribe = fn
+    })
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
+  }, [ownerId])
 
   // Cross-client sync: apply broadcasts that originated elsewhere.
   useEffect(() => {
@@ -488,8 +529,25 @@ export function useMessageQueue(
     [commit]
   )
 
+  const continueTask = useCallback(async () => {
+    const owner = ownerIdRef.current
+    const failed = controlRef.current?.failed_attempt_id
+    if (!owner || !failed || controlRef.current?.status !== "paused") return
+    await messageQueueContinue(owner, failed)
+    const next = await messageQueueState(owner)
+    if (
+      ownerIdRef.current === owner &&
+      next.revision >= (controlRef.current?.revision ?? -1)
+    ) {
+      controlRef.current = next
+      setControl(next)
+    }
+  }, [])
+
   return {
     queue,
+    control,
+    continueTask,
     backendDrain,
     enqueue,
     requeueFront,

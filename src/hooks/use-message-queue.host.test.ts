@@ -7,6 +7,9 @@ const wire = vi.hoisted(() => ({
   list: vi.fn(),
   save: vi.fn(),
   retry: vi.fn(),
+  state: vi.fn(),
+  continue: vi.fn(),
+  stateListener: null as null | ((payload: unknown) => void),
   listener: null as null | ((payload: unknown) => void),
   ready: null as null | (() => void),
 }))
@@ -17,9 +20,17 @@ vi.mock("@/lib/api", () => ({
   messageQueueList: wire.list,
   messageQueueSave: wire.save,
   messageQueueRetry: wire.retry,
+  messageQueueState: wire.state,
+  messageQueueContinue: wire.continue,
 }))
 vi.mock("@/lib/platform", () => ({
-  subscribe: async (_: string, callback: (payload: unknown) => void) => {
+  subscribe: async (channel: string, callback: (payload: unknown) => void) => {
+    if (channel === "message-queue://state") {
+      wire.stateListener = callback
+      return () => {
+        wire.stateListener = null
+      }
+    }
     wire.listener = callback
     return () => {
       wire.listener = null
@@ -52,11 +63,99 @@ beforeEach(() => {
   wire.list.mockReset().mockResolvedValue([])
   wire.save.mockReset().mockResolvedValue(null)
   wire.retry.mockReset().mockResolvedValue(null)
+  wire.state
+    .mockReset()
+    .mockResolvedValue({
+      owner_id: "42",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      revision: 0,
+    })
+  wire.continue.mockReset().mockResolvedValue(undefined)
+  wire.stateListener = null
   wire.listener = null
   wire.ready = null
 })
 
 describe("owned queues never race the host drainer", () => {
+  it("hydrates the failed task and requests original-context continuation", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+    })
+    wire.state.mockResolvedValue({
+      owner_id: "42",
+      status: "paused",
+      active_attempt_id: null,
+      failed_attempt_id: "failed-A",
+      error: "quota",
+      revision: 2,
+    })
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() =>
+      expect(result.current.control?.failed_attempt_id).toBe("failed-A")
+    )
+    await act(async () => result.current.continueTask())
+    expect(wire.continue).toHaveBeenCalledWith("42", "failed-A")
+    act(() =>
+      wire.stateListener?.({
+        owner_id: "42",
+        status: "resuming",
+        active_attempt_id: "resume-A",
+        failed_attempt_id: "failed-A",
+        error: "quota",
+        revision: 3,
+      })
+    )
+    act(() =>
+      wire.stateListener?.({
+        owner_id: "42",
+        status: "open",
+        active_attempt_id: null,
+        failed_attempt_id: null,
+        error: null,
+        revision: 1,
+      })
+    )
+    expect(result.current.control?.status).toBe("resuming")
+  })
+
+  it("retains a current paused broadcast when the capability probe finishes later", async () => {
+    let probe!: (value: {
+      backend_drain: boolean
+      pause_recovery: boolean
+    }) => void
+    wire.capabilities.mockReturnValue(
+      new Promise((resolve) => {
+        probe = resolve
+      })
+    )
+    wire.state.mockResolvedValue({
+      owner_id: "42",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      revision: 0,
+    })
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() => expect(wire.stateListener).not.toBeNull())
+    act(() =>
+      wire.stateListener?.({
+        owner_id: "42",
+        status: "paused",
+        active_attempt_id: null,
+        failed_attempt_id: "failed",
+        error: "quota",
+        revision: 2,
+      })
+    )
+    await act(async () => probe({ backend_drain: true, pause_recovery: true }))
+    expect(result.current.control?.status).toBe("paused")
+  })
+
   it("blocks legacy dequeue while the host capability request is unresolved", () => {
     wire.capabilities.mockReturnValue(new Promise(() => {}))
     const { result } = renderHook(() => useMessageQueue("42"))

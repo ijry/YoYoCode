@@ -16,6 +16,7 @@ pub mod import_service;
 pub mod media_provider_service;
 pub mod model_provider_service;
 pub mod message_queue_service;
+pub mod message_queue_control_service;
 pub mod quick_message_service;
 pub mod remote_workspace_connection_service;
 pub mod sender_context_service;

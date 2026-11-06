@@ -3568,6 +3568,9 @@
         "retryConfirm": "Retry",
         "retryWarning": "Delivery is not confirmed. Retrying may send this message again. Continue?",
         "retryCancel": "Cancel",
+        "unfinishedTitle": "The previous task stopped with an error. Continue unfinished work?",
+        "continueTask": "Continue unfinished task",
+        "continuingTask": "Continuing unfinished task…",
         "steerItemNow": "Insert into current turn",
         "steerItemAsNote": "Send as note for next check"
       },

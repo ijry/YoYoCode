@@ -354,6 +354,12 @@ pub(crate) async fn handle_event(
             if claimed {
                 write_turn_status(db_conn, &state_arc, &emitter, cid, stop_reason).await?;
             }
+            let completion = state_arc.read().await.queue_completions.get(&envelope.seq).cloned();
+            if let Some(completion) = completion {
+                let queue_state = crate::db::service::message_queue_control_service::complete_attempt(db_conn, &completion).await?;
+                state_arc.write().await.queue_completions.remove(&envelope.seq);
+                crate::web::event_bridge::emit_event(&emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, queue_state);
+            }
 
             // If this conversation was spawned by a delegation, resolve the
             // pending broker call. The broker maps the outcome onto the
@@ -599,6 +605,12 @@ async fn handle_terminal_event(
         return Ok(());
     };
     let cid = entry.conversation_id;
+    let completions: Vec<_> = entry.state.read().await.queue_completions.values().cloned().collect();
+    for completion in completions {
+        let state = crate::db::service::message_queue_control_service::complete_attempt(db_conn, &completion).await?;
+        crate::web::event_bridge::emit_event(&entry.emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
+    }
+    entry.state.write().await.queue_completions.clear();
     let changed = conversation_service::update_status_if(
         db_conn,
         cid,

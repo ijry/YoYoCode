@@ -3529,6 +3529,9 @@
         "retryConfirm": "Erneut senden",
         "retryWarning": "Die Zustellung ist nicht bestätigt. Ein neuer Versuch könnte die Nachricht doppelt senden. Fortfahren?",
         "retryCancel": "Abbrechen",
+        "unfinishedTitle": "Die vorherige Aufgabe wurde durch einen Fehler unterbrochen. Fortsetzen?",
+        "continueTask": "Unerledigte Aufgabe fortsetzen",
+        "continuingTask": "Aufgabe wird fortgesetzt…",
         "steerItemNow": "In aktuellen Turn einfügen",
         "steerItemAsNote": "Als Notiz für die nächste Abfrage senden"
       },

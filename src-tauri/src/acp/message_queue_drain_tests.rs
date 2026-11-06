@@ -357,6 +357,46 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     );
 }
 
+#[tokio::test]
+async fn an_execution_failure_pauses_b_until_original_context_continuation_succeeds() {
+    use crate::db::service::message_queue_control_service as control;
+    let db = test_helpers::fresh_in_memory_db().await;
+    let folder = test_helpers::seed_folder(&db, "/tmp/queue-continue-flow").await;
+    let cid = test_helpers::seed_conversation(&db, folder, AgentType::Codex).await;
+    let owner = cid.to_string();
+    message_queue_service::save(&db.conn, &owner, vec![queue_input("a", "A"), queue_input("b", "B")]).await.unwrap();
+    let manager = ConnectionManager::new();
+    let bus = Arc::new(crate::acp::InternalEventBus::new(Arc::new(crate::acp::EventBusMetrics::default())));
+    let emitter = EventEmitter::web_only(Arc::new(crate::web::event_bridge::WebEventBroadcaster::new()), bus.clone());
+    let mut commands = manager.insert_test_connection_live("continue-flow", AgentType::Codex, None, emitter.clone()).await;
+    let state = manager.get_state("continue-flow").await.unwrap();
+    state.write().await.conversation_id = Some(cid);
+    let lifecycle = tokio::spawn(crate::acp::lifecycle::lifecycle_subscriber_task(db.conn.clone(), manager.clone_ref(), bus, None));
+    assert!(matches!(try_drain_owner(&db.conn, &manager, &emitter, Path::new("/tmp"), &owner).await, DrainOutcome::Sent));
+    assert!(matches!(commands.recv().await, Some(ConnectionCommand::Prompt { .. })));
+    crate::web::event_bridge::emit_with_state(&state, &emitter, AcpEvent::TurnComplete { session_id:"s".into(), stop_reason:"refusal".into(), agent_type:"codex".into() }).await;
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while control::get_state(&db.conn, &owner).await.unwrap().status != "paused" { tokio::time::sleep(Duration::from_millis(5)).await; }
+    }).await.unwrap();
+    let paused = control::get_state(&db.conn, &owner).await.unwrap();
+    assert!(matches!(try_drain_owner(&db.conn, &manager, &emitter, Path::new("/tmp"), &owner).await, DrainOutcome::Waiting));
+    assert!(commands.try_recv().is_err());
+    control::request_continue(&db.conn, &owner, paused.failed_attempt_id.as_deref().unwrap()).await.unwrap();
+    assert!(matches!(try_drain_owner(&db.conn, &manager, &emitter, Path::new("/tmp"), &owner).await, DrainOutcome::Sent));
+    let Some(ConnectionCommand::Prompt { blocks, .. }) = commands.recv().await else { panic!("continuation expected") };
+    assert!(matches!(&blocks[0], PromptInputBlock::Text { text } if text.starts_with("继续之前因错误中断的任务")));
+    assert_eq!(control::get_state(&db.conn, &owner).await.unwrap().status, "resuming");
+    assert_eq!(message_queue_service::list(&db.conn, &owner).await.unwrap()[0].id, "b");
+    crate::web::event_bridge::emit_with_state(&state, &emitter, AcpEvent::TurnComplete { session_id:"s".into(), stop_reason:"end_turn".into(), agent_type:"codex".into() }).await;
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while control::get_state(&db.conn, &owner).await.unwrap().status != "open" { tokio::time::sleep(Duration::from_millis(5)).await; }
+    }).await.unwrap();
+    assert!(matches!(try_drain_owner(&db.conn, &manager, &emitter, Path::new("/tmp"), &owner).await, DrainOutcome::Sent));
+    let Some(ConnectionCommand::Prompt { blocks, .. }) = commands.recv().await else { panic!("B expected") };
+    assert_eq!(blocks, [PromptInputBlock::Text { text:"B".into() }]);
+    lifecycle.abort();
+}
+
 #[test]
 fn only_one_process_can_recover_and_drain_the_same_database() {
     let dir = tempfile::tempdir().unwrap();

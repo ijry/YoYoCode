@@ -1323,6 +1323,7 @@ impl ConnectionManager {
             client_message_id,
             Vec::new(),
             None,
+            None,
         )
         .await
     }
@@ -1350,7 +1351,18 @@ impl ConnectionManager {
             Some(message_id),
             Vec::new(),
             Some(mode_id),
+            None,
         ).await
+    }
+
+    pub async fn send_queue_continuation(
+        &self, db: &AppDatabase, conn_id: &str, folder_id: i32,
+        conversation_id: i32, failed_attempt: &str,
+    ) -> Result<Option<i32>, AcpError> {
+        let blocks = vec![PromptInputBlock::Text { text:
+            "继续之前因错误中断的任务。从中断处接着完成尚未完成的部分，不要重新执行已完成操作，也不要开始待发送队列中的后续任务。".into() }];
+        self.send_prompt_linked_full(db, conn_id, blocks, Some(folder_id), Some(conversation_id),
+            None, Some(format!("queue-resume-{}", uuid::Uuid::new_v4())), Vec::new(), Some(None), Some(failed_attempt.to_owned())).await
     }
 
     /// As [`send_prompt_linked`], plus `internal_suffix`: Codeg-authored
@@ -1379,6 +1391,7 @@ impl ConnectionManager {
             None,
             internal_suffix,
             None,
+            None,
         )
         .await
     }
@@ -1395,6 +1408,7 @@ impl ConnectionManager {
         client_message_id: Option<String>,
         internal_suffix: Vec<PromptInputBlock>,
         queued_mode: Option<Option<String>>,
+        recovery_of: Option<String>,
     ) -> Result<Option<i32>, AcpError> {
         // Reject an empty prompt up front, BEFORE any side effects: linking /
         // creating the conversation row, flipping it to InProgress, or emitting
@@ -1780,6 +1794,16 @@ impl ConnectionManager {
         // the same status value, so re-writing `InProgress` is a benign no-op
         // on the row (touches `updated_at` only).
         let conversation_id_for_status = state_arc.read().await.conversation_id;
+        if let Some(cid) = conversation_id_for_status.filter(|_| delegation.is_none()) {
+            let control = crate::db::service::message_queue_control_service::get_state(&db.conn, &cid.to_string()).await.map_err(|error| AcpError::protocol(error.to_string()))?;
+            let allowed = match recovery_of.as_deref() {
+                Some(failed) => control.status == "resume_requested" && control.failed_attempt_id.as_deref() == Some(failed),
+                None => control.status == "open",
+            };
+            if !allowed || control.active_attempt_id.is_some() {
+                return Err(AcpError::protocol("queue is paused or a previous turn is not settled"));
+            }
+        }
         if let Some(cid) = conversation_id_for_status {
             conversation_service::update_status(&db.conn, cid, ConversationStatus::InProgress)
                 .await
@@ -1849,6 +1873,16 @@ impl ConnectionManager {
                 None
             };
 
+        let queue_attempt = if let Some(cid) = conversation_id_for_status.filter(|_| delegation.is_none()) {
+            let message_id = user_message.as_ref().map(|(id, _)| id.clone()).unwrap_or_else(|| format!("queue-attempt-{}", uuid::Uuid::new_v4()));
+            let draft_json = serde_json::json!({"blocks": &blocks, "displayText": user_prompt_text_preview(&blocks).unwrap_or_default()}).to_string();
+            let attempt = crate::db::service::message_queue_control_service::begin_attempt(
+                &db.conn, &cid.to_string(), conn_id, &message_id, &draft_json, recovery_of.as_deref(),
+            ).await.map_err(|error| AcpError::protocol(error.to_string()))?;
+            state_arc.write().await.queue_attempt = Some(attempt.clone());
+            Some(attempt)
+        } else { None };
+
         // We hold `_prompt_guard` here, so call the lock-free inner helper —
         // re-entering `send_prompt` would try to acquire the same mutex and
         // deadlock. The helper reserves channel capacity FIRST and only then
@@ -1906,6 +1940,10 @@ impl ConnectionManager {
                 Ok(conversation_id_for_status)
             }
             Err(send_err) => {
+                if let Some(attempt) = queue_attempt.as_ref() {
+                    let _ = crate::db::service::message_queue_control_service::abort_admission(&db.conn, attempt).await;
+                    state_arc.write().await.queue_attempt = None;
+                }
                 if let Some(cid) = conversation_id_for_status {
                     match conversation_service::update_status(
                         &db.conn,

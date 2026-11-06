@@ -1852,6 +1852,8 @@ pub fn build_router_with_proxy_auth(
             "/message_queue_capabilities",
             post(handlers::message_queue::message_queue_capabilities),
         )
+        .route("/message_queue_state", post(handlers::message_queue::message_queue_state))
+        .route("/message_queue_continue", post(handlers::message_queue::message_queue_continue))
         .route(
             "/message_queue_retry",
             post(handlers::message_queue::message_queue_retry),

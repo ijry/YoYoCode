@@ -140,6 +140,22 @@ async fn mode_and_queued_send_share_the_same_prompt_admission_lock() {
 }
 
 #[tokio::test]
+async fn a_paused_conversation_rejects_direct_send_without_changing_its_status() {
+    use crate::db::service::message_queue_control_service as control;
+    let db = test_helpers::fresh_in_memory_db().await;
+    let folder = test_helpers::seed_folder(&db, "/tmp/queue-paused-direct").await;
+    let cid = test_helpers::seed_conversation(&db, folder, AgentType::Codex).await;
+    crate::db::service::conversation_service::update_status(&db.conn, cid, crate::db::entities::conversation::ConversationStatus::Cancelled).await.unwrap();
+    let failed = control::begin_attempt(&db.conn, &cid.to_string(), "queued", "A", "{}", None).await.unwrap();
+    control::complete_attempt(&db.conn, &control::QueueTurnCompletion { attempt_id:failed.id,owner_id:cid.to_string(),success:false,cancelled:false,error:Some("failed A".into()) }).await.unwrap();
+    let manager = ConnectionManager::new();
+    let mut commands = connection(&manager, cid).await;
+    assert!(manager.send_queued_prompt(&db, "queued", text("B"), folder, cid, None, "B".into()).await.is_err());
+    assert!(commands.try_recv().is_err());
+    assert_eq!(crate::db::service::conversation_service::get_by_id(&db.conn,cid).await.unwrap().status, "cancelled");
+}
+
+#[tokio::test]
 async fn queued_prompt_never_uses_a_connection_bound_to_another_conversation() {
     let db = test_helpers::fresh_in_memory_db().await;
     let folder = test_helpers::seed_folder(&db, "/tmp/queue-binding").await;

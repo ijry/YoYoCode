@@ -1143,6 +1143,10 @@ const ConversationTabView = memo(function ConversationTabView({
       // deliver to the wrong workspace. Same predicate the flush effect uses.
       if (!connectionReady) return
 
+      if (messageQueue.control && messageQueue.control.status !== "open") {
+        mqEnqueue(draft, selectedModeIdArg ?? null)
+        return
+      }
       const fromQueueFlush = opts?.fromQueueFlush ?? false
       // Preserve FIFO: a direct send issued while the queue is non-empty joins
       // the tail rather than racing ahead of the queued items. Read the
@@ -1362,6 +1366,7 @@ const ConversationTabView = memo(function ConversationTabView({
       })()
     },
     [
+      messageQueue.control,
       appendOptimisticTurn,
       removeOptimisticTurn,
       mqEnqueue,
@@ -2380,6 +2385,8 @@ const ConversationTabView = memo(function ConversationTabView({
       isActive={isActive}
       showActiveFlow={showActiveFlow}
       queue={msgQueue}
+      queueControl={messageQueue.control}
+      onQueueContinue={async () => { try { await messageQueue.continueTask() } catch (error) { toast.error(toErrorMessage(error)) } }}
       onEnqueue={mqEnqueue}
       onQueueReorder={mqReorder}
       onQueueEdit={handleQueueEdit}

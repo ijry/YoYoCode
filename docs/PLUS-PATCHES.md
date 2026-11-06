@@ -50,6 +50,8 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 - desktop/web 与 mcode-app 用 `message_queue_capabilities` fail-closed 门控；失败显示和确认重试，保留旧宿主兼容。
 - 冲突面：ACP manager/lifecycle、双 runtime bootstrap、队列 handlers/types、前端 queue hook/panel/display。详细协议与原生复制见 [backend-message-queue-drain.md](backend-message-queue-drain.md)。
 
+- 会话执行错误暂停/原上下文继续：`message_queue_state/attempt` 持久化恢复gate，实际轮次success才释放后续，UI空队列也有固定继续提示，CAS防多端重复点击。见 [message-queue-error-recovery.md](message-queue-error-recovery.md)。
+
 ### CI 发布
 
 - **tag 规则（强制）**：`v<app version>-plus.N`，如 `v0.41.3-plus.1`。不带

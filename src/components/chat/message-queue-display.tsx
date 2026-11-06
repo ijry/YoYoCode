@@ -17,9 +17,12 @@ import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { draftRidesBlocks } from "@/lib/prompt-draft"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
+import type { MessageQueueState } from "@/lib/types"
 
 interface MessageQueueDisplayProps {
   queue: QueuedMessage[]
+  queueControl?: MessageQueueState | null
+  onContinue?: () => Promise<void> | void
   onReorder: (items: QueuedMessage[]) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -181,6 +184,8 @@ function QueueItem({
 
 export function MessageQueueDisplay({
   queue,
+  queueControl,
+  onContinue,
   onReorder,
   onEdit,
   onDelete,
@@ -191,6 +196,29 @@ export function MessageQueueDisplay({
 }: MessageQueueDisplayProps) {
   const t = useTranslations("Folder.chat.messageQueue")
   const [retryId, setRetryId] = useState<string | null>(null)
+  const [continuing, setContinuing] = useState(false)
+  const continuingRef = useRef(false)
+  const paused = queueControl && queueControl.status !== "open"
+  const resumeRunning =
+    continuing ||
+    queueControl?.status === "resuming" ||
+    queueControl?.status === "resume_requested"
+  const continueTask = async () => {
+    if (
+      !onContinue ||
+      continuingRef.current ||
+      queueControl?.status !== "paused"
+    )
+      return
+    continuingRef.current = true
+    setContinuing(true)
+    try {
+      await onContinue()
+    } finally {
+      continuingRef.current = false
+      setContinuing(false)
+    }
+  }
   // The id whose insert is in flight. A per-row `steering` would let a
   // concurrent click on another row race the same channel; one shared id
   // both disables the clicked row and (via `steeringId !== null`) the others
@@ -217,10 +245,28 @@ export function MessageQueueDisplay({
     [onSteerItem]
   )
 
-  if (queue.length === 0) return null
+  if (queue.length === 0 && !paused) return null
 
   return (
-    <div className="max-h-28 overflow-y-auto pb-1">
+    <div className="max-h-40 overflow-y-auto pb-1">
+      {paused && (
+        <div className="mb-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
+          <p>{t("unfinishedTitle")}</p>
+          {queueControl.error && (
+            <p className="mt-1 text-muted-foreground">{queueControl.error}</p>
+          )}
+          {onContinue && (
+            <button
+              type="button"
+              className="mt-2 rounded-md bg-primary px-2 py-1 text-primary-foreground disabled:opacity-50"
+              disabled={resumeRunning}
+              onClick={() => void continueTask()}
+            >
+              {t(resumeRunning ? "continuingTask" : "continueTask")}
+            </button>
+          )}
+        </div>
+      )}
       <Reorder.Group
         as="div"
         axis="y"

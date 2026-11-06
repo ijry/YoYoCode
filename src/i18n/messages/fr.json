@@ -3529,6 +3529,9 @@
         "retryConfirm": "Réessayer",
         "retryWarning": "La livraison n’est pas confirmée. Un nouvel essai pourrait envoyer ce message deux fois. Continuer ?",
         "retryCancel": "Annuler",
+        "unfinishedTitle": "La tâche précédente s’est arrêtée sur une erreur. Continuer ?",
+        "continueTask": "Continuer la tâche inachevée",
+        "continuingTask": "Reprise de la tâche…",
         "steerItemNow": "Insérer dans le tour en cours",
         "steerItemAsNote": "Envoyer comme note pour la prochaine vérification"
       },

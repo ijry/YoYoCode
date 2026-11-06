@@ -2,6 +2,7 @@ import type { Transport } from "@/lib/transport/types"
 
 export interface MessageQueueCapabilities {
   backend_drain: boolean
+  pause_recovery?: boolean
 }
 
 /** Missing-command is a legacy host; offline/auth errors are not permission

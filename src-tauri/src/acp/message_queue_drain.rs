@@ -172,6 +172,10 @@ async fn run(
                         tracing::error!(%error, "[message-queue] claim recovery failed");
                         continue;
                     }
+                    if let Err(error) = crate::db::service::message_queue_control_service::recover_interrupted_attempts(&db).await {
+                        tracing::error!(%error, "[message-queue] interrupted turn recovery failed");
+                        continue;
+                    }
                     election = Some(lock);
                     scan = true;
                 }
@@ -183,6 +187,10 @@ async fn run(
             }
         }
         if scan {
+            match crate::db::service::message_queue_control_service::pending_recoveries(&db).await {
+                Ok(owners) => pending.extend(owners),
+                Err(error) => tracing::warn!(%error, "[message-queue] recovery scan failed"),
+            }
             match message_queue_service::pending_owners(&db).await {
                 Ok(owners) => pending.extend(owners),
                 Err(error) => tracing::warn!(%error, "[message-queue] persisted queue scan failed"),
@@ -256,6 +264,14 @@ async fn try_drain_owner(
     data_dir: &Path,
     owner_id: &str,
 ) -> DrainOutcome {
+    let control = match crate::db::service::message_queue_control_service::get_state(db, owner_id).await {
+        Ok(control) => control,
+        Err(_) => return DrainOutcome::Retry { transient: false },
+    };
+    if control.status == "resume_requested" && control.active_attempt_id.is_none() {
+        return try_continue_owner(db, manager, emitter, data_dir, &control).await;
+    }
+    if control.status != "open" || control.active_attempt_id.is_some() { return DrainOutcome::Waiting; }
     let claim =
         match message_queue_service::claim_next(db, owner_id, &uuid::Uuid::new_v4().to_string())
             .await
@@ -354,6 +370,29 @@ async fn try_drain_owner(
             let transient = matches!(error, AcpError::TurnInProgress);
             release_claim(db, emitter, &claim, &error.to_string(), transient).await
         }
+    }
+}
+
+async fn try_continue_owner(
+    db: &DatabaseConnection, manager: &ConnectionManager, emitter: &EventEmitter,
+    data_dir: &Path, control: &crate::db::service::message_queue_control_service::MessageQueueState,
+) -> DrainOutcome {
+    let Some(failed) = control.failed_attempt_id.as_deref() else { return DrainOutcome::Waiting; };
+    let Ok(cid) = control.owner_id.parse::<i32>() else { return DrainOutcome::Waiting; };
+    let Ok(conversation) = crate::db::service::conversation_service::get_by_id(db, cid).await else { return DrainOutcome::Retry { transient: false }; };
+    let connection = match live_connection(manager, &conversation).await {
+        Some(connection) => connection,
+        None => match spawn_connection_for_conversation(manager, db, emitter, data_dir, &conversation).await {
+            Ok(connection) => connection,
+            Err(error) => { tracing::warn!(%error, "[message-queue] failed to resume previous task"); return DrainOutcome::Retry { transient: false }; }
+        },
+    };
+    let result = manager.send_queue_continuation(&AppDatabase { conn: db.clone() }, &connection, conversation.folder_id, cid, failed).await;
+    let state = crate::db::service::message_queue_control_service::get_state(db, &control.owner_id).await;
+    if let Ok(state) = state { emit_event(emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state); }
+    match result {
+        Ok(_) => DrainOutcome::Sent,
+        Err(error) => { tracing::warn!(%error, "[message-queue] continuation submit failed"); DrainOutcome::Retry { transient: matches!(error, AcpError::TurnInProgress) } },
     }
 }
 

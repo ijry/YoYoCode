@@ -3996,6 +3996,14 @@ export async function messageQueueSave(
   return getTransport().call("message_queue_save", { ownerId, items, origin })
 }
 
+export async function messageQueueState(ownerId: string): Promise<import("@/lib/types").MessageQueueState> {
+  return getTransport().call("message_queue_state", { ownerId })
+}
+
+export async function messageQueueContinue(ownerId: string, failedAttemptId: string): Promise<void> {
+  return getTransport().call("message_queue_continue", { ownerId, failedAttemptId })
+}
+
 export async function messageQueueRetry(ownerId: string, itemId: string): Promise<void> {
   return getTransport().call("message_queue_retry", { ownerId, itemId })
 }

@@ -24,7 +24,7 @@ pub struct SaveMessageQueueParams {
 }
 
 pub async fn message_queue_capabilities() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "backend_drain": true }))
+    Json(serde_json::json!({ "backend_drain": true, "pause_recovery": true }))
 }
 
 #[derive(Deserialize)]
@@ -32,6 +32,25 @@ pub async fn message_queue_capabilities() -> Json<serde_json::Value> {
 pub struct RetryMessageQueueParams {
     pub owner_id: String,
     pub item_id: String,
+}
+
+pub async fn message_queue_state(
+    Extension(state): Extension<Arc<AppState>>, Json(params): Json<ListMessageQueueParams>,
+) -> Result<Json<crate::db::service::message_queue_control_service::MessageQueueState>, AppCommandError> {
+    Ok(Json(crate::db::service::message_queue_control_service::get_state(&state.db.conn, &params.owner_id).await.map_err(AppCommandError::from)?))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinueQueueParams { pub owner_id: String, pub failed_attempt_id: String }
+
+pub async fn message_queue_continue(
+    Extension(state): Extension<Arc<AppState>>, Json(params): Json<ContinueQueueParams>,
+) -> Result<Json<()>, AppCommandError> {
+    let control = crate::db::service::message_queue_control_service::request_continue(&state.db.conn, &params.owner_id, &params.failed_attempt_id).await.map_err(AppCommandError::from)?;
+    emit_event(&state.emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, control);
+    state.message_queue_drain.notify(params.owner_id);
+    Ok(Json(()))
 }
 
 pub async fn message_queue_retry(

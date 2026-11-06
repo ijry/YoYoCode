@@ -41,6 +41,8 @@ pub mod manager;
 pub mod message_queue_drain;
 #[cfg(test)]
 mod message_queue_admission_tests;
+#[cfg(test)]
+mod message_queue_execution_tests;
 pub mod minimax_code;
 pub mod one_shot;
 pub mod opencode_catalog;

@@ -2393,6 +2393,8 @@ mod tauri_app {
                 quick_messages_commands::quick_messages_reorder,
                 message_queue_commands::message_queue_list,
                 message_queue_commands::message_queue_capabilities,
+                message_queue_commands::message_queue_state,
+                message_queue_commands::message_queue_continue,
                 message_queue_commands::message_queue_retry,
                 message_queue_commands::message_queue_save,
                 automation_commands::automation_list,

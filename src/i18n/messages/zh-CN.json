@@ -3568,6 +3568,9 @@
         "retryConfirm": "重试",
         "retryWarning": "上次发送结果未确认，重试可能重复发送这条消息。确定重试？",
         "retryCancel": "取消",
+        "unfinishedTitle": "上一任务因错误中断，是否继续未完成任务？",
+        "continueTask": "继续未完成任务",
+        "continuingTask": "正在继续未完成任务…",
         "steerItemNow": "插入当前回合",
         "steerItemAsNote": "作为留言，供下次检查时读取"
       },

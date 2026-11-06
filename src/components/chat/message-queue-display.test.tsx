@@ -66,6 +66,45 @@ function renderDisplay(
 afterEach(cleanup)
 
 describe("MessageQueueDisplay click-to-insert", () => {
+  it("shows the unfinished-task control even when no queue rows remain", async () => {
+    const onContinue = vi.fn(async () => {})
+    renderDisplay({
+      queue: [],
+      queueControl: {
+        owner_id: "42",
+        status: "paused",
+        failed_attempt_id: "a",
+        active_attempt_id: null,
+        error: "quota error",
+        revision: 1,
+      },
+      onContinue,
+    })
+    expect(screen.getByText("quota error")).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole("button", { name: "Continue unfinished task" })
+    )
+    expect(onContinue).toHaveBeenCalledTimes(1)
+  })
+
+  it("prevents another continuation while the original recovery is still running", () => {
+    renderDisplay({
+      queue: [],
+      queueControl: {
+        owner_id: "42",
+        status: "resuming",
+        failed_attempt_id: "a",
+        active_attempt_id: "r",
+        error: "quota error",
+        revision: 2,
+      },
+      onContinue: vi.fn(),
+    })
+    expect(
+      screen.getByRole("button", { name: "Continuing unfinished task…" })
+    ).toBeDisabled()
+  })
+
   it("does not offer edit, delete or steering for a backend-owned claim", () => {
     renderDisplay({
       queue: [{ ...item("q1", "A"), deliveryState: "claimed" }],
