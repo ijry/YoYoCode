@@ -235,13 +235,12 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf \
-            libpipewire-0.3-dev \
-            libwayland-dev
-        # libpipewire-0.3-dev / libwayland-dev: xcap（截图功能）在 Linux 走
-        # PipeWire/Wayland 捕获，libspa-sys 经 pkg-config 找 libpipewire-0.3.pc、
-        # libwayshot 链 libwayland-client —— 缺了这两个 dev 包 desktop 构建直接
-        # 失败（Windows/macOS 无此依赖，只装 Linux）。
+            patchelf
+        # Screen capture (xcap) is Windows/macOS only for now: its Linux
+        # backend needs SPA headers newer than 22.04 ships, so the Linux
+        # desktop build compiles none of it and needs no pipewire/wayland
+        # dev packages. Revisit when Linux capture gets its own release
+        # track.
 
       - name: Install Linux arm64 cross dependencies
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -284,9 +283,7 @@ jobs:
             libayatana-appindicator3-dev:arm64 \
             librsvg2-dev:arm64 \
             libssl-dev:arm64 \
-            patchelf \
-            libpipewire-0.3-dev:arm64 \
-            libwayland-dev:arm64
+            patchelf
 
       - name: Configure Linux arm64 cross env
         if: matrix.target == 'aarch64-unknown-linux-gnu'

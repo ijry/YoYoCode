@@ -26,6 +26,8 @@
 
 ## 平台说明
 
+- **Windows**：完整支持。
+- **macOS / Linux**：暂不支持——按钮可见，点击会得到"暂不支持"的提示。
+  - **macOS**：按仓库安全架构，屏幕捕获 API 只允许 computer-helper sidecar 持有（TCC 授权按进程归属，不能落在 codeg 本体），截图需改走 helper 捕获通道，后续单独排期。
+  - **Linux**：xcap 的 Linux 后端依赖新版 PipeWire 头文件，Ubuntu 22.04 编译不过。
 - 仅桌面模式可用（服务器/Docker 部署的 Web 端不显示该按钮）。
-- **macOS**：首次使用需在"系统设置 → 隐私与安全性 → 屏幕录制"中授权 Codeg，授权后重试。
-- **Linux**：Wayland 会话下屏幕捕获可能不可用，X11 正常。

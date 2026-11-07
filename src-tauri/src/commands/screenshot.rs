@@ -285,7 +285,12 @@ pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayloa
 // the server or the MCP build. The store and the pure functions above stay
 // ungated, so they compile — and are tested — in every runtime.
 
-#[cfg(feature = "tauri-runtime")]
+// The capture backend (xcap) ships on Windows only — see the `Cargo.toml`
+// note on the target-gated dependency — so the monitor-freezing helpers and
+// the `begin_selection` body that drives it carry the same gate, and every
+// other desktop platform answers the command with a structured "not
+// supported yet".
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 use std::time::Duration;
 
 #[cfg(feature = "tauri-runtime")]
@@ -327,7 +332,7 @@ pub struct ScreenshotBeginOutcome {
 /// One captured monitor, while it is still inside the blocking task: its
 /// frozen frame plus the physical bounds its overlay window must cover —
 /// `x`/`y` are negative on monitors left of or above the primary.
-#[cfg(feature = "tauri-runtime")]
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 struct CapturedMonitor {
     index: u32,
     name: String,
@@ -353,7 +358,7 @@ struct ScreenshotMonitorPlacement {
 
 /// A monitor step refused: the xcap error as the detail, the step in the
 /// message, so a failure says which monitor and which part of the capture.
-#[cfg(feature = "tauri-runtime")]
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 fn capture_failed(index: u32, what: &str, error: &xcap::XCapError) -> AppCommandError {
     AppCommandError::new(
         AppErrorCode::ExternalCommandFailed,
@@ -366,7 +371,7 @@ fn capture_failed(index: u32, what: &str, error: &xcap::XCapError) -> AppCommand
 /// PNG-encoding full-screen frames each take hundreds of milliseconds on a
 /// real desktop, nothing a UI thread should wait inside. One entry per
 /// monitor, in xcap's enumeration order.
-#[cfg(feature = "tauri-runtime")]
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
     let monitors = xcap::Monitor::all().map_err(|e| {
         AppCommandError::new(
@@ -421,7 +426,7 @@ fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
 
 /// PNG-encode a captured frame and wrap it in base64: the wire format the
 /// overlay window and the editor both read.
-#[cfg(feature = "tauri-runtime")]
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 fn encode_png_base64(image: image::RgbaImage) -> String {
     let mut out = std::io::Cursor::new(Vec::new());
     image::DynamicImage::ImageRgba8(image)
@@ -502,7 +507,7 @@ pub(crate) fn restore_main_window(app: &AppHandle) {
 /// `hide_main` first hides the main window — for capturing what sits behind
 /// codeg — and the window comes back when the flow ends, whichever way it
 /// ends: confirmed, cancelled, or failed.
-#[cfg(feature = "tauri-runtime")]
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_begin_selection(
     app: AppHandle,
@@ -596,6 +601,29 @@ pub async fn screenshot_begin_selection(
             Err(err)
         }
     }
+}
+
+/// The non-Windows shape of `screenshot_begin_selection`: no capture backend
+/// ships off Windows yet (see the `Cargo.toml` note on the target-gated xcap
+/// dependency), so the command answers with a structured "no" instead of
+/// missing from the API — the frontend gets a readable toast rather than an
+/// unknown-command error, and nothing here touches any window state.
+#[cfg(all(feature = "tauri-runtime", not(target_os = "windows")))]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_begin_selection(
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+    _request_id: String,
+    _hide_main: bool,
+) -> Result<ScreenshotBeginOutcome, AppCommandError> {
+    Err(AppCommandError::new(
+        AppErrorCode::ExternalCommandFailed,
+        "Screen capture is not supported on this platform yet",
+    )
+    .with_detail(
+        "the screenshot feature ships on Windows first; macOS and Linux support are planned with their own capture path"
+            .to_string(),
+    ))
 }
 
 /// Hand a frozen frame to its overlay window: the full-monitor PNG the
