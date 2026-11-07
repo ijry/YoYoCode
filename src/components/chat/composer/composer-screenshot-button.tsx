@@ -160,9 +160,12 @@ export function ComposerScreenshotButton({
             "[ComposerScreenshotButton] attach screenshot failed:",
             error
           )
+          // The editor stays open so the annotated picture is not lost —
+          // the user can retry the attach or copy it out by hand.
+          toast.error(te("failed"))
         })
     },
-    [onAttachImage]
+    [onAttachImage, te]
   )
 
   if (!isLocalDesktop()) return null

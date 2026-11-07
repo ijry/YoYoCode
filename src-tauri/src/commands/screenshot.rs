@@ -83,13 +83,9 @@ pub struct ScreenshotCapturedMeta {
 }
 
 /// One capture session: the frozen frame of every monitor plus the cropped
-/// selection once one is confirmed. `hide_main` records whether the main
-/// window was hidden for the capture, so cancellation knows whether to
-/// bring it back.
+/// selection once one is confirmed.
 struct ScreenshotCapture {
     request_id: String,
-    #[allow(dead_code)] // read by the desktop commands' window-restore step
-    hide_main: bool,
     frames: HashMap<u32, MonitorFramePayload>,
     cropped: Option<(CroppedPayload, ScreenshotCapturedMeta)>,
 }
@@ -120,7 +116,7 @@ impl ScreenshotFrameStore {
 
     /// Start a capture: drop every earlier entry and register a fresh one
     /// under a new capture id, which is returned.
-    pub fn begin_capture(&self, request_id: String, hide_main: bool) -> String {
+    pub fn begin_capture(&self, request_id: String) -> String {
         let capture_id = uuid::Uuid::new_v4().to_string();
         let mut captures = self.lock();
         captures.clear();
@@ -128,7 +124,6 @@ impl ScreenshotFrameStore {
             capture_id.clone(),
             ScreenshotCapture {
                 request_id,
-                hide_main,
                 frames: HashMap::new(),
                 cropped: None,
             },
@@ -194,6 +189,19 @@ impl ScreenshotFrameStore {
             captures.remove(capture_id);
         }
         pending
+    }
+
+    /// Cancel every capture that has not confirmed a selection — the sweep
+    /// an overlay window killed out from under the flow triggers (Alt+F4 on
+    /// a focused overlay destroys it without any command to cancel, so the
+    /// flow's own bookkeeping never runs). `false` when nothing pending
+    /// remained: every live capture had already cropped, or there was no
+    /// capture at all, and the caller must not touch the windows.
+    pub fn cancel_all_pending(&self) -> bool {
+        let mut captures = self.lock();
+        let before = captures.len();
+        captures.retain(|_, capture| capture.cropped.is_some());
+        before > captures.len()
     }
 }
 
@@ -478,9 +486,10 @@ fn close_overlay_windows(app: &AppHandle) {
 
 /// Bring the main window back for the end of a selection flow: un-minimize
 /// it, un-hide it and put it in front. Best-effort — a restore failing must
-/// not fail a capture that already succeeded.
+/// not fail a capture that already succeeded. Also reachable from the window
+/// event hook when an overlay is destroyed out from under the flow.
 #[cfg(feature = "tauri-runtime")]
-fn restore_main_window(app: &AppHandle) {
+pub(crate) fn restore_main_window(app: &AppHandle) {
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.unminimize();
         let _ = main.show();
@@ -503,9 +512,7 @@ pub async fn screenshot_begin_selection(
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
     // One live capture at a time: registering the new one drops whatever an
     // earlier one left, frames and all.
-    let capture_id = state
-        .screenshot_frames
-        .begin_capture(request_id.clone(), hide_main);
+    let capture_id = state.screenshot_frames.begin_capture(request_id.clone());
     // A second begin while the first round's overlays are still up: close
     // them before capturing, or the fresh frames would be frozen with the
     // previous round's dark overlay in the picture.
@@ -926,7 +933,7 @@ mod tests {
     #[test]
     fn frames_go_in_and_come_back_per_monitor() {
         let store = ScreenshotFrameStore::default();
-        let id = store.begin_capture("req-1".to_string(), false);
+        let id = store.begin_capture("req-1".to_string());
         store.insert_frames(&id, vec![(0, frame(0)), (1, frame(1))]);
         assert_eq!(store.get_frame(&id, 0).unwrap().monitor_index, 0);
         assert_eq!(store.get_frame(&id, 1).unwrap().monitor_index, 1);
@@ -940,9 +947,9 @@ mod tests {
     #[test]
     fn a_second_begin_drops_the_first_capture() {
         let store = ScreenshotFrameStore::default();
-        let first = store.begin_capture("req-1".to_string(), false);
+        let first = store.begin_capture("req-1".to_string());
         store.insert_frames(&first, vec![(0, frame(0))]);
-        let second = store.begin_capture("req-2".to_string(), true);
+        let second = store.begin_capture("req-2".to_string());
         assert_ne!(first, second);
         assert!(store.get_frame(&first, 0).is_none());
         assert!(store.get_frame(&second, 0).is_none());
@@ -951,7 +958,7 @@ mod tests {
     #[test]
     fn cancel_after_a_crop_is_a_no_op_and_the_editor_still_gets_its_image() {
         let store = ScreenshotFrameStore::default();
-        let id = store.begin_capture("req-1".to_string(), false);
+        let id = store.begin_capture("req-1".to_string());
         let meta = store.store_cropped(&id, cropped(320, 240)).unwrap();
         assert_eq!(meta.request_id, "req-1");
         assert_eq!(meta.width, 320);
@@ -969,11 +976,31 @@ mod tests {
     #[test]
     fn cancel_without_a_crop_removes_the_entry() {
         let store = ScreenshotFrameStore::default();
-        let id = store.begin_capture("req-1".to_string(), false);
+        let id = store.begin_capture("req-1".to_string());
         store.insert_frames(&id, vec![(0, frame(0))]);
         assert!(store.cancel(&id));
         assert!(store.get_frame(&id, 0).is_none());
         // Nothing left to cancel.
         assert!(!store.cancel(&id));
+    }
+
+    #[test]
+    fn the_pending_sweep_cancels_a_pending_capture_and_spares_a_cropped_one() {
+        let store = ScreenshotFrameStore::default();
+        // A capture killed out from under the flow (Alt+F4 on its overlay):
+        // frames in, nothing cropped — the sweep takes it.
+        let pending = store.begin_capture("req-1".to_string());
+        store.insert_frames(&pending, vec![(0, frame(0))]);
+        assert!(store.cancel_all_pending());
+        assert!(store.get_frame(&pending, 0).is_none());
+        // Nothing pending left: a second sweep reports as much.
+        assert!(!store.cancel_all_pending());
+        // One live capture at a time, so a cropped one is all the sweep can
+        // ever meet: the editor has not pulled the image yet — it must be
+        // left alone.
+        let confirmed = store.begin_capture("req-2".to_string());
+        store.store_cropped(&confirmed, cropped(320, 240)).unwrap();
+        assert!(!store.cancel_all_pending());
+        assert!(store.take_cropped(&confirmed).is_some());
     }
 }
