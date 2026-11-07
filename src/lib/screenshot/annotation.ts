@@ -254,6 +254,10 @@ export function marksOutside(
         mark.y >= size.height
       )
     }
+    // A pen with no points has nowhere to be, so it is not outside either:
+    // kept, the way the renderer draws nothing for it instead of tripping
+    // over its missing first point.
+    if (mark.kind === "pen" && mark.points.length === 0) return false
     const anchor =
       mark.kind === "pen"
         ? mark.points[0]

@@ -5,14 +5,8 @@ import { useTranslations } from "next-intl"
 import { Camera, Monitor } from "lucide-react"
 import { toast } from "sonner"
 
+import { ScreenshotEditorDialog } from "@/components/screenshot/screenshot-editor-dialog"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,73 +211,4 @@ export function ComposerScreenshotButton({
       />
     </>
   )
-}
-
-/**
- * Placeholder for the annotation editor — Task 6 swaps in the real
- * `ScreenshotEditorDialog` from `@/components/screenshot`. It already takes
- * the real contract (open state, the cropped capture, a confirm that hands
- * over a `File`), so the wiring above survives that swap unchanged.
- */
-function ScreenshotEditorDialog({
-  open,
-  onOpenChange,
-  payload,
-  onConfirm,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  payload: CroppedPayload | null
-  onConfirm: (file: File) => void
-}) {
-  const t = useTranslations("Folder.chat.screenshotEditor")
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("title")}</DialogTitle>
-        </DialogHeader>
-        {payload ? (
-          <p className="text-sm text-muted-foreground">
-            {payload.width}×{payload.height}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            {t("cancel")}
-          </Button>
-          <Button
-            type="button"
-            disabled={!payload}
-            onClick={() => {
-              const file = payload ? fileFromPayload(payload) : null
-              if (file) onConfirm(file)
-            }}
-          >
-            {t("confirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** The capture as a composer attachment, decoded from the frame store's PNG. */
-function fileFromPayload(payload: CroppedPayload): File | null {
-  try {
-    // `atob` reads the bytes as latin-1; each char code is one byte.
-    const bytes = Uint8Array.from(atob(payload.pngBase64), (c) =>
-      c.charCodeAt(0)
-    )
-    const extension = payload.mime === "image/jpeg" ? "jpg" : "png"
-    return new File([bytes], `screenshot.${extension}`, {
-      type: payload.mime || "image/png",
-    })
-  } catch {
-    return null
-  }
 }

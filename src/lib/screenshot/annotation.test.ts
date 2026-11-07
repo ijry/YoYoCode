@@ -246,6 +246,19 @@ describe("marksOutside", () => {
     )
     expect(lost).toEqual([])
   })
+
+  // A pen a crop emptied has nowhere to be, so it is not outside either:
+  // kept, the way the renderer draws nothing for it rather than crashing on
+  // its missing first point.
+  it("never reports a pen with no points as outside", () => {
+    const empty: AnnotationMark = {
+      id: "pen",
+      kind: "pen",
+      color: "#0a84ff",
+      points: [],
+    }
+    expect(marksOutside([empty], size)).toEqual([])
+  })
 })
 
 describe("hitTestMark", () => {
