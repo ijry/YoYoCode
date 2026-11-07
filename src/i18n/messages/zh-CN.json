@@ -3556,7 +3556,16 @@
         "mentionGroupSession": "会话",
         "mentionGroupCommit": "提交",
         "mentionGroupSkill": "技能",
-        "mentionGroupAssistant": "助手"
+        "mentionGroupAssistant": "助手",
+        "screenshot": "截图",
+        "screenshotHideWindow": "隐藏窗口截图"
+      },
+      "screenshotEditor": {
+        "title": "编辑截图",
+        "confirm": "附加",
+        "cancel": "取消",
+        "failed": "截图失败",
+        "permissionDenied": "没有屏幕捕获权限，请授予屏幕录制权限后重试。"
       },
       "messageQueue": {
         "addToQueue": "加入队列",

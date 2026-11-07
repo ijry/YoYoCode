@@ -3556,7 +3556,16 @@
         "mentionGroupSession": "Sessions",
         "mentionGroupCommit": "Commits",
         "mentionGroupSkill": "Skills",
-        "mentionGroupAssistant": "Assistants"
+        "mentionGroupAssistant": "Assistants",
+        "screenshot": "Screenshot",
+        "screenshotHideWindow": "Hide window & capture"
+      },
+      "screenshotEditor": {
+        "title": "Edit screenshot",
+        "confirm": "Attach",
+        "cancel": "Cancel",
+        "failed": "Screenshot failed",
+        "permissionDenied": "No screen capture permission. Grant screen recording access and try again."
       },
       "messageQueue": {
         "addToQueue": "Queue message",

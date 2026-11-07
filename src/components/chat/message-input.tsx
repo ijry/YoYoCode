@@ -139,6 +139,7 @@ import { useReferenceSearch } from "@/components/chat/composer/use-reference-sea
 import { useComposerMentionLabels } from "@/components/chat/composer/use-composer-mention-labels"
 import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
+import { ComposerScreenshotButton } from "@/components/chat/composer/composer-screenshot-button"
 import { useComposerAttachments } from "@/components/chat/composer/use-composer-attachments"
 import { useComposerShortcuts } from "@/components/chat/composer/use-composer-shortcuts"
 
@@ -2297,6 +2298,12 @@ export function MessageInput({
                     slashCommands={slashCommands}
                     onAddFeedback={onAddFeedback}
                     feedbackAddDisabled={feedbackAddDisabled}
+                  />
+                  <ComposerScreenshotButton
+                    disabled={disabled}
+                    onAttachImage={(file) =>
+                      attach.appendFilesFromInput([file])
+                    }
                   />
                   {hasAnySelector && (
                     <SessionSettingsPicker
