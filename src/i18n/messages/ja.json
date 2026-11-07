@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "セッション",
         "mentionGroupCommit": "コミット",
         "mentionGroupSkill": "スキル",
-        "mentionGroupAssistant": "アシスタント"
+        "mentionGroupAssistant": "アシスタント",
+        "screenshot": "スクリーンショット",
+        "screenshotHideWindow": "ウィンドウを隠して撮影"
+      },
+      "screenshotEditor": {
+        "title": "スクリーンショットを編集",
+        "select": "選択",
+        "pen": "ペン",
+        "rect": "長方形",
+        "ellipse": "楕円",
+        "arrow": "矢印",
+        "text": "テキスト",
+        "mosaic": "モザイク",
+        "step": "番号",
+        "crop": "切り抜き",
+        "applyCrop": "切り抜きを適用",
+        "cancelCrop": "切り抜きを取り消す",
+        "undo": "元に戻す",
+        "redo": "やり直す",
+        "clear": "消去",
+        "color": "色",
+        "confirm": "添付",
+        "cancel": "キャンセル",
+        "textPlaceholder": "ラベルを入力",
+        "failed": "スクリーンショットに失敗しました",
+        "permissionDenied": "画面収録の権限がありません。権限を許可してから、もう一度お試しください。"
       },
       "messageQueue": {
         "addToQueue": "キューに追加",

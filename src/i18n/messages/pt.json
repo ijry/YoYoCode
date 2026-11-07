@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "Sessões",
         "mentionGroupCommit": "Commits",
         "mentionGroupSkill": "Habilidades",
-        "mentionGroupAssistant": "Assistentes"
+        "mentionGroupAssistant": "Assistentes",
+        "screenshot": "Captura de tela",
+        "screenshotHideWindow": "Ocultar a janela e capturar"
+      },
+      "screenshotEditor": {
+        "title": "Editar captura",
+        "select": "Seleção",
+        "pen": "Caneta",
+        "rect": "Retângulo",
+        "ellipse": "Elipse",
+        "arrow": "Seta",
+        "text": "Texto",
+        "mosaic": "Mosaico",
+        "step": "Número",
+        "crop": "Recortar",
+        "applyCrop": "Aplicar recorte",
+        "cancelCrop": "Cancelar recorte",
+        "undo": "Desfazer",
+        "redo": "Refazer",
+        "clear": "Limpar",
+        "color": "Cor",
+        "confirm": "Anexar",
+        "cancel": "Cancelar",
+        "textPlaceholder": "Digite uma etiqueta",
+        "failed": "Falha na captura",
+        "permissionDenied": "Sem permissão para capturar a tela. Conceda o acesso à gravação de tela e tente novamente."
       },
       "messageQueue": {
         "addToQueue": "Adicionar à fila",

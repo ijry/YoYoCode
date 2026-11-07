@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "Sitzungen",
         "mentionGroupCommit": "Commits",
         "mentionGroupSkill": "Fähigkeiten",
-        "mentionGroupAssistant": "Assistenten"
+        "mentionGroupAssistant": "Assistenten",
+        "screenshot": "Screenshot",
+        "screenshotHideWindow": "Fenster ausblenden & aufnehmen"
+      },
+      "screenshotEditor": {
+        "title": "Screenshot bearbeiten",
+        "select": "Auswahl",
+        "pen": "Stift",
+        "rect": "Rechteck",
+        "ellipse": "Ellipse",
+        "arrow": "Pfeil",
+        "text": "Text",
+        "mosaic": "Mosaik",
+        "step": "Nummer",
+        "crop": "Zuschnitt",
+        "applyCrop": "Zuschnitt anwenden",
+        "cancelCrop": "Zuschnitt verwerfen",
+        "undo": "Rückgängig",
+        "redo": "Wiederholen",
+        "clear": "Leeren",
+        "color": "Farbe",
+        "confirm": "Anhängen",
+        "cancel": "Abbrechen",
+        "textPlaceholder": "Beschriftung eingeben",
+        "failed": "Screenshot fehlgeschlagen",
+        "permissionDenied": "Keine Berechtigung für die Bildschirmaufnahme. Erteile die Berechtigung und versuche es erneut."
       },
       "messageQueue": {
         "addToQueue": "Zur Warteschlange",

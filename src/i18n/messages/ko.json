@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "세션",
         "mentionGroupCommit": "커밋",
         "mentionGroupSkill": "스킬",
-        "mentionGroupAssistant": "어시스턴트"
+        "mentionGroupAssistant": "어시스턴트",
+        "screenshot": "스크린샷",
+        "screenshotHideWindow": "창 숨기고 캡처"
+      },
+      "screenshotEditor": {
+        "title": "스크린샷 편집",
+        "select": "선택",
+        "pen": "펜",
+        "rect": "사각형",
+        "ellipse": "타원",
+        "arrow": "화살표",
+        "text": "텍스트",
+        "mosaic": "모자이크",
+        "step": "번호",
+        "crop": "자르기",
+        "applyCrop": "자르기 적용",
+        "cancelCrop": "자르기 취소",
+        "undo": "실행 취소",
+        "redo": "다시 실행",
+        "clear": "지우기",
+        "color": "색상",
+        "confirm": "첨부",
+        "cancel": "취소",
+        "textPlaceholder": "라벨 입력",
+        "failed": "스크린샷 실패",
+        "permissionDenied": "화면 캡처 권한이 없습니다. 화면 녹화 권한을 허용한 후 다시 시도하세요."
       },
       "messageQueue": {
         "addToQueue": "대기열에 추가",
