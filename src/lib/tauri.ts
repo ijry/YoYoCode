@@ -72,6 +72,12 @@ import type {
   McpMarketplaceItem,
   McpMarketplaceServerDetail,
 } from "./types"
+import type {
+  CroppedPayload,
+  MonitorFramePayload,
+  ScreenshotBeginOutcome,
+  ScreenshotRect,
+} from "./screenshot/types"
 
 export async function listConversations(params?: {
   agent_type?: AgentType | null
@@ -1350,4 +1356,47 @@ export async function terminalKill(terminalId: string): Promise<void> {
 
 export async function terminalList(): Promise<TerminalInfo[]> {
   return invoke("terminal_list")
+}
+
+// Screenshot capture commands. Desktop only: the frozen frames live in the
+// Tauri process and the selection overlays are Tauri windows, so these
+// invoke() the Rust commands directly — the web build has no handler behind
+// them and never shows the button that would call them.
+
+export async function screenshotBeginSelection(
+  requestId: string,
+  hideMain: boolean
+): Promise<ScreenshotBeginOutcome> {
+  return invoke("screenshot_begin_selection", { requestId, hideMain })
+}
+
+export async function screenshotGetFrame(
+  captureId: string,
+  monitorIndex: number
+): Promise<MonitorFramePayload> {
+  return invoke("screenshot_get_frame", { captureId, monitorIndex })
+}
+
+export async function screenshotFinishSelection(
+  captureId: string,
+  monitorIndex: number,
+  rect: ScreenshotRect
+): Promise<void> {
+  return invoke("screenshot_finish_selection", {
+    captureId,
+    monitorIndex,
+    rect,
+  })
+}
+
+export async function screenshotTakeCropped(
+  captureId: string
+): Promise<CroppedPayload> {
+  return invoke("screenshot_take_cropped", { captureId })
+}
+
+export async function screenshotCancelSelection(
+  captureId: string
+): Promise<void> {
+  return invoke("screenshot_cancel_selection", { captureId })
 }
