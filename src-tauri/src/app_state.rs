@@ -109,6 +109,11 @@ pub struct AppState {
     /// The loopback listener and discovery file the CLIs of this machine
     /// come in by, and the setting that turns them on and off.
     pub cli_access: Arc<crate::cli_run::CliAccess>,
+    /// Frozen monitor frames behind the composer's screenshot button, keyed
+    /// by capture id. Written and drained by the desktop-only screenshot
+    /// commands; the store itself compiles in every runtime (no xcap types)
+    /// so `AppState` keeps one shape across both.
+    pub screenshot_frames: crate::commands::screenshot::ScreenshotFrameStore,
 }
 
 pub fn default_system_op_lock() -> Arc<tokio::sync::Mutex<()>> {
@@ -310,6 +315,7 @@ impl AppState {
             update_state: default_update_state(),
             cli_runs,
             cli_access,
+            screenshot_frames: Default::default(),
         }
     }
 }
