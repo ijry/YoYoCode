@@ -22,7 +22,8 @@
     "remote-stash-*",
     "remote-push-*",
     "computer-indicator",
-    "computer-marker"
+    "computer-marker",
+    "screenshot-overlay-*"
   ],
   "permissions": [
     "core:default",

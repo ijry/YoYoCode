@@ -270,6 +270,452 @@ pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayloa
     })
 }
 
+// ─── Desktop commands ────────────────────────────────────────────────
+//
+// The capture, the overlay windows and the event back to the main window
+// only exist on the desktop: xcap and the window system do not compile into
+// the server or the MCP build. The store and the pure functions above stay
+// ungated, so they compile — and are tested — in every runtime.
+
+#[cfg(feature = "tauri-runtime")]
+use std::time::Duration;
+
+#[cfg(feature = "tauri-runtime")]
+use serde_json::json;
+#[cfg(feature = "tauri-runtime")]
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, State, WebviewUrl,
+    WebviewWindowBuilder,
+};
+
+#[cfg(feature = "tauri-runtime")]
+use crate::app_error::AppErrorCode;
+#[cfg(feature = "tauri-runtime")]
+use crate::app_state::AppState;
+
+/// One monitor a capture covers, as `screenshot_begin_selection` reports it:
+/// its physical size, never frame data.
+#[cfg(feature = "tauri-runtime")]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenshotMonitorInfo {
+    pub index: u32,
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// What `screenshot_begin_selection` answers: the capture the frozen frames
+/// are filed under, the request that started it, and the monitors it covers.
+#[cfg(feature = "tauri-runtime")]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenshotBeginOutcome {
+    pub capture_id: String,
+    pub request_id: String,
+    pub monitors: Vec<ScreenshotMonitorInfo>,
+}
+
+/// One captured monitor, while it is still inside the blocking task: its
+/// frozen frame plus the physical bounds its overlay window must cover —
+/// `x`/`y` are negative on monitors left of or above the primary.
+#[cfg(feature = "tauri-runtime")]
+struct CapturedMonitor {
+    index: u32,
+    name: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    frame: MonitorFramePayload,
+}
+
+/// What survives a capture per monitor once the megabyte-sized frames have
+/// been filed: everything the overlay windows and the outcome need, nothing
+/// they would have to copy.
+#[cfg(feature = "tauri-runtime")]
+struct ScreenshotMonitorPlacement {
+    index: u32,
+    name: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+}
+
+/// A monitor step refused: the xcap error as the detail, the step in the
+/// message, so a failure says which monitor and which part of the capture.
+#[cfg(feature = "tauri-runtime")]
+fn capture_failed(index: u32, what: &str, error: &xcap::XCapError) -> AppCommandError {
+    AppCommandError::new(
+        AppErrorCode::ExternalCommandFailed,
+        format!("Failed to capture monitor {index}: {what}"),
+    )
+    .with_detail(error.to_string())
+}
+
+/// Capture every monitor on the blocking pool: enumerating monitors and
+/// PNG-encoding full-screen frames each take hundreds of milliseconds on a
+/// real desktop, nothing a UI thread should wait inside. One entry per
+/// monitor, in xcap's enumeration order.
+#[cfg(feature = "tauri-runtime")]
+fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
+    let monitors = xcap::Monitor::all().map_err(|e| {
+        AppCommandError::new(
+            AppErrorCode::ExternalCommandFailed,
+            "Failed to list the monitors to capture",
+        )
+        .with_detail(e.to_string())
+    })?;
+    let mut captured = Vec::with_capacity(monitors.len());
+    for (index, monitor) in monitors.into_iter().enumerate() {
+        let index = index as u32;
+        let name = monitor
+            .name()
+            .unwrap_or_else(|_| format!("Monitor {index}"));
+        let x = monitor
+            .x()
+            .map_err(|e| capture_failed(index, "reading its position", &e))?;
+        let y = monitor
+            .y()
+            .map_err(|e| capture_failed(index, "reading its position", &e))?;
+        let width = monitor
+            .width()
+            .map_err(|e| capture_failed(index, "reading its size", &e))?;
+        let height = monitor
+            .height()
+            .map_err(|e| capture_failed(index, "reading its size", &e))?;
+        let image = monitor
+            .capture_image()
+            .map_err(|e| capture_failed(index, "freezing its screen", &e))?;
+        // The frame reports the picture's own pixels, not the monitor's
+        // declared size: validate_selection_rect and crop_png bound the
+        // selection against these, and only these are real.
+        let (frame_width, frame_height) = (image.width(), image.height());
+        let frame = MonitorFramePayload {
+            monitor_index: index,
+            png_base64: encode_png_base64(image),
+            width: frame_width,
+            height: frame_height,
+        };
+        captured.push(CapturedMonitor {
+            index,
+            name,
+            x,
+            y,
+            width,
+            height,
+            frame,
+        });
+    }
+    Ok(captured)
+}
+
+/// PNG-encode a captured frame and wrap it in base64: the wire format the
+/// overlay window and the editor both read.
+#[cfg(feature = "tauri-runtime")]
+fn encode_png_base64(image: image::RgbaImage) -> String {
+    let mut out = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(&mut out, image::ImageFormat::Png)
+        .expect("encoding a captured frame as png");
+    STANDARD.encode(out.into_inner())
+}
+
+/// Cover each captured monitor with its selection overlay: a borderless,
+/// transparent, always-on-top window at the monitor's physical bounds —
+/// negative `x`/`y` included, that is where the desktop actually is — that
+/// loads the selection page for this capture. Positioning, sizing, showing
+/// or focusing a built window failing is no reason to abandon the capture;
+/// building one is.
+#[cfg(feature = "tauri-runtime")]
+fn open_overlay_windows(
+    app: &AppHandle,
+    capture_id: &str,
+    placements: &[ScreenshotMonitorPlacement],
+) -> Result<(), AppCommandError> {
+    for monitor in placements {
+        let index = monitor.index;
+        let label = format!("{OVERLAY_WINDOW_PREFIX}{index}");
+        let url = format!("screenshot-overlay?captureId={capture_id}&monitorIndex={index}");
+        let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .shadow(false)
+            .visible(false)
+            .resizable(false)
+            .build()
+            .map_err(|e| {
+                AppCommandError::window(
+                    format!("Failed to open the selection overlay for monitor {index}"),
+                    e.to_string(),
+                )
+            })?;
+        let _ = window.set_position(Position::Physical(PhysicalPosition::new(
+            monitor.x, monitor.y,
+        )));
+        let _ = window.set_size(Size::Physical(PhysicalSize::new(
+            monitor.width,
+            monitor.height,
+        )));
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+/// Close every selection overlay still standing, however it got there.
+#[cfg(feature = "tauri-runtime")]
+fn close_overlay_windows(app: &AppHandle) {
+    for window in app.webview_windows().into_values() {
+        if window.label().starts_with(OVERLAY_WINDOW_PREFIX) {
+            let _ = window.close();
+        }
+    }
+}
+
+/// Bring the main window back for the end of a selection flow: un-minimize
+/// it, un-hide it and put it in front. Best-effort — a restore failing must
+/// not fail a capture that already succeeded.
+#[cfg(feature = "tauri-runtime")]
+fn restore_main_window(app: &AppHandle) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.unminimize();
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+}
+
+/// Start a screenshot selection: freeze every monitor into the frame store,
+/// then cover each with the overlay window the user drags a selection on.
+/// `hide_main` first hides the main window — for capturing what sits behind
+/// codeg — and the window comes back when the flow ends, whichever way it
+/// ends: confirmed, cancelled, or failed.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_begin_selection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request_id: String,
+    hide_main: bool,
+) -> Result<ScreenshotBeginOutcome, AppCommandError> {
+    // One live capture at a time: registering the new one drops whatever an
+    // earlier one left, frames and all.
+    let capture_id = state
+        .screenshot_frames
+        .begin_capture(request_id.clone(), hide_main);
+    // A second begin while the first round's overlays are still up: close
+    // them before capturing, or the fresh frames would be frozen with the
+    // previous round's dark overlay in the picture.
+    close_overlay_windows(&app);
+
+    // Hide the main window before the frames are frozen, not after — the
+    // capture must not picture codeg itself — then give the compositor a
+    // beat to actually drop it.
+    let mut main_hidden = false;
+    if hide_main {
+        if let Some(main) = app.get_webview_window("main") {
+            if main.hide().is_ok() {
+                main_hidden = true;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+
+    let captured = match tauri::async_runtime::spawn_blocking(capture_all_monitors).await {
+        Ok(Ok(captured)) => Ok(captured),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(AppCommandError::new(
+            AppErrorCode::TaskExecutionFailed,
+            "The screenshot capture task failed",
+        )
+        .with_detail(err.to_string())),
+    };
+
+    let captured = match captured {
+        Ok(captured) => captured,
+        Err(err) => {
+            // The capture failed, possibly with the main window already
+            // hidden: undo everything before reporting, or the user is left
+            // staring at whatever codeg used to cover.
+            let _ = state.screenshot_frames.cancel(&capture_id);
+            if main_hidden {
+                restore_main_window(&app);
+            }
+            return Err(err);
+        }
+    };
+
+    // Split each capture into its frame (into the store) and its placement
+    // (for the overlay windows), moving the megabytes once.
+    let mut frames = Vec::with_capacity(captured.len());
+    let mut placements = Vec::with_capacity(captured.len());
+    for monitor in captured {
+        placements.push(ScreenshotMonitorPlacement {
+            index: monitor.index,
+            name: monitor.name,
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: monitor.height,
+        });
+        frames.push((monitor.index, monitor.frame));
+    }
+    state.screenshot_frames.insert_frames(&capture_id, frames);
+    match open_overlay_windows(&app, &capture_id, &placements) {
+        Ok(()) => Ok(ScreenshotBeginOutcome {
+            capture_id,
+            request_id,
+            monitors: placements
+                .into_iter()
+                .map(|placement| ScreenshotMonitorInfo {
+                    index: placement.index,
+                    name: placement.name,
+                    width: placement.width,
+                    height: placement.height,
+                })
+                .collect(),
+        }),
+        Err(err) => {
+            // Half-opened overlays would linger over the desktop: take them
+            // down, undo the capture and un-hide the main window.
+            close_overlay_windows(&app);
+            let _ = state.screenshot_frames.cancel(&capture_id);
+            if main_hidden {
+                restore_main_window(&app);
+            }
+            Err(err)
+        }
+    }
+}
+
+/// Hand a frozen frame to its overlay window: the full-monitor PNG the
+/// overlay draws the selection on top of. A missing frame means the overlay
+/// is stale — its capture was cancelled, superseded, or already finished —
+/// and the overlay closes itself on this error.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_get_frame(
+    state: State<'_, AppState>,
+    capture_id: String,
+    monitor_index: u32,
+) -> Result<MonitorFramePayload, AppCommandError> {
+    state
+        .screenshot_frames
+        .get_frame(&capture_id, monitor_index)
+        .ok_or_else(|| {
+            AppCommandError::not_found(format!(
+                "No frozen frame for capture {capture_id} monitor {monitor_index}"
+            ))
+            .with_detail("the capture was cancelled, superseded, or already finished".to_string())
+        })
+}
+
+/// Cut the confirmed selection out of its monitor's frozen frame, file the
+/// result for the editor, close every overlay and tell the main window a
+/// capture is waiting. The event carries metadata only — a base64 frame
+/// injected into the webview would freeze the UI for seconds — the editor
+/// pulls the pixels with `screenshot_take_cropped`.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_finish_selection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    capture_id: String,
+    monitor_index: u32,
+    rect: ScreenshotRect,
+) -> Result<(), AppCommandError> {
+    let frame = state
+        .screenshot_frames
+        .get_frame(&capture_id, monitor_index)
+        .ok_or_else(|| {
+            AppCommandError::not_found(format!(
+                "No frozen frame for capture {capture_id} monitor {monitor_index}"
+            ))
+            .with_detail("the capture was cancelled, superseded, or already finished".to_string())
+        })?;
+    let normalized = validate_selection_rect(&rect, frame.width, frame.height)?;
+    // The crop decodes and re-encodes a full-monitor PNG — up to tens of
+    // megabytes — no work for the UI thread.
+    let cropped =
+        tauri::async_runtime::spawn_blocking(move || crop_png(&frame.png_base64, &normalized))
+            .await
+            .map_err(|e| {
+                AppCommandError::new(
+                    AppErrorCode::TaskExecutionFailed,
+                    "The screenshot crop task failed",
+                )
+                .with_detail(e.to_string())
+            })??;
+    let meta = state
+        .screenshot_frames
+        .store_cropped(&capture_id, cropped)
+        .ok_or_else(|| {
+            AppCommandError::not_found(format!("Capture {capture_id} is gone")).with_detail(
+                "the capture was cancelled or superseded while the selection was being cropped"
+                    .to_string(),
+            )
+        })?;
+
+    close_overlay_windows(&app);
+    app.emit_to(
+        "main",
+        "screenshot://captured",
+        json!({
+            "captureId": capture_id,
+            "requestId": meta.request_id,
+            "width": meta.width,
+            "height": meta.height,
+            "mime": "image/png",
+        }),
+    )
+    .map_err(|e| {
+        AppCommandError::window(
+            "Failed to notify the main window of the capture",
+            e.to_string(),
+        )
+    })?;
+    restore_main_window(&app);
+    Ok(())
+}
+
+/// Hand the cropped selection to the editor and release it: one pull, and
+/// the whole capture is gone from the store.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_take_cropped(
+    state: State<'_, AppState>,
+    capture_id: String,
+) -> Result<CroppedPayload, AppCommandError> {
+    state
+        .screenshot_frames
+        .take_cropped(&capture_id)
+        .ok_or_else(|| {
+            AppCommandError::not_found(format!("No cropped image for capture {capture_id}"))
+                .with_detail("the capture was cancelled, superseded, or already taken".to_string())
+        })
+}
+
+/// End a selection without confirming one: drop the capture, close the
+/// overlays and bring the main window back. A capture that already confirmed
+/// its selection is left alone — the overlay's parting cancel (it unloads as
+/// the capture finishes) must not take the cropped image down with it.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_cancel_selection(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    capture_id: String,
+) -> Result<(), AppCommandError> {
+    if state.screenshot_frames.cancel(&capture_id) {
+        close_overlay_windows(&app);
+        restore_main_window(&app);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use base64::{engine::general_purpose::STANDARD, Engine as _};

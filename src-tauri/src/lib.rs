@@ -2590,6 +2590,13 @@ mod tauri_app {
                 web::get_web_service_config,
                 web::update_web_service_config,
                 web::probe_web_service_port,
+                // Screenshot capture: freeze the monitors, select a region on
+                // the overlay windows, pull the crop into the editor.
+                crate::commands::screenshot::screenshot_begin_selection,
+                crate::commands::screenshot::screenshot_get_frame,
+                crate::commands::screenshot::screenshot_finish_selection,
+                crate::commands::screenshot::screenshot_take_cropped,
+                crate::commands::screenshot::screenshot_cancel_selection,
             ])
             .build(context)
             .expect("error while building tauri application")
