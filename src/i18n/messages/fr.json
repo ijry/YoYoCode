@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "Sessions",
         "mentionGroupCommit": "Commits",
         "mentionGroupSkill": "Compétences",
-        "mentionGroupAssistant": "Assistants"
+        "mentionGroupAssistant": "Assistants",
+        "screenshot": "Capture d'écran",
+        "screenshotHideWindow": "Masquer la fenêtre et capturer"
+      },
+      "screenshotEditor": {
+        "title": "Modifier la capture",
+        "select": "Sélection",
+        "pen": "Stylo",
+        "rect": "Rectangle",
+        "ellipse": "Ellipse",
+        "arrow": "Flèche",
+        "text": "Texte",
+        "mosaic": "Mosaïque",
+        "step": "Numéro",
+        "crop": "Rogner",
+        "applyCrop": "Appliquer le recadrage",
+        "cancelCrop": "Annuler le recadrage",
+        "undo": "Défaire",
+        "redo": "Rétablir",
+        "clear": "Effacer",
+        "color": "Couleur",
+        "confirm": "Joindre",
+        "cancel": "Annuler",
+        "textPlaceholder": "Saisir une légende",
+        "failed": "Échec de la capture",
+        "permissionDenied": "Aucune autorisation de capture d'écran. Accordez l'accès à l'enregistrement de l'écran, puis réessayez."
       },
       "messageQueue": {
         "addToQueue": "Mettre en file",

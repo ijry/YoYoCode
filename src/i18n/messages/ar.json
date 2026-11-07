@@ -3517,7 +3517,32 @@
         "mentionGroupSession": "الجلسات",
         "mentionGroupCommit": "عمليات الإيداع",
         "mentionGroupSkill": "المهارات",
-        "mentionGroupAssistant": "المساعدون"
+        "mentionGroupAssistant": "المساعدون",
+        "screenshot": "لقطة شاشة",
+        "screenshotHideWindow": "إخفاء النافذة والتقاط"
+      },
+      "screenshotEditor": {
+        "title": "تعديل لقطة الشاشة",
+        "select": "تحديد",
+        "pen": "قلم",
+        "rect": "مستطيل",
+        "ellipse": "بيضاوي",
+        "arrow": "سهم",
+        "text": "نص",
+        "mosaic": "موزاييك",
+        "step": "ترقيم",
+        "crop": "قص",
+        "applyCrop": "تطبيق القص",
+        "cancelCrop": "إلغاء القص",
+        "undo": "تراجع",
+        "redo": "إعادة",
+        "clear": "مسح",
+        "color": "اللون",
+        "confirm": "إرفاق",
+        "cancel": "إلغاء",
+        "textPlaceholder": "اكتب تسمية",
+        "failed": "فشل لقطة الشاشة",
+        "permissionDenied": "لا يوجد إذن لالتقاط الشاشة. امنح إذن تسجيل الشاشة وحاول مرة أخرى."
       },
       "messageQueue": {
         "addToQueue": "إضافة للقائمة",

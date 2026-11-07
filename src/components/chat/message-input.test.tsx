@@ -107,6 +107,9 @@ vi.mock("./composer-connection-status", () => ({
 const platform = vi.hoisted(() => ({ openUrl: vi.fn(async () => {}) }))
 vi.mock("@/lib/platform", () => ({
   isDesktop: () => false,
+  // The screenshot button only mounts on a local desktop; web mode keeps it
+  // out of these suites.
+  isLocalDesktop: () => false,
   openFileDialog: vi.fn(),
   openUrl: platform.openUrl,
 }))

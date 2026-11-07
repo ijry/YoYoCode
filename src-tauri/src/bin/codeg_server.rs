@@ -412,6 +412,7 @@ async fn async_main(
         update_state: codeg_lib::app_state::default_update_state(),
         cli_runs,
         cli_access,
+        screenshot_frames: Default::default(),
     });
     state
         .connection_manager

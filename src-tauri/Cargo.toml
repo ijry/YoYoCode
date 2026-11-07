@@ -37,6 +37,7 @@ tauri-runtime = [
     "dep:tauri-plugin-autostart",
     "dep:tauri-plugin-global-shortcut",
     "dep:keyring",
+    "dep:xcap",
     # `src/browser` is compiled under this feature and reaches WebKitGTK
     # directly on Linux. These three exist only on Linux targets; naming them
     # here is a no-op everywhere else.
@@ -262,6 +263,12 @@ prost = "0.13"
 rand = "0.8"
 qrcode = "0.14"
 image = { version = "0.25", default-features = false, features = ["png", "webp", "jpeg", "gif"] }
+# Screen capture for the composer's screenshot button (monitor freeze frames
+# for the selection overlay). Optional and carried by `tauri-runtime` alone so
+# the server and MCP builds never compile the window-system capture stack:
+# the frame warehouse and the crop helpers in `commands/screenshot.rs` name
+# no xcap types, only the desktop commands do.
+xcap = { version = "0.9", optional = true }
 include_dir = "0.7"
 sha2 = "0.10"
 # HMAC-SHA256 over a forge webhook's body (GitHub / Gitea signatures) with a

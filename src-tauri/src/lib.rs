@@ -1783,6 +1783,28 @@ mod tauri_app {
                     browser_commands::close_all_for_owner(window.app_handle(), &label);
                 }
 
+                // A selection overlay killed out from under the flow — Alt+F4
+                // on a focused one — bypasses `screenshot_cancel_selection`,
+                // so its destruction cancels the capture here: without this,
+                // a hide-window capture leaves codeg hidden until the user
+                // fishes it out of the taskbar. A capture that already
+                // confirmed its selection has nothing pending and this is a
+                // no-op, as is the destruction of an overlay closed by the
+                // flow itself.
+                if label.starts_with(crate::commands::screenshot::OVERLAY_WINDOW_PREFIX)
+                    && matches!(
+                        event,
+                        tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                    )
+                {
+                    let app = window.app_handle();
+                    if let Some(state) = app.try_state::<crate::app_state::AppState>() {
+                        if state.screenshot_frames.cancel_all_pending() {
+                            crate::commands::screenshot::restore_main_window(app);
+                        }
+                    }
+                }
+
                 if (label == "settings" || label.starts_with("remote-settings-"))
                     && matches!(
                         event,
@@ -2590,6 +2612,13 @@ mod tauri_app {
                 web::get_web_service_config,
                 web::update_web_service_config,
                 web::probe_web_service_port,
+                // Screenshot capture: freeze the monitors, select a region on
+                // the overlay windows, pull the crop into the editor.
+                crate::commands::screenshot::screenshot_begin_selection,
+                crate::commands::screenshot::screenshot_get_frame,
+                crate::commands::screenshot::screenshot_finish_selection,
+                crate::commands::screenshot::screenshot_take_cropped,
+                crate::commands::screenshot::screenshot_cancel_selection,
             ])
             .build(context)
             .expect("error while building tauri application")

@@ -3556,7 +3556,32 @@
         "mentionGroupSession": "会话",
         "mentionGroupCommit": "提交",
         "mentionGroupSkill": "技能",
-        "mentionGroupAssistant": "助手"
+        "mentionGroupAssistant": "助手",
+        "screenshot": "截图",
+        "screenshotHideWindow": "隐藏窗口截图"
+      },
+      "screenshotEditor": {
+        "title": "编辑截图",
+        "select": "选择",
+        "pen": "画笔",
+        "rect": "矩形",
+        "ellipse": "椭圆",
+        "arrow": "箭头",
+        "text": "文字",
+        "mosaic": "马赛克",
+        "step": "序号",
+        "crop": "裁剪",
+        "applyCrop": "应用裁剪",
+        "cancelCrop": "取消裁剪",
+        "undo": "撤销",
+        "redo": "重做",
+        "clear": "清空",
+        "color": "颜色",
+        "confirm": "附加",
+        "cancel": "取消",
+        "textPlaceholder": "输入标注文字",
+        "failed": "截图失败",
+        "permissionDenied": "没有屏幕捕获权限，请授予屏幕录制权限后重试。"
       },
       "messageQueue": {
         "addToQueue": "加入队列",

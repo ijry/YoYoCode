@@ -3556,7 +3556,32 @@
         "mentionGroupSession": "Sessions",
         "mentionGroupCommit": "Commits",
         "mentionGroupSkill": "Skills",
-        "mentionGroupAssistant": "Assistants"
+        "mentionGroupAssistant": "Assistants",
+        "screenshot": "Screenshot",
+        "screenshotHideWindow": "Hide window & capture"
+      },
+      "screenshotEditor": {
+        "title": "Edit screenshot",
+        "select": "Select",
+        "pen": "Pen",
+        "rect": "Rectangle",
+        "ellipse": "Ellipse",
+        "arrow": "Arrow",
+        "text": "Text",
+        "mosaic": "Mosaic",
+        "step": "Step",
+        "crop": "Crop",
+        "applyCrop": "Apply crop",
+        "cancelCrop": "Cancel crop",
+        "undo": "Undo",
+        "redo": "Redo",
+        "clear": "Clear",
+        "color": "Color",
+        "confirm": "Attach",
+        "cancel": "Cancel",
+        "textPlaceholder": "Type a label",
+        "failed": "Screenshot failed",
+        "permissionDenied": "No screen capture permission. Grant screen recording access and try again."
       },
       "messageQueue": {
         "addToQueue": "Queue message",

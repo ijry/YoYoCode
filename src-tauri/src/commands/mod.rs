@@ -76,6 +76,11 @@ pub mod remote_proxy;
 #[cfg(feature = "tauri-runtime")]
 pub mod remote_workspace;
 pub mod science;
+/// Screen capture for the composer's screenshot button: the in-memory frame
+/// warehouse shared by the capture commands, and the selection-crop helpers
+/// they run. Compiles in every runtime — the warehouse carries no xcap
+/// types; xcap stays behind `tauri-runtime` with the commands that call it.
+pub mod screenshot;
 pub mod session_info;
 pub mod system_settings;
 pub mod terminal;
