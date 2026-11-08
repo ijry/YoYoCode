@@ -58,7 +58,9 @@ import {
 } from "@/lib/screenshot/annotation"
 import {
   cssRectToPhysical,
+  physicalRectToCss,
   selectionTooSmall,
+  windowAtPoint,
   type CssRect,
 } from "@/lib/screenshot/overlay-geometry"
 import type {
@@ -82,6 +84,10 @@ const BADGE_CLEARANCE = 24
  *  image scale, so the threshold means the same on a 4K capture as on a
  *  small one. */
 const MIN_DRAG_SCREEN_PX = 8
+
+/** Crossing this distance on either CSS axis permanently makes a window
+ *  press a manual drag, even if it returns to its starting point. */
+const WINDOW_CLICK_SLOP_CSS_PX = 4
 
 /** Screen pixels of forgiveness around a mark when the select tool grabs
  *  it, before the scale turns them into frame pixels for `hitTestMark`. */
@@ -330,7 +336,13 @@ const ROUND_BUTTON = cn(
 /** What a drag in progress is doing: cutting a selection, drawing a mark,
  *  moving one, hauling the whole selection, or resizing it by a handle. */
 type Drag =
-  | { mode: "selection"; pointerId: number; start: ScreenPoint }
+  | {
+      mode: "selection"
+      pointerId: number
+      start: ScreenPoint
+      candidate: CssRect | null
+      moved: boolean
+    }
   | { mode: "draw"; pointerId: number; start: AnnotationPoint }
   | {
       mode: "move"
@@ -391,6 +403,8 @@ export function ScreenshotCaptureOverlay({
     [frame]
   )
   const [rect, setRect] = useState<CssRect | null>(null)
+  // A native-window preview never becomes the selection until pointer-up.
+  const [hoverRect, setHoverRect] = useState<CssRect | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [tool, setTool] = useState<AnnotationTool>("select")
   const [color, setColor] = useState<string>(ANNOTATION_COLORS[0])
@@ -558,6 +572,7 @@ export function ScreenshotCaptureOverlay({
           y: event.clientY - box.top,
         },
         scale: frame.width / box.width,
+        viewport: { width: box.width, height: box.height },
       }
     },
     [frame]
@@ -600,10 +615,16 @@ export function ScreenshotCaptureOverlay({
     ])
   }, [textInput, marks, color, pushHistory])
 
+  const windowRectAt = (point: AnnotationPoint, viewport: AnnotationSize) => {
+    const candidate = windowAtPoint(frame.windows ?? [], point)
+    return candidate ? physicalRectToCss(candidate, viewport, frameSize) : null
+  }
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || busyRef.current) return
+    if (event.button !== 0 || busyRef.current || dragRef.current) return
     const at = canvasPoint(event)
     if (!at) return
+    setHoverRect(null)
     event.preventDefault()
     // Keep the drag when the pointer leaves the window: without the
     // capture, a selection dragged past the edge would stop following it.
@@ -688,6 +709,10 @@ export function ScreenshotCaptureOverlay({
       mode: "selection",
       pointerId: event.pointerId,
       start: at.screen,
+      // Snapshot under the press, not under the last hover event. Re-cuts
+      // must never switch an existing selection to a native window.
+      candidate: current ? null : windowRectAt(at.point, at.viewport),
+      moved: false,
     }
     setSelecting(true)
     setSelection({ x: at.screen.x, y: at.screen.y, width: 0, height: 0 })
@@ -701,7 +726,7 @@ export function ScreenshotCaptureOverlay({
     event: ReactPointerEvent<HTMLDivElement>,
     handle: ResizeHandle
   ) => {
-    if (event.button !== 0 || busyRef.current) return
+    if (event.button !== 0 || busyRef.current || dragRef.current) return
     const current = rectRef.current
     if (!current) return
     event.preventDefault()
@@ -715,13 +740,31 @@ export function ScreenshotCaptureOverlay({
     }
   }
 
+  const selectionDragRect = (
+    drag: Extract<Drag, { mode: "selection" }>,
+    screen: ScreenPoint
+  ) => {
+    const next = normalizeRect(drag.start, screen)
+    drag.moved ||=
+      next.width > WINDOW_CLICK_SLOP_CSS_PX ||
+      next.height > WINDOW_CLICK_SLOP_CSS_PX
+    return next
+  }
+
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (busyRef.current) return
     const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
+    if (drag && drag.pointerId !== event.pointerId) return
     const at = canvasPoint(event)
+    if (!drag) {
+      if (!rectRef.current) {
+        setHoverRect(at ? windowRectAt(at.point, at.viewport) : null)
+      }
+      return
+    }
     if (!at) return
     if (drag.mode === "selection") {
-      setSelection(normalizeRect(drag.start, at.screen))
+      setSelection(selectionDragRect(drag, at.screen))
       return
     }
     if (drag.mode === "resize") {
@@ -774,10 +817,17 @@ export function ScreenshotCaptureOverlay({
     dragRef.current = null
     if (drag.mode === "selection") {
       setSelecting(false)
-      const current = rectRef.current
-      if (current && selectionTooSmall(current)) {
-        setSelection(priorRectRef.current)
-      }
+      // A release need not have a preceding move. Include it in both the
+      // movement latch and the final geometry, always from the original down.
+      const at = canvasPoint(event)
+      const next = at ? selectionDragRect(drag, at.screen) : null
+      const selected =
+        next && !drag.moved && drag.candidate ? drag.candidate : next
+      setSelection(
+        selected && !selectionTooSmall(selected)
+          ? selected
+          : priorRectRef.current
+      )
       return
     }
     if (drag.mode === "resize") {
@@ -815,6 +865,7 @@ export function ScreenshotCaptureOverlay({
    *  back where it was; a selection being re-cut, hauled or resized hands
    *  the old one back. */
   const cancelDrag = useCallback(() => {
+    setHoverRect(null)
     const drag = dragRef.current
     dragRef.current = null
     if (!drag) return
@@ -832,7 +883,9 @@ export function ScreenshotCaptureOverlay({
   // Only the pointer that is dragging can call its drag off: another one
   // being cancelled or let go of says nothing about it.
   const cancelDragOf = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) cancelDrag()
+    if (!dragRef.current || dragRef.current.pointerId === event.pointerId) {
+      cancelDrag()
+    }
   }
 
   // Escape peels one layer at a time: the label being written, the drag in
@@ -855,6 +908,7 @@ export function ScreenshotCaptureOverlay({
         cancelDrag()
         return
       }
+      setHoverRect(null)
       onCancel()
     }
     window.addEventListener("keydown", onKeyDown)
@@ -959,11 +1013,16 @@ export function ScreenshotCaptureOverlay({
       { kind: "step", label: t("step"), icon: <ListOrdered /> },
     ]
 
+  const visibleRect = rect ?? hoverRect
+
   return (
     <div
       className="fixed inset-0 cursor-crosshair touch-none select-none overflow-hidden"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerLeave={() => {
+        if (!dragRef.current) setHoverRect(null)
+      }}
       onPointerUp={onPointerUp}
       onPointerCancel={cancelDragOf}
       onLostPointerCapture={cancelDragOf}
@@ -989,29 +1048,32 @@ export function ScreenshotCaptureOverlay({
         aria-hidden
         className="absolute inset-0 h-full w-full"
       />
-      {rect ? (
+      {visibleRect ? (
         <div
           className="absolute border border-white"
           style={{
-            left: rect.x,
-            top: rect.y,
-            width: rect.width,
-            height: rect.height,
+            left: visibleRect.x,
+            top: visibleRect.y,
+            width: visibleRect.width,
+            height: visibleRect.height,
             boxShadow: DIM_SHADOW,
           }}
         />
       ) : (
         <div className="absolute inset-0 bg-black/40" />
       )}
-      {rect && !selectionTooSmall(rect) ? (
+      {visibleRect && !selectionTooSmall(visibleRect) ? (
         <div
           className="absolute rounded-sm bg-black/70 px-1.5 py-0.5 text-xs leading-none text-white tabular-nums"
           style={{
-            left: rect.x,
-            top: rect.y >= BADGE_CLEARANCE ? rect.y - 22 : rect.y + 4,
+            left: visibleRect.x,
+            top:
+              visibleRect.y >= BADGE_CLEARANCE
+                ? visibleRect.y - 22
+                : visibleRect.y + 4,
           }}
         >
-          {`${Math.round(rect.width)}×${Math.round(rect.height)}`}
+          {`${Math.round(visibleRect.width)}×${Math.round(visibleRect.height)}`}
         </div>
       ) : null}
       {/* The resize handles sit on the selection's edges — corners and edge

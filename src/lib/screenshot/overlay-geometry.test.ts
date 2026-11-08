@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   cssRectToPhysical,
+  physicalRectToCss,
   selectionTooSmall,
+  windowAtPoint,
   type CssRect,
 } from "./overlay-geometry"
 
@@ -49,6 +51,100 @@ describe("cssRectToPhysical", () => {
         { width: 1920, height: 1080 }
       )
     ).toEqual(rect(17, 20, 300, 150))
+  })
+})
+
+describe("physicalRectToCss", () => {
+  it("keeps fractional coordinates with independent axis scales", () => {
+    const css = physicalRectToCss(
+      rect(11, 13, 101, 79),
+      { width: 1000, height: 600 },
+      { width: 2500, height: 1800 }
+    )
+    expect(css.x).toBeCloseTo(4.4)
+    expect(css.y).toBeCloseTo(13 / 3)
+    expect(css.width).toBeCloseTo(40.4)
+    expect(css.height).toBeCloseTo(79 / 3)
+    expect(
+      cssRectToPhysical(
+        css,
+        { width: 1000, height: 600 },
+        { width: 2500, height: 1800 }
+      )
+    ).toEqual(rect(11, 13, 101, 79))
+  })
+
+  it.each([0, -1, NaN, Infinity])(
+    "returns an empty rectangle for invalid frame or viewport dimensions (%s)",
+    (dimension) => {
+      for (const axis of ["width", "height"] as const) {
+        const invalid = { width: 1000, height: 600, [axis]: dimension }
+        expect(
+          physicalRectToCss(rect(10, 20, 30, 40), invalid, {
+            width: 2000,
+            height: 1200,
+          })
+        ).toEqual(rect(0, 0, 0, 0))
+        expect(
+          physicalRectToCss(
+            rect(10, 20, 30, 40),
+            { width: 1000, height: 600 },
+            invalid
+          )
+        ).toEqual(rect(0, 0, 0, 0))
+      }
+    }
+  )
+})
+
+describe("windowAtPoint", () => {
+  it("chooses the frontmost overlap even when a rear window is smaller", () => {
+    const front = rect(20, 30, 500, 400)
+    const rear = rect(100, 100, 50, 50)
+    const windows = [front, rear]
+    expect(windowAtPoint(windows, { x: 125, y: 125 })).toBe(front)
+    expect(windows).toEqual([front, rear])
+    expect(windowAtPoint([rear, front], { x: 125, y: 125 })).toBe(rear)
+  })
+
+  it("includes left/top and excludes right/bottom edges", () => {
+    const candidate = rect(10, 20, 30, 40)
+    expect(windowAtPoint([candidate], { x: 10, y: 20 })).toBe(candidate)
+    expect(windowAtPoint([candidate], { x: 39.9, y: 59.9 })).toBe(candidate)
+    expect(windowAtPoint([candidate], { x: 40, y: 30 })).toBeNull()
+    expect(windowAtPoint([candidate], { x: 20, y: 60 })).toBeNull()
+    expect(windowAtPoint([candidate], { x: 9.9, y: 30 })).toBeNull()
+    expect(windowAtPoint([candidate], { x: 20, y: 19.9 })).toBeNull()
+  })
+
+  it("returns no hit outside all windows or with no candidates", () => {
+    expect(windowAtPoint([], { x: 20, y: 30 })).toBeNull()
+    expect(windowAtPoint([rect(10, 20, 30, 40)], { x: 80, y: 90 })).toBeNull()
+    expect(windowAtPoint([rect(10, 20, 30, 40)], { x: NaN, y: 30 })).toBeNull()
+  })
+
+  it("skips non-finite coordinates and non-positive or non-finite sizes", () => {
+    const valid = rect(10, 20, 30, 40)
+    expect(
+      windowAtPoint(
+        [
+          rect(-Infinity, 0, Infinity, 100),
+          rect(0, -Infinity, 100, Infinity),
+          rect(NaN, 0, 100, 100),
+          rect(0, NaN, 100, 100),
+          rect(0, 0, Infinity, 100),
+          rect(0, 0, 100, Infinity),
+          rect(0, 0, NaN, 100),
+          rect(0, 0, 100, NaN),
+          rect(20, 30, 0, 100),
+          rect(20, 30, 100, 0),
+          rect(20, 30, -100, 100),
+          rect(20, 30, 100, -100),
+          valid,
+        ],
+        { x: 20, y: 30 }
+      )
+    ).toBe(valid)
   })
 })
 

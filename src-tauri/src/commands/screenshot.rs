@@ -24,6 +24,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_error::AppCommandError;
 
+#[cfg(any(test, all(feature = "tauri-runtime", target_os = "windows")))]
+mod windows;
+
 /// Overlay labels carry the capture UUID and monitor index. Lifecycle
 /// callbacks only act on the capture that owned the closing window.
 pub const OVERLAY_WINDOW_PREFIX: &str = "screenshot-overlay-";
@@ -72,6 +75,17 @@ pub struct NormalizedRect {
     pub height: u32,
 }
 
+/// A native top-level window clipped to one monitor's frozen frame, in
+/// monitor-local physical pixels. Candidates are ordered front-to-back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenshotWindowBounds {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// The frozen frame of one monitor: a full-screen PNG in the monitor's
 /// physical pixels, handed to that monitor's overlay window to draw as-is.
 #[derive(Clone, Debug, Serialize)]
@@ -81,6 +95,7 @@ pub struct MonitorFramePayload {
     pub png_base64: String,
     pub width: u32,
     pub height: u32,
+    pub windows: Vec<ScreenshotWindowBounds>,
 }
 
 /// The selected region cut out of a frame and PNG-encoded — what the
@@ -421,7 +436,7 @@ fn capture_failed(index: u32, what: &str, error: &xcap::XCapError) -> AppCommand
 /// real desktop, nothing a UI thread should wait inside. One entry per
 /// monitor, in xcap's enumeration order.
 #[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
-fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
+fn capture_all_monitors(excluded_overlays: &[isize]) -> Result<Vec<CapturedMonitor>, AppCommandError> {
     let monitors = xcap::Monitor::all().map_err(|e| {
         AppCommandError::new(
             AppErrorCode::ExternalCommandFailed,
@@ -429,6 +444,9 @@ fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
         )
         .with_detail(e.to_string())
     })?;
+    // Main-window hiding and old-overlay cleanup have completed. Freeze one
+    // z-ordered list alongside the monitor frames, before opening new overlays.
+    let window_bounds = windows::collect_window_bounds(excluded_overlays);
     let mut captured = Vec::with_capacity(monitors.len());
     for (index, monitor) in monitors.into_iter().enumerate() {
         let index = index as u32;
@@ -459,6 +477,12 @@ fn capture_all_monitors() -> Result<Vec<CapturedMonitor>, AppCommandError> {
             png_base64: encode_png_base64(image),
             width: frame_width,
             height: frame_height,
+            windows: windows::windows_for_frame(
+                &window_bounds,
+                windows::DesktopBounds::from_monitor(x, y, width, height),
+                frame_width,
+                frame_height,
+            ),
         };
         captured.push(CapturedMonitor {
             index,
@@ -618,7 +642,15 @@ pub async fn screenshot_begin_selection(
     hide_main: bool,
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
     let request = request_id.clone();
-    let capture_id = on_main_thread(&app, move |app| {
+    let (capture_id, excluded_overlays) = on_main_thread(&app, move |app| {
+        // Keep explicit handles for managed overlays even if closing one is
+        // delayed. Never filter by caption or exclude the whole Codeg process.
+        let excluded_overlays: Vec<isize> = app
+            .webview_windows()
+            .into_values()
+            .filter(|window| overlay_capture_id(window.label()).is_some())
+            .filter_map(|window| window.hwnd().ok().map(|hwnd| hwnd.0 as isize))
+            .collect();
         let (capture_id, previous) = app
             .state::<ScreenshotFrameStore>()
             .begin_capture_replacing(request);
@@ -630,14 +662,18 @@ pub async fn screenshot_begin_selection(
                 let _ = main.hide();
             }
         }
-        Ok(capture_id)
+        Ok((capture_id, excluded_overlays))
     })
     .await?;
     if hide_main {
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
 
-    let captured = match tauri::async_runtime::spawn_blocking(capture_all_monitors).await {
+    let captured = match tauri::async_runtime::spawn_blocking(move || {
+        capture_all_monitors(&excluded_overlays)
+    })
+    .await
+    {
         Ok(Ok(captured)) => Ok(captured),
         Ok(Err(err)) => Err(err),
         Err(err) => Err(AppCommandError::new(
@@ -1021,7 +1057,33 @@ mod tests {
             png_base64: String::new(),
             width: 100,
             height: 80,
+            windows: Vec::new(),
         }
+    }
+
+    #[test]
+    fn frame_serializes_frozen_window_bounds_in_camel_case() {
+        let mut payload = frame(2);
+        payload.windows = vec![ScreenshotWindowBounds {
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+        }];
+        assert_eq!(
+            serde_json::to_value(payload).unwrap(),
+            serde_json::json!({
+                "monitorIndex": 2,
+                "pngBase64": "",
+                "width": 100,
+                "height": 80,
+                "windows": [{"x": 10, "y": 20, "width": 30, "height": 40}]
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(frame(0)).unwrap()["windows"],
+            serde_json::json!([])
+        );
     }
 
     /// A stand-in cropped image; likewise opaque to the store.

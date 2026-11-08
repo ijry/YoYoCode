@@ -98,6 +98,16 @@ const FRAME = {
   height: 1200,
 }
 
+// Native z-order: the large front window covers the smaller rear window.
+const WINDOW_FRAME = {
+  ...FRAME,
+  windows: [
+    { x: 200, y: 100, width: 800, height: 600 },
+    { x: 300, y: 200, width: 200, height: 200 },
+    { x: 1200, y: 700, width: 400, height: 200 },
+  ],
+}
+
 const BOX = { left: 0, top: 0, width: 1000, height: 600 }
 
 let encode: (type: string) => Blob | null
@@ -257,6 +267,278 @@ async function flush() {
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
 }
+
+/** The visible cutout, shared by a hover preview and a committed selection. */
+function cutout(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(".border-white")
+}
+
+describe("native window selection", () => {
+  it("previews the frontmost window with its CSS size but no toolbar or handles", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    expect(cutout()).toHaveStyle({
+      left: "100px",
+      top: "50px",
+      width: "400px",
+      height: "300px",
+      boxShadow: "0 0 0 100000px rgba(0, 0, 0, 0.4)",
+    })
+    expect(screen.getByText("400×300")).toBeInTheDocument()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(document.querySelectorAll("[data-resize-handle]")).toHaveLength(0)
+  })
+
+  it("follows a different hovered window and clears when no window is hit", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    pointer("pointermove", 650, 400)
+    expect(cutout()).toHaveStyle({
+      left: "600px",
+      top: "350px",
+      width: "200px",
+      height: "100px",
+    })
+    expect(screen.getByText("200×100")).toBeInTheDocument()
+    expect(screen.queryByText("400×300")).toBeNull()
+    pointer("pointermove", 900, 550)
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+  })
+
+  it("clears idle hover on pointer leave", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    expect(cutout()).not.toBeNull()
+    fireEvent.pointerLeave(canvas().parentElement!)
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+  })
+
+  it("selects on down/up without a prior move and waits for image decoding before output", async () => {
+    const { onConfirm } = renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointerdown", 175, 125)
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    pointer("pointerup", 175, 125)
+    expect(screen.getByRole("toolbar")).toBeInTheDocument()
+    expect(document.querySelectorAll("[data-resize-handle]")).toHaveLength(8)
+    expect(screen.getByText("400×300")).toBeInTheDocument()
+    for (const name of [SE.copy, SE.pin, SE.save]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled()
+    }
+    expect(onConfirm).not.toHaveBeenCalled()
+    await settle()
+    for (const name of [SE.copy, SE.pin, SE.save]) {
+      expect(screen.getByRole("button", { name })).toBeEnabled()
+    }
+  })
+
+  it("uses the down-point candidate even if the hover preview is stale", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    pointer("pointerdown", 650, 400)
+    pointer("pointerup", 650, 400)
+    expect(screen.getByRole("toolbar")).toBeInTheDocument()
+    expect(cutout()).toHaveStyle({ left: "600px", top: "350px" })
+    expect(screen.getByText("200×100")).toBeInTheDocument()
+  })
+
+  it.each([false, true])(
+    "snaps small jitter across the window edge (move event: %s)",
+    (withMove) => {
+      renderOverlay({ frame: WINDOW_FRAME })
+      pointer("pointerdown", 499, 349)
+      if (withMove) pointer("pointermove", 503, 352)
+      pointer("pointerup", 503, 352)
+      expect(screen.getByRole("toolbar")).toBeInTheDocument()
+      expect(screen.getByText("400×300")).toBeInTheDocument()
+      expect(cutout()).toHaveStyle({ left: "100px", top: "50px" })
+    }
+  )
+
+  it("drags a manual selection from the original down point instead of moving the window", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    pointer("pointerdown", 175, 125)
+    pointer("pointermove", 178, 128)
+    pointer("pointermove", 275, 225)
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(document.querySelectorAll("[data-resize-handle]")).toHaveLength(0)
+    pointer("pointerup", 275, 225)
+    expect(cutout()).toHaveStyle({
+      left: "175px",
+      top: "125px",
+      width: "100px",
+      height: "100px",
+    })
+    expect(screen.getByRole("toolbar")).toBeInTheDocument()
+  })
+
+  it.each([
+    { end: [350, 125], move: [350, 125] },
+    { end: [175, 125], move: [350, 125] },
+    { end: [175, 125], move: [180, 125] },
+    { end: [175, 125], move: [175, 130] },
+  ])("never snaps after crossing the click threshold: %j", ({ end, move }) => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointerdown", 175, 125)
+    pointer("pointermove", move[0], move[1])
+    pointer("pointerup", end[0], end[1])
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(document.querySelectorAll("[data-resize-handle]")).toHaveLength(0)
+  })
+
+  it.each([false, true])(
+    "uses the release coordinates for the final manual rect (move event: %s)",
+    (withMove) => {
+      renderOverlay({ frame: WINDOW_FRAME })
+      pointer("pointerdown", 175, 125)
+      if (withMove) pointer("pointermove", 200, 150)
+      pointer("pointerup", 325, 205)
+      expect(cutout()).toHaveStyle({
+        left: "175px",
+        top: "125px",
+        width: "150px",
+        height: "80px",
+      })
+      expect(screen.getByText("150×80")).toBeInTheDocument()
+      expect(screen.getByRole("toolbar")).toBeInTheDocument()
+    }
+  )
+
+  it("does not snap a horizontal drag reported only on release", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointerdown", 175, 125)
+    pointer("pointerup", 350, 125)
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+  })
+
+  it("keeps a committed selection and re-cuts the dim area even over another window", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointerdown", 175, 125)
+    pointer("pointerup", 175, 125)
+    pointer("pointermove", 650, 400)
+    expect(screen.getByText("400×300")).toBeInTheDocument()
+    expect(cutout()).toHaveStyle({ left: "100px", top: "50px" })
+    fireEvent.pointerLeave(canvas().parentElement!)
+    expect(screen.getByRole("toolbar")).toBeInTheDocument()
+
+    pointer("pointerdown", 650, 400)
+    pointer("pointerup", 650, 400)
+    expect(screen.getByText("400×300")).toBeInTheDocument()
+    expect(cutout()).toHaveStyle({ left: "100px", top: "50px" })
+
+    drag([650, 400], [750, 460])
+    expect(screen.getByText("100×60")).toBeInTheDocument()
+    expect(cutout()).toHaveStyle({ left: "650px", top: "400px" })
+    expect(screen.getByRole("toolbar")).toHaveStyle({
+      left: "750px",
+      top: "468px",
+    })
+    pointer("pointerdown", 175, 125)
+    pointer("pointerup", 175, 125)
+    expect(screen.getByText("100×60")).toBeInTheDocument()
+  })
+
+  it.each(["pointercancel", "lostpointercapture", "Escape"])(
+    "%s discards a window candidate without committing it",
+    (type) => {
+      const { onConfirm, onCancel } = renderOverlay({ frame: WINDOW_FRAME })
+      pointer("pointermove", 175, 125)
+      pointer("pointerdown", 175, 125)
+      pointer("pointermove", 178, 128)
+      if (type === "Escape") fireEvent.keyDown(window, { key: type })
+      else pointer(type, 178, 128)
+      pointer("pointerup", 178, 128)
+      expect(cutout()).toBeNull()
+      expect(screen.queryByRole("toolbar")).toBeNull()
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(onCancel).not.toHaveBeenCalled()
+    }
+  )
+
+  it("Escape clears an idle preview and cancels without selecting", () => {
+    const { onConfirm, onCancel } = renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it("ignores other pointers while the window-selection pointer is down", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointerdown", 175, 125, 1)
+    pointer("pointerdown", 650, 400, 2)
+    pointer("pointermove", 700, 450, 2)
+    pointer("pointerup", 700, 450, 2)
+    pointer("pointercancel", 175, 125, 2)
+    pointer("lostpointercapture", 175, 125, 2)
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    pointer("pointerup", 175, 125, 1)
+    expect(screen.getByText("400×300")).toBeInTheDocument()
+    expect(screen.getByRole("toolbar")).toBeInTheDocument()
+  })
+
+  it("does nothing for a click outside windows despite a stale preview", () => {
+    renderOverlay({ frame: WINDOW_FRAME })
+    pointer("pointermove", 175, 125)
+    pointer("pointerdown", 900, 550)
+    pointer("pointerup", 900, 550)
+    expect(cutout()).toBeNull()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+  })
+
+  it.each([FRAME, { ...FRAME, windows: [] }])(
+    "preserves manual selection with absent or empty windows: %j",
+    (frame) => {
+      renderOverlay({ frame })
+      pointer("pointermove", 175, 125)
+      pointer("pointerdown", 175, 125)
+      pointer("pointerup", 175, 125)
+      expect(cutout()).toBeNull()
+      expect(screen.queryByRole("toolbar")).toBeNull()
+      drag([100, 50], [300, 150])
+      expect(screen.getByText("200×100")).toBeInTheDocument()
+      expect(screen.getByRole("toolbar")).toBeInTheDocument()
+    }
+  )
+
+  it("exports a clicked window at its exact physical rect with fractional CSS and unequal scales", async () => {
+    const { onConfirm } = renderOverlay({
+      frame: {
+        ...FRAME,
+        width: 2500,
+        height: 1800,
+        windows: [{ x: 201, y: 101, width: 803, height: 605 }],
+      },
+    })
+    await settle()
+    pointer("pointerdown", 175, 125)
+    pointer("pointerup", 175, 125)
+    expect(screen.getByText("321×202")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: SE.copy }))
+    await flush()
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    expect(onConfirm.mock.calls[0][0]).toEqual({
+      x: 201,
+      y: 101,
+      width: 803,
+      height: 605,
+    })
+    expect(encodedSize).toEqual({ width: 803, height: 605 })
+    const offset = calls.find(
+      (call) => call.prop === "drawImage" && call.args.length === 3
+    )
+    expect(offset?.args.slice(1)).toEqual([-201, -101])
+    const item = clipboardWrite.mock.calls[0][0][0]
+    expect((await item.getType("image/png")).type).toBe("image/png")
+  })
+})
 
 describe("ScreenshotCaptureOverlay", () => {
   it("shows the toolbar only once a selection has been dragged out", async () => {
