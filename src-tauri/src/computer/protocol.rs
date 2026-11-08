@@ -43,7 +43,7 @@ use super::types::{
 /// Bumped whenever a frame changes shape. The helper ships in the same bundle
 /// as codeg, so a mismatch means a broken install (a helper left behind by a
 /// partial update), and codeg refuses to talk to it rather than guess.
-pub const PROTOCOL_VERSION: u32 = 14;
+pub const PROTOCOL_VERSION: u32 = 15;
 
 /// A fingerprint of the sources the helper is built from, the same in codeg
 /// and the helper when both are built from one tree (see `build.rs`). The
@@ -173,6 +173,18 @@ pub enum HelperOp {
         #[serde(default)]
         clipboard: ClipboardUse,
     },
+    /// Freeze full-resolution PNGs for the person's composer screenshot.
+    /// Dedicated connection; neither Configure nor the agent driver is needed.
+    #[serde(rename_all = "camelCase")]
+    ComposerCaptureBegin {
+        excluded_window_ids: Vec<u64>,
+    },
+    /// Read the next bounded chunk from that connection's frozen capture.
+    #[serde(rename_all = "camelCase")]
+    ComposerCaptureChunk {
+        monitor_index: u32,
+        offset: u64,
+    },
     /// The entire screen, as one picture: every window whose application
     /// may not be shared by `rules` painted over, whatever layer it is on.
     #[serde(rename_all = "camelCase")]
@@ -219,6 +231,37 @@ pub enum HelperOp {
     Halt {
         stop: u64,
     },
+}
+
+/// One frozen composer display. Desktop bounds use logical points; candidate
+/// windows use this PNG's pixels and preserve their front-to-back order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposerDisplay {
+    pub index: u32,
+    pub display_id: u32,
+    pub name: String,
+    pub bounds: Rect,
+    pub width: u32,
+    pub height: u32,
+    pub windows: Vec<Rect>,
+    pub png_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposerCaptureManifest {
+    pub displays: Vec<ComposerDisplay>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposerCaptureChunk {
+    pub monitor_index: u32,
+    pub offset: u64,
+    /// Base64 of at most 1MiB of raw PNG bytes.
+    pub data: String,
+    pub eof: bool,
 }
 
 /// The argument that starts the helper for one permission request instead
@@ -881,6 +924,31 @@ impl std::error::Error for HelperError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn composer_capture_wire_contract_round_trips() {
+        let begin = HelperOp::ComposerCaptureBegin { excluded_window_ids: vec![42, 99] };
+        let chunk = HelperOp::ComposerCaptureChunk { monitor_index: 3, offset: 1_048_576 };
+        for (op, expected) in [
+            (begin, serde_json::json!({"kind":"composerCaptureBegin", "excludedWindowIds":[42,99]})),
+            (chunk, serde_json::json!({"kind":"composerCaptureChunk", "monitorIndex":3, "offset":1_048_576})),
+        ] {
+            assert_eq!(serde_json::to_value(&op).unwrap(), expected);
+            assert_eq!(serde_json::from_value::<HelperOp>(expected).unwrap(), op);
+        }
+        let wire = serde_json::json!({"displays":[{
+            "index":3, "displayId":17, "name":"Retina",
+            "bounds":{"x":-1440.0,"y":0.0,"width":1440.0,"height":900.0},
+            "width":2880,"height":1800,"windows":[],"pngBytes":20_000_000
+        }]});
+        let manifest: ComposerCaptureManifest = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(manifest.displays[0].png_bytes, 20_000_000);
+        assert_eq!(serde_json::to_value(manifest).unwrap(), wire);
+        let chunk = ComposerCaptureChunk { monitor_index: 3, offset: 0, data: "AQID".into(), eof: true };
+        let wire = serde_json::json!({"monitorIndex":3,"offset":0,"data":"AQID","eof":true});
+        assert_eq!(serde_json::to_value(&chunk).unwrap(), wire);
+        assert_eq!(serde_json::from_value::<ComposerCaptureChunk>(wire).unwrap(), chunk);
+    }
 
     /// Ops are tagged by `kind` in camelCase — the one spelling both ends
     /// agree on — and an op the helper does not know is a parse error rather

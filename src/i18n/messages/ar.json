@@ -3544,7 +3544,8 @@
         "cancel": "إلغاء",
         "textPlaceholder": "اكتب تسمية",
         "failed": "فشل لقطة الشاشة",
-        "permissionDenied": "لا يوجد إذن لالتقاط الشاشة. امنح إذن تسجيل الشاشة وحاول مرة أخرى."
+        "permissionDenied": "يلزم إذن تسجيل الشاشة. امنح codeg-computer-helper الإذن في إعدادات النظام، ثم التقط الشاشة مرة أخرى.",
+        "requestPermission": "الانتقال إلى الأذونات"
       },
       "messageQueue": {
         "addToQueue": "إضافة للقائمة",

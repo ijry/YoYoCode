@@ -3544,7 +3544,8 @@
         "cancel": "取消",
         "textPlaceholder": "輸入標註文字",
         "failed": "截圖失敗",
-        "permissionDenied": "沒有螢幕擷取權限，請授予螢幕錄製權限後重試。"
+        "permissionDenied": "需要螢幕錄製權限。請在系統設定中授予 codeg-computer-helper 螢幕錄製權限，然後重新截圖。",
+        "requestPermission": "前往授權"
       },
       "messageQueue": {
         "addToQueue": "加入佇列",

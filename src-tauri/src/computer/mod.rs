@@ -72,6 +72,14 @@
 pub mod agent;
 pub mod appident;
 pub mod backend;
+#[cfg(any(
+    test,
+    all(
+        target_os = "macos",
+        any(feature = "tauri-runtime", feature = "computer-helper")
+    )
+))]
+pub(crate) mod composer_capture;
 pub mod driver;
 pub mod helper;
 pub mod keys;

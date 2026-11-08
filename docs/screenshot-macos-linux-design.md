@@ -2,7 +2,7 @@
 
 日期：2026-11-08
 前置：`docs/screenshot-capture-design.md`（Windows 版已发布于 v0.42.0-plus.3）
-状态：待审批（范围按 M1 + L1 + 能力位推进，用户未及作答，以下为推荐案——有异议直接改这份文档）
+状态：历史提议，已由 `docs/screenshot-macos-plan.md` 替代。下文 M1（主屏 driver）和 L1（Linux 降级 xcap）未实施，不能当作当前能力说明。用户随后要求直接实现 macOS，多屏捕获改走独立 helper 的 ScreenCaptureKit/兼容通道；Linux 继续暂不支持。
 
 ## 背景与意图
 

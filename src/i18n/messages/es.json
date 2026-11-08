@@ -3544,7 +3544,8 @@
         "cancel": "Cancelar",
         "textPlaceholder": "Escribe una etiqueta",
         "failed": "Error al capturar",
-        "permissionDenied": "No hay permiso para capturar la pantalla. Concede el acceso a la grabación de pantalla e inténtalo de nuevo."
+        "permissionDenied": "Se requiere permiso para grabar la pantalla. Concede acceso a codeg-computer-helper en Ajustes del Sistema y vuelve a hacer la captura.",
+        "requestPermission": "Ir a permisos"
       },
       "messageQueue": {
         "addToQueue": "Agregar a la cola",

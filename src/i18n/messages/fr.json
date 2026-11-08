@@ -3544,7 +3544,8 @@
         "cancel": "Annuler",
         "textPlaceholder": "Saisir une légende",
         "failed": "Échec de la capture",
-        "permissionDenied": "Aucune autorisation de capture d'écran. Accordez l'accès à l'enregistrement de l'écran, puis réessayez."
+        "permissionDenied": "L’autorisation d’enregistrer l’écran est requise. Accordez l’accès à codeg-computer-helper dans Réglages Système, puis prenez une nouvelle capture d’écran.",
+        "requestPermission": "Ouvrir les autorisations"
       },
       "messageQueue": {
         "addToQueue": "Mettre en file",

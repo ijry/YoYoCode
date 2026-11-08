@@ -25,6 +25,8 @@
 
 ## 平台说明
 
-- 当前截图功能支持 **Windows 桌面版**。
-- macOS / Linux 截图支持尚未实现；Web 和远程工作区不显示截图入口。
-- 本机安装包用于本地验证，不代表已发布新版本。
+- **Windows 桌面版**：已有本机验证包，支持多屏和悬停选窗。
+- **macOS 桌面版**：本分支新增 helper 原生多屏捕获、窗口候选和 Retina 坐标适配，尚需 Mac 原生构建与实机验收。macOS 14+ 使用 ScreenCaptureKit，较旧系统使用 CoreGraphics 兼容路径。
+- macOS 首次使用若提示缺少权限，点击“去授权”，在系统设置的屏幕录制权限中允许 `codeg-computer-helper`，然后重新发起截图。无需开启 Computer Use，也不下载 agent 驱动。
+- Linux 截图暂不支持；Web 和远程工作区不显示截图入口。
+- 本机安装包用于本地验证，不代表已发布新版本。Mac 构建与验收步骤见 `docs/screenshot-macos-validation.md`。

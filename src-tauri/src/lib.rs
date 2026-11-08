@@ -2628,6 +2628,7 @@ mod tauri_app {
                 // Screenshot capture: freeze the monitors, select a region on
                 // the overlay windows, pull the crop into the editor.
                 crate::commands::screenshot::screenshot_begin_selection,
+                crate::commands::screenshot::screenshot_request_permission,
                 crate::commands::screenshot::screenshot_get_frame,
                 crate::commands::screenshot::screenshot_finish_selection,
                 crate::commands::screenshot::screenshot_take_cropped,

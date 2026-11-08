@@ -27,6 +27,8 @@ export interface MonitorFramePayload {
   /** Front-to-back native z-order, frozen with the frame. Older payloads
    *  omit this; treat them as an empty list. */
   windows?: ScreenshotWindowBounds[]
+  /** macOS display placement in global logical points, separate from image pixels. */
+  logicalBounds?: ScreenshotRect
 }
 
 /** The cropped picture the editor edits, straight out of the frame store.

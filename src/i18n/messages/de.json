@@ -3544,7 +3544,8 @@
         "cancel": "Abbrechen",
         "textPlaceholder": "Beschriftung eingeben",
         "failed": "Screenshot fehlgeschlagen",
-        "permissionDenied": "Keine Berechtigung für die Bildschirmaufnahme. Erteile die Berechtigung und versuche es erneut."
+        "permissionDenied": "Die Berechtigung zur Bildschirmaufnahme ist erforderlich. Erlaube codeg-computer-helper den Zugriff in den Systemeinstellungen und erstelle dann erneut einen Screenshot.",
+        "requestPermission": "Zu den Berechtigungen"
       },
       "messageQueue": {
         "addToQueue": "Zur Warteschlange",

@@ -43,7 +43,7 @@ import {
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 
-import { copyImageToClipboard } from "@/lib/copy-image"
+import { copyPngBlobToClipboard } from "@/lib/copy-image"
 import {
   ANNOTATION_COLORS,
   drawAnnotations,
@@ -934,12 +934,26 @@ export function ScreenshotCaptureOverlay({
           { width: box.width, height: box.height },
           frameSize
         )
-        const base64 = await exportAnnotatedCrop(
+        const exported = exportAnnotatedCrop(
           picture,
           marks,
           frameSize,
           physical
         )
+        if (action === "copy") {
+          // WebKit needs the write in this click, while canvas encoding and
+          // FileReader are still pending. The same export also feeds finish.
+          const png = exported.then((base64) => {
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i)
+            }
+            return new Blob([bytes], { type: "image/png" })
+          })
+          await copyPngBlobToClipboard(png)
+        }
+        const base64 = await exported
         if (!liveRef.current) return
         if (action === "save") {
           const { save } = await import("@tauri-apps/plugin-dialog")
@@ -953,20 +967,30 @@ export function ScreenshotCaptureOverlay({
           }
           return
         }
-        if (action === "copy") {
-          await copyImageToClipboard({ data: base64, mime_type: "image/png" })
-        } else {
-          // Both the window's origin and the crop offset are physical
-          // pixels; their sum places the pin on the correct monitor.
-          const { getCurrentWindow } = await import("@tauri-apps/api/window")
-          const outer = await getCurrentWindow().outerPosition()
-          await screenshotPin(
-            base64,
-            outer.x + physical.x,
-            outer.y + physical.y,
-            physical.width,
-            physical.height
-          )
+        if (action === "pin") {
+          const bounds = frame.logicalBounds
+          if (bounds) {
+            // CG display placement is in points; the image can be 1× or
+            // Retina. Use the frozen display transform, not the window's
+            // global pixel origin (ambiguous across mixed-scale monitors).
+            const local = physicalRectToCss(physical, bounds, frameSize)
+            await screenshotPin(base64, 0, 0, physical.width, physical.height, {
+              x: bounds.x + local.x,
+              y: bounds.y + local.y,
+              width: local.width,
+              height: local.height,
+            })
+          } else {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window")
+            const outer = await getCurrentWindow().outerPosition()
+            await screenshotPin(
+              base64,
+              outer.x + physical.x,
+              outer.y + physical.y,
+              physical.width,
+              physical.height
+            )
+          }
         }
         if (liveRef.current) await onConfirm(physical, base64)
       } catch (error) {
@@ -977,7 +1001,7 @@ export function ScreenshotCaptureOverlay({
         if (liveRef.current) setBusy(false)
       }
     },
-    [picture, marks, frameSize, onConfirm]
+    [picture, marks, frameSize, frame.logicalBounds, onConfirm]
   )
 
   /** Where the toolbar docks: under the selection's bottom-right corner,
