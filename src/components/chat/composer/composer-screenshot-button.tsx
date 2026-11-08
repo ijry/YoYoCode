@@ -13,8 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { isLocalDesktop } from "@/lib/platform"
+import { extractAppCommandError } from "@/lib/app-error"
 import { randomUUID } from "@/lib/utils"
-import { screenshotBeginSelection } from "@/lib/tauri"
+import {
+  screenshotBeginSelection,
+  screenshotRequestPermission,
+} from "@/lib/tauri"
 
 /** Hover this long before the menu opens on its own: a pass over the button
  *  on the way somewhere else must not flash a menu. A click opens it at once. */
@@ -64,6 +68,19 @@ export function ComposerScreenshotButton({
     [te]
   )
 
+  const requestPermission = useCallback(async () => {
+    setBusy(true)
+    try {
+      await screenshotRequestPermission()
+      // The system may still be waiting for a decision. Only the next
+      // explicit capture checks the grant; asking never assumes success.
+    } catch {
+      toast.error(te("failed"))
+    } finally {
+      setBusy(false)
+    }
+  }, [te])
+
   const beginCapture = useCallback(
     async (hideMain: boolean) => {
       setMenuOpen(false)
@@ -72,12 +89,22 @@ export function ComposerScreenshotButton({
       try {
         await screenshotBeginSelection(requestId, hideMain)
       } catch (error) {
-        toast.error(failureLabel(error))
+        const appError = extractAppCommandError(error)
+        if (appError?.code === "permission_denied") {
+          toast.error(te("permissionDenied"), {
+            action: {
+              label: te("requestPermission"),
+              onClick: () => void requestPermission(),
+            },
+          })
+        } else {
+          toast.error(failureLabel(error))
+        }
       } finally {
         setBusy(false)
       }
     },
-    [failureLabel]
+    [failureLabel, requestPermission, te]
   )
 
   const handleTriggerMouseEnter = useCallback(() => {

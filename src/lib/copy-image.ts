@@ -57,21 +57,30 @@ export async function copyImageToClipboard(opts: {
       ? Promise.resolve(new Blob([bytes as BlobPart], { type: "image/png" }))
       : rasterToPngBlob(bytes, sourceType)
 
-  // `write()` reports a rejected value as a generic error of its own, so keep
-  // the real reason and rethrow that instead. Observing without rethrowing is
-  // deliberate: it hands `png` a handler up front, so a `write()` that fails
-  // first for an unrelated reason (a denied permission) can't leave the raster
-  // rejection unhandled. Attached before the write so it runs first, and
-  // `rasterError` is set by the time the write's own rejection surfaces.
-  let rasterError: unknown = null
+  return copyPngBlobToClipboard(png)
+}
+
+/** Start the clipboard write inside the user gesture, before PNG encoding
+ *  finishes. Callers must pass the pending Blob without awaiting it first. */
+export async function copyPngBlobToClipboard(
+  png: Promise<Blob>
+): Promise<void> {
+  // `write()` masks rejected representations with its own generic error.
+  // Observe encoding first to preserve that reason and handle late failures,
+  // even when clipboard support is absent or permission is denied early.
+  let encodingError: unknown = null
   png.catch((err: unknown) => {
-    rasterError = err
+    encodingError = err
   })
+
+  if (!canCopyImageToClipboard()) {
+    throw new ClipboardImageUnsupportedError()
+  }
 
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": png })])
   } catch (err) {
-    throw rasterError ?? err
+    throw encodingError ?? err
   }
 }
 

@@ -3544,7 +3544,8 @@
         "cancel": "キャンセル",
         "textPlaceholder": "ラベルを入力",
         "failed": "スクリーンショットに失敗しました",
-        "permissionDenied": "画面収録の権限がありません。権限を許可してから、もう一度お試しください。"
+        "permissionDenied": "画面収録の権限が必要です。システム設定で codeg-computer-helper に画面収録を許可してから、もう一度スクリーンショットを撮影してください。",
+        "requestPermission": "権限設定を開く"
       },
       "messageQueue": {
         "addToQueue": "キューに追加",

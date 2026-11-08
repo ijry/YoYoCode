@@ -24,6 +24,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_error::AppCommandError;
 
+#[cfg(any(test, all(feature = "tauri-runtime", target_os = "macos")))]
+mod macos;
 #[cfg(any(test, all(feature = "tauri-runtime", target_os = "windows")))]
 mod windows;
 
@@ -96,6 +98,9 @@ pub struct MonitorFramePayload {
     pub width: u32,
     pub height: u32,
     pub windows: Vec<ScreenshotWindowBounds>,
+    /// macOS desktop points, frozen with the pixels for overlay and pin placement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logical_bounds: Option<ScreenshotRect>,
 }
 
 /// The selected region cut out of a frame and PNG-encoded — what the
@@ -352,12 +357,12 @@ pub fn is_pin_image_path(path: &Path, pins_dir: &Path) -> bool {
 // the server or the MCP build. The store and the pure functions above stay
 // ungated, so they compile — and are tested — in every runtime.
 
-// The capture backend (xcap) ships on Windows only — see the `Cargo.toml`
-// note on the target-gated dependency — so the monitor-freezing helpers and
-// the `begin_selection` body that drives it carry the same gate, and every
-// other desktop platform answers the command with a structured "not
-// supported yet".
-#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
+// Windows freezes monitors through xcap; macOS asks an authenticated helper.
+// Pixel capture APIs must never be linked into the macOS main process.
+#[cfg(all(
+    feature = "tauri-runtime",
+    any(target_os = "windows", target_os = "macos")
+))]
 use std::time::Duration;
 
 #[cfg(feature = "tauri-runtime")]
@@ -396,7 +401,13 @@ pub struct ScreenshotBeginOutcome {
 /// One captured monitor, while it is still inside the blocking task: its
 /// frozen frame plus the physical bounds its overlay window must cover —
 /// `x`/`y` are negative on monitors left of or above the primary.
-#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
+#[cfg(any(
+    test,
+    all(
+        feature = "tauri-runtime",
+        any(target_os = "windows", target_os = "macos")
+    )
+))]
 struct CapturedMonitor {
     index: u32,
     name: String,
@@ -404,6 +415,7 @@ struct CapturedMonitor {
     y: i32,
     width: u32,
     height: u32,
+    logical_bounds: Option<ScreenshotRect>,
     frame: MonitorFramePayload,
 }
 
@@ -418,6 +430,7 @@ struct ScreenshotMonitorPlacement {
     y: i32,
     width: u32,
     height: u32,
+    logical_bounds: Option<ScreenshotRect>,
 }
 
 /// A monitor step refused: the xcap error as the detail, the step in the
@@ -436,7 +449,9 @@ fn capture_failed(index: u32, what: &str, error: &xcap::XCapError) -> AppCommand
 /// real desktop, nothing a UI thread should wait inside. One entry per
 /// monitor, in xcap's enumeration order.
 #[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
-fn capture_all_monitors(excluded_overlays: &[isize]) -> Result<Vec<CapturedMonitor>, AppCommandError> {
+fn capture_all_monitors(
+    excluded_overlays: &[isize],
+) -> Result<Vec<CapturedMonitor>, AppCommandError> {
     let monitors = xcap::Monitor::all().map_err(|e| {
         AppCommandError::new(
             AppErrorCode::ExternalCommandFailed,
@@ -483,6 +498,7 @@ fn capture_all_monitors(excluded_overlays: &[isize]) -> Result<Vec<CapturedMonit
                 frame_width,
                 frame_height,
             ),
+            logical_bounds: None,
         };
         captured.push(CapturedMonitor {
             index,
@@ -491,6 +507,7 @@ fn capture_all_monitors(excluded_overlays: &[isize]) -> Result<Vec<CapturedMonit
             y,
             width,
             height,
+            logical_bounds: None,
             frame,
         });
     }
@@ -546,14 +563,25 @@ async fn open_overlay_windows(
             })?;
         let id = capture_id.to_string();
         let (x, y, width, height) = (monitor.x, monitor.y, monitor.width, monitor.height);
+        let logical_bounds = monitor.logical_bounds.clone();
         on_main_thread(app, move |app| {
             // A cancellation may have won while the webview was building.
             if !app.state::<ScreenshotFrameStore>().is_active(&id) {
                 let _ = window.close();
                 return Err(AppCommandError::not_found(format!("Capture {id} is gone")));
             }
-            let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
-            let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+            if let Some(bounds) = logical_bounds {
+                let _ = window.set_position(Position::Logical(tauri::LogicalPosition::new(
+                    bounds.x, bounds.y,
+                )));
+                let _ = window.set_size(Size::Logical(tauri::LogicalSize::new(
+                    bounds.width,
+                    bounds.height,
+                )));
+            } else {
+                let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+                let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+            }
             let _ = window.show();
             let _ = window.set_focus();
             Ok(())
@@ -633,7 +661,10 @@ pub(crate) fn restore_main_window(app: &AppHandle) {
 /// `hide_main` first hides the main window — for capturing what sits behind
 /// codeg — and the window comes back when the flow ends, whichever way it
 /// ends: confirmed, cancelled, or failed.
-#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
+#[cfg(all(
+    feature = "tauri-runtime",
+    any(target_os = "windows", target_os = "macos")
+))]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_begin_selection(
     app: AppHandle,
@@ -645,11 +676,27 @@ pub async fn screenshot_begin_selection(
     let (capture_id, excluded_overlays) = on_main_thread(&app, move |app| {
         // Keep explicit handles for managed overlays even if closing one is
         // delayed. Never filter by caption or exclude the whole Codeg process.
+        #[cfg(target_os = "windows")]
         let excluded_overlays: Vec<isize> = app
             .webview_windows()
             .into_values()
             .filter(|window| overlay_capture_id(window.label()).is_some())
             .filter_map(|window| window.hwnd().ok().map(|hwnd| hwnd.0 as isize))
+            .collect();
+        #[cfg(target_os = "macos")]
+        let excluded_overlays: Vec<u64> = app
+            .webview_windows()
+            .into_values()
+            .filter(|window| overlay_capture_id(window.label()).is_some())
+            .filter_map(|window| {
+                let ptr = window.ns_window().ok()?;
+                // SAFETY: Tauri owns this live NSWindow and this closure runs
+                // on the UI thread, before any of these windows are closed.
+                let native = unsafe { ptr.cast::<objc2_app_kit::NSWindow>().as_ref() }?;
+                u64::try_from(native.windowNumber())
+                    .ok()
+                    .filter(|id| *id > 0)
+            })
             .collect();
         let (capture_id, previous) = app
             .state::<ScreenshotFrameStore>()
@@ -669,6 +716,7 @@ pub async fn screenshot_begin_selection(
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
 
+    #[cfg(target_os = "windows")]
     let captured = match tauri::async_runtime::spawn_blocking(move || {
         capture_all_monitors(&excluded_overlays)
     })
@@ -682,6 +730,17 @@ pub async fn screenshot_begin_selection(
         )
         .with_detail(err.to_string())),
     };
+
+    #[cfg(target_os = "macos")]
+    let captured = crate::computer::local::capture_composer_screens(excluded_overlays)
+        .await
+        .map_err(macos::backend_error)
+        .and_then(|monitors| {
+            monitors
+                .into_iter()
+                .map(macos::map_monitor)
+                .collect::<Result<Vec<_>, _>>()
+        });
 
     let captured = match captured {
         Ok(captured) => captured,
@@ -708,6 +767,7 @@ pub async fn screenshot_begin_selection(
             y: monitor.y,
             width: monitor.width,
             height: monitor.height,
+            logical_bounds: monitor.logical_bounds,
         });
         frames.push((monitor.index, monitor.frame));
     }
@@ -737,27 +797,42 @@ pub async fn screenshot_begin_selection(
     }
 }
 
-/// The non-Windows shape of `screenshot_begin_selection`: no capture backend
-/// ships off Windows yet (see the `Cargo.toml` note on the target-gated xcap
-/// dependency), so the command answers with a structured "no" instead of
-/// missing from the API — the frontend gets a readable toast rather than an
-/// unknown-command error, and nothing here touches any window state.
-#[cfg(all(feature = "tauri-runtime", not(target_os = "windows")))]
+/// Other desktop platforms retain the same wire arguments and return a
+/// structured refusal without touching window state.
+#[cfg(all(
+    feature = "tauri-runtime",
+    not(any(target_os = "windows", target_os = "macos"))
+))]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_begin_selection(
     _app: AppHandle,
     _state: State<'_, ScreenshotFrameStore>,
-    _request_id: String,
-    _hide_main: bool,
+    request_id: String,
+    hide_main: bool,
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
+    let _ = (request_id, hide_main);
     Err(AppCommandError::new(
         AppErrorCode::ExternalCommandFailed,
         "Screen capture is not supported on this platform yet",
     )
-    .with_detail(
-        "the screenshot feature ships on Windows first; macOS and Linux support are planned with their own capture path"
-            .to_string(),
-    ))
+    .with_detail("The screenshot feature is available on Windows and macOS; Linux support requires its own capture backend"))
+}
+
+/// Ask only after the person explicitly chooses to authorize screen capture.
+/// The helper owns the grant; this process never requests Screen Recording.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_request_permission() -> Result<(), AppCommandError> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::computer::local::request_composer_screen_permission()
+            .await
+            .map_err(macos::backend_error)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
 }
 
 /// Hand a frozen frame to its overlay window: the full-monitor PNG the
@@ -915,7 +990,14 @@ pub async fn screenshot_pin(
     y: i32,
     width: u32,
     height: u32,
+    logical_rect: Option<ScreenshotRect>,
 ) -> Result<String, AppCommandError> {
+    #[cfg(target_os = "macos")]
+    if let Some(rect) = &logical_rect {
+        macos::validate_logical_rect(rect)?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = logical_rect;
     let dir = pins_dir(&app)?;
     // Decode and write on the blocking pool: the picture is megabytes of
     // base64, nothing a UI thread should wait inside.
@@ -957,8 +1039,23 @@ pub async fn screenshot_pin(
     // Positioning, sizing or showing a built window failing is no reason
     // to abandon the pin — it is up, just perhaps misplaced. The same
     // tolerance the selection overlays get.
-    let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
-    let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+    #[cfg(target_os = "macos")]
+    let placement = logical_rect.map(|rect| {
+        (
+            Position::Logical(tauri::LogicalPosition::new(rect.x, rect.y)),
+            Size::Logical(tauri::LogicalSize::new(rect.width, rect.height)),
+        )
+    });
+    #[cfg(not(target_os = "macos"))]
+    let placement: Option<(Position, Size)> = None;
+    let (position, size) = placement.unwrap_or_else(|| {
+        (
+            Position::Physical(PhysicalPosition::new(x, y)),
+            Size::Physical(PhysicalSize::new(width, height)),
+        )
+    });
+    let _ = window.set_position(position);
+    let _ = window.set_size(size);
     let _ = window.show();
     Ok(label)
 }
@@ -1058,6 +1155,7 @@ mod tests {
             width: 100,
             height: 80,
             windows: Vec::new(),
+            logical_bounds: None,
         }
     }
 

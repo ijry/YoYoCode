@@ -22,6 +22,7 @@ vi.mock("@/lib/platform", () => ({
 
 const tauri = vi.hoisted(() => ({
   screenshotBeginSelection: vi.fn(),
+  screenshotRequestPermission: vi.fn(),
 }))
 vi.mock("@/lib/tauri", () => tauri)
 
@@ -52,6 +53,7 @@ async function startCapture() {
 beforeEach(() => {
   platform.isLocalDesktop.mockReturnValue(true)
   vi.mocked(tauri.screenshotBeginSelection).mockReset()
+  vi.mocked(tauri.screenshotRequestPermission).mockReset()
   vi.mocked(toast.error).mockClear()
 })
 
@@ -103,6 +105,61 @@ describe("ComposerScreenshotButton", () => {
       expect.any(String),
       true
     )
+  })
+
+  it("offers an explicit grant action for a structured screen permission error", async () => {
+    renderButton()
+    tauri.screenshotBeginSelection.mockRejectedValue({
+      code: "permission_denied",
+      message: "Screen recording permission is required",
+      detail: "Grant Screen Recording to the screenshot helper",
+    })
+    tauri.screenshotRequestPermission.mockResolvedValue(undefined)
+
+    await userEvent.click(screen.getByRole("button", { name: MI.screenshot }))
+    await userEvent.click(screen.getByRole("menuitem", { name: MI.screenshot }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(tauri.screenshotRequestPermission).not.toHaveBeenCalled()
+    const calls = vi.mocked(toast.error).mock.calls
+    const call = calls[calls.length - 1]
+    expect(call[0]).toBe(SE.permissionDenied)
+    expect(call[1]?.action).toEqual(
+      expect.objectContaining({ onClick: expect.any(Function) })
+    )
+    const action = call[1]!.action
+    if (!action || typeof action !== "object" || !("onClick" in action)) {
+      throw new Error("permission toast has no action")
+    }
+    render(<button onClick={action.onClick}>Grant permission</button>)
+    await userEvent.click(screen.getByRole("button", { name: "Grant permission" }))
+    await waitFor(() =>
+      expect(tauri.screenshotRequestPermission).toHaveBeenCalledTimes(1)
+    )
+    // Requesting a grant neither assumes success nor starts another capture.
+    expect(tauri.screenshotBeginSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps permission-request failures visible", async () => {
+    renderButton()
+    tauri.screenshotBeginSelection.mockRejectedValue({
+      code: "permission_denied",
+      message: "Screen recording permission is required",
+    })
+    tauri.screenshotRequestPermission.mockRejectedValue(
+      new Error("helper unavailable")
+    )
+    await userEvent.click(screen.getByRole("button", { name: MI.screenshot }))
+    await userEvent.click(screen.getByRole("menuitem", { name: MI.screenshot }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    const calls = vi.mocked(toast.error).mock.calls
+    const options = calls[calls.length - 1][1]!
+    const action = options.action
+    if (!action || typeof action !== "object" || !("onClick" in action)) {
+      throw new Error("permission toast has no action")
+    }
+    render(<button onClick={action.onClick}>Grant permission</button>)
+    await userEvent.click(screen.getByRole("button", { name: "Grant permission" }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(SE.failed))
   })
 
   it("reports a permission refusal distinctly from a generic failure", async () => {

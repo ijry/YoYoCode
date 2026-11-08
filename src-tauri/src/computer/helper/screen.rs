@@ -291,7 +291,7 @@ fn main_display() -> Option<Rect> {
 /// its number, its owner, its layer and its frame in desktop points — but
 /// the ones drawn fully transparent.
 #[cfg(target_os = "macos")]
-fn window_server_windows() -> Vec<(u64, u32, i64, Rect)> {
+pub(super) fn window_server_windows() -> Vec<(u64, u32, i64, Rect)> {
     use core_foundation::array::{CFArray, CFArrayRef};
     use core_foundation::base::{CFType, TCFType};
     use core_foundation::dictionary::CFDictionary;

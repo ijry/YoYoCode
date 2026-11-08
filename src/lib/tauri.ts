@@ -1370,6 +1370,11 @@ export async function screenshotBeginSelection(
   return invoke("screenshot_begin_selection", { requestId, hideMain })
 }
 
+/** Requests the helper's screen-recording grant only after a user action. */
+export async function screenshotRequestPermission(): Promise<void> {
+  return invoke("screenshot_request_permission")
+}
+
 export async function screenshotGetFrame(
   captureId: string,
   monitorIndex: number
@@ -1424,9 +1429,17 @@ export async function screenshotPin(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  logicalRect?: ScreenshotRect
 ): Promise<string> {
-  return invoke("screenshot_pin", { pngBase64, x, y, width, height })
+  return invoke("screenshot_pin", {
+    pngBase64,
+    x,
+    y,
+    width,
+    height,
+    logicalRect,
+  })
 }
 
 export async function screenshotReadPinImage(path: string): Promise<string> {

@@ -3544,7 +3544,8 @@
         "cancel": "Cancelar",
         "textPlaceholder": "Digite uma etiqueta",
         "failed": "Falha na captura",
-        "permissionDenied": "Sem permissão para capturar a tela. Conceda o acesso à gravação de tela e tente novamente."
+        "permissionDenied": "É necessária permissão para gravar a tela. Conceda acesso ao codeg-computer-helper nos Ajustes do Sistema e faça a captura novamente.",
+        "requestPermission": "Ir para permissões"
       },
       "messageQueue": {
         "addToQueue": "Adicionar à fila",

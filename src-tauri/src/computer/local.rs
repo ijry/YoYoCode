@@ -35,12 +35,14 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{oneshot, watch, Mutex};
 
 use super::backend::{
     ActRefusal, BackendError, BackendState, BackendStatus, ComputerBackend, SnapshotOptions,
 };
+#[cfg(all(target_os = "macos", feature = "tauri-runtime"))]
+use super::composer_capture::{ComposerCaptureCollector, ComposerCapturedMonitor};
 use super::driver;
 use super::protocol::{
     read_frame, write_frame, ClipboardUse, HelperError, HelperErrorCode, HelperMessage, HelperOp,
@@ -113,6 +115,10 @@ const HALT_ANSWER_TIMEOUT: Duration = Duration::from_secs(60);
 /// hold a caller forever. Every op already carries a tighter bound of its own
 /// inside the helper; this one is only for a helper gone wrong.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Covers locating, launching, capturing and collecting every composer display.
+#[cfg(all(target_os = "macos", feature = "tauri-runtime"))]
+const COMPOSER_CAPTURE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// How long a helper started for one permission request has to answer. It
 /// asks, then watches a couple of seconds for the system's dialog.
@@ -290,6 +296,18 @@ enum HelperChild {
     Tokio(Mutex<tokio::process::Child>),
 }
 
+impl Drop for HelperChild {
+    fn drop(&mut self) {
+        // Tokio children already use kill_on_drop. The macOS handle's waiter
+        // reaps independently, but dropping the handle itself does not kill.
+        // Cover cancellation during the Ready handshake as well as requests.
+        #[cfg(target_os = "macos")]
+        match self {
+            HelperChild::Mac(child) => child.kill(),
+        }
+    }
+}
+
 impl HelperChild {
     /// Whether the helper exits by itself within `grace`.
     async fn exits_within(&self, grace: Duration) -> bool {
@@ -340,9 +358,22 @@ impl Connection {
     /// its driver — one still starting included, once that has started — and
     /// exits. Stopped by signal if it has not within [`HELPER_EXIT_GRACE`].
     async fn shut_down(&self) {
-        // The real writer is dropped, which closes the helper's input.
-        *self.writer.lock().await = Box::new(tokio::io::sink());
-        if !self.child.exits_within(HELPER_EXIT_GRACE).await {
+        self.shut_down_with_grace(HELPER_EXIT_GRACE).await;
+    }
+
+    async fn shut_down_with_grace(&self, grace: Duration) {
+        let exited = tokio::time::timeout(grace, async {
+            let mut writer = self.writer.lock().await;
+            // Explicit EOF also works for split streams whose read half is
+            // still held by the reply task. A blocked write is bounded here.
+            let _ = writer.shutdown().await;
+            *writer = Box::new(tokio::io::sink());
+            drop(writer);
+            self.child.exits_within(grace).await
+        })
+        .await
+        .unwrap_or(false);
+        if !exited {
             tracing::warn!("[computer] the helper did not exit on its own; stopping it");
             self.stop().await;
         }
@@ -394,6 +425,53 @@ impl Connection {
             }
         }
     }
+}
+
+/// Capture for the person's composer on a fresh, authenticated helper. This
+/// does not use LocalBackend's switch, Configure, driver, or agent grants.
+#[cfg(all(target_os = "macos", feature = "tauri-runtime"))]
+pub(crate) async fn capture_composer_screens(
+    excluded_window_ids: Vec<u64>,
+) -> Result<Vec<ComposerCapturedMonitor>, BackendError> {
+    let mut owned = None;
+    let result = tokio::time::timeout(COMPOSER_CAPTURE_TIMEOUT, async {
+        let helper = helper_to_run().await?;
+        owned = Some(launch(&helper).await?);
+        let connection = owned.as_ref().expect("just launched composer helper");
+        let manifest = connection
+            .request(HelperOp::ComposerCaptureBegin { excluded_window_ids }, 0)
+            .await?
+            .decode()
+            .map_err(BackendError::from)?;
+        let mut collector = ComposerCaptureCollector::new(manifest).map_err(BackendError::from)?;
+        while let Some((monitor_index, offset)) = collector.next_request() {
+            let chunk = connection
+                .request(HelperOp::ComposerCaptureChunk { monitor_index, offset }, 0)
+                .await?
+                .decode()
+                .map_err(BackendError::from)?;
+            collector.push(chunk).map_err(BackendError::from)?;
+        }
+        collector.finish().map_err(BackendError::from)
+    })
+    .await
+    .unwrap_or_else(|_| Err(BackendError::Failed("composer screen capture timed out".into())));
+    if let Some(connection) = owned {
+        // No driver was started, so EOF normally exits at once. Bound even a
+        // wedged native capture; Drop also kills on cancellation during this wait.
+        connection.shut_down_with_grace(Duration::from_secs(2)).await;
+    }
+    result
+}
+
+/// Explicit user permission request, using the same independent TCC principal
+/// as capture. A successful request does not imply that the user granted it.
+#[cfg(all(target_os = "macos", feature = "tauri-runtime"))]
+pub(crate) async fn request_composer_screen_permission() -> Result<(), BackendError> {
+    let helper = helper_to_run().await?;
+    ask_for_permission(&helper, OsPermission::ScreenRecording)
+        .await
+        .map(|_asked| ())
 }
 
 /// The running helper, and whether one may be started.
@@ -1100,6 +1178,7 @@ fn spawn_helper(path: &std::path::Path) -> Result<(HelperChild, Io, PeerFd), Bac
         launch_requirement: requirement.as_deref(),
     })
     .map_err(|e| unavailable("could not start the helper", e))?;
+    let child = HelperChild::Mac(child);
     drop(theirs);
     drop(err_theirs);
     let peer_fd = ours.as_raw_fd();
@@ -1114,7 +1193,7 @@ fn spawn_helper(path: &std::path::Path) -> Result<(HelperChild, Io, PeerFd), Bac
     // half is owned by the reader task, the only place it is read after
     // `launch` returns.
     Ok((
-        HelperChild::Mac(child),
+        child,
         (Box::new(reader), Box::new(writer), Box::new(err_reader)),
         Some(peer_fd),
     ))
@@ -1175,6 +1254,9 @@ async fn ask_for_permission(
         launch_requirement: requirement.as_deref(),
     })
     .map_err(|e| unavailable("could not start the helper to ask", e))?;
+    // Own it before the first await: cancelling a permission request must not
+    // leave its one-shot helper alive either.
+    let child = HelperChild::Mac(child);
     drop(theirs);
     let read = async {
         ours.set_nonblocking(true)?;
@@ -1188,8 +1270,9 @@ async fn ask_for_permission(
     };
     let out = tokio::time::timeout(PERMISSION_ASK_TIMEOUT, read).await;
     // Done or not, it is not left behind.
-    child.kill();
-    let _ = child.wait().await;
+    let HelperChild::Mac(process) = &child;
+    process.kill();
+    let _ = process.wait().await;
     let out = match out {
         Ok(Ok(out)) => out,
         Ok(Err(e)) => return Err(unavailable("could not read the helper's answer", e)),
@@ -1305,6 +1388,102 @@ async fn forward_stderr(stderr: Box<dyn AsyncRead + Send + Unpin>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A real child that waits for EOF. It runs only when a lifecycle test
+    /// starts this executable with the explicit environment marker below.
+    #[test]
+    #[ignore = "subprocess fixture for composer helper lifecycle tests"]
+    fn composer_child_waits_for_eof() {
+        if std::env::var_os("CODEG_TEST_COMPOSER_CHILD").is_none() {
+            return;
+        }
+        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+    }
+
+    async fn composer_test_connection() -> (Arc<Connection>, u32) {
+        #[cfg(not(target_os = "macos"))]
+        let (child, writer, pid) = {
+            let mut child = tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "computer::local::tests::composer_child_waits_for_eof", "--ignored"])
+                .env("CODEG_TEST_COMPOSER_CHILD", "1")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .kill_on_drop(true)
+                .spawn().unwrap();
+            let pid = child.id().unwrap();
+            let writer: Box<dyn AsyncWrite + Send + Unpin> = Box::new(child.stdin.take().unwrap());
+            (HelperChild::Tokio(Mutex::new(child)), writer, pid)
+        };
+        #[cfg(target_os = "macos")]
+        let (child, writer, pid) = {
+            let (child, (_reader, writer, _stderr), _) = spawn_helper(Path::new("/bin/cat")).unwrap();
+            let HelperChild::Mac(process) = &child;
+            let pid = process.pid();
+            (child, writer, pid)
+        };
+        let (_tx, closed) = watch::channel(false);
+        (Arc::new(Connection {
+            writer: Mutex::new(writer),
+            pending: Arc::new(StdMutex::new(HashMap::new())),
+            next_id: AtomicU64::new(1),
+            closed,
+            broken: AtomicBool::new(false),
+            peer: PeerCheck::Development,
+            child,
+        }), pid)
+    }
+
+    async fn assert_composer_child_exits(pid: u32) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while super::super::procinfo::process_start(pid).is_some() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.expect("composer helper was left running");
+    }
+
+    #[tokio::test]
+    async fn composer_helper_shutdown_closes_input_and_reaps_child() {
+        let (connection, pid) = composer_test_connection().await;
+        connection.shut_down_with_grace(Duration::from_secs(2)).await;
+        match &connection.child {
+            #[cfg(target_os = "macos")]
+            HelperChild::Mac(child) => assert_eq!(child.wait().await, Some(0)),
+            #[cfg(not(target_os = "macos"))]
+            HelperChild::Tokio(child) => {
+                assert!(child.lock().await.try_wait().unwrap().unwrap().success());
+            }
+        }
+        // Windows retains the process object while its child handle is held.
+        drop(connection);
+        assert_composer_child_exits(pid).await;
+    }
+
+    #[tokio::test]
+    async fn composer_helper_is_reaped_when_an_inflight_request_is_cancelled() {
+        let (connection, pid) = composer_test_connection().await;
+        let (entered, started) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _ = entered.send(());
+            connection.request(HelperOp::ComposerCaptureBegin { excluded_window_ids: vec![] }, 0).await
+        });
+        started.await.unwrap();
+        tokio::task::yield_now().await;
+        task.abort();
+        let _ = task.await;
+        assert_composer_child_exits(pid).await;
+    }
+
+    #[tokio::test]
+    async fn composer_helper_is_reaped_when_an_owner_returns_an_error() {
+        let (connection, pid) = composer_test_connection().await;
+        let result = async move {
+            let _owned = connection;
+            Err::<(), _>(BackendError::Failed("malformed composer manifest".into()))
+        }.await;
+        assert!(result.is_err());
+        assert_composer_child_exits(pid).await;
+    }
 
     /// The whole codeg side against a real helper and the real pinned
     /// driver: launch disclaimed over a socketpair, the first-frame

@@ -31,7 +31,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 }))
 vi.mock("@/lib/tauri", () => tauri)
 
-// Just enough of ClipboardItem for copyImageToClipboard: the entries it was
+// Just enough of ClipboardItem for the PNG writer: the entries it was
 // built with, readable back through the standard surface.
 class FakeClipboardItem {
   private entries: Record<string, Blob | Promise<Blob>>
@@ -46,7 +46,14 @@ class FakeClipboardItem {
   }
 }
 
-const clipboardWrite = vi.fn(async (_items: FakeClipboardItem[]) => {})
+const clipboardWrite = vi.fn(async (items: FakeClipboardItem[]) => {
+  try {
+    await Promise.all(items.map((item) => item.getType("image/png")))
+  } catch {
+    // A rejected representation becomes a generic clipboard error in WebKit.
+    throw new Error("The write was cancelled")
+  }
+})
 
 // Every 2d call the overlay makes, the offscreen canvases included, in order.
 const calls: Array<{ prop: string; args: unknown[] }> = []
@@ -816,6 +823,88 @@ describe("ScreenshotCaptureOverlay", () => {
     expect(atob(onConfirm.mock.calls[0][1] as string).length).toBe(64)
   })
 
+  it("starts the clipboard write in the click before the crop finishes encoding", async () => {
+    let finishEncoding!: BlobCallback
+    const toBlob = vi.mocked(HTMLCanvasElement.prototype.toBlob)
+    toBlob.mockImplementationOnce((callback) => {
+      finishEncoding = callback
+    })
+    const { onConfirm } = renderOverlay()
+    await settle()
+    drag([100, 50], [300, 150])
+
+    fireEvent.click(screen.getByRole("button", { name: SE.copy }))
+    // No awaited tick between clicking and this check: WebKit needs the
+    // write inside the gesture, even while canvas.toBlob is still pending.
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+    expect(toBlob).toHaveBeenCalledTimes(1)
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: SE.copy })).toBeDisabled()
+
+    await act(async () => {
+      finishEncoding(new Blob(["encoded crop"], { type: "image/png" }))
+    })
+    await flush()
+    const item = clipboardWrite.mock.calls[0][0][0]
+    const png = await item.getType("image/png")
+    expect(png.type).toBe("image/png")
+    expect(png.size).toBe(12)
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+      { x: 200, y: 100, width: 400, height: 200 },
+      "ZW5jb2RlZCBjcm9w"
+    )
+    expect(toBlob).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: SE.copy })).toBeEnabled()
+  })
+
+  it("shows a delayed encoding failure and retains the selection for retry", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    let finishEncoding!: BlobCallback
+    vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementationOnce(
+      (callback) => {
+        finishEncoding = callback
+      }
+    )
+    const { onConfirm } = renderOverlay()
+    await settle()
+    drag([100, 50], [300, 150])
+
+    fireEvent.click(screen.getByRole("button", { name: SE.copy }))
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+    await act(async () => finishEncoding(null))
+    await flush()
+
+    expect(screen.getByRole("alert")).toHaveTextContent(SE.failed)
+    expect(screen.getByRole("button", { name: SE.copy })).toBeEnabled()
+    expect(screen.getByText("200×100")).toBeInTheDocument()
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(consoleError).toHaveBeenCalledWith(
+      "[ScreenshotCaptureOverlay] copy failed:",
+      expect.objectContaining({
+        message: "the annotated capture could not be encoded",
+      })
+    )
+  })
+
+  it("does not finish a capture unmounted while encoding is pending", async () => {
+    let finishEncoding!: BlobCallback
+    vi.mocked(HTMLCanvasElement.prototype.toBlob).mockImplementationOnce(
+      (callback) => {
+        finishEncoding = callback
+      }
+    )
+    const { onConfirm, unmount } = renderOverlay()
+    await settle()
+    drag([100, 50], [300, 150])
+    fireEvent.click(screen.getByRole("button", { name: SE.copy }))
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
+
+    unmount()
+    finishEncoding(new Blob(["encoded crop"], { type: "image/png" }))
+    await flush()
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
   it("keeps the overlay open when the clipboard refuses the picture", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
     const { onConfirm } = renderOverlay()
@@ -862,6 +951,31 @@ describe("ScreenshotCaptureOverlay", () => {
       onConfirm.mock.calls[0][1]
     )
     expect(atob(tauri.screenshotPin.mock.calls[0][0] as string).length).toBe(64)
+  })
+
+  it("pins Retina pixels using frozen logical display bounds", async () => {
+    const { onConfirm } = renderOverlay({
+      frame: {
+        ...FRAME,
+        logicalBounds: { x: -800, y: -120, width: 1000, height: 600 },
+      },
+    })
+    await settle()
+    drag([100, 50], [300, 150])
+    fireEvent.click(screen.getByRole("button", { name: SE.pin }))
+    await flush()
+    expect(windowApi.outerPosition).not.toHaveBeenCalled()
+    expect(tauri.screenshotPin.mock.calls[0].slice(1)).toEqual([
+      0,
+      0,
+      400,
+      200,
+      { x: -700, y: -70, width: 200, height: 100 },
+    ])
+    expect(onConfirm).toHaveBeenCalledWith(
+      { x: 200, y: 100, width: 400, height: 200 },
+      expect.any(String)
+    )
   })
 
   it("keeps the overlay open when the pin fails", async () => {
@@ -956,7 +1070,7 @@ describe("ScreenshotCaptureOverlay", () => {
     await flush()
     expect(screen.getByRole("alert")).toHaveTextContent(SE.failed)
     expect(onConfirm).not.toHaveBeenCalled()
-    expect(clipboardWrite).not.toHaveBeenCalled()
+    expect(clipboardWrite).toHaveBeenCalledTimes(1)
     expect(screen.getByRole("button", { name: SE.copy })).toBeEnabled()
     expect(screen.getByText("200×100")).toBeInTheDocument()
 

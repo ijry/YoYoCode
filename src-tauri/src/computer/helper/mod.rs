@@ -29,6 +29,10 @@ pub mod act;
 #[cfg(target_os = "macos")]
 pub mod axwin;
 pub mod clipboard;
+#[cfg(any(test, all(target_os = "macos", feature = "computer-helper")))]
+mod composer_capture_geometry;
+#[cfg(all(target_os = "macos", feature = "computer-helper"))]
+mod composer_capture_macos;
 pub mod driver_proc;
 #[cfg(windows)]
 pub mod hwnd;
@@ -341,6 +345,9 @@ struct HelperState {
     /// The running driver, started on first use and again after it exits.
     driver: Mutex<Option<RunningDriver>>,
     apps: Mutex<AppCache>,
+    /// Frozen PNGs for this connection's composer capture, independent of driver state.
+    #[cfg(all(target_os = "macos", feature = "computer-helper"))]
+    composer_capture: Mutex<super::composer_capture::ComposerCaptureCache>,
     /// The latest snapshot of each window, as the running driver keeps them.
     snapshots: std::sync::Mutex<SnapshotBook>,
     /// The latest of the person's Stops codeg has told of (`Halt::stop`),
@@ -846,6 +853,45 @@ async fn handle_op(
             }
             value(())
         }
+        HelperOp::ComposerCaptureBegin { excluded_window_ids } => {
+            #[cfg(all(target_os = "macos", feature = "computer-helper"))]
+            {
+                state.check_not_stopped(stop)?;
+                // Serialize Begin/Chunk and discard the old frame even if this capture fails.
+                let mut cache = state.composer_capture.lock().await;
+                state.check_not_stopped(stop)?;
+                *cache = super::composer_capture::ComposerCaptureCache::default();
+                // This fresh helper does its own TCC preflight in capture. No driver,
+                // Configure, permission subprocess, or cached state.require is involved.
+                let monitors = tokio::task::spawn_blocking(move || {
+                    composer_capture_macos::capture(&excluded_window_ids)
+                })
+                .await
+                .map_err(|e| HelperError::failed(format!("composer capture failed: {e}")))??;
+                state.check_not_stopped(stop)?;
+                *cache = super::composer_capture::ComposerCaptureCache::new(monitors)?;
+                value(cache.manifest())
+            }
+            #[cfg(not(all(target_os = "macos", feature = "computer-helper")))]
+            {
+                let _ = excluded_window_ids;
+                Err(HelperError::new(HelperErrorCode::BadRequest, "composer capture is not supported by this helper build"))
+            }
+        }
+        HelperOp::ComposerCaptureChunk { monitor_index, offset } => {
+            #[cfg(all(target_os = "macos", feature = "computer-helper"))]
+            {
+                state.check_not_stopped(stop)?;
+                let mut cache = state.composer_capture.lock().await;
+                state.check_not_stopped(stop)?;
+                value(cache.chunk(monitor_index, offset)?)
+            }
+            #[cfg(not(all(target_os = "macos", feature = "computer-helper")))]
+            {
+                let _ = (monitor_index, offset);
+                Err(HelperError::new(HelperErrorCode::BadRequest, "composer capture is not supported by this helper build"))
+            }
+        }
         HelperOp::Permissions => value(state.permissions(true).await),
         HelperOp::ListApps => {
             let driver = state.driver(stop).await?;
@@ -1131,6 +1177,8 @@ pub async fn serve(
         driver_path: Mutex::new(None),
         driver: Mutex::new(None),
         apps: Mutex::new(AppCache::default()),
+        #[cfg(all(target_os = "macos", feature = "computer-helper"))]
+        composer_capture: Mutex::new(super::composer_capture::ComposerCaptureCache::default()),
         snapshots: std::sync::Mutex::new(SnapshotBook::default()),
         stopped: Arc::new(AtomicU64::new(0)),
         permissions: Mutex::new(None),
@@ -1211,6 +1259,26 @@ mod tests {
             None,
         ));
         (task, our_write, our_read)
+    }
+
+    #[cfg(not(all(target_os = "macos", feature = "computer-helper")))]
+    #[tokio::test]
+    async fn composer_capture_is_structurally_refused_without_native_support() {
+        let (task, mut to_helper, mut from_helper) = start().await;
+        let _ready: HelperMessage = read_frame(&mut from_helper).await.unwrap();
+        for op in [
+            HelperOp::ComposerCaptureBegin { excluded_window_ids: vec![] },
+            HelperOp::ComposerCaptureChunk { monitor_index: 0, offset: 0 },
+        ] {
+            write_frame(&mut to_helper, &HelperRequest { id: 1, op, stop: 0 }).await.unwrap();
+            let HelperMessage::Reply(reply) = read_frame(&mut from_helper).await.unwrap() else {
+                panic!("expected a reply");
+            };
+            // No Configure/driver is needed to report this platform's refusal.
+            assert_eq!(reply.error.unwrap().code, HelperErrorCode::BadRequest);
+        }
+        to_helper.shutdown().await.unwrap();
+        assert_eq!(task.await.unwrap(), EXIT_OK);
     }
 
     /// The helper speaks first, answers by id, refuses an op that needs the

@@ -3583,7 +3583,8 @@
         "cancel": "取消",
         "textPlaceholder": "输入标注文字",
         "failed": "截图失败",
-        "permissionDenied": "没有屏幕捕获权限，请授予屏幕录制权限后重试。"
+        "permissionDenied": "需要屏幕录制权限。请在系统设置中授予 codeg-computer-helper 屏幕录制权限，然后重新截图。",
+        "requestPermission": "去授权"
       },
       "messageQueue": {
         "addToQueue": "加入队列",

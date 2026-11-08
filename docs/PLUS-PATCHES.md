@@ -49,6 +49,13 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 - 选区覆盖窗在尚未选定时预览悬停窗口，单击选整窗，拖拽仍为自由框选；选定后保留移动、缩放、标注、钉图、保存和复制行为。
 - 冲突面：`commands/screenshot.rs` 的帧元数据与 Windows 子模块、`Cargo.toml` 的 Windows DWM feature、`lib/screenshot/` 与截图覆盖窗。该功能只支持 Windows，不放宽 macOS 捕获 API 门禁。
 
+### macOS 截图 helper 通道（2026-11-09）
+
+- helper 协议升级到 15，新增用户截图的 Begin/Chunk 消息；使用独立、按现有规则鉴权的短生命周期连接，不要求 Computer Use 开关或 driver 下载，也不新增 agent MCP 工具。
+- 原生捕获实现仅在 macOS + computer-helper 下编译：macOS 14+ 动态加载 ScreenCaptureKit，旧系统使用 CoreGraphics 兼容路径。主程序只收图像/几何数据，保留发布脚本的捕获符号门禁。
+- 显示器逻辑点和图像像素分别记录；悬停候选按实际像素换算，钉图按逻辑点定位。WebKit 复制在点击时同步发起，异步合成由 ClipboardItem 的 Promise 承接。
+- 冲突面：`computer/protocol.rs`、`local.rs`、helper 分派/新原生模块、截图命令与权限入口、`copy-image.ts` 和截图覆盖窗。Mac 实机验收前不得宣称原生功能验证完成，见 `screenshot-macos-validation.md`。
+
 ### 待发送队列后端自治（2026-11-06）
 
 - `acp/message_queue_drain.rs` + `message_queue_service.rs`：Rust 完全控制持久化队列的认领与发送，startup/30s scan + save/turn-status 触发；无页面/无连接时自行续会话建连，不再依赖前端 effect。

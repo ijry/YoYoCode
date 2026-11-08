@@ -4,6 +4,7 @@ import {
   canCopyImageToClipboard,
   ClipboardImageUnsupportedError,
   copyImageToClipboard,
+  copyPngBlobToClipboard,
   normalizeImageMime,
 } from "./copy-image"
 
@@ -61,6 +62,72 @@ describe("normalizeImageMime", () => {
     expect(normalizeImageMime("image/JPG")).toBe("image/jpeg")
     expect(normalizeImageMime(" image/png ")).toBe("image/png")
     expect(normalizeImageMime("")).toBe("image/png")
+  })
+})
+
+describe("copyPngBlobToClipboard", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it("starts the write synchronously before PNG encoding settles", async () => {
+    const { write, writes } = stubClipboard()
+    let finishEncoding!: (blob: Blob) => void
+    const encoded = new Promise<Blob>((resolve) => {
+      finishEncoding = resolve
+    })
+    const pending = copyPngBlobToClipboard(encoded)
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(writes).toHaveLength(0)
+    const png = new Blob(["encoded PNG"], { type: "image/png" })
+    finishEncoding(png)
+    await pending
+
+    expect(writes).toHaveLength(1)
+    expect(Object.keys(writes[0].items)).toEqual(["image/png"])
+    expect(await writes[0].items["image/png"]).toBe(png)
+  })
+
+  it("preserves the encoding error when the clipboard masks it", async () => {
+    stubClipboard()
+    let failEncoding!: (error: Error) => void
+    const encoded = new Promise<Blob>((_resolve, reject) => {
+      failEncoding = reject
+    })
+    const error = new Error("PNG encoding failed")
+    const pending = copyPngBlobToClipboard(encoded)
+    const rejected = expect(pending).rejects.toBe(error)
+    failEncoding(error)
+    await rejected
+  })
+
+  it("handles a later encoding rejection when image copying is unavailable", async () => {
+    vi.stubGlobal("navigator", { clipboard: {} })
+    let failEncoding!: (error: Error) => void
+    const encoded = new Promise<Blob>((_resolve, reject) => {
+      failEncoding = reject
+    })
+    await expect(copyPngBlobToClipboard(encoded)).rejects.toBeInstanceOf(
+      ClipboardImageUnsupportedError
+    )
+    failEncoding(new Error("PNG encoding failed"))
+    // Cross an event-loop turn so an unobserved rejection fails this run.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
+  it("handles a later encoding rejection after clipboard permission is denied", async () => {
+    const { write } = stubClipboard()
+    const denied = new Error("Clipboard permission denied")
+    write.mockRejectedValueOnce(denied)
+    let failEncoding!: (error: Error) => void
+    const encoded = new Promise<Blob>((_resolve, reject) => {
+      failEncoding = reject
+    })
+    await expect(copyPngBlobToClipboard(encoded)).rejects.toBe(denied)
+    failEncoding(new Error("PNG encoding failed"))
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 })
 

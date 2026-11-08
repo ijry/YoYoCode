@@ -3544,7 +3544,8 @@
         "cancel": "취소",
         "textPlaceholder": "라벨 입력",
         "failed": "스크린샷 실패",
-        "permissionDenied": "화면 캡처 권한이 없습니다. 화면 녹화 권한을 허용한 후 다시 시도하세요."
+        "permissionDenied": "화면 녹화 권한이 필요합니다. 시스템 설정에서 codeg-computer-helper에 화면 녹화 권한을 허용한 후 스크린샷을 다시 촬영하세요.",
+        "requestPermission": "권한 설정으로 이동"
       },
       "messageQueue": {
         "addToQueue": "대기열에 추가",
