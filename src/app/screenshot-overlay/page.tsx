@@ -65,17 +65,14 @@ function ScreenshotOverlayPageInner() {
   const handleConfirm = useCallback(
     (rect: ScreenshotRect, annotatedPngBase64: string | null) => {
       if (!captureId) return
-      // A null annotation means the overlay had nothing to composite —
-      // Rust crops the raw frozen frame instead. A failure means the Rust
-      // side already tore the capture down — and it closes the overlay
-      // windows itself either way, so there is nothing for this page to
-      // recover.
-      screenshotFinishSelection(
+      // The overlay awaits finish along with copy or pin, keeping the
+      // controls locked and showing an inline error if this command fails.
+      return screenshotFinishSelection(
         captureId,
         monitorIndex,
         rect,
         annotatedPngBase64 ?? undefined
-      ).catch(() => {})
+      )
     },
     [captureId, monitorIndex]
   )

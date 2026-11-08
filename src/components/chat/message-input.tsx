@@ -2299,12 +2299,7 @@ export function MessageInput({
                     onAddFeedback={onAddFeedback}
                     feedbackAddDisabled={feedbackAddDisabled}
                   />
-                  <ComposerScreenshotButton
-                    disabled={disabled}
-                    onAttachImage={(file) =>
-                      attach.appendFilesFromInput([file])
-                    }
-                  />
+                  <ComposerScreenshotButton disabled={disabled} />
                   {hasAnySelector && (
                     <SessionSettingsPicker
                       agentType={agentType ?? null}

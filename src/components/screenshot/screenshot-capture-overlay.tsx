@@ -4,12 +4,15 @@
 // whole flow on one surface: the frozen frame fills the window, the first
 // drag cuts a rectangle, and a toolbar docks to its corner — annotate right
 // there (pen, shapes, arrows, text, mosaic, numbered steps), re-drag the
-// dimmed area to re-cut, then confirm hands the finished picture over. Marks
-// live in the frame's own pixels (see lib/screenshot/annotation.ts); the
-// selection lives in CSS pixels and converts on the way out
-// (overlay-geometry.ts). Pure interaction: it reads props and fires
-// onConfirm/onCancel — no invokes, no capture state, so the flow behaves the
-// same in a test as on a monitor.
+// dimmed area to re-cut, drag inside the selection to move it or its
+// handles to resize it, then the check mark copies the finished picture to
+// the clipboard, the pin button floats it on the desktop, and the save
+// button writes it to a file. Marks live in the frame's own pixels (see
+// lib/screenshot/annotation.ts); the selection lives in CSS pixels and
+// converts on the way out (overlay-geometry.ts). Pure interaction: it reads
+// props and fires onConfirm/onCancel — no capture state, and the only side
+// channels are the outgoing buttons' clipboard write and the pin and save
+// invokes, so the flow behaves the same in a test as on a monitor.
 
 import {
   useCallback,
@@ -30,7 +33,9 @@ import {
   MousePointer2,
   MoveUpRight,
   Pencil,
+  Pin,
   Redo2,
+  Save,
   Square,
   Type,
   Undo2,
@@ -38,6 +43,7 @@ import {
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 
+import { copyImageToClipboard } from "@/lib/copy-image"
 import {
   ANNOTATION_COLORS,
   drawAnnotations,
@@ -59,6 +65,7 @@ import type {
   MonitorFramePayload,
   ScreenshotRect,
 } from "@/lib/screenshot/types"
+import { screenshotPin, screenshotSaveToFile } from "@/lib/tauri"
 import { cn, randomUUID } from "@/lib/utils"
 
 /** How far outside the selection the dimming reaches: one box-shadow paints
@@ -86,6 +93,32 @@ const TOOLBAR_GAP = 8
 /** Closest the toolbar may come to the viewport edge, on either axis. */
 const TOOLBAR_EDGE = 4
 
+/** Floor a handle drag holds the selection to, per axis, in CSS pixels —
+ *  the same "a click is not a selection" threshold selectionTooSmall draws. */
+const MIN_RESIZE_CSS_PX = 8
+
+/** A resize handle's direction: which edges it moves (-1 = the opposite
+ *  edge, +1 = the edge it sits on, 0 = untouched) and the cursor it shows. */
+interface ResizeHandle {
+  dir: "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
+  dx: -1 | 0 | 1
+  dy: -1 | 0 | 1
+  cursor: "nwse-resize" | "nesw-resize" | "ns-resize" | "ew-resize"
+}
+
+/** The eight handles: four corners, four edge midpoints, cursors matching
+ *  the way each one pulls. */
+const RESIZE_HANDLES: ResizeHandle[] = [
+  { dir: "nw", dx: -1, dy: -1, cursor: "nwse-resize" },
+  { dir: "n", dx: 0, dy: -1, cursor: "ns-resize" },
+  { dir: "ne", dx: 1, dy: -1, cursor: "nesw-resize" },
+  { dir: "e", dx: 1, dy: 0, cursor: "ew-resize" },
+  { dir: "se", dx: 1, dy: 1, cursor: "nwse-resize" },
+  { dir: "s", dx: 0, dy: 1, cursor: "ns-resize" },
+  { dir: "sw", dx: -1, dy: 1, cursor: "nesw-resize" },
+  { dir: "w", dx: -1, dy: 0, cursor: "ew-resize" },
+]
+
 interface ScreenPoint {
   x: number
   y: number
@@ -106,6 +139,92 @@ function normalizeRect(from: ScreenPoint, to: ScreenPoint): CssRect {
     width: Math.abs(from.x - to.x),
     height: Math.abs(from.y - to.y),
   }
+}
+
+/** Where a handle sits: on the edge(s) it moves, centred on them. */
+function handlePosition(rect: CssRect, handle: ResizeHandle): ScreenPoint {
+  const x =
+    handle.dx === -1
+      ? rect.x
+      : handle.dx === 1
+        ? rect.x + rect.width
+        : rect.x + rect.width / 2
+  const y =
+    handle.dy === -1
+      ? rect.y
+      : handle.dy === 1
+        ? rect.y + rect.height
+        : rect.y + rect.height / 2
+  return { x, y }
+}
+
+/** One axis of a handle resize: the edge under the handle follows the
+ *  pointer, clamped into the viewport, while the opposite edge stays put —
+ *  and the two swap when the pointer is dragged across it. The moving edge
+ *  is held at least `min` pixels from the anchor on either side of it, so a
+ *  drag can never fold the selection down to nothing. */
+function resizeAxis(
+  pos: number,
+  size: number,
+  d: -1 | 0 | 1,
+  pointer: number,
+  bound: number,
+  min: number
+): { pos: number; size: number } {
+  if (d === 0) return { pos, size }
+  const anchor = d === 1 ? pos : pos + size
+  let edge = Math.min(Math.max(pointer, 0), bound)
+  if (Math.abs(edge - anchor) < min) {
+    edge = edge >= anchor ? anchor + min : anchor - min
+    // The anchor may sit closer than `min` to a viewport edge; the
+    // viewport wins there, and the pointer-up restores the drag's original
+    // if what is left is too small to be a selection at all.
+    edge = Math.min(Math.max(edge, 0), bound)
+  }
+  return { pos: Math.min(anchor, edge), size: Math.abs(edge - anchor) }
+}
+
+/** The selection a handle drag produces: each of the handle's two axes
+ *  resized independently against the same viewport bounds. */
+function resizeRect(
+  original: CssRect,
+  handle: ResizeHandle,
+  pointer: ScreenPoint,
+  viewport: ScreenBox
+): CssRect {
+  const width = resizeAxis(
+    original.x,
+    original.width,
+    handle.dx,
+    pointer.x,
+    viewport.width,
+    MIN_RESIZE_CSS_PX
+  )
+  const height = resizeAxis(
+    original.y,
+    original.height,
+    handle.dy,
+    pointer.y,
+    viewport.height,
+    MIN_RESIZE_CSS_PX
+  )
+  return {
+    x: width.pos,
+    y: height.pos,
+    width: width.size,
+    height: height.size,
+  }
+}
+
+/** The name the save dialog opens on: a fixed 截图_ prefix plus a
+ *  second-resolution timestamp, so a burst of saves never collides. */
+function screenshotSaveFileName(): string {
+  const pad = (value: number) => String(value).padStart(2, "0")
+  const now = new Date()
+  const stamp =
+    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+    `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `截图_${stamp}.png`
 }
 
 /** The frame pixelated for mosaic patches: scaled down to mosaic blocks
@@ -209,7 +328,7 @@ const ROUND_BUTTON = cn(
 )
 
 /** What a drag in progress is doing: cutting a selection, drawing a mark,
- *  or moving one. */
+ *  moving one, hauling the whole selection, or resizing it by a handle. */
 type Drag =
   | { mode: "selection"; pointerId: number; start: ScreenPoint }
   | { mode: "draw"; pointerId: number; start: AnnotationPoint }
@@ -220,13 +339,28 @@ type Drag =
       start: AnnotationPoint
       original: AnnotationMark[]
     }
+  | {
+      mode: "resize"
+      pointerId: number
+      handle: ResizeHandle
+      original: CssRect
+    }
+  | {
+      mode: "rect-move"
+      pointerId: number
+      start: ScreenPoint
+      original: CssRect
+    }
 
 export interface ScreenshotCaptureOverlayProps {
   frame: MonitorFramePayload
-  /** Receives the confirmed selection in the frame's physical pixels and,
-   *  when anything was drawn, the annotated picture as base64 PNG. Null
-   *  hands the bare rect over: Rust crops the raw frozen frame instead. */
-  onConfirm: (rect: ScreenshotRect, annotatedPngBase64: string | null) => void
+  /** Receives the physical selection and its composite after copy or pin
+   *  succeeds. Finishing is awaited so a failure keeps the selection open
+   *  and reports the error alongside output failures. */
+  onConfirm: (
+    rect: ScreenshotRect,
+    annotatedPngBase64: string | null
+  ) => Promise<void> | void
   onCancel: () => void
 }
 
@@ -234,10 +368,15 @@ export interface ScreenshotCaptureOverlayProps {
  * Cut a region out of the frozen frame and annotate it in place.
  *
  * The first drag cuts a selection and the toolbar docks to its corner; a
- * drag on the dimmed area (or a select-tool drag that misses every mark)
- * re-cuts it, keeping the marks — they live in frame pixels, and the export
- * crops whatever the last selection covers. Escape cancels the whole
- * capture; the check mark exports the composite.
+ * drag on the dimmed area re-cuts it, a drag inside it (select tool, no
+ * mark grabbed) moves the whole selection, and its eight handles resize it
+ * — keeping the marks, which live in frame pixels, so a moved or resized
+ * selection just crops a different part of the same painted picture.
+ * Escape cancels the whole capture; the check mark copies the composite to
+ * the clipboard and only then finishes the capture; the pin button floats
+ * the composite on the desktop as an always-on-top window and then
+ * finishes the capture the same way the check mark does; the save button
+ * writes it to a file instead and leaves the capture up.
  */
 export function ScreenshotCaptureOverlay({
   frame,
@@ -267,7 +406,11 @@ export function ScreenshotCaptureOverlay({
     value: string
   } | null>(null)
   const [stepSeq, setStepSeq] = useState(1)
-  const [exporting, setExporting] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  // State disables the controls; the ref closes the gate immediately, even
+  // if two clicks arrive before React renders the disabled buttons.
+  const busyRef = useRef(false)
   // The decoded frame and the pixelated twin the mosaic patches paste from,
   // held together because they are made together.
   const [picture, setPicture] = useState<{
@@ -327,9 +470,11 @@ export function ScreenshotCaptureOverlay({
       })
     }
     element.onerror = () => {
-      // Nothing to draw on. The overlay stays up, and Confirm hands over
-      // the bare rect (see `confirmSelection`).
-      if (live) setPicture(null)
+      // No decoded picture means no output. Keep the selection available
+      // and explain why the output buttons cannot be used.
+      if (!live) return
+      setPicture(null)
+      setFailed(true)
     }
     element.src = `data:image/png;base64,${frame.pngBase64}`
     return () => {
@@ -456,7 +601,7 @@ export function ScreenshotCaptureOverlay({
   }, [textInput, marks, color, pushHistory])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || exporting) return
+    if (event.button !== 0 || busyRef.current) return
     const at = canvasPoint(event)
     if (!at) return
     event.preventDefault()
@@ -474,8 +619,10 @@ export function ScreenshotCaptureOverlay({
 
     if (current && inside) {
       if (tool === "select") {
-        // The topmost mark under the pointer wins; a miss on all of them
-        // falls through to a fresh selection below.
+        // The topmost mark under the pointer wins; with nothing grabbed,
+        // the drag hauls the whole selection somewhere else — the marks
+        // stay where they are, painted on the frozen frame the selection
+        // is cut from.
         const slack = SELECT_SLACK_SCREEN_PX * at.scale
         for (let i = marks.length - 1; i >= 0; i--) {
           if (hitTestMark(marks[i], at.point, slack)) {
@@ -489,6 +636,13 @@ export function ScreenshotCaptureOverlay({
             return
           }
         }
+        dragRef.current = {
+          mode: "rect-move",
+          pointerId: event.pointerId,
+          start: at.screen,
+          original: current,
+        }
+        return
       } else if (tool === "text") {
         setTextInput({ x: at.point.x, y: at.point.y, value: "" })
         return
@@ -527,9 +681,8 @@ export function ScreenshotCaptureOverlay({
 
     // A new drag replaces the old selection — but remembers it, because a
     // press that never grows into a drag hands the old one back on
-    // pointer-up. It starts anywhere: on the dimmed area, on a selection
-    // with a select tool that grabbed no mark, or before any selection
-    // exists at all.
+    // pointer-up. It starts anywhere the selection itself does not cover:
+    // on the dimmed area, or before any selection exists at all.
     priorRectRef.current = current
     dragRef.current = {
       mode: "selection",
@@ -540,6 +693,28 @@ export function ScreenshotCaptureOverlay({
     setSelection({ x: at.screen.x, y: at.screen.y, width: 0, height: 0 })
   }
 
+  /** A handle press starts a resize of the current selection: the pointer
+   *  is captured to the handle (so the drag keeps tracking outside the
+   *  window) and moves that handle's edges until it lets go. The press
+   *  stops here — the surface below must not read it as a re-cut. */
+  const startResize = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    handle: ResizeHandle
+  ) => {
+    if (event.button !== 0 || busyRef.current) return
+    const current = rectRef.current
+    if (!current) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    dragRef.current = {
+      mode: "resize",
+      pointerId: event.pointerId,
+      handle,
+      original: current,
+    }
+  }
+
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
@@ -547,6 +722,24 @@ export function ScreenshotCaptureOverlay({
     if (!at) return
     if (drag.mode === "selection") {
       setSelection(normalizeRect(drag.start, at.screen))
+      return
+    }
+    if (drag.mode === "resize") {
+      setSelection(resizeRect(drag.original, drag.handle, at.screen, canvasBox))
+      return
+    }
+    if (drag.mode === "rect-move") {
+      // Haul from where the selection was when the drag began, held inside
+      // the viewport: the frame never moves, only the crop of it does.
+      const x = Math.min(
+        Math.max(drag.original.x + at.screen.x - drag.start.x, 0),
+        Math.max(0, canvasBox.width - drag.original.width)
+      )
+      const y = Math.min(
+        Math.max(drag.original.y + at.screen.y - drag.start.y, 0),
+        Math.max(0, canvasBox.height - drag.original.height)
+      )
+      setSelection({ ...drag.original, x, y })
       return
     }
     if (drag.mode === "draw") {
@@ -587,6 +780,17 @@ export function ScreenshotCaptureOverlay({
       }
       return
     }
+    if (drag.mode === "resize") {
+      // A drag squeezed against the viewport's own edge can end smaller
+      // than a selection may be: hand the original back rather than keep
+      // a sliver nobody chose.
+      const current = rectRef.current
+      if (current && selectionTooSmall(current)) {
+        setSelection(drag.original)
+      }
+      return
+    }
+    if (drag.mode === "rect-move") return
     if (drag.mode === "move") {
       const at = canvasPoint(event)
       const moved =
@@ -608,13 +812,17 @@ export function ScreenshotCaptureOverlay({
 
   /** Drop the drag in progress — a cancelled pointer, a lost capture, or
    *  Escape. A mark being drawn never existed; a mark being moved goes
-   *  back where it was; a selection being re-cut hands the old one back. */
+   *  back where it was; a selection being re-cut, hauled or resized hands
+   *  the old one back. */
   const cancelDrag = useCallback(() => {
     const drag = dragRef.current
     dragRef.current = null
     if (!drag) return
     if (drag.mode === "draw") setDraft(null)
     if (drag.mode === "move") setMarks(drag.original)
+    if (drag.mode === "resize" || drag.mode === "rect-move") {
+      setSelection(drag.original)
+    }
     if (drag.mode === "selection") {
       setSelecting(false)
       setSelection(priorRectRef.current)
@@ -633,6 +841,10 @@ export function ScreenshotCaptureOverlay({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return
+      if (busyRef.current) {
+        event.preventDefault()
+        return
+      }
       if (textInput) {
         event.preventDefault()
         setTextInput(null)
@@ -649,37 +861,70 @@ export function ScreenshotCaptureOverlay({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [textInput, cancelDrag, onCancel])
 
-  const confirmSelection = useCallback(() => {
-    if (exporting) return
-    const canvas = canvasRef.current
-    const current = rectRef.current
-    if (!canvas || !current || selectionTooSmall(current)) return
-    const box = canvas.getBoundingClientRect()
-    const physical = cssRectToPhysical(
-      current,
-      { width: box.width, height: box.height },
-      frameSize
-    )
-    // The frame never decoded: there is nothing to composite, so hand the
-    // bare rect over and let Rust crop the raw frozen frame.
-    if (!picture) {
-      onConfirm(physical, null)
-      return
-    }
-    setExporting(true)
-    exportAnnotatedCrop(picture, marks, frameSize, physical)
-      .then((base64) => {
-        if (liveRef.current) onConfirm(physical, base64)
-      })
-      .catch(() => {
-        // The overlay window has no toast surface; landing the capture
-        // without its marks beats a silent dead button.
-        if (liveRef.current) onConfirm(physical, null)
-      })
-      .finally(() => {
-        if (liveRef.current) setExporting(false)
-      })
-  }, [exporting, picture, marks, frameSize, onConfirm])
+  /** Every output uses the same decoded composite and holds one gate until
+   *  all its work settles, including finish after copy or pin. Saving keeps
+   *  the capture open. Any failure leaves the selection and marks intact. */
+  const outputSelection = useCallback(
+    async (action: "copy" | "pin" | "save") => {
+      if (busyRef.current || !picture) return
+      const canvas = canvasRef.current
+      const current = rectRef.current
+      if (!canvas || !current || selectionTooSmall(current)) return
+      busyRef.current = true
+      setBusy(true)
+      setFailed(false)
+      try {
+        const box = canvas.getBoundingClientRect()
+        const physical = cssRectToPhysical(
+          current,
+          { width: box.width, height: box.height },
+          frameSize
+        )
+        const base64 = await exportAnnotatedCrop(
+          picture,
+          marks,
+          frameSize,
+          physical
+        )
+        if (!liveRef.current) return
+        if (action === "save") {
+          const { save } = await import("@tauri-apps/plugin-dialog")
+          const path = await save({
+            defaultPath: screenshotSaveFileName(),
+            filters: [{ name: "PNG", extensions: ["png"] }],
+          })
+          // Cancelling the dialog is neither a failure nor a finished capture.
+          if (path && liveRef.current) {
+            await screenshotSaveToFile(base64, path)
+          }
+          return
+        }
+        if (action === "copy") {
+          await copyImageToClipboard({ data: base64, mime_type: "image/png" })
+        } else {
+          // Both the window's origin and the crop offset are physical
+          // pixels; their sum places the pin on the correct monitor.
+          const { getCurrentWindow } = await import("@tauri-apps/api/window")
+          const outer = await getCurrentWindow().outerPosition()
+          await screenshotPin(
+            base64,
+            outer.x + physical.x,
+            outer.y + physical.y,
+            physical.width,
+            physical.height
+          )
+        }
+        if (liveRef.current) await onConfirm(physical, base64)
+      } catch (error) {
+        console.error(`[ScreenshotCaptureOverlay] ${action} failed:`, error)
+        if (liveRef.current) setFailed(true)
+      } finally {
+        busyRef.current = false
+        if (liveRef.current) setBusy(false)
+      }
+    },
+    [picture, marks, frameSize, onConfirm]
+  )
 
   /** Where the toolbar docks: under the selection's bottom-right corner,
    *  flipped above it near the viewport bottom, and pulled back inside the
@@ -769,6 +1014,24 @@ export function ScreenshotCaptureOverlay({
           {`${Math.round(rect.width)}×${Math.round(rect.height)}`}
         </div>
       ) : null}
+      {/* The resize handles sit on the selection's edges — corners and edge
+          midpoints — each centred on the point it moves, with the cursor
+          its direction matches. They paint over the dim shadow and grab
+          their own presses so the surface never reads them as a re-cut. */}
+      {rect && !selectionTooSmall(rect) && !selecting
+        ? RESIZE_HANDLES.map((handle) => {
+            const at = handlePosition(rect, handle)
+            return (
+              <div
+                key={handle.dir}
+                data-resize-handle={handle.dir}
+                className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-black/50 bg-white shadow-sm"
+                style={{ left: at.x, top: at.y, cursor: handle.cursor }}
+                onPointerDown={(event) => startResize(event, handle)}
+              />
+            )
+          })
+        : null}
       {rect && !selectionTooSmall(rect) && !selecting ? (
         <div
           ref={setToolbar}
@@ -788,6 +1051,7 @@ export function ScreenshotCaptureOverlay({
               aria-label={entry.label}
               title={entry.label}
               aria-pressed={tool === entry.kind}
+              disabled={busy}
               onClick={() => pickTool(entry.kind)}
             >
               {entry.icon}
@@ -799,7 +1063,7 @@ export function ScreenshotCaptureOverlay({
             className={ROUND_BUTTON}
             aria-label={t("undo")}
             title={t("undo")}
-            disabled={undoStack.length === 0 || exporting}
+            disabled={undoStack.length === 0 || busy}
             onClick={undo}
           >
             <Undo2 />
@@ -809,7 +1073,7 @@ export function ScreenshotCaptureOverlay({
             className={ROUND_BUTTON}
             aria-label={t("redo")}
             title={t("redo")}
-            disabled={redoStack.length === 0 || exporting}
+            disabled={redoStack.length === 0 || busy}
             onClick={redo}
           >
             <Redo2 />
@@ -827,6 +1091,7 @@ export function ScreenshotCaptureOverlay({
                 aria-label={swatch}
                 title={swatch}
                 aria-pressed={color === swatch}
+                disabled={busy}
                 className={cn(
                   "size-4 rounded-full border border-white/30 outline-none transition-all",
                   "focus-visible:ring-2 focus-visible:ring-white/40",
@@ -840,11 +1105,31 @@ export function ScreenshotCaptureOverlay({
           <div className="mx-1 h-5 w-px bg-white/15" aria-hidden />
           <button
             type="button"
+            className={ROUND_BUTTON}
+            aria-label={t("pin")}
+            title={t("pin")}
+            disabled={busy || !picture}
+            onClick={() => void outputSelection("pin")}
+          >
+            <Pin />
+          </button>
+          <button
+            type="button"
+            className={ROUND_BUTTON}
+            aria-label={t("save")}
+            title={t("save")}
+            disabled={busy || !picture}
+            onClick={() => void outputSelection("save")}
+          >
+            <Save />
+          </button>
+          <button
+            type="button"
             className={cn(ROUND_BUTTON, "bg-emerald-600 hover:bg-emerald-500")}
-            aria-label={t("confirm")}
-            title={t("confirm")}
-            disabled={exporting}
-            onClick={confirmSelection}
+            aria-label={t("copy")}
+            title={t("copy")}
+            disabled={busy || !picture}
+            onClick={() => void outputSelection("copy")}
           >
             <Check />
           </button>
@@ -853,15 +1138,39 @@ export function ScreenshotCaptureOverlay({
             className={cn(ROUND_BUTTON, "bg-red-600 hover:bg-red-500")}
             aria-label={t("cancel")}
             title={t("cancel")}
-            onClick={onCancel}
+            disabled={busy}
+            onClick={() => {
+              if (!busyRef.current) onCancel()
+            }}
           >
             <X />
           </button>
         </div>
       ) : null}
+      {failed ? (
+        <div
+          role="alert"
+          className="absolute z-20 max-w-[calc(100%-8px)] rounded-md bg-red-950 px-2 py-1 text-xs text-white shadow-md"
+          style={
+            rect
+              ? {
+                  left: toolbarPlacement().left,
+                  top: Math.min(
+                    toolbarPlacement().top + toolbarSize.height + TOOLBAR_GAP,
+                    Math.max(TOOLBAR_EDGE, canvasBox.height - 32)
+                  ),
+                }
+              : { left: TOOLBAR_EDGE, top: TOOLBAR_EDGE }
+          }
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {t("failed")}
+        </div>
+      ) : null}
       {textInput ? (
         <input
           autoFocus
+          disabled={busy}
           value={textInput.value}
           placeholder={t("textPlaceholder")}
           onChange={(event) =>

@@ -1730,47 +1730,6 @@ mod tauri_app {
                 #[cfg(feature = "browser-smoke")]
                 crate::browser::smoke::spawn_if_enabled(app.handle().clone());
 
-                // DIAGNOSTIC (dev builds only): auto-run one real screenshot
-                // capture 15 s after launch and log the full outcome, so the
-                // "截图失败" report carries its error instead of a bare toast.
-                // Success pops the selection overlay — press Esc to cancel it.
-                // Re-trigger note: the watcher missed the previous edit.
-                #[cfg(all(debug_assertions, target_os = "windows"))]
-                {
-                    let handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        // The frame store is managed in the builder chain, so
-                        // it is already here when setup runs; give the app a
-                        // moment to finish painting first anyway.
-                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                        let Some(store) =
-                            handle.try_state::<crate::commands::screenshot::ScreenshotFrameStore>()
-                        else {
-                            tracing::error!("DIAG screenshot: frame store never managed");
-                            return;
-                        };
-                        match crate::commands::screenshot::screenshot_begin_selection_core(
-                            &handle,
-                            store.inner(),
-                            "diagnostic-auto".to_string(),
-                            false,
-                        )
-                        .await
-                        {
-                            Ok(out) => tracing::info!(
-                                capture_id = %out.capture_id,
-                                monitors = out.monitors.len(),
-                                "DIAG screenshot_begin_selection OK"
-                            ),
-                            Err(e) => tracing::error!(
-                                error = %e,
-                                detail = ?e,
-                                "DIAG screenshot_begin_selection FAILED"
-                            ),
-                        }
-                    });
-                }
-
                 Ok(())
             })
             .on_menu_event(|app, event| {
@@ -1830,27 +1789,32 @@ mod tauri_app {
                     browser_commands::close_all_for_owner(window.app_handle(), &label);
                 }
 
-                // A selection overlay killed out from under the flow — Alt+F4
-                // on a focused one — bypasses `screenshot_cancel_selection`,
-                // so its destruction cancels the capture here: without this,
-                // a hide-window capture leaves codeg hidden until the user
-                // fishes it out of the taskbar. A capture that already
-                // confirmed its selection has nothing pending and this is a
-                // no-op, as is the destruction of an overlay closed by the
-                // flow itself.
+                // Capture-scoped teardown: external close also closes sibling
+                // overlays, while late events from old windows are harmless.
                 if label.starts_with(crate::commands::screenshot::OVERLAY_WINDOW_PREFIX)
                     && matches!(
                         event,
                         tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
                     )
                 {
-                    let app = window.app_handle();
-                    if let Some(store) =
-                        app.try_state::<crate::commands::screenshot::ScreenshotFrameStore>()
-                    {
-                        if store.cancel_all_pending() {
-                            crate::commands::screenshot::restore_main_window(app);
-                        }
+                    crate::commands::screenshot::overlay_closed(window.app_handle(), &label);
+                }
+
+                // A pin window destroyed — clicked away by the user, or
+                // going down with the app — takes its picture with it: the
+                // file is named after the label (see `screenshot_pin`), so
+                // the label alone says what to delete. Best-effort: a file
+                // already gone is as good as deleted, and a failing delete
+                // must not take the destroy path down.
+                if label.starts_with(crate::commands::screenshot::PIN_WINDOW_PREFIX)
+                    && matches!(event, tauri::WindowEvent::Destroyed)
+                {
+                    if let Ok(data_dir) = window.app_handle().path().app_data_dir() {
+                        let pin = crate::paths::resolve_effective_data_dir(&data_dir)
+                            .join("screenshots")
+                            .join("pins")
+                            .join(format!("{label}.png"));
+                        let _ = std::fs::remove_file(pin);
                     }
                 }
 
@@ -2668,6 +2632,9 @@ mod tauri_app {
                 crate::commands::screenshot::screenshot_finish_selection,
                 crate::commands::screenshot::screenshot_take_cropped,
                 crate::commands::screenshot::screenshot_cancel_selection,
+                crate::commands::screenshot::screenshot_save_to_file,
+                crate::commands::screenshot::screenshot_pin,
+                crate::commands::screenshot::screenshot_read_pin_image,
             ])
             .build(context)
             .expect("error while building tauri application")

@@ -7,13 +7,16 @@
 //! * [`ScreenshotFrameStore`] — the in-memory warehouse behind the button. One
 //!   live capture at a time (a second `begin_capture` drops the first, so a
 //!   stale overlay window can never serve a stale frame), frames in, cropped
-//!   image out, everything released when the editor pulls the result. It
+//!   image out, everything released on finish or cancellation. It
 //!   names no xcap types, so it compiles — and is tested — in every runtime.
 //! * [`validate_selection_rect`] / [`crop_png`] — pure functions over the
 //!   pixels, no runtime behind them: round and clamp a selection to the
 //!   frame, then cut it out of a PNG.
 
 use std::collections::HashMap;
+use std::path::Path;
+#[cfg(any(feature = "tauri-runtime", test))]
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -21,10 +24,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_error::AppCommandError;
 
-/// The label prefix every selection overlay window carries, followed by the
-/// monitor's index (`screenshot-overlay-1`): the commands close leftovers by
-/// listing windows and matching it.
+/// Overlay labels carry the capture UUID and monitor index. Lifecycle
+/// callbacks only act on the capture that owned the closing window.
 pub const OVERLAY_WINDOW_PREFIX: &str = "screenshot-overlay-";
+
+/// The label prefix every pin window carries, followed by the pinned file's
+/// id (`screenshot-pin-1a2b3c4d`): the window-event hook in lib.rs derives
+/// the picture a destroyed pin owned from it — label + `.png`, under the
+/// pins directory `screenshot_pin` filed it in.
+pub const PIN_WINDOW_PREFIX: &str = "screenshot-pin-";
+
+#[cfg(any(feature = "tauri-runtime", test))]
+fn overlay_label(capture_id: &str, monitor_index: u32) -> String {
+    format!("{OVERLAY_WINDOW_PREFIX}{capture_id}-{monitor_index}")
+}
+
+#[cfg(any(feature = "tauri-runtime", test))]
+pub(crate) fn overlay_capture_id(label: &str) -> Option<&str> {
+    let (capture_id, monitor) = label
+        .strip_prefix(OVERLAY_WINDOW_PREFIX)?
+        .rsplit_once('-')?;
+    uuid::Uuid::parse_str(capture_id).ok()?;
+    monitor.parse::<u32>().ok()?;
+    Some(capture_id)
+}
 
 /// A selection rectangle in a frame's pixel coordinates, as an overlay
 /// submits it — the overlay converts its CSS-pixel drag to the frame's
@@ -93,7 +116,7 @@ struct ScreenshotCapture {
 /// The in-memory frame warehouse behind the screenshot flow, one field on
 /// It holds at most one live capture at a time — `begin_capture` drops
 /// whatever an earlier one left, so a stale overlay can never serve a stale
-/// frame — and the entry is gone the moment the editor pulls its image.
+/// frame — and the entry is removed when the capture finishes or cancels.
 ///
 /// Deliberately free of xcap types: the server and MCP builds compile this
 /// struct and the pure functions below, only the desktop commands fill and
@@ -117,8 +140,13 @@ impl ScreenshotFrameStore {
     /// Start a capture: drop every earlier entry and register a fresh one
     /// under a new capture id, which is returned.
     pub fn begin_capture(&self, request_id: String) -> String {
+        self.begin_capture_replacing(request_id).0
+    }
+
+    fn begin_capture_replacing(&self, request_id: String) -> (String, Vec<String>) {
         let capture_id = uuid::Uuid::new_v4().to_string();
         let mut captures = self.lock();
+        let previous = captures.keys().cloned().collect();
         captures.clear();
         captures.insert(
             capture_id.clone(),
@@ -128,7 +156,18 @@ impl ScreenshotFrameStore {
                 cropped: None,
             },
         );
-        capture_id
+        (capture_id, previous)
+    }
+
+    #[cfg(feature = "tauri-runtime")]
+    fn is_active(&self, capture_id: &str) -> bool {
+        self.lock().contains_key(capture_id)
+    }
+
+    /// Release every image before closing windows. Late events then become
+    /// no-ops, and an old capture can never remove its replacement.
+    pub fn finish(&self, capture_id: &str) -> bool {
+        self.lock().remove(capture_id).is_some()
     }
 
     /// Record the frozen frames of the monitors of `capture_id`. A capture
@@ -190,19 +229,6 @@ impl ScreenshotFrameStore {
         }
         pending
     }
-
-    /// Cancel every capture that has not confirmed a selection — the sweep
-    /// an overlay window killed out from under the flow triggers (Alt+F4 on
-    /// a focused overlay destroys it without any command to cancel, so the
-    /// flow's own bookkeeping never runs). `false` when nothing pending
-    /// remained: every live capture had already cropped, or there was no
-    /// capture at all, and the caller must not touch the windows.
-    pub fn cancel_all_pending(&self) -> bool {
-        let mut captures = self.lock();
-        let before = captures.len();
-        captures.retain(|_, capture| capture.cropped.is_some());
-        before > captures.len()
-    }
 }
 
 /// Round a selection to the integer pixel box it covers, clamping every edge
@@ -247,11 +273,16 @@ pub fn validate_selection_rect(
 /// its own PNG. A frame that does not decode, or a rect that falls outside
 /// the decoded frame's pixels, is refused — `crop_imm` would panic on the
 /// latter, and a panic in a command takes the flow down with it.
-pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayload, AppCommandError> {
-    let bytes = STANDARD.decode(png_base64)
-        .map_err(|e| AppCommandError::invalid_input(format!("the frame is not valid base64: {e}")))?;
-    let image = image::load_from_memory(&bytes)
-        .map_err(|e| AppCommandError::invalid_input(format!("the frame could not be decoded: {e}")))?;
+pub fn crop_png(
+    png_base64: &str,
+    rect: &NormalizedRect,
+) -> Result<CroppedPayload, AppCommandError> {
+    let bytes = STANDARD.decode(png_base64).map_err(|e| {
+        AppCommandError::invalid_input(format!("the frame is not valid base64: {e}"))
+    })?;
+    let image = image::load_from_memory(&bytes).map_err(|e| {
+        AppCommandError::invalid_input(format!("the frame could not be decoded: {e}"))
+    })?;
     if rect.x.saturating_add(rect.width) > image.width()
         || rect.y.saturating_add(rect.height) > image.height()
     {
@@ -278,6 +309,27 @@ pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayloa
     })
 }
 
+/// Whether a path may be read as a pinned screenshot's picture: the
+/// canonicalized path must sit inside the canonicalized pins directory and
+/// end in `.png`. The guard behind `screenshot_read_pin_image` — its path
+/// arrives through the pin window's query string, i.e. from untrusted
+/// input, and the command must never widen into a general file reader.
+/// Both sides are canonicalized before the prefix check, so a `..` hop out
+/// of the directory cannot masquerade as an inside one, and the extension
+/// is matched case-insensitively the way Windows names files.
+pub fn is_pin_image_path(path: &Path, pins_dir: &Path) -> bool {
+    let Ok(resolved) = path.canonicalize() else {
+        return false;
+    };
+    let Ok(resolved_dir) = pins_dir.canonicalize() else {
+        return false;
+    };
+    resolved
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+        && resolved.starts_with(&resolved_dir)
+}
+
 // ─── Desktop commands ────────────────────────────────────────────────
 //
 // The capture, the overlay windows and the event back to the main window
@@ -294,10 +346,8 @@ pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayloa
 use std::time::Duration;
 
 #[cfg(feature = "tauri-runtime")]
-use serde_json::json;
-#[cfg(feature = "tauri-runtime")]
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, State, WebviewUrl,
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, State, WebviewUrl,
     WebviewWindowBuilder,
 };
 
@@ -441,14 +491,19 @@ fn encode_png_base64(image: image::RgbaImage) -> String {
 /// or focusing a built window failing is no reason to abandon the capture;
 /// building one is.
 #[cfg(feature = "tauri-runtime")]
-fn open_overlay_windows(
+async fn open_overlay_windows(
     app: &AppHandle,
     capture_id: &str,
     placements: &[ScreenshotMonitorPlacement],
 ) -> Result<(), AppCommandError> {
     for monitor in placements {
+        if !app.state::<ScreenshotFrameStore>().is_active(capture_id) {
+            return Err(AppCommandError::not_found(format!(
+                "Capture {capture_id} is gone"
+            )));
+        }
         let index = monitor.index;
-        let label = format!("{OVERLAY_WINDOW_PREFIX}{index}");
+        let label = overlay_label(capture_id, index);
         let url = format!("screenshot-overlay?captureId={capture_id}&monitorIndex={index}");
         let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
             .decorations(false)
@@ -465,27 +520,75 @@ fn open_overlay_windows(
                     e.to_string(),
                 )
             })?;
-        let _ = window.set_position(Position::Physical(PhysicalPosition::new(
-            monitor.x, monitor.y,
-        )));
-        let _ = window.set_size(Size::Physical(PhysicalSize::new(
-            monitor.width,
-            monitor.height,
-        )));
-        let _ = window.show();
-        let _ = window.set_focus();
+        let id = capture_id.to_string();
+        let (x, y, width, height) = (monitor.x, monitor.y, monitor.width, monitor.height);
+        on_main_thread(app, move |app| {
+            // A cancellation may have won while the webview was building.
+            if !app.state::<ScreenshotFrameStore>().is_active(&id) {
+                let _ = window.close();
+                return Err(AppCommandError::not_found(format!("Capture {id} is gone")));
+            }
+            let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+            let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+            let _ = window.show();
+            let _ = window.set_focus();
+            Ok(())
+        })
+        .await?;
     }
     Ok(())
 }
 
-/// Close every selection overlay still standing, however it got there.
+/// Close only this capture's overlays, after removing its state so recursive
+/// close callbacks become no-ops. External close skips its originating window.
 #[cfg(feature = "tauri-runtime")]
-fn close_overlay_windows(app: &AppHandle) {
+fn close_overlay_windows(app: &AppHandle, capture_id: &str, except: Option<&str>) {
     for window in app.webview_windows().into_values() {
-        if window.label().starts_with(OVERLAY_WINDOW_PREFIX) {
+        if overlay_capture_id(window.label()) == Some(capture_id) && except != Some(window.label())
+        {
             let _ = window.close();
         }
     }
+}
+
+/// Native close callbacks and command transitions run on the UI thread.
+#[cfg(feature = "tauri-runtime")]
+pub(crate) fn overlay_closed(app: &AppHandle, label: &str) {
+    let Some(capture_id) = overlay_capture_id(label) else {
+        return;
+    };
+    if app.state::<ScreenshotFrameStore>().cancel(capture_id) {
+        close_overlay_windows(app, capture_id, Some(label));
+        restore_main_window(app);
+    }
+}
+
+/// Serialize state/window transitions so an old restore cannot follow a new hide.
+#[cfg(feature = "tauri-runtime")]
+async fn on_main_thread<T: Send + 'static>(
+    app: &AppHandle,
+    action: impl FnOnce(AppHandle) -> Result<T, AppCommandError> + Send + 'static,
+) -> Result<T, AppCommandError> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(action(handle));
+    })
+    .map_err(|e| AppCommandError::window("Failed to update screenshot windows", e.to_string()))?;
+    rx.await
+        .map_err(|e| AppCommandError::window("Screenshot window update stopped", e.to_string()))?
+}
+
+#[cfg(feature = "tauri-runtime")]
+async fn cancel_capture(app: &AppHandle, capture_id: String) -> Result<(), AppCommandError> {
+    on_main_thread(app, move |app| {
+        if app.state::<ScreenshotFrameStore>().cancel(&capture_id) {
+            close_overlay_windows(&app, &capture_id, None);
+            restore_main_window(&app);
+        }
+        Ok(())
+    })
+    .await
 }
 
 /// Bring the main window back for the end of a selection flow: un-minimize
@@ -514,37 +617,23 @@ pub async fn screenshot_begin_selection(
     request_id: String,
     hide_main: bool,
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
-    screenshot_begin_selection_core(&app, &state, request_id, hide_main).await
-}
-
-/// The begin flow over plain references — same shape the web/tauri split
-/// calls `_core` helpers with — so the launch diagnostic in `lib.rs` can run
-/// a real capture without threading `State` through a spawned task.
-#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
-pub(crate) async fn screenshot_begin_selection_core(
-    app: &AppHandle,
-    state: &ScreenshotFrameStore,
-    request_id: String,
-    hide_main: bool,
-) -> Result<ScreenshotBeginOutcome, AppCommandError> {
-    // One live capture at a time: registering the new one drops whatever an
-    // earlier one left, frames and all.
-    let capture_id = state.begin_capture(request_id.clone());
-    // A second begin while the first round's overlays are still up: close
-    // them before capturing, or the fresh frames would be frozen with the
-    // previous round's dark overlay in the picture.
-    close_overlay_windows(&app);
-
-    // Hide the main window before the frames are frozen, not after — the
-    // capture must not picture codeg itself — then give the compositor a
-    // beat to actually drop it.
-    let mut main_hidden = false;
-    if hide_main {
-        if let Some(main) = app.get_webview_window("main") {
-            if main.hide().is_ok() {
-                main_hidden = true;
+    let request = request_id.clone();
+    let capture_id = on_main_thread(&app, move |app| {
+        let (capture_id, previous) = app
+            .state::<ScreenshotFrameStore>()
+            .begin_capture_replacing(request);
+        for old in previous {
+            close_overlay_windows(&app, &old, None);
+        }
+        if hide_main {
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.hide();
             }
         }
+        Ok(capture_id)
+    })
+    .await?;
+    if hide_main {
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
 
@@ -566,10 +655,7 @@ pub(crate) async fn screenshot_begin_selection_core(
             // staring at whatever codeg used to cover. The error is logged
             // before it travels back as a bare toast.
             tracing::error!(error = %err, "screenshot_begin_selection capture failed");
-            let _ = state.cancel(&capture_id);
-            if main_hidden {
-                restore_main_window(&app);
-            }
+            let _ = cancel_capture(&app, capture_id.clone()).await;
             return Err(err);
         }
     };
@@ -590,7 +676,7 @@ pub(crate) async fn screenshot_begin_selection_core(
         frames.push((monitor.index, monitor.frame));
     }
     state.insert_frames(&capture_id, frames);
-    match open_overlay_windows(&app, &capture_id, &placements) {
+    match open_overlay_windows(&app, &capture_id, &placements).await {
         Ok(()) => Ok(ScreenshotBeginOutcome {
             capture_id,
             request_id,
@@ -609,11 +695,7 @@ pub(crate) async fn screenshot_begin_selection_core(
             // down, undo the capture and un-hide the main window. The error
             // is logged before it travels back as a bare toast.
             tracing::error!(error = %err, "screenshot_begin_selection failed to open overlay windows");
-            close_overlay_windows(&app);
-            let _ = state.cancel(&capture_id);
-            if main_hidden {
-                restore_main_window(&app);
-            }
+            let _ = cancel_capture(&app, capture_id.clone()).await;
             Err(err)
         }
     }
@@ -653,23 +735,17 @@ pub async fn screenshot_get_frame(
     capture_id: String,
     monitor_index: u32,
 ) -> Result<MonitorFramePayload, AppCommandError> {
-    state
-        .get_frame(&capture_id, monitor_index)
-        .ok_or_else(|| {
-            AppCommandError::not_found(format!(
-                "No frozen frame for capture {capture_id} monitor {monitor_index}"
-            ))
-            .with_detail("the capture was cancelled, superseded, or already finished".to_string())
-        })
+    state.get_frame(&capture_id, monitor_index).ok_or_else(|| {
+        AppCommandError::not_found(format!(
+            "No frozen frame for capture {capture_id} monitor {monitor_index}"
+        ))
+        .with_detail("the capture was cancelled, superseded, or already finished".to_string())
+    })
 }
 
-/// Finish a selection: the overlay hands over the region it confirmed —
-/// either as raw rect coordinates (Rust crops the frozen frame) or, when the
-/// person annotated in place, as the finished annotated picture itself. The
-/// result is filed for the composer, every overlay closes, and the main
-/// window is told a capture is waiting. The event carries metadata only — a
-/// base64 frame injected into the webview would freeze the UI for seconds —
-/// the composer pulls the pixels with `screenshot_take_cropped`.
+/// Finish after the overlay copies or pins the picture. Keep wire arguments
+/// compatible, but release pixels instead of filing an attachment or emitting
+/// the retired screenshot://captured event.
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_finish_selection(
@@ -680,72 +756,26 @@ pub async fn screenshot_finish_selection(
     rect: ScreenshotRect,
     annotated_png_base64: Option<String>,
 ) -> Result<(), AppCommandError> {
-    let frame = state
-        .get_frame(&capture_id, monitor_index)
-        .ok_or_else(|| {
-            AppCommandError::not_found(format!(
-                "No frozen frame for capture {capture_id} monitor {monitor_index}"
-            ))
-            .with_detail("the capture was cancelled, superseded, or already finished".to_string())
-        })?;
-    let normalized = validate_selection_rect(&rect, frame.width, frame.height)?;
-    // The annotated composite is already the finished picture; a bare rect
-    // still needs the full-monitor PNG cropped — both decode megabytes, so
-    // neither belongs on the UI thread.
-    let cropped = match annotated_png_base64 {
-        Some(png) => tauri::async_runtime::spawn_blocking(move || {
-            annotated_png(&png, &normalized)
-        })
-        .await
-        .map_err(|e| {
-            AppCommandError::new(
-                AppErrorCode::TaskExecutionFailed,
-                "The screenshot crop task failed",
-            )
-            .with_detail(e.to_string())
-        })??,
-        None => {
-            let png = frame.png_base64;
-            tauri::async_runtime::spawn_blocking(move || crop_png(&png, &normalized))
-                .await
-                .map_err(|e| {
-                    AppCommandError::new(
-                        AppErrorCode::TaskExecutionFailed,
-                        "The screenshot crop task failed",
-                    )
-                    .with_detail(e.to_string())
-                })??
-        }
-    };
-    let meta = state
-        .store_cropped(&capture_id, cropped)
-        .ok_or_else(|| {
-            AppCommandError::not_found(format!("Capture {capture_id} is gone")).with_detail(
-                "the capture was cancelled or superseded while the selection was being cropped"
-                    .to_string(),
-            )
-        })?;
-
-    close_overlay_windows(&app);
-    app.emit_to(
-        "main",
-        "screenshot://captured",
-        json!({
-            "captureId": capture_id,
-            "requestId": meta.request_id,
-            "width": meta.width,
-            "height": meta.height,
-            "mime": "image/png",
-        }),
-    )
-    .map_err(|e| {
-        AppCommandError::window(
-            "Failed to notify the main window of the capture",
-            e.to_string(),
-        )
+    let frame = state.get_frame(&capture_id, monitor_index).ok_or_else(|| {
+        AppCommandError::not_found(format!(
+            "No frozen frame for capture {capture_id} monitor {monitor_index}"
+        ))
+        .with_detail("the capture was cancelled, superseded, or already finished".to_string())
     })?;
-    restore_main_window(&app);
-    Ok(())
+    validate_selection_rect(&rect, frame.width, frame.height)?;
+    drop(frame);
+    drop(annotated_png_base64);
+    on_main_thread(&app, move |app| {
+        if !app.state::<ScreenshotFrameStore>().finish(&capture_id) {
+            return Err(AppCommandError::not_found(format!(
+                "Capture {capture_id} is gone"
+            )));
+        }
+        close_overlay_windows(&app, &capture_id, None);
+        restore_main_window(&app);
+        Ok(())
+    })
+    .await
 }
 
 /// Hand the cropped selection to the editor and release it: one pull, and
@@ -756,12 +786,166 @@ pub async fn screenshot_take_cropped(
     state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
 ) -> Result<CroppedPayload, AppCommandError> {
-    state
-        .take_cropped(&capture_id)
-        .ok_or_else(|| {
-            AppCommandError::not_found(format!("No cropped image for capture {capture_id}"))
-                .with_detail("the capture was cancelled, superseded, or already taken".to_string())
+    state.take_cropped(&capture_id).ok_or_else(|| {
+        AppCommandError::not_found(format!("No cropped image for capture {capture_id}"))
+            .with_detail("the capture was cancelled, superseded, or already taken".to_string())
+    })
+}
+
+/// Write an overlay-produced capture out as a PNG file: the overlay's save
+/// dialog handed back the path, this decodes the base64 and writes the
+/// bytes. Saving is not finishing — the overlay stays up across it — so
+/// nothing here touches windows or the frame store.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_save_to_file(
+    png_base64: String,
+    path: String,
+) -> Result<(), AppCommandError> {
+    if !path.to_lowercase().ends_with(".png") {
+        return Err(AppCommandError::invalid_input(format!(
+            "the save path does not name a .png file: {path}"
+        )));
+    }
+    let bytes = STANDARD.decode(&png_base64).map_err(|e| {
+        AppCommandError::invalid_input(format!("the capture is not valid base64: {e}"))
+    })?;
+    std::fs::write(&path, bytes).map_err(AppCommandError::io)?;
+    Ok(())
+}
+
+/// The directory pinned screenshots live in: `screenshots/pins` under the
+/// effective data root — `resolve_effective_data_dir`, not Tauri's raw
+/// `app_data_dir`, the one-root contract every other consumer follows (see
+/// the setup hook in lib.rs). Both the pin command and the window-event
+/// hook that reaps dead pins' files go through here, so the two can never
+/// part ways.
+#[cfg(feature = "tauri-runtime")]
+fn pins_dir(app: &AppHandle) -> Result<PathBuf, AppCommandError> {
+    app.path()
+        .app_data_dir()
+        .map(|dir| {
+            crate::paths::resolve_effective_data_dir(&dir)
+                .join("screenshots")
+                .join("pins")
         })
+        .map_err(|e| {
+            AppCommandError::new(
+                AppErrorCode::ConfigurationMissing,
+                "the app data directory is unavailable",
+            )
+            .with_detail(e.to_string())
+        })
+}
+
+/// Decode the pinned picture and file it under `dir` as `<window-label>.png`,
+/// where `<id>` is a fresh UUID's first 8 hex digits — the same id the
+/// window label carries, so a dead pin's file is reachable from its label
+/// alone. Returns (window label, file path). The picture is verified to
+/// decode but kept byte-for-byte: the pin is whatever the overlay
+/// composited, its size is nobody's business here.
+#[cfg(any(feature = "tauri-runtime", test))]
+fn write_pin_file(dir: &Path, png_base64: &str) -> Result<(String, PathBuf), AppCommandError> {
+    let bytes = STANDARD.decode(png_base64).map_err(|e| {
+        AppCommandError::invalid_input(format!("the capture is not valid base64: {e}"))
+    })?;
+    image::load_from_memory(&bytes).map_err(|e| {
+        AppCommandError::invalid_input(format!("the capture could not be decoded: {e}"))
+    })?;
+    std::fs::create_dir_all(dir).map_err(AppCommandError::io)?;
+    let uuid = uuid::Uuid::new_v4().to_string();
+    let id = &uuid[..8];
+    let label = format!("{PIN_WINDOW_PREFIX}{id}");
+    let path = dir.join(format!("{label}.png"));
+    std::fs::write(&path, &bytes).map_err(AppCommandError::io)?;
+    Ok((label, path))
+}
+
+/// Pin the finished annotated picture to the desktop: file the PNG under
+/// the pins directory, then open the frameless, always-on-top window that
+/// shows it at the absolute screen position the overlay computed — a
+/// QQ-style pin, standing there until its window is clicked away. The
+/// window's label and the file's name carry the same id, so the window
+/// event hook in lib.rs deletes the file when the window is destroyed. The
+/// capture itself keeps flowing through `screenshot_finish_selection`: the
+/// pin adds a floating copy; finishing releases the capture frames.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_pin(
+    app: AppHandle,
+    _state: State<'_, ScreenshotFrameStore>,
+    png_base64: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+) -> Result<String, AppCommandError> {
+    let dir = pins_dir(&app)?;
+    // Decode and write on the blocking pool: the picture is megabytes of
+    // base64, nothing a UI thread should wait inside.
+    let (label, file_path) =
+        tauri::async_runtime::spawn_blocking(move || write_pin_file(&dir, &png_base64))
+            .await
+            .map_err(|e| {
+                AppCommandError::new(
+                    AppErrorCode::TaskExecutionFailed,
+                    "The screenshot pin task failed",
+                )
+                .with_detail(e.to_string())
+            })??;
+
+    let url = format!(
+        "screenshot-pin?src={}",
+        urlencoding::encode(&file_path.to_string_lossy())
+    );
+    let window = match WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .shadow(true)
+        .visible(false)
+        .build()
+    {
+        Ok(window) => window,
+        Err(e) => {
+            // No window will ever own the file now — take it back, or the
+            // pins directory fills up with orphans.
+            let _ = std::fs::remove_file(&file_path);
+            return Err(AppCommandError::window(
+                format!("Failed to open the pin window {label}"),
+                e.to_string(),
+            ));
+        }
+    };
+    // Positioning, sizing or showing a built window failing is no reason
+    // to abandon the pin — it is up, just perhaps misplaced. The same
+    // tolerance the selection overlays get.
+    let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+    let _ = window.show();
+    Ok(label)
+}
+
+/// Hand a pin its picture back: the file's bytes as base64. The path comes
+/// from the pin window's query string — untrusted input — so it passes
+/// [`is_pin_image_path`] first: inside the pins directory and a `.png`, or
+/// refused. (The pin page reads through this instead of any filesystem
+/// plugin, exactly so this one gate stands between the window and the disk.)
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn screenshot_read_pin_image(
+    app: AppHandle,
+    path: String,
+) -> Result<String, AppCommandError> {
+    let pins = pins_dir(&app)?;
+    if !is_pin_image_path(Path::new(&path), &pins) {
+        return Err(AppCommandError::invalid_input(format!(
+            "the pin image path is outside the pins directory or not a .png file: {path}"
+        )));
+    }
+    let bytes = std::fs::read(&path).map_err(AppCommandError::io)?;
+    Ok(STANDARD.encode(bytes))
 }
 
 /// End a selection without confirming one: drop the capture, close the
@@ -772,14 +956,10 @@ pub async fn screenshot_take_cropped(
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_cancel_selection(
     app: AppHandle,
-    state: State<'_, ScreenshotFrameStore>,
+    _state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
 ) -> Result<(), AppCommandError> {
-    if state.cancel(&capture_id) {
-        close_overlay_windows(&app);
-        restore_main_window(&app);
-    }
-    Ok(())
+    cancel_capture(&app, capture_id).await
 }
 
 /// File the overlay's finished annotated picture: decode it, pin its size to
@@ -790,11 +970,12 @@ pub fn annotated_png(
     png_base64: &str,
     rect: &NormalizedRect,
 ) -> Result<CroppedPayload, AppCommandError> {
-    let bytes = STANDARD
-        .decode(png_base64)
-        .map_err(|e| AppCommandError::invalid_input(format!("the capture is not valid base64: {e}")))?;
-    let image = image::load_from_memory(&bytes)
-        .map_err(|e| AppCommandError::invalid_input(format!("the capture could not be decoded: {e}")))?;
+    let bytes = STANDARD.decode(png_base64).map_err(|e| {
+        AppCommandError::invalid_input(format!("the capture is not valid base64: {e}"))
+    })?;
+    let image = image::load_from_memory(&bytes).map_err(|e| {
+        AppCommandError::invalid_input(format!("the capture could not be decoded: {e}"))
+    })?;
     if image.width() != rect.width || image.height() != rect.height {
         return Err(AppCommandError::invalid_input(format!(
             "the annotated capture {}x{} does not match the selection {}x{}",
@@ -977,8 +1158,16 @@ mod tests {
     #[test]
     fn a_crop_cuts_exactly_the_requested_pixels_out_of_the_frame() {
         let frame = pattern_frame_base64();
-        let payload =
-            crop_png(&frame, &NormalizedRect { x: 5, y: 5, width: 10, height: 10 }).unwrap();
+        let payload = crop_png(
+            &frame,
+            &NormalizedRect {
+                x: 5,
+                y: 5,
+                width: 10,
+                height: 10,
+            },
+        )
+        .unwrap();
         assert_eq!(payload.width, 10);
         assert_eq!(payload.height, 10);
         assert_eq!(payload.mime, "image/png");
@@ -1007,14 +1196,27 @@ mod tests {
 
     #[test]
     fn a_crop_of_garbage_is_refused() {
-        assert!(
-            crop_png("not base64!!!", &NormalizedRect { x: 0, y: 0, width: 10, height: 10 })
-                .is_err()
-        );
+        assert!(crop_png(
+            "not base64!!!",
+            &NormalizedRect {
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 10
+            }
+        )
+        .is_err());
         let not_an_image = STANDARD.encode(b"hello");
-        assert!(
-            crop_png(&not_an_image, &NormalizedRect { x: 0, y: 0, width: 10, height: 10 }).is_err()
-        );
+        assert!(crop_png(
+            &not_an_image,
+            &NormalizedRect {
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 10
+            }
+        )
+        .is_err());
     }
 
     // ── annotated_png ────────────────────────────────────────────────────
@@ -1034,8 +1236,16 @@ mod tests {
             .unwrap();
         let base64 = STANDARD.encode(out.into_inner());
 
-        let payload = annotated_png(&base64, &NormalizedRect { x: 5, y: 5, width: 10, height: 10 })
-            .unwrap();
+        let payload = annotated_png(
+            &base64,
+            &NormalizedRect {
+                x: 5,
+                y: 5,
+                width: 10,
+                height: 10,
+            },
+        )
+        .unwrap();
         assert_eq!((payload.width, payload.height), (10, 10));
         assert_eq!(payload.mime, "image/png");
         let decoded = image::load_from_memory(&STANDARD.decode(&payload.png_base64).unwrap())
@@ -1053,36 +1263,139 @@ mod tests {
             .write_to(&mut out, ImageFormat::Png)
             .unwrap();
         let base64 = STANDARD.encode(out.into_inner());
-        let err = annotated_png(&base64, &NormalizedRect { x: 0, y: 0, width: 9, height: 9 })
-            .unwrap_err();
+        let err = annotated_png(
+            &base64,
+            &NormalizedRect {
+                x: 0,
+                y: 0,
+                width: 9,
+                height: 9,
+            },
+        )
+        .unwrap_err();
         assert!(matches!(err.code, AppErrorCode::InvalidInput));
+    }
+
+    // ── is_pin_image_path ────────────────────────────────────────────────
+
+    #[test]
+    fn a_png_inside_the_pins_directory_is_readable() {
+        let pins = tempfile::tempdir().unwrap();
+        let file = pins.path().join("pin-1a2b3c4d.png");
+        std::fs::write(&file, b"png").unwrap();
+        assert!(is_pin_image_path(&file, pins.path()));
+    }
+
+    #[test]
+    fn a_png_extension_is_matched_case_insensitively() {
+        // Windows names files without case discipline: `.PNG` opens the
+        // same door `.png` does.
+        let pins = tempfile::tempdir().unwrap();
+        let file = pins.path().join("pin-1a2b3c4d.PNG");
+        std::fs::write(&file, b"png").unwrap();
+        assert!(is_pin_image_path(&file, pins.path()));
+    }
+
+    #[test]
+    fn a_path_outside_the_pins_directory_is_refused() {
+        let pins = tempfile::tempdir().unwrap();
+        let sibling = tempfile::tempdir().unwrap();
+        let file = sibling.path().join("pin-1a2b3c4d.png");
+        std::fs::write(&file, b"png").unwrap();
+        assert!(!is_pin_image_path(&file, pins.path()));
+    }
+
+    #[test]
+    fn a_traversal_path_is_refused_even_dressed_up_as_inside() {
+        // The literal path lexically lives "inside" the pins directory; the
+        // canonicalize-both-sides check is what refuses it — the parent of
+        // pins/ is not pins/, and that is where the traversal lands.
+        let root = tempfile::tempdir().unwrap();
+        let pins = root.path().join("pins");
+        std::fs::create_dir(&pins).unwrap();
+        let secret = root.path().join("secret.png");
+        std::fs::write(&secret, b"no").unwrap();
+        let dressed_up = pins.join("..").join("secret.png");
+        assert!(!is_pin_image_path(&dressed_up, &pins));
+    }
+
+    #[test]
+    fn a_wrong_extension_or_no_extension_is_refused() {
+        let pins = tempfile::tempdir().unwrap();
+        let jpg = pins.path().join("pin-1a2b3c4d.jpg");
+        std::fs::write(&jpg, b"jpg").unwrap();
+        assert!(!is_pin_image_path(&jpg, pins.path()));
+        let bare = pins.path().join("pin-1a2b3c4d");
+        std::fs::write(&bare, b"").unwrap();
+        assert!(!is_pin_image_path(&bare, pins.path()));
+    }
+
+    #[test]
+    fn a_path_that_names_no_file_is_refused() {
+        // A path that cannot be canonicalized — nothing there, or a
+        // directory in the middle of it — reads as outside, not as inside.
+        let pins = tempfile::tempdir().unwrap();
+        assert!(!is_pin_image_path(
+            &pins.path().join("pin-absent.png"),
+            pins.path()
+        ));
     }
 
     // ── ScreenshotFrameStore ─────────────────────────────────────────────
 
     #[test]
-    #[ignore] // diagnostic probe: runs a REAL capture on this machine
-    fn diagnostic_probe_real_capture() {
-        match capture_all_monitors() {
-            Ok(captured) => {
-                for m in &captured {
-                    println!(
-                        "monitor {} {:?} at ({},{}) {}x{} frame {}x{} png {} bytes",
-                        m.index,
-                        m.name,
-                        m.x,
-                        m.y,
-                        m.width,
-                        m.height,
-                        m.frame.width,
-                        m.frame.height,
-                        m.frame.png_base64.len()
-                    );
-                }
-                assert!(!captured.is_empty(), "no monitors captured");
-            }
-            Err(e) => panic!("capture failed: {e}"),
-        }
+    fn finish_releases_every_frame_and_crop_once() {
+        let store = ScreenshotFrameStore::default();
+        let id = store.begin_capture("request".into());
+        store.insert_frames(&id, vec![(0, frame(0)), (1, frame(1))]);
+        store.store_cropped(&id, cropped(20, 10)).unwrap();
+        assert!(store.finish(&id));
+        assert!(store.get_frame(&id, 0).is_none());
+        assert!(store.get_frame(&id, 1).is_none());
+        assert!(store.take_cropped(&id).is_none());
+        assert!(!store.finish(&id));
+        assert!(!store.cancel(&id));
+    }
+
+    #[test]
+    fn old_overlay_events_and_finish_leave_new_capture_untouched() {
+        let store = ScreenshotFrameStore::default();
+        let old = store.begin_capture("old".into());
+        let old_label = overlay_label(&old, 1);
+        let new = store.begin_capture("new".into());
+        store.insert_frames(&new, vec![(0, frame(0))]);
+        assert!(!store.cancel(overlay_capture_id(&old_label).unwrap()));
+        assert!(!store.finish(&old));
+        assert!(store.get_frame(&new, 0).is_some());
+        assert_eq!(
+            overlay_capture_id(&overlay_label(&new, 2)),
+            Some(new.as_str())
+        );
+        assert!(overlay_capture_id("screenshot-overlay-1").is_none());
+        assert!(overlay_capture_id("screenshot-pin-1a2b3c4d").is_none());
+    }
+
+    #[test]
+    fn cancellation_releases_images_before_sibling_close_events() {
+        let store = ScreenshotFrameStore::default();
+        let id = store.begin_capture("request".into());
+        store.insert_frames(&id, vec![(0, frame(0)), (1, frame(1))]);
+        assert!(store.cancel(&id));
+        assert!(store.get_frame(&id, 0).is_none());
+        assert!(store.get_frame(&id, 1).is_none());
+        assert!(!store.cancel(overlay_capture_id(&overlay_label(&id, 1)).unwrap()));
+        store.insert_frames(&id, vec![(0, frame(0))]);
+        assert!(store.get_frame(&id, 0).is_none());
+    }
+
+    #[test]
+    fn pinned_file_can_be_deleted_using_its_window_label() {
+        let dir = tempfile::tempdir().unwrap();
+        let (label, path) = write_pin_file(dir.path(), &pattern_frame_base64()).unwrap();
+        assert!(label.starts_with("screenshot-pin-"));
+        assert_eq!(path, dir.path().join(format!("{label}.png")));
+        std::fs::remove_file(dir.path().join(format!("{label}.png"))).unwrap();
+        assert!(!path.exists());
     }
 
     #[test]
@@ -1104,7 +1417,8 @@ mod tests {
         let store = ScreenshotFrameStore::default();
         let first = store.begin_capture("req-1".to_string());
         store.insert_frames(&first, vec![(0, frame(0))]);
-        let second = store.begin_capture("req-2".to_string());
+        let (second, replaced) = store.begin_capture_replacing("req-2".to_string());
+        assert_eq!(replaced, vec![first.clone()]);
         assert_ne!(first, second);
         assert!(store.get_frame(&first, 0).is_none());
         assert!(store.get_frame(&second, 0).is_none());
@@ -1137,25 +1451,5 @@ mod tests {
         assert!(store.get_frame(&id, 0).is_none());
         // Nothing left to cancel.
         assert!(!store.cancel(&id));
-    }
-
-    #[test]
-    fn the_pending_sweep_cancels_a_pending_capture_and_spares_a_cropped_one() {
-        let store = ScreenshotFrameStore::default();
-        // A capture killed out from under the flow (Alt+F4 on its overlay):
-        // frames in, nothing cropped — the sweep takes it.
-        let pending = store.begin_capture("req-1".to_string());
-        store.insert_frames(&pending, vec![(0, frame(0))]);
-        assert!(store.cancel_all_pending());
-        assert!(store.get_frame(&pending, 0).is_none());
-        // Nothing pending left: a second sweep reports as much.
-        assert!(!store.cancel_all_pending());
-        // One live capture at a time, so a cropped one is all the sweep can
-        // ever meet: the editor has not pulled the image yet — it must be
-        // left alone.
-        let confirmed = store.begin_capture("req-2".to_string());
-        store.store_cropped(&confirmed, cropped(320, 240)).unwrap();
-        assert!(!store.cancel_all_pending());
-        assert!(store.take_cropped(&confirmed).is_some());
     }
 }
