@@ -12,43 +12,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { isLocalDesktop, subscribe } from "@/lib/platform"
-import type {
-  CroppedPayload,
-  ScreenshotCapturedEvent,
-} from "@/lib/screenshot/types"
+import { isLocalDesktop } from "@/lib/platform"
 import { randomUUID } from "@/lib/utils"
-import { screenshotBeginSelection, screenshotTakeCropped } from "@/lib/tauri"
-
-/** The backend event fired once a selection has been finished (metadata
- *  only — the picture itself is pulled with `screenshotTakeCropped`). */
-const CAPTURED_EVENT = "screenshot://captured"
+import { screenshotBeginSelection } from "@/lib/tauri"
 
 /** Hover this long before the menu opens on its own: a pass over the button
  *  on the way somewhere else must not flash a menu. A click opens it at once. */
 const HOVER_OPEN_DELAY_MS = 200
 
-/** The finished capture as an attachment, named for what it is. Annotation
- *  already happened on the capture overlay, so this picture goes as-is. */
-function croppedFile(payload: CroppedPayload): File | null {
-  try {
-    // `atob` reads the bytes as latin-1; each char code is one byte.
-    const bytes = Uint8Array.from(atob(payload.pngBase64), (c) =>
-      c.charCodeAt(0)
-    )
-    const extension = payload.mime === "image/jpeg" ? "jpg" : "png"
-    return new File([bytes], `screenshot.${extension}`, {
-      type: payload.mime || "image/png",
-    })
-  } catch {
-    return null
-  }
-}
-
 export interface ComposerScreenshotButtonProps {
   disabled?: boolean
-  /** Receives the screenshot once the capture overlay confirms it. */
-  onAttachImage: (file: File) => Promise<void>
 }
 
 /**
@@ -57,22 +30,17 @@ export interface ComposerScreenshotButtonProps {
  *
  * Hovering opens a small menu with two ways to capture: with the window up,
  * or with the main window hidden first so it cannot photobomb the picture.
- * The selection and annotation both happen in the backend's own overlay
- * windows; this component waits for the `screenshot://captured` event, pulls
- * the finished picture and attaches it.
+ * The selection, annotation and clipboard copy all happen in the backend's
+ * own overlay windows, so this component only starts the flow — a finished
+ * capture needs no reaction from the main window.
  */
 export function ComposerScreenshotButton({
   disabled = false,
-  onAttachImage,
 }: ComposerScreenshotButtonProps) {
   const t = useTranslations("Folder.chat.messageInput")
   const te = useTranslations("Folder.chat.screenshotEditor")
   const [menuOpen, setMenuOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  // The subscription lives for the component's whole life, but every capture
-  // carries a fresh request id — the ref lets the handler check the latest
-  // one without re-subscribing.
-  const requestIdRef = useRef<string | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
 
   const clearHoverTimer = useCallback(() => {
@@ -101,11 +69,9 @@ export function ComposerScreenshotButton({
       setMenuOpen(false)
       setBusy(true)
       const requestId = randomUUID()
-      requestIdRef.current = requestId
       try {
         await screenshotBeginSelection(requestId, hideMain)
       } catch (error) {
-        requestIdRef.current = null
         toast.error(failureLabel(error))
       } finally {
         setBusy(false)
@@ -113,60 +79,6 @@ export function ComposerScreenshotButton({
     },
     [failureLabel]
   )
-
-  const handleCaptured = useCallback(
-    (event: ScreenshotCapturedEvent) => {
-      // Taking the crop releases the frame store entry — one read, no
-      // second. Nothing stays open for a retry: a failed pull or attach is
-      // a toast, and the next capture replaces this one.
-      screenshotTakeCropped(event.captureId)
-        .then((cropped) => {
-          const file = croppedFile(cropped)
-          if (!file) {
-            toast.error(te("failed"))
-            return
-          }
-          void onAttachImage(file).catch((error) => {
-            console.error(
-              "[ComposerScreenshotButton] attach screenshot failed:",
-              error
-            )
-            toast.error(te("failed"))
-          })
-        })
-        .catch((error) => {
-          toast.error(failureLabel(error))
-        })
-    },
-    [failureLabel, onAttachImage, te]
-  )
-
-  useEffect(() => {
-    if (!isLocalDesktop()) return
-    let active = true
-    let unlisten: (() => void) | null = null
-    subscribe<ScreenshotCapturedEvent>(CAPTURED_EVENT, (event) => {
-      // A completion this button never asked for — a capture from earlier
-      // that outlived its welcome — is not ours to show.
-      if (event.requestId !== requestIdRef.current) return
-      requestIdRef.current = null
-      handleCaptured(event)
-    })
-      .then((fn) => {
-        if (active) unlisten = fn
-        else fn()
-      })
-      .catch((error) => {
-        console.error(
-          "[ComposerScreenshotButton] failed to listen for captures:",
-          error
-        )
-      })
-    return () => {
-      active = false
-      unlisten?.()
-    }
-  }, [handleCaptured])
 
   const handleTriggerMouseEnter = useCallback(() => {
     if (disabled) return

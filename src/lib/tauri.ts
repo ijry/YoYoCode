@@ -1405,3 +1405,30 @@ export async function screenshotCancelSelection(
 ): Promise<void> {
   return invoke("screenshot_cancel_selection", { captureId })
 }
+
+export async function screenshotSaveToFile(
+  pngBase64: string,
+  path: string
+): Promise<void> {
+  return invoke("screenshot_save_to_file", { pngBase64, path })
+}
+
+// Pinning: the finished annotated picture becomes a desktop pin — a
+// frameless, always-on-top window Rust opens at the absolute screen
+// position given here and files the picture under. The pin window reads
+// its picture back through the read command, whose path is jail-checked
+// against the pins directory on the Rust side.
+
+export async function screenshotPin(
+  pngBase64: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): Promise<string> {
+  return invoke("screenshot_pin", { pngBase64, x, y, width, height })
+}
+
+export async function screenshotReadPinImage(path: string): Promise<string> {
+  return invoke("screenshot_read_pin_image", { path })
+}

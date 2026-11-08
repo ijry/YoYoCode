@@ -6,7 +6,7 @@
 // back up crops the wrong region of the picture. Pure arithmetic on plain
 // rectangles, so it can be tested without a window.
 
-import type { ScreenshotRect } from "./types"
+import type { ScreenshotRect, ScreenshotWindowBounds } from "./types"
 
 /** A selection in the overlay window's CSS pixels, as the pointer events
  *  report it — always a normalized box (positive width and height), never a
@@ -35,6 +35,53 @@ export function cssRectToPhysical(
     width: Math.round(rect.width * scaleX),
     height: Math.round(rect.height * scaleY),
   }
+}
+
+/** Native bounds use the frame's physical pixels. Keep fractional CSS
+ *  coordinates so converting back for export recovers the original crop. */
+export function physicalRectToCss(
+  rect: ScreenshotRect,
+  viewport: { width: number; height: number },
+  frame: { width: number; height: number }
+): CssRect {
+  if (
+    ![viewport.width, viewport.height, frame.width, frame.height].every(
+      (size) => Number.isFinite(size) && size > 0
+    )
+  ) {
+    return { x: 0, y: 0, width: 0, height: 0 }
+  }
+  const scaleX = viewport.width / frame.width
+  const scaleY = viewport.height / frame.height
+  return {
+    x: rect.x * scaleX,
+    y: rect.y * scaleY,
+    width: rect.width * scaleX,
+    height: rect.height * scaleY,
+  }
+}
+
+/** The first containing native window wins: candidates already carry the
+ *  front-to-back z-order. Right/bottom are exclusive, like pixel bounds. */
+export function windowAtPoint(
+  windows: readonly ScreenshotWindowBounds[],
+  pointFrame: { x: number; y: number }
+): ScreenshotWindowBounds | null {
+  return (
+    windows.find(
+      (rect) =>
+        Number.isFinite(rect.x) &&
+        Number.isFinite(rect.y) &&
+        Number.isFinite(rect.width) &&
+        Number.isFinite(rect.height) &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        pointFrame.x >= rect.x &&
+        pointFrame.y >= rect.y &&
+        pointFrame.x < rect.x + rect.width &&
+        pointFrame.y < rect.y + rect.height
+    ) ?? null
+  )
 }
 
 /** Whether a selection is too small to be one. The same rule the markup

@@ -23,7 +23,8 @@
     "remote-push-*",
     "computer-indicator",
     "computer-marker",
-    "screenshot-overlay-*"
+    "screenshot-overlay-*",
+    "screenshot-pin-*"
   ],
   "permissions": [
     "core:default",

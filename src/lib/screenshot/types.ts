@@ -14,6 +14,9 @@ export interface ScreenshotRect {
   height: number
 }
 
+/** Native window bounds in local monitor frame physical pixels. */
+export type ScreenshotWindowBounds = ScreenshotRect
+
 /** One monitor's frozen frame, as the overlay window reads it back. The
  *  picture is the whole monitor, at the monitor's own pixel size. */
 export interface MonitorFramePayload {
@@ -21,6 +24,9 @@ export interface MonitorFramePayload {
   pngBase64: string
   width: number
   height: number
+  /** Front-to-back native z-order, frozen with the frame. Older payloads
+   *  omit this; treat them as an empty list. */
+  windows?: ScreenshotWindowBounds[]
 }
 
 /** The cropped picture the editor edits, straight out of the frame store.
