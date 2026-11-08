@@ -74,6 +74,16 @@ const CROPPED = {
   mime: "image/png",
 }
 
+function capturedEvent(requestId: string): ScreenshotCapturedEvent {
+  return {
+    captureId: "cap-1",
+    requestId,
+    width: CROPPED.width,
+    height: CROPPED.height,
+    mime: CROPPED.mime,
+  }
+}
+
 beforeEach(() => {
   platform.isLocalDesktop.mockReturnValue(true)
   platform.subscribe.mockClear()
@@ -134,74 +144,64 @@ describe("ComposerScreenshotButton", () => {
     )
   })
 
-  it("opens the editor for the capture this button started", async () => {
+  it("attaches the finished capture without a second editor", async () => {
     vi.mocked(tauri.screenshotTakeCropped).mockResolvedValue(CROPPED)
     const { onAttachImage } = renderButton()
     const requestId = await startCapture()
 
     await act(async () => {
-      events.handler?.({
-        captureId: "cap-1",
-        requestId,
-        width: CROPPED.width,
-        height: CROPPED.height,
-        mime: CROPPED.mime,
-      })
+      events.handler?.(capturedEvent(requestId))
     })
 
     expect(tauri.screenshotTakeCropped).toHaveBeenCalledWith("cap-1")
-    expect(await screen.findByRole("dialog")).toBeInTheDocument()
-    expect(screen.getByText("640×400")).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole("button", { name: SE.confirm }))
     await waitFor(() => expect(onAttachImage).toHaveBeenCalledTimes(1))
     const file = onAttachImage.mock.calls[0][0] as File
     expect(file).toBeInstanceOf(File)
+    expect(file.name).toBe("screenshot.png")
     expect(file.type).toBe("image/png")
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    )
-  })
-
-  it("closes the editor without attaching on cancel", async () => {
-    vi.mocked(tauri.screenshotTakeCropped).mockResolvedValue(CROPPED)
-    const { onAttachImage } = renderButton()
-    const requestId = await startCapture()
-
-    await act(async () => {
-      events.handler?.({
-        captureId: "cap-1",
-        requestId,
-        width: CROPPED.width,
-        height: CROPPED.height,
-        mime: CROPPED.mime,
-      })
-    })
-    expect(await screen.findByRole("dialog")).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("button", { name: SE.cancel }))
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    )
-    expect(onAttachImage).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
   it("ignores captures from another request", async () => {
     vi.mocked(tauri.screenshotTakeCropped).mockResolvedValue(CROPPED)
-    renderButton()
+    const { onAttachImage } = renderButton()
     await startCapture()
 
     await act(async () => {
-      events.handler?.({
-        captureId: "cap-1",
-        requestId: "someone-else",
-        width: 10,
-        height: 10,
-        mime: "image/png",
-      })
+      events.handler?.(capturedEvent("someone-else"))
     })
 
     expect(tauri.screenshotTakeCropped).not.toHaveBeenCalled()
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(onAttachImage).not.toHaveBeenCalled()
+  })
+
+  it("reports a failure when the finished capture cannot be pulled", async () => {
+    vi.mocked(tauri.screenshotTakeCropped).mockRejectedValue(new Error("boom"))
+    const { onAttachImage } = renderButton()
+    const requestId = await startCapture()
+
+    await act(async () => {
+      events.handler?.(capturedEvent(requestId))
+    })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(SE.failed))
+    expect(onAttachImage).not.toHaveBeenCalled()
+  })
+
+  it("reports a failure when attaching the capture fails", async () => {
+    vi.mocked(tauri.screenshotTakeCropped).mockResolvedValue(CROPPED)
+    const onAttachImage = vi.fn(async () => {
+      throw new Error("boom")
+    })
+    renderButton({ onAttachImage })
+    const requestId = await startCapture()
+
+    await act(async () => {
+      events.handler?.(capturedEvent(requestId))
+    })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(SE.failed))
+    expect(tauri.screenshotTakeCropped).toHaveBeenCalledWith("cap-1")
   })
 
   it("reports a permission refusal distinctly from a generic failure", async () => {

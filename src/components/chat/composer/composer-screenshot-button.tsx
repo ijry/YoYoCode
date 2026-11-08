@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl"
 import { Camera, Monitor } from "lucide-react"
 import { toast } from "sonner"
 
-import { ScreenshotEditorDialog } from "@/components/screenshot/screenshot-editor-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,17 +20,34 @@ import type {
 import { randomUUID } from "@/lib/utils"
 import { screenshotBeginSelection, screenshotTakeCropped } from "@/lib/tauri"
 
-/** The backend event fired once a selection has been cropped (metadata only —
- *  the picture itself is pulled with `screenshotTakeCropped`). */
+/** The backend event fired once a selection has been finished (metadata
+ *  only — the picture itself is pulled with `screenshotTakeCropped`). */
 const CAPTURED_EVENT = "screenshot://captured"
 
 /** Hover this long before the menu opens on its own: a pass over the button
  *  on the way somewhere else must not flash a menu. A click opens it at once. */
 const HOVER_OPEN_DELAY_MS = 200
 
+/** The finished capture as an attachment, named for what it is. Annotation
+ *  already happened on the capture overlay, so this picture goes as-is. */
+function croppedFile(payload: CroppedPayload): File | null {
+  try {
+    // `atob` reads the bytes as latin-1; each char code is one byte.
+    const bytes = Uint8Array.from(atob(payload.pngBase64), (c) =>
+      c.charCodeAt(0)
+    )
+    const extension = payload.mime === "image/jpeg" ? "jpg" : "png"
+    return new File([bytes], `screenshot.${extension}`, {
+      type: payload.mime || "image/png",
+    })
+  } catch {
+    return null
+  }
+}
+
 export interface ComposerScreenshotButtonProps {
   disabled?: boolean
-  /** Receives the annotated (or untouched) screenshot once confirmed. */
+  /** Receives the screenshot once the capture overlay confirms it. */
   onAttachImage: (file: File) => Promise<void>
 }
 
@@ -41,9 +57,9 @@ export interface ComposerScreenshotButtonProps {
  *
  * Hovering opens a small menu with two ways to capture: with the window up,
  * or with the main window hidden first so it cannot photobomb the picture.
- * The selection happens in the backend's own overlay windows; this component
- * waits for the `screenshot://captured` event, pulls the cropped picture and
- * hands it to the annotation editor.
+ * The selection and annotation both happen in the backend's own overlay
+ * windows; this component waits for the `screenshot://captured` event, pulls
+ * the finished picture and attaches it.
  */
 export function ComposerScreenshotButton({
   disabled = false,
@@ -53,8 +69,6 @@ export function ComposerScreenshotButton({
   const te = useTranslations("Folder.chat.screenshotEditor")
   const [menuOpen, setMenuOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [payload, setPayload] = useState<CroppedPayload | null>(null)
   // The subscription lives for the component's whole life, but every capture
   // carries a fresh request id — the ref lets the handler check the latest
   // one without re-subscribing.
@@ -102,17 +116,29 @@ export function ComposerScreenshotButton({
 
   const handleCaptured = useCallback(
     (event: ScreenshotCapturedEvent) => {
-      // Taking the crop releases the frame store entry — one read, no second.
+      // Taking the crop releases the frame store entry — one read, no
+      // second. Nothing stays open for a retry: a failed pull or attach is
+      // a toast, and the next capture replaces this one.
       screenshotTakeCropped(event.captureId)
         .then((cropped) => {
-          setPayload(cropped)
-          setEditorOpen(true)
+          const file = croppedFile(cropped)
+          if (!file) {
+            toast.error(te("failed"))
+            return
+          }
+          void onAttachImage(file).catch((error) => {
+            console.error(
+              "[ComposerScreenshotButton] attach screenshot failed:",
+              error
+            )
+            toast.error(te("failed"))
+          })
         })
         .catch((error) => {
           toast.error(failureLabel(error))
         })
     },
-    [failureLabel]
+    [failureLabel, onAttachImage, te]
   )
 
   useEffect(() => {
@@ -151,67 +177,42 @@ export function ComposerScreenshotButton({
     }, HOVER_OPEN_DELAY_MS)
   }, [clearHoverTimer, disabled])
 
-  const handleEditorConfirm = useCallback(
-    (file: File) => {
-      void onAttachImage(file)
-        .then(() => setEditorOpen(false))
-        .catch((error) => {
-          console.error(
-            "[ComposerScreenshotButton] attach screenshot failed:",
-            error
-          )
-          // The editor stays open so the annotated picture is not lost —
-          // the user can retry the attach or copy it out by hand.
-          toast.error(te("failed"))
-        })
-    },
-    [onAttachImage, te]
-  )
-
   if (!isLocalDesktop()) return null
 
   return (
-    <>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            disabled={disabled || busy}
-            variant="ghost"
-            size="icon-xs"
-            className="shrink-0 text-muted-foreground"
-            title={t("screenshot")}
-            aria-label={t("screenshot")}
-            onMouseEnter={handleTriggerMouseEnter}
-            onMouseLeave={clearHoverTimer}
-            onClick={clearHoverTimer}
-          >
-            <Camera className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="min-w-44">
-          <DropdownMenuItem
-            disabled={disabled || busy}
-            onClick={() => void beginCapture(false)}
-          >
-            <Camera className="size-4" />
-            {t("screenshot")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled || busy}
-            onClick={() => void beginCapture(true)}
-          >
-            <Monitor className="size-4" />
-            {t("screenshotHideWindow")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <ScreenshotEditorDialog
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        payload={payload}
-        onConfirm={handleEditorConfirm}
-      />
-    </>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          disabled={disabled || busy}
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0 text-muted-foreground"
+          title={t("screenshot")}
+          aria-label={t("screenshot")}
+          onMouseEnter={handleTriggerMouseEnter}
+          onMouseLeave={clearHoverTimer}
+          onClick={clearHoverTimer}
+        >
+          <Camera className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="min-w-44">
+        <DropdownMenuItem
+          disabled={disabled || busy}
+          onClick={() => void beginCapture(false)}
+        >
+          <Camera className="size-4" />
+          {t("screenshot")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={disabled || busy}
+          onClick={() => void beginCapture(true)}
+        >
+          <Monitor className="size-4" />
+          {t("screenshotHideWindow")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

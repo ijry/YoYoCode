@@ -1380,12 +1380,17 @@ export async function screenshotGetFrame(
 export async function screenshotFinishSelection(
   captureId: string,
   monitorIndex: number,
-  rect: ScreenshotRect
+  rect: ScreenshotRect,
+  /** The annotated picture composited on the capture overlay, when
+   *  annotation happened there and Rust can file it as-is; omitted, Rust
+   *  crops the raw frozen frame to the rect itself. */
+  annotatedPngBase64?: string
 ): Promise<void> {
   return invoke("screenshot_finish_selection", {
     captureId,
     monitorIndex,
     rect,
+    annotatedPngBase64,
   })
 }
 

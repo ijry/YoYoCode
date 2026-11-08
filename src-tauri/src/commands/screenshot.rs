@@ -663,11 +663,13 @@ pub async fn screenshot_get_frame(
         })
 }
 
-/// Cut the confirmed selection out of its monitor's frozen frame, file the
-/// result for the editor, close every overlay and tell the main window a
-/// capture is waiting. The event carries metadata only — a base64 frame
-/// injected into the webview would freeze the UI for seconds — the editor
-/// pulls the pixels with `screenshot_take_cropped`.
+/// Finish a selection: the overlay hands over the region it confirmed —
+/// either as raw rect coordinates (Rust crops the frozen frame) or, when the
+/// person annotated in place, as the finished annotated picture itself. The
+/// result is filed for the composer, every overlay closes, and the main
+/// window is told a capture is waiting. The event carries metadata only — a
+/// base64 frame injected into the webview would freeze the UI for seconds —
+/// the composer pulls the pixels with `screenshot_take_cropped`.
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_finish_selection(
@@ -676,6 +678,7 @@ pub async fn screenshot_finish_selection(
     capture_id: String,
     monitor_index: u32,
     rect: ScreenshotRect,
+    annotated_png_base64: Option<String>,
 ) -> Result<(), AppCommandError> {
     let frame = state
         .get_frame(&capture_id, monitor_index)
@@ -686,18 +689,34 @@ pub async fn screenshot_finish_selection(
             .with_detail("the capture was cancelled, superseded, or already finished".to_string())
         })?;
     let normalized = validate_selection_rect(&rect, frame.width, frame.height)?;
-    // The crop decodes and re-encodes a full-monitor PNG — up to tens of
-    // megabytes — no work for the UI thread.
-    let cropped =
-        tauri::async_runtime::spawn_blocking(move || crop_png(&frame.png_base64, &normalized))
-            .await
-            .map_err(|e| {
-                AppCommandError::new(
-                    AppErrorCode::TaskExecutionFailed,
-                    "The screenshot crop task failed",
-                )
-                .with_detail(e.to_string())
-            })??;
+    // The annotated composite is already the finished picture; a bare rect
+    // still needs the full-monitor PNG cropped — both decode megabytes, so
+    // neither belongs on the UI thread.
+    let cropped = match annotated_png_base64 {
+        Some(png) => tauri::async_runtime::spawn_blocking(move || {
+            annotated_png(&png, &normalized)
+        })
+        .await
+        .map_err(|e| {
+            AppCommandError::new(
+                AppErrorCode::TaskExecutionFailed,
+                "The screenshot crop task failed",
+            )
+            .with_detail(e.to_string())
+        })??,
+        None => {
+            let png = frame.png_base64;
+            tauri::async_runtime::spawn_blocking(move || crop_png(&png, &normalized))
+                .await
+                .map_err(|e| {
+                    AppCommandError::new(
+                        AppErrorCode::TaskExecutionFailed,
+                        "The screenshot crop task failed",
+                    )
+                    .with_detail(e.to_string())
+                })??
+        }
+    };
     let meta = state
         .store_cropped(&capture_id, cropped)
         .ok_or_else(|| {
@@ -761,6 +780,36 @@ pub async fn screenshot_cancel_selection(
         restore_main_window(&app);
     }
     Ok(())
+}
+
+/// File the overlay's finished annotated picture: decode it, pin its size to
+/// what the selection claims (the overlay composites exactly the selected
+/// region — a mismatch means a stale overlay raced the crop), and wrap it as
+/// the payload the composer attaches.
+pub fn annotated_png(
+    png_base64: &str,
+    rect: &NormalizedRect,
+) -> Result<CroppedPayload, AppCommandError> {
+    let bytes = STANDARD
+        .decode(png_base64)
+        .map_err(|e| AppCommandError::invalid_input(format!("the capture is not valid base64: {e}")))?;
+    let image = image::load_from_memory(&bytes)
+        .map_err(|e| AppCommandError::invalid_input(format!("the capture could not be decoded: {e}")))?;
+    if image.width() != rect.width || image.height() != rect.height {
+        return Err(AppCommandError::invalid_input(format!(
+            "the annotated capture {}x{} does not match the selection {}x{}",
+            image.width(),
+            image.height(),
+            rect.width,
+            rect.height
+        )));
+    }
+    Ok(CroppedPayload {
+        png_base64: STANDARD.encode(bytes),
+        width: rect.width,
+        height: rect.height,
+        mime: "image/png".to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -966,6 +1015,47 @@ mod tests {
         assert!(
             crop_png(&not_an_image, &NormalizedRect { x: 0, y: 0, width: 10, height: 10 }).is_err()
         );
+    }
+
+    // ── annotated_png ────────────────────────────────────────────────────
+
+    #[test]
+    fn an_annotated_capture_is_filed_at_the_selections_size() {
+        // The overlay composites exactly the selected region: the payload
+        // keeps those dimensions and re-encodes the bytes it was handed.
+        let frame = pattern_frame_base64();
+        let source = image::load_from_memory(&STANDARD.decode(&frame).unwrap()).unwrap();
+        let mut cropped = source.crop_imm(5, 5, 10, 10).to_rgba8();
+        // A drawn mark: one pixel changed, still a valid PNG of 10x10.
+        cropped.get_pixel_mut(0, 0).0 = [255, 0, 0, 255];
+        let mut out = std::io::Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(cropped)
+            .write_to(&mut out, ImageFormat::Png)
+            .unwrap();
+        let base64 = STANDARD.encode(out.into_inner());
+
+        let payload = annotated_png(&base64, &NormalizedRect { x: 5, y: 5, width: 10, height: 10 })
+            .unwrap();
+        assert_eq!((payload.width, payload.height), (10, 10));
+        assert_eq!(payload.mime, "image/png");
+        let decoded = image::load_from_memory(&STANDARD.decode(&payload.png_base64).unwrap())
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(decoded.get_pixel(0, 0).0[..3], [255, 0, 0]);
+    }
+
+    #[test]
+    fn an_annotated_capture_off_size_is_refused() {
+        let frame = pattern_frame_base64();
+        let source = image::load_from_memory(&STANDARD.decode(&frame).unwrap()).unwrap();
+        let mut out = std::io::Cursor::new(Vec::new());
+        DynamicImage::ImageRgb8(source.to_rgb8())
+            .write_to(&mut out, ImageFormat::Png)
+            .unwrap();
+        let base64 = STANDARD.encode(out.into_inner());
+        let err = annotated_png(&base64, &NormalizedRect { x: 0, y: 0, width: 9, height: 9 })
+            .unwrap_err();
+        assert!(matches!(err.code, AppErrorCode::InvalidInput));
     }
 
     // ── ScreenshotFrameStore ─────────────────────────────────────────────

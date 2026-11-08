@@ -3,16 +3,17 @@
 // One monitor's screenshot overlay window (label `screenshot-overlay-<n>`,
 // created, positioned and shown by the Rust side). Reads the capture from
 // the query string the window was opened with, pulls that monitor's frozen
-// frame and hands the window to the region picker. The page keeps no state
-// of its own: confirming and cancelling go straight back to the Rust
-// commands, which close this window themselves. The one thing the page
-// closes is itself when the capture it was opened for is already gone — a
-// stale overlay that lost a race — best-effort, since nothing else will.
+// frame and hands the window to the capture overlay, which cuts and
+// annotates a selection in place. The page keeps no state of its own:
+// confirming and cancelling go straight back to the Rust commands, which
+// close this window themselves. The one thing the page closes is itself
+// when the capture it was opened for is already gone — a stale overlay that
+// lost a race — best-effort, since nothing else will.
 
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 
-import { RegionSelectOverlay } from "@/components/screenshot/region-select-overlay"
+import { ScreenshotCaptureOverlay } from "@/components/screenshot/screenshot-capture-overlay"
 import type {
   MonitorFramePayload,
   ScreenshotRect,
@@ -62,12 +63,19 @@ function ScreenshotOverlayPageInner() {
   }, [captureId, monitorIndex, closeSelf])
 
   const handleConfirm = useCallback(
-    (rect: ScreenshotRect) => {
+    (rect: ScreenshotRect, annotatedPngBase64: string | null) => {
       if (!captureId) return
-      // A failure means the Rust side already tore the capture down — and
-      // it closes the overlay windows itself either way, so there is
-      // nothing for this page to recover.
-      screenshotFinishSelection(captureId, monitorIndex, rect).catch(() => {})
+      // A null annotation means the overlay had nothing to composite —
+      // Rust crops the raw frozen frame instead. A failure means the Rust
+      // side already tore the capture down — and it closes the overlay
+      // windows itself either way, so there is nothing for this page to
+      // recover.
+      screenshotFinishSelection(
+        captureId,
+        monitorIndex,
+        rect,
+        annotatedPngBase64 ?? undefined
+      ).catch(() => {})
     },
     [captureId, monitorIndex]
   )
@@ -81,7 +89,7 @@ function ScreenshotOverlayPageInner() {
 
   if (!frame) return null
   return (
-    <RegionSelectOverlay
+    <ScreenshotCaptureOverlay
       frame={frame}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
