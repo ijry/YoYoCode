@@ -4,7 +4,7 @@
 //!
 //! Two halves, deliberately separable:
 //!
-//! * [`ScreenshotFrameStore`] — the in-memory warehouse on `AppState`. One
+//! * [`ScreenshotFrameStore`] — the in-memory warehouse behind the button. One
 //!   live capture at a time (a second `begin_capture` drops the first, so a
 //!   stale overlay window can never serve a stale frame), frames in, cropped
 //!   image out, everything released when the editor pulls the result. It
@@ -91,7 +91,7 @@ struct ScreenshotCapture {
 }
 
 /// The in-memory frame warehouse behind the screenshot flow, one field on
-/// `AppState`. At most one live capture at a time — `begin_capture` drops
+/// It holds at most one live capture at a time — `begin_capture` drops
 /// whatever an earlier one left, so a stale overlay can never serve a stale
 /// frame — and the entry is gone the moment the editor pulls its image.
 ///
@@ -304,7 +304,6 @@ use tauri::{
 #[cfg(feature = "tauri-runtime")]
 use crate::app_error::AppErrorCode;
 #[cfg(feature = "tauri-runtime")]
-use crate::app_state::AppState;
 
 /// One monitor a capture covers, as `screenshot_begin_selection` reports it:
 /// its physical size, never frame data.
@@ -511,13 +510,26 @@ pub(crate) fn restore_main_window(app: &AppHandle) {
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_begin_selection(
     app: AppHandle,
-    state: State<'_, AppState>,
+    state: State<'_, ScreenshotFrameStore>,
+    request_id: String,
+    hide_main: bool,
+) -> Result<ScreenshotBeginOutcome, AppCommandError> {
+    screenshot_begin_selection_core(&app, &state, request_id, hide_main).await
+}
+
+/// The begin flow over plain references — same shape the web/tauri split
+/// calls `_core` helpers with — so the launch diagnostic in `lib.rs` can run
+/// a real capture without threading `State` through a spawned task.
+#[cfg(all(feature = "tauri-runtime", target_os = "windows"))]
+pub(crate) async fn screenshot_begin_selection_core(
+    app: &AppHandle,
+    state: &ScreenshotFrameStore,
     request_id: String,
     hide_main: bool,
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
     // One live capture at a time: registering the new one drops whatever an
     // earlier one left, frames and all.
-    let capture_id = state.screenshot_frames.begin_capture(request_id.clone());
+    let capture_id = state.begin_capture(request_id.clone());
     // A second begin while the first round's overlays are still up: close
     // them before capturing, or the fresh frames would be frozen with the
     // previous round's dark overlay in the picture.
@@ -551,8 +563,10 @@ pub async fn screenshot_begin_selection(
         Err(err) => {
             // The capture failed, possibly with the main window already
             // hidden: undo everything before reporting, or the user is left
-            // staring at whatever codeg used to cover.
-            let _ = state.screenshot_frames.cancel(&capture_id);
+            // staring at whatever codeg used to cover. The error is logged
+            // before it travels back as a bare toast.
+            tracing::error!(error = %err, "screenshot_begin_selection capture failed");
+            let _ = state.cancel(&capture_id);
             if main_hidden {
                 restore_main_window(&app);
             }
@@ -575,7 +589,7 @@ pub async fn screenshot_begin_selection(
         });
         frames.push((monitor.index, monitor.frame));
     }
-    state.screenshot_frames.insert_frames(&capture_id, frames);
+    state.insert_frames(&capture_id, frames);
     match open_overlay_windows(&app, &capture_id, &placements) {
         Ok(()) => Ok(ScreenshotBeginOutcome {
             capture_id,
@@ -592,9 +606,11 @@ pub async fn screenshot_begin_selection(
         }),
         Err(err) => {
             // Half-opened overlays would linger over the desktop: take them
-            // down, undo the capture and un-hide the main window.
+            // down, undo the capture and un-hide the main window. The error
+            // is logged before it travels back as a bare toast.
+            tracing::error!(error = %err, "screenshot_begin_selection failed to open overlay windows");
             close_overlay_windows(&app);
-            let _ = state.screenshot_frames.cancel(&capture_id);
+            let _ = state.cancel(&capture_id);
             if main_hidden {
                 restore_main_window(&app);
             }
@@ -612,7 +628,7 @@ pub async fn screenshot_begin_selection(
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_begin_selection(
     _app: AppHandle,
-    _state: State<'_, AppState>,
+    _state: State<'_, ScreenshotFrameStore>,
     _request_id: String,
     _hide_main: bool,
 ) -> Result<ScreenshotBeginOutcome, AppCommandError> {
@@ -633,12 +649,11 @@ pub async fn screenshot_begin_selection(
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_get_frame(
-    state: State<'_, AppState>,
+    state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
     monitor_index: u32,
 ) -> Result<MonitorFramePayload, AppCommandError> {
     state
-        .screenshot_frames
         .get_frame(&capture_id, monitor_index)
         .ok_or_else(|| {
             AppCommandError::not_found(format!(
@@ -657,13 +672,12 @@ pub async fn screenshot_get_frame(
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_finish_selection(
     app: AppHandle,
-    state: State<'_, AppState>,
+    state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
     monitor_index: u32,
     rect: ScreenshotRect,
 ) -> Result<(), AppCommandError> {
     let frame = state
-        .screenshot_frames
         .get_frame(&capture_id, monitor_index)
         .ok_or_else(|| {
             AppCommandError::not_found(format!(
@@ -685,7 +699,6 @@ pub async fn screenshot_finish_selection(
                 .with_detail(e.to_string())
             })??;
     let meta = state
-        .screenshot_frames
         .store_cropped(&capture_id, cropped)
         .ok_or_else(|| {
             AppCommandError::not_found(format!("Capture {capture_id} is gone")).with_detail(
@@ -721,11 +734,10 @@ pub async fn screenshot_finish_selection(
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_take_cropped(
-    state: State<'_, AppState>,
+    state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
 ) -> Result<CroppedPayload, AppCommandError> {
     state
-        .screenshot_frames
         .take_cropped(&capture_id)
         .ok_or_else(|| {
             AppCommandError::not_found(format!("No cropped image for capture {capture_id}"))
@@ -741,10 +753,10 @@ pub async fn screenshot_take_cropped(
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn screenshot_cancel_selection(
     app: AppHandle,
-    state: State<'_, AppState>,
+    state: State<'_, ScreenshotFrameStore>,
     capture_id: String,
 ) -> Result<(), AppCommandError> {
-    if state.screenshot_frames.cancel(&capture_id) {
+    if state.cancel(&capture_id) {
         close_overlay_windows(&app);
         restore_main_window(&app);
     }
@@ -957,6 +969,31 @@ mod tests {
     }
 
     // ── ScreenshotFrameStore ─────────────────────────────────────────────
+
+    #[test]
+    #[ignore] // diagnostic probe: runs a REAL capture on this machine
+    fn diagnostic_probe_real_capture() {
+        match capture_all_monitors() {
+            Ok(captured) => {
+                for m in &captured {
+                    println!(
+                        "monitor {} {:?} at ({},{}) {}x{} frame {}x{} png {} bytes",
+                        m.index,
+                        m.name,
+                        m.x,
+                        m.y,
+                        m.width,
+                        m.height,
+                        m.frame.width,
+                        m.frame.height,
+                        m.frame.png_base64.len()
+                    );
+                }
+                assert!(!captured.is_empty(), "no monitors captured");
+            }
+            Err(e) => panic!("capture failed: {e}"),
+        }
+    }
 
     #[test]
     fn frames_go_in_and_come_back_per_monitor() {

@@ -733,6 +733,12 @@ mod tauri_app {
             .manage(windows::AuxWindowState::new())
             .manage(workspace_windows::WorkspaceWindowSession::new())
             .manage(web::WebServerState::new())
+            // The screenshot commands' frame warehouse, as its own managed
+            // state: the desktop runtime keeps its components granular (db,
+            // connection manager, …) and never manages `AppState` as a
+            // whole, so a `State<'_, AppState>` parameter would panic on
+            // every invoke. See commands/screenshot.rs.
+            .manage(crate::commands::screenshot::ScreenshotFrameStore::default())
             // Comic (漫剧) video preview: a task-scoped byte server under the
             // app's own scheme. The workbench mints a short-lived grant (via
             // `comic_request_video_preview`), then plays the artifact from
@@ -1724,6 +1730,47 @@ mod tauri_app {
                 #[cfg(feature = "browser-smoke")]
                 crate::browser::smoke::spawn_if_enabled(app.handle().clone());
 
+                // DIAGNOSTIC (dev builds only): auto-run one real screenshot
+                // capture 15 s after launch and log the full outcome, so the
+                // "截图失败" report carries its error instead of a bare toast.
+                // Success pops the selection overlay — press Esc to cancel it.
+                // Re-trigger note: the watcher missed the previous edit.
+                #[cfg(all(debug_assertions, target_os = "windows"))]
+                {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        // The frame store is managed in the builder chain, so
+                        // it is already here when setup runs; give the app a
+                        // moment to finish painting first anyway.
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                        let Some(store) =
+                            handle.try_state::<crate::commands::screenshot::ScreenshotFrameStore>()
+                        else {
+                            tracing::error!("DIAG screenshot: frame store never managed");
+                            return;
+                        };
+                        match crate::commands::screenshot::screenshot_begin_selection_core(
+                            &handle,
+                            store.inner(),
+                            "diagnostic-auto".to_string(),
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(out) => tracing::info!(
+                                capture_id = %out.capture_id,
+                                monitors = out.monitors.len(),
+                                "DIAG screenshot_begin_selection OK"
+                            ),
+                            Err(e) => tracing::error!(
+                                error = %e,
+                                detail = ?e,
+                                "DIAG screenshot_begin_selection FAILED"
+                            ),
+                        }
+                    });
+                }
+
                 Ok(())
             })
             .on_menu_event(|app, event| {
@@ -1798,8 +1845,10 @@ mod tauri_app {
                     )
                 {
                     let app = window.app_handle();
-                    if let Some(state) = app.try_state::<crate::app_state::AppState>() {
-                        if state.screenshot_frames.cancel_all_pending() {
+                    if let Some(store) =
+                        app.try_state::<crate::commands::screenshot::ScreenshotFrameStore>()
+                    {
+                        if store.cancel_all_pending() {
                             crate::commands::screenshot::restore_main_window(app);
                         }
                     }

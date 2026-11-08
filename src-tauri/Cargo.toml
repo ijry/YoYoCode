@@ -386,3 +386,12 @@ temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = { version = "1", features = ["test-util", "macros", "rt", "sync", "time"] }
 insta = { version = "1", features = ["json", "redactions"] }
 axum-test = { version = "17", features = ["ws"] }
+
+# The dev-profile rlib of this crate reaches ~4.4 GB with full debuginfo,
+# which overflows the 32-bit member offsets of the MSVC archive format:
+# link.exe rejects the archive (LNK4003 "invalid library format") and every
+# `tauri dev` bin link fails with unresolved `codeg_lib` symbols. Line tables
+# keep backtraces pointing at real lines while cutting the archive to a size
+# the format can address. Release keeps its own profile and is unaffected.
+[profile.dev]
+debug = 1

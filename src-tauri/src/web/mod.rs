@@ -941,7 +941,6 @@ pub(crate) async fn do_start_web_server_tauri(
             .clone(),
         // Only the desktop screenshot commands (tauri-runtime) fill and drain
         // this; the web service has no capture flow, it just carries it.
-        screenshot_frames: Default::default(),
     });
 
     // See do_start_web_server_with_state for rationale on the reset.
