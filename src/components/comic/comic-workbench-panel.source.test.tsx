@@ -21,9 +21,22 @@ vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({ setRoute: vi.fn() }),
 }))
 vi.mock("@/stores/tab-store", () => {
-  const state = { tabs: [{ id: "source-tab", folderId: 3, kind: "conversation", agentType: "codex" }], activeTabId: "source-tab" }
+  const state = {
+    tabs: [
+      {
+        id: "source-tab",
+        folderId: 3,
+        kind: "conversation",
+        agentType: "codex",
+      },
+    ],
+    activeTabId: "source-tab",
+  }
   return {
-    useTabStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), { getState: () => state }),
+    useTabStore: Object.assign(
+      (selector: (value: typeof state) => unknown) => selector(state),
+      { getState: () => state }
+    ),
   }
 })
 vi.mock("@/lib/api", () => ({
@@ -46,6 +59,12 @@ describe("comic source reader", () => {
     const overview = {
       folderId: 3,
       has_source: true,
+      source: {
+        mode: "upload" as const,
+        novel_file: "source/novel.txt",
+        char_count: 16000,
+        chapter_count: 1,
+      },
       episodes: [],
       characters: [],
       scenes: [],

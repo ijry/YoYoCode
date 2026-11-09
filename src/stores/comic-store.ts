@@ -15,6 +15,7 @@ import {
   type MediaProviderInfo,
 } from "@/lib/comic"
 import { getTransport } from "@/lib/transport"
+import { toErrorMessage } from "@/lib/app-error"
 import type { StoryShot } from "@/lib/comic"
 
 const requests = new Map<number, symbol>()
@@ -46,6 +47,8 @@ export interface ComicShotDraft {
 
 export type ComicResourceDraft =
   | { kind: "script"; text: string }
+  | { kind: "storyboard-import"; text: string }
+  | { kind: "episode"; title: string; script: string; createdId?: string }
   | { kind: "asset"; name: string; description: string; promptFragment: string }
   | ComicShotDraft
   | {
@@ -55,6 +58,8 @@ export type ComicResourceDraft =
       novelPath: string
       fileBase64: string | null
       fileName: string | null
+      initialized?: boolean
+      error?: string
     }
 
 interface ComicState {
@@ -129,7 +134,7 @@ export const useComicStore = create<ComicState>((set, get) => ({
       set((s) => ({
         errors: {
           ...s.errors,
-          [folderId]: err instanceof Error ? err.message : String(err),
+          [folderId]: toErrorMessage(err),
         },
       }))
     } finally {
@@ -187,6 +192,12 @@ export function subscribeComicChanged(
     .then((fn) => {
       if (disposed) fn()
       else unsubscribe = fn
+    })
+    .catch((error: unknown) => {
+      // A disconnected transport must not turn mounting the workbench into
+      // an unhandled rejection. Manual refresh remains available.
+      if (!disposed)
+        console.warn("Comic event subscription failed:", toErrorMessage(error))
     })
   return () => {
     disposed = true

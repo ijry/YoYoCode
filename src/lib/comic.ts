@@ -144,8 +144,19 @@ export type NextAction =
   | { action: "compose_episode"; episode: string }
   | { action: "none" }
 
+export interface SourceMeta {
+  mode: "upload" | "external_path" | "original" | null
+  novel_file?: string | null
+  external_path?: string | null
+  title?: string | null
+  char_count: number
+  chapter_count: number
+  encoding?: string | null
+}
+
 export interface ProjectOverview {
   series?: SeriesConfig | null
+  source?: SourceMeta | null
   has_source: boolean
   source_hint?: string | null
   episodes: {
@@ -276,6 +287,10 @@ export interface SeriesPatchParams {
   maxConcurrentTasks?: number
 }
 
+export interface StoryboardSnapshot {
+  shots: StoryShot[]
+}
+
 export interface EpisodeMetaInput {
   id: string
   title: string
@@ -361,7 +376,8 @@ export const comicApi = {
 
   upsertEpisode: (
     folderId: number,
-    meta: EpisodeMetaInput
+    meta: EpisodeMetaInput,
+    options?: { createOnly?: boolean; expectedMeta?: EpisodeMetaInput }
   ): Promise<EpisodeMetaInput> =>
     getTransport().call("comic_upsert_episode", {
       folderId,
@@ -369,24 +385,33 @@ export const comicApi = {
         status: "draft",
         ...meta,
       },
+      ...options,
     }),
 
   writeScript: (
     folderId: number,
     episode: string,
-    script: string
+    script: string,
+    options?: { createOnly?: boolean }
   ): Promise<void> =>
-    getTransport().call("comic_write_script", { folderId, episode, script }),
+    getTransport().call("comic_write_script", {
+      folderId,
+      episode,
+      script,
+      ...options,
+    }),
 
   replaceStoryboard: (
     folderId: number,
     episode: string,
-    shots: StoryShotInput[]
+    shots: StoryShotInput[],
+    expectedStoryboard?: StoryboardSnapshot
   ): Promise<{ shots: StoryShot[] }> =>
     getTransport().call("comic_replace_storyboard", {
       folderId,
       episode,
       shots,
+      ...(expectedStoryboard ? { expectedStoryboard } : {}),
     }),
 
   upsertShot: (

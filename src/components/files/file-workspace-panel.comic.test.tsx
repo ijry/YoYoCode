@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -239,6 +239,17 @@ describe("comic in the wide file workspace", () => {
     let view = renderPanel()
     const title = await screen.findByRole("textbox", { name: "Series title" })
     fireEvent.change(title, { target: { value: "Draft series" } })
+    fireEvent.keyDown(
+      within(screen.getByRole("dialog")).getByRole("combobox"),
+      {
+        key: "ArrowDown",
+      }
+    )
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: "Upload the full novel (txt/md)",
+      })
+    )
     const upload =
       view.container.ownerDocument.querySelector<HTMLInputElement>(
         "input[type=file]"

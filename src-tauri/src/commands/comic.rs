@@ -127,6 +127,39 @@ async fn provider_pool(
 // Core functions (Tauri commands + web handlers + MCP tools)
 // ---------------------------------------------------------------------------
 
+/// Explicit bootstrap shared by desktop, HTTP and the token-scoped MCP tool.
+/// Validate before creating anything; reopening an existing project preserves it.
+/// The caller supplies the trusted folder scope, never a model-provided path.
+pub async fn comic_init_project_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    title: &str,
+) -> Result<SeriesConfig, AppCommandError> {
+    let title = title.trim();
+    if title.is_empty() || title.chars().count() > 200 {
+        return Err(AppCommandError::invalid_input(
+            "title must contain 1–200 characters after trimming whitespace",
+        ));
+    }
+    if !crate::acp::comic_tools::comic_tools_available(folder_path) {
+        return Err(AppCommandError::invalid_input(
+            "comic initialization requires an existing absolute working directory",
+        ));
+    }
+    let store = StoryStore::init(folder_path, title)
+        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
+    let series = store
+        .read_series()
+        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
+    emit_event(
+        emitter,
+        COMIC_CHANGED_EVENT,
+        &ComicChange::Refresh { folder_id },
+    );
+    Ok(series)
+}
+
 pub async fn comic_overview_core(
     conn: &sea_orm::DatabaseConnection,
     folder_id: i32,
@@ -422,16 +455,36 @@ pub async fn comic_upsert_series_core(
     Ok(config)
 }
 
+fn story_write_error(error: StoreError) -> AppCommandError {
+    match error {
+        StoreError::Conflict(message) => {
+            AppCommandError::new(crate::app_error::AppErrorCode::Conflict, message)
+        }
+        other => AppCommandError::invalid_input(other.message()),
+    }
+}
+
 pub async fn comic_upsert_episode_core(
     emitter: &EventEmitter,
     folder_id: i32,
     folder_path: &Path,
     meta: EpisodeMeta,
 ) -> Result<EpisodeMeta, AppCommandError> {
-    let store = store_for(folder_path).map_err(|e| AppCommandError::invalid_input(e.message()))?;
+    comic_upsert_episode_checked_core(emitter, folder_id, folder_path, meta, false, None).await
+}
+
+pub async fn comic_upsert_episode_checked_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    meta: EpisodeMeta,
+    create_only: bool,
+    expected_meta: Option<&EpisodeMeta>,
+) -> Result<EpisodeMeta, AppCommandError> {
+    let store = store_for(folder_path).map_err(story_write_error)?;
     store
-        .upsert_episode(&meta)
-        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
+        .upsert_episode_checked(&meta, create_only, expected_meta)
+        .map_err(story_write_error)?;
     emit_upsert(emitter, folder_id, "episode", &meta.id);
     Ok(meta)
 }
@@ -443,10 +496,21 @@ pub async fn comic_write_script_core(
     episode: &str,
     script: &str,
 ) -> Result<(), AppCommandError> {
-    let store = store_for(folder_path).map_err(|e| AppCommandError::invalid_input(e.message()))?;
+    comic_write_script_checked_core(emitter, folder_id, folder_path, episode, script, false).await
+}
+
+pub async fn comic_write_script_checked_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    episode: &str,
+    script: &str,
+    create_only: bool,
+) -> Result<(), AppCommandError> {
+    let store = store_for(folder_path).map_err(story_write_error)?;
     store
-        .write_script(episode, script)
-        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
+        .write_script_checked(episode, script, create_only)
+        .map_err(story_write_error)?;
     emit_upsert(emitter, folder_id, "episode", episode);
     Ok(())
 }
@@ -458,11 +522,23 @@ pub async fn comic_replace_storyboard_core(
     episode: &str,
     shots: Vec<StoryShot>,
 ) -> Result<Storyboard, AppCommandError> {
-    let store = store_for(folder_path).map_err(|e| AppCommandError::invalid_input(e.message()))?;
-    // Validates every reference first; nothing lands on any bad shot.
+    comic_replace_storyboard_checked_core(emitter, folder_id, folder_path, episode, shots, None)
+        .await
+}
+
+pub async fn comic_replace_storyboard_checked_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    episode: &str,
+    shots: Vec<StoryShot>,
+    expected_storyboard: Option<&Storyboard>,
+) -> Result<Storyboard, AppCommandError> {
+    let store = store_for(folder_path).map_err(story_write_error)?;
+    // Validates every reference and the snapshot before changing any file.
     let board = store
-        .replace_storyboard(episode, shots)
-        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
+        .replace_storyboard_checked(episode, shots, expected_storyboard)
+        .map_err(story_write_error)?;
     emit_upsert(emitter, folder_id, "episode", episode);
     Ok(board)
 }
@@ -1388,6 +1464,12 @@ impl McpComicTools {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InitProjectArgs {
+    title: String,
+}
+
 #[async_trait]
 impl ComicAccess for McpComicTools {
     async fn call(
@@ -1398,10 +1480,21 @@ impl ComicAccess for McpComicTools {
         args: &Value,
         cancel: tokio_util::sync::CancellationToken,
     ) -> ComicOutcome {
-        // Every tool operates on the session's own project; the store is the
-        // gate. A not-comic folder refuses uniformly (also what an invalid
-        // token already produced at the listener).
-        if !StoryStore::exists(working_dir) {
+        // The listener authenticates the token and supplies its working_dir.
+        // Discovery and explicit init are available before story/ exists; all
+        // other tools still require it. Merely listing/reading never creates it.
+        if !crate::acp::comic_tools::comic_tools_available(working_dir) {
+            return ComicOutcome::not_comic_project();
+        }
+        if !StoryStore::exists(working_dir) && tool != "comic_init_project" {
+            if tool == "comic_get_project" {
+                return ComicOutcome::ok(serde_json::json!({
+                    "initialized": false,
+                    "folderId": self.folder_id(working_dir).await,
+                    "nextTool": "comic_init_project",
+                    "message": "No comic project exists in this session's working directory. Call comic_init_project with a title to create it.",
+                }));
+            }
             return ComicOutcome::not_comic_project();
         }
         let parse = |outcome: Result<Value, AppCommandError>| match outcome {
@@ -1416,18 +1509,46 @@ impl ComicAccess for McpComicTools {
             ),
         };
         match tool {
+            "comic_init_project" => {
+                let Ok(params) = serde_json::from_value::<InitProjectArgs>(args.clone()) else {
+                    return ComicOutcome::refused(
+                        "comic_invalid",
+                        "comic_init_project accepts only {title: string}; the directory is fixed by this session",
+                    );
+                };
+                let folder_id = self.folder_id(working_dir).await;
+                parse(
+                    comic_init_project_core(
+                        &self.emitter,
+                        folder_id.unwrap_or(0),
+                        working_dir,
+                        &params.title,
+                    )
+                    .await
+                    .map(|series| {
+                        serde_json::json!({
+                            "initialized": true,
+                            "folderId": folder_id,
+                            "series": series,
+                        })
+                    }),
+                )
+            }
             "comic_get_project" => {
                 match self.folder_id(working_dir).await {
-                    Some(folder_id) => parse(
-                        comic_overview_core(&self.conn, folder_id)
-                            .await
-                            .map(|o| serde_json::to_value(&o).unwrap_or_default()),
-                    ),
+                    Some(folder_id) => {
+                        parse(comic_overview_core(&self.conn, folder_id).await.map(|o| {
+                            let mut data = serde_json::to_value(&o).unwrap_or_default();
+                            data["initialized"] = Value::Bool(true);
+                            data
+                        }))
+                    }
                     // Not a registered folder: answer from the files alone.
                     None => {
                         let outcome = store_for(working_dir).and_then(|store| store.overview());
                         match outcome {
                             Ok(overview) => ComicOutcome::ok(serde_json::json!({
+                                "initialized": true,
                                 "folderId": null,
                                 "overview": overview,
                                 "providerPool": [],
@@ -2065,14 +2186,7 @@ pub async fn comic_init_project(
 ) -> Result<ComicOverview, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
     let emitter = EventEmitter::Tauri(app);
-    let store =
-        StoryStore::init(&path, &title).map_err(|e| AppCommandError::invalid_input(e.message()))?;
-    drop(store);
-    emit_event(
-        &emitter,
-        COMIC_CHANGED_EVENT,
-        &ComicChange::Refresh { folder_id },
-    );
+    comic_init_project_core(&emitter, folder_id, &path, &title).await?;
     comic_overview_core(&db.conn, folder_id).await
 }
 
@@ -2238,10 +2352,20 @@ pub async fn comic_upsert_episode(
     app: tauri::AppHandle,
     folder_id: i32,
     meta: EpisodeMeta,
+    create_only: Option<bool>,
+    expected_meta: Option<EpisodeMeta>,
 ) -> Result<EpisodeMeta, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
     let emitter = EventEmitter::Tauri(app);
-    comic_upsert_episode_core(&emitter, folder_id, &path, meta).await
+    comic_upsert_episode_checked_core(
+        &emitter,
+        folder_id,
+        &path,
+        meta,
+        create_only.unwrap_or(false),
+        expected_meta.as_ref(),
+    )
+    .await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2252,10 +2376,19 @@ pub async fn comic_write_script(
     folder_id: i32,
     episode: String,
     script: String,
+    create_only: Option<bool>,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
     let emitter = EventEmitter::Tauri(app);
-    comic_write_script_core(&emitter, folder_id, &path, &episode, &script).await
+    comic_write_script_checked_core(
+        &emitter,
+        folder_id,
+        &path,
+        &episode,
+        &script,
+        create_only.unwrap_or(false),
+    )
+    .await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2266,10 +2399,19 @@ pub async fn comic_replace_storyboard(
     folder_id: i32,
     episode: String,
     shots: Vec<StoryShot>,
+    expected_storyboard: Option<Storyboard>,
 ) -> Result<Storyboard, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
     let emitter = EventEmitter::Tauri(app);
-    comic_replace_storyboard_core(&emitter, folder_id, &path, &episode, shots).await
+    comic_replace_storyboard_checked_core(
+        &emitter,
+        folder_id,
+        &path,
+        &episode,
+        shots,
+        expected_storyboard.as_ref(),
+    )
+    .await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2647,6 +2789,299 @@ pub async fn comic_read_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn guarded_writes_report_conflict_without_events_and_legacy_calls_still_upsert() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Guarded commands").unwrap();
+        let broadcaster = std::sync::Arc::new(crate::web::event_bridge::WebEventBroadcaster::new());
+        let mut events = broadcaster.subscribe();
+        let emitter = EventEmitter::test_web_only(broadcaster);
+        let meta = EpisodeMeta {
+            id: "ep001".into(),
+            title: "Original".into(),
+            ..Default::default()
+        };
+        comic_upsert_episode_checked_core(&emitter, 7, dir.path(), meta.clone(), true, None)
+            .await
+            .unwrap();
+        assert_eq!(events.try_recv().unwrap().payload["id"], "ep001");
+        let error =
+            comic_upsert_episode_checked_core(&emitter, 7, dir.path(), meta.clone(), true, None)
+                .await
+                .unwrap_err();
+        assert!(matches!(
+            error.code,
+            crate::app_error::AppErrorCode::Conflict
+        ));
+        assert!(events.try_recv().is_err());
+
+        store.write_script("ep001", "Concurrent script").unwrap();
+        let error =
+            comic_write_script_checked_core(&emitter, 7, dir.path(), "ep001", "New script", true)
+                .await
+                .unwrap_err();
+        assert!(matches!(
+            error.code,
+            crate::app_error::AppErrorCode::Conflict
+        ));
+        assert!(events.try_recv().is_err());
+        assert_eq!(store.read_script("ep001").unwrap(), "Concurrent script");
+
+        let expected = Storyboard::default();
+        store
+            .upsert_shot(
+                "ep001",
+                &StoryShot {
+                    id: "concurrent".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let error = comic_replace_storyboard_checked_core(
+            &emitter,
+            7,
+            dir.path(),
+            "ep001",
+            vec![],
+            Some(&expected),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error.code,
+            crate::app_error::AppErrorCode::Conflict
+        ));
+        assert!(events.try_recv().is_err());
+        assert_eq!(
+            store.read_storyboard("ep001").unwrap().shots[0].id,
+            "concurrent"
+        );
+
+        let updated = EpisodeMeta {
+            title: "Legacy update".into(),
+            ..meta
+        };
+        comic_upsert_episode_core(&emitter, 7, dir.path(), updated.clone())
+            .await
+            .unwrap();
+        comic_write_script_core(&emitter, 7, dir.path(), "ep001", "Legacy script")
+            .await
+            .unwrap();
+        comic_replace_storyboard_core(&emitter, 7, dir.path(), "ep001", vec![])
+            .await
+            .unwrap();
+        assert_eq!(store.read_episode("ep001").unwrap(), updated);
+        assert_eq!(store.read_script("ep001").unwrap(), "Legacy script");
+        assert!(store.read_storyboard("ep001").unwrap().shots.is_empty());
+    }
+
+    struct NoBootstrapQuestions;
+
+    #[async_trait]
+    impl SessionQuestionAccess for NoBootstrapQuestions {
+        async fn register_question(
+            &self,
+            _: &str,
+            _: Vec<QuestionSpec>,
+        ) -> Option<crate::acp::question::RegisteredQuestion> {
+            None
+        }
+
+        async fn cancel_question(&self, _: &str, _: &str) {}
+        async fn cancel_questions_by_parent(&self, _: &str) {}
+    }
+
+    async fn bootstrap_tools(emitter: EventEmitter) -> McpComicTools {
+        use sea_orm_migration::MigratorTrait;
+        let conn = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        crate::db::migration::Migrator::up(&conn, None)
+            .await
+            .unwrap();
+        McpComicTools::new(conn, emitter, std::sync::Arc::new(NoBootstrapQuestions))
+    }
+
+    async fn bootstrap_call(
+        tools: &McpComicTools,
+        dir: &Path,
+        name: &str,
+        args: Value,
+    ) -> ComicOutcome {
+        tools
+            .call(
+                "bootstrap-parent",
+                dir,
+                name,
+                &args,
+                tokio_util::sync::CancellationToken::new(),
+            )
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn empty_project_discovery_is_read_only_and_other_tools_refuse() {
+        let dir = tempfile::tempdir().unwrap();
+        let tools = bootstrap_tools(EventEmitter::Noop).await;
+        let discovered = bootstrap_call(
+            &tools,
+            dir.path(),
+            "comic_get_project",
+            serde_json::json!({}),
+        )
+        .await;
+        assert!(discovered.ok, "{discovered:?}");
+        assert_eq!(discovered.data["initialized"], false);
+        assert_eq!(discovered.data["folderId"], Value::Null);
+        assert_eq!(discovered.data["nextTool"], "comic_init_project");
+        let schema: Vec<Value> =
+            serde_json::from_str(crate::acp::delegation::companion::TOOL_SCHEMA_JSON).unwrap();
+        for tool in schema.iter().filter_map(|t| t["name"].as_str()) {
+            if !tool.starts_with("comic_")
+                || matches!(tool, "comic_get_project" | "comic_init_project")
+            {
+                continue;
+            }
+            let outcome = bootstrap_call(
+                &tools,
+                dir.path(),
+                tool,
+                serde_json::json!({"title":"No implicit init"}),
+            )
+            .await;
+            assert!(!outcome.ok, "{tool}");
+            assert_eq!(
+                outcome.error.unwrap().code,
+                crate::acp::comic_tools::ERROR_NOT_COMIC_PROJECT,
+                "{tool}"
+            );
+        }
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn explicit_init_and_later_writes_use_same_directory_and_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let broadcaster = std::sync::Arc::new(crate::web::event_bridge::WebEventBroadcaster::new());
+        let mut events = broadcaster.subscribe();
+        let tools = bootstrap_tools(EventEmitter::test_web_only(broadcaster)).await;
+        let folder = folder_service::add_folder(&tools.conn, &dir.path().to_string_lossy())
+            .await
+            .unwrap();
+        let outsider = folder_service::add_folder(&tools.conn, &outside.path().to_string_lossy())
+            .await
+            .unwrap();
+        let discovered = bootstrap_call(
+            &tools,
+            dir.path(),
+            "comic_get_project",
+            serde_json::json!({"folderId":outsider.id}),
+        )
+        .await;
+        assert_eq!(discovered.data["folderId"], folder.id);
+        assert!(events.try_recv().is_err());
+        let initialized = bootstrap_call(
+            &tools,
+            dir.path(),
+            "comic_init_project",
+            serde_json::json!({"title":"  我的剧集  "}),
+        )
+        .await;
+        assert!(initialized.ok, "{initialized:?}");
+        assert_eq!(initialized.data["initialized"], true);
+        assert_eq!(initialized.data["folderId"], folder.id);
+        assert_eq!(initialized.data["series"]["title"], "我的剧集");
+        let event = events.try_recv().unwrap();
+        assert_eq!(event.channel, COMIC_CHANGED_EVENT);
+        assert_eq!(event.payload["kind"], "refresh");
+        assert_eq!(event.payload["folder_id"], folder.id);
+        for (name, args) in [
+            (
+                "comic_upsert_episode",
+                serde_json::json!({"id":"ep001","title":"第一集","folderId":outsider.id}),
+            ),
+            (
+                "comic_write_script",
+                serde_json::json!({"episode":"ep001","script":"Saved script","working_dir":outside.path()}),
+            ),
+        ] {
+            let result = bootstrap_call(&tools, dir.path(), name, args).await;
+            assert!(result.ok, "{result:?}");
+            assert_eq!(events.try_recv().unwrap().payload["folder_id"], folder.id);
+        }
+        let store = StoryStore::open(dir.path()).unwrap();
+        assert_eq!(store.read_series().unwrap().title, "我的剧集");
+        assert_eq!(store.read_script("ep001").unwrap(), "Saved script");
+        let overview = bootstrap_call(
+            &tools,
+            dir.path(),
+            "comic_get_project",
+            serde_json::json!({}),
+        )
+        .await;
+        assert_eq!(overview.data["initialized"], true);
+        assert_eq!(overview.data["folderId"], folder.id);
+        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn init_rejects_invalid_titles_and_model_directory_overrides_without_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let tools = bootstrap_tools(EventEmitter::Noop).await;
+        for args in [
+            serde_json::json!({}),
+            serde_json::json!({"title":null}),
+            serde_json::json!({"title":12}),
+            serde_json::json!({"title":""}),
+            serde_json::json!({"title":" \n\t "}),
+            serde_json::json!({"title":"剧".repeat(201)}),
+            serde_json::json!({"title":"Other","folderId":42}),
+            serde_json::json!({"title":"Other","path":outside.path()}),
+            serde_json::json!({"title":"Other","working_dir":outside.path()}),
+        ] {
+            let result = bootstrap_call(&tools, dir.path(), "comic_init_project", args).await;
+            assert!(!result.ok, "{result:?}");
+            assert_eq!(result.error.unwrap().code, "comic_invalid");
+            assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+            assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+        }
+        // The shared desktop/web/MCP core validates before touching disk too.
+        assert!(
+            comic_init_project_core(&EventEmitter::Noop, 0, dir.path(), "  ")
+                .await
+                .is_err()
+        );
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        let title = "剧".repeat(200);
+        let initialized = bootstrap_call(
+            &tools,
+            dir.path(),
+            "comic_init_project",
+            serde_json::json!({"title":title}),
+        )
+        .await;
+        assert!(initialized.ok, "{initialized:?}");
+        assert_eq!(initialized.data["series"]["title"], title);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn bootstrap_refuses_missing_and_file_working_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("file");
+        std::fs::write(&file, "untouched").unwrap();
+        let tools = bootstrap_tools(EventEmitter::Noop).await;
+        for path in [dir.path().join("missing"), file.clone()] {
+            for name in ["comic_get_project", "comic_init_project"] {
+                let result =
+                    bootstrap_call(&tools, &path, name, serde_json::json!({"title":"Denied"}))
+                        .await;
+                assert!(!result.ok, "{name}: {result:?}");
+            }
+        }
+        assert!(!dir.path().join("missing").exists());
+        assert_eq!(std::fs::read_to_string(file).unwrap(), "untouched");
+    }
 
     #[test]
     fn video_unbind_requires_an_explicit_nullable_expected_binding() {

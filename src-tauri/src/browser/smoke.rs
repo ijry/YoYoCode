@@ -816,6 +816,7 @@ async fn execute(app: &AppHandle, cmd: &Value) -> Result<Value, String> {
                             .unwrap_or("smoke-parent")
                             .to_string(),
                         working_dir: std::env::temp_dir(),
+                        comic_enabled: false,
                     },
                 )
                 .await;

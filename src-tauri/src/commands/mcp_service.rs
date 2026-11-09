@@ -824,6 +824,7 @@ mod tests {
                     TokenEntry {
                         parent_connection_id: "conn-a".into(),
                         working_dir: std::path::PathBuf::from("/tmp"),
+                        comic_enabled: false,
                     },
                 )
                 .await;
@@ -834,6 +835,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "conn-b".into(),
                     working_dir: std::path::PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;

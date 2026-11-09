@@ -215,20 +215,98 @@ describe("comic workbench next to the existing conversation", () => {
     expect(mocks.setRoute).not.toHaveBeenCalled()
   })
 
-  it("targets the selected episode when generating its storyboard", () => {
+  it("targets the selected episode and requests immediate draft persistence and readback", async () => {
     useComicStore.setState({
       panel: { 7: { kind: "storyboard", episodeId: "ep002" } },
     })
+    mocks.asset.mockResolvedValue({
+      script: "Saved episode script",
+      storyboard: { shots: [] },
+    })
     renderPanel()
-    fireEvent.click(
-      screen.getByRole("button", { name: "Storyboard this episode" })
+    const generate = screen.getByRole("button", {
+      name: messages.Comic.storyboardGenerate,
+    })
+    expect(generate).toBeDisabled()
+    await waitFor(() => expect(generate).toBeEnabled())
+    fireEvent.click(generate)
+    const prompt = consumeAskSelectionPrompts("current-conversation", {
+      folderId: 7,
+      agentType: "codex",
+    })[0]
+    expect(prompt).toContain("ep002")
+    expect(prompt).toContain("comic_upsert_storyboard")
+    expect(prompt).toContain("comic_get_asset")
+    expect(prompt).toMatch(/immediately save the draft/i)
+    expect(prompt).toMatch(/ask me before overwriting existing manual edits/i)
+    expect(prompt).toMatch(
+      /do not generate paid media, images, video, speech, or compose/i
     )
+    expect(mocks.createConversation).not.toHaveBeenCalled()
+  })
+
+  it("queues a safe request to save conversation scripts and read them back", async () => {
+    renderPanel()
+    await screen.findByRole("button", {
+      name: messages.Comic.qaSaveConversation,
+    })
+    fireEvent.click(
+      screen.getByRole("button", { name: messages.Comic.qaSaveConversation })
+    )
+    const prompt = consumeAskSelectionPrompts("current-conversation", {
+      folderId: 7,
+      agentType: "codex",
+    })[0]
+    expect(prompt).toContain("comic_get_project")
+    expect(prompt).toContain("comic_get_asset")
+    expect(prompt).toContain("comic_upsert_episode")
+    expect(prompt).toContain("comic_write_script")
+    expect(prompt).toMatch(/ask me.*content conflicts/i)
+    expect(prompt).toMatch(
+      /what was actually saved and what remains a proposal/i
+    )
+    expect(prompt).toMatch(
+      /do not generate paid media, images, video, speech, or compose/i
+    )
+    expect(mocks.createConversation).not.toHaveBeenCalled()
+  })
+
+  it("develops the selected original episode without asking to read a novel", async () => {
+    const original = {
+      ...overview(7),
+      source: { mode: "original" as const, char_count: 0, chapter_count: 0 },
+    }
+    mocks.overview.mockResolvedValue(original)
+    useComicStore.setState({
+      overviews: { 7: original },
+      panel: { 7: { kind: "storyboard", episodeId: "ep002" } },
+    })
+    renderPanel()
+    await screen.findByText("Old frame")
+    fireEvent.click(
+      screen.getByRole("button", { name: messages.Comic.qaOriginal })
+    )
+    const prompt = consumeAskSelectionPrompts("current-conversation", {
+      folderId: 7,
+      agentType: "codex",
+    })[0]
+    expect(prompt).toContain("ep002")
+    expect(prompt).toContain("comic_get_asset")
+    expect(prompt).toContain("comic_write_script")
+    expect(prompt).not.toContain("ep001")
+    expect(prompt).not.toMatch(
+      /comic_read_source|novel_read|comic_get_source_outline/
+    )
+  })
+
+  it("does not target the first episode from an unrelated resource panel", () => {
+    renderPanel()
     expect(
-      consumeAskSelectionPrompts("current-conversation", {
-        folderId: 7,
-        agentType: "codex",
-      })[0]
-    ).toContain("ep002")
+      screen.queryByRole("button", { name: messages.Comic.storyboardGenerate })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Generate images for this episode" })
+    ).toBeDisabled()
   })
 
   it("uses the tab that is current at click time and refuses another project's tab", () => {

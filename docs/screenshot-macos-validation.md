@@ -2,7 +2,7 @@
 
 ## 状态与范围
 
-本分支实现 macOS 的多显示器截图、悬停选窗、就地标注、剪贴板复制、PNG 保存和桌面钉图。实现位于 `feat/screenshot-macos`，不是已发布版本。
+macOS 的多显示器截图、悬停选窗、就地标注、剪贴板复制、PNG 保存和桌面钉图已通过合并提交 `2ad79c2f3` 进入 `main`。原 `feat/screenshot-macos` 分支和工作树已清理；这些改动尚未发布。完整开发交接见 [screenshot-development-handoff.md](screenshot-development-handoff.md)。
 
 当前开发主机为 Windows。平台无关的协议、边界换算和前端测试可以在这里运行；原生捕获、TCC、窗口层级及 DMG 必须在 Mac 上构建和验收。Apple 目标的局部类型检查不能替代完整原生构建。
 

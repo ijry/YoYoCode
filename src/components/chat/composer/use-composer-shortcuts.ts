@@ -17,6 +17,10 @@ import { getAgentLabel } from "@/lib/custom-agents"
 import { getExpertIcon, pickLocalized } from "@/lib/expert-presentation"
 import { getScienceIcon } from "@/lib/science-presentation"
 import { OFFICE_ACTIONS, type OfficeAction } from "@/lib/office-actions"
+import {
+  COMIC_PRODUCTION_SKILL_ID,
+  useComicProductionEntry,
+} from "@/lib/comic-production-entry"
 import { useBuiltInExperts } from "@/hooks/use-built-in-experts"
 import { useBuiltInScience } from "@/hooks/use-built-in-science"
 import { useEnabledSkillIds } from "@/hooks/use-enabled-skill-ids"
@@ -102,6 +106,8 @@ export function useComposerShortcuts({
     supported: skillManagementSupported,
   } = useEnabledSkillIds(agentType ?? null)
   const skillPrefix = agentType === "codex" ? "$" : "/"
+  const { manualOnly: comicManualOnly, open: openComicEntry } =
+    useComicProductionEntry(agentType)
 
   const [quickMessages, setQuickMessages] = useState<QuickMessage[]>([])
   const [quickMessagesLoading, setQuickMessagesLoading] = useState(false)
@@ -158,11 +164,13 @@ export function useComposerShortcuts({
 
   const expertsSorted = useMemo(
     () =>
-      [...experts].sort(
-        (a, b) =>
-          (a.metadata.sort_order ?? 0) - (b.metadata.sort_order ?? 0) ||
-          a.metadata.id.localeCompare(b.metadata.id)
-      ),
+      experts
+        .filter((item) => item.metadata.id !== COMIC_PRODUCTION_SKILL_ID)
+        .sort(
+          (a, b) =>
+            (a.metadata.sort_order ?? 0) - (b.metadata.sort_order ?? 0) ||
+            a.metadata.id.localeCompare(b.metadata.id)
+        ),
     [experts]
   )
 
@@ -177,8 +185,12 @@ export function useComposerShortcuts({
   )
 
   const isSkillLocked = useCallback(
-    (id: string) => !!agentType && skillStatusReady && !enabledIds.has(id),
-    [agentType, skillStatusReady, enabledIds]
+    (id: string) =>
+      !(id === COMIC_PRODUCTION_SKILL_ID && comicManualOnly) &&
+      !!agentType &&
+      skillStatusReady &&
+      !enabledIds.has(id),
+    [agentType, skillStatusReady, enabledIds, comicManualOnly]
   )
 
   const notifySkillNotEnabled = useCallback(
@@ -277,14 +289,20 @@ export function useComposerShortcuts({
   const insertOffice = useCallback(
     (action: OfficeAction) => {
       const label = officeLabel(action)
+      const isComic = action.skillId === COMIC_PRODUCTION_SKILL_ID
+      if (isComic && comicManualOnly) {
+        openComicEntry()
+        return
+      }
       if (isSkillLocked(action.skillId)) {
-        notifySkillNotEnabled(label, "office-tools")
+        notifySkillNotEnabled(label, action.settingsSection ?? "office-tools")
         return
       }
       insertSkillShortcut(
         { id: action.skillId, label },
         tQa(action.promptKey as Parameters<typeof tQa>[0])
       )
+      if (isComic) openComicEntry()
     },
     [
       officeLabel,
@@ -292,6 +310,8 @@ export function useComposerShortcuts({
       notifySkillNotEnabled,
       insertSkillShortcut,
       tQa,
+      comicManualOnly,
+      openComicEntry,
     ]
   )
 

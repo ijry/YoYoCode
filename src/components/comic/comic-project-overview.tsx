@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { comicApi, type GenerationTaskView } from "@/lib/comic"
+import { toErrorMessage } from "@/lib/app-error"
 import {
   subscribeComicChanged,
   useComicStore,
@@ -48,7 +49,7 @@ export function ComicProjectOverview({
             setTaskState({
               folderId,
               tasks: [],
-              error: err instanceof Error ? err.message : String(err),
+              error: toErrorMessage(err),
             })
           }
         }

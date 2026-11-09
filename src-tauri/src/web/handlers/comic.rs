@@ -52,16 +52,8 @@ pub async fn comic_init_project(
     Json(params): Json<ComicInitParams>,
 ) -> Result<Json<ComicOverview>, AppCommandError> {
     let path = comic_folder_path(&state, params.folder_id).await?;
-    let store = crate::comic::store::StoryStore::init(&path, &params.title)
-        .map_err(|e| AppCommandError::invalid_input(e.message()))?;
-    drop(store);
-    crate::web::event_bridge::emit_event(
-        &state.emitter,
-        crate::web::event_bridge::COMIC_CHANGED_EVENT,
-        &crate::web::event_bridge::ComicChange::Refresh {
-            folder_id: params.folder_id,
-        },
-    );
+    comic_commands::comic_init_project_core(&state.emitter, params.folder_id, &path, &params.title)
+        .await?;
     Ok(Json(
         comic_commands::comic_overview_core(&state.db.conn, params.folder_id).await?,
     ))
@@ -224,11 +216,13 @@ pub async fn comic_upsert_episode(
 ) -> Result<Json<EpisodeMeta>, AppCommandError> {
     let path = comic_folder_path(&state, params.folder_id).await?;
     Ok(Json(
-        comic_commands::comic_upsert_episode_core(
+        comic_commands::comic_upsert_episode_checked_core(
             &state.emitter,
             params.folder_id,
             &path,
             params.meta,
+            params.create_only.unwrap_or(false),
+            params.expected_meta.as_ref(),
         )
         .await?,
     ))
@@ -239,6 +233,8 @@ pub async fn comic_upsert_episode(
 pub struct EpisodeParams {
     pub folder_id: i32,
     pub meta: EpisodeMeta,
+    pub create_only: Option<bool>,
+    pub expected_meta: Option<EpisodeMeta>,
 }
 
 pub async fn comic_write_script(
@@ -246,12 +242,13 @@ pub async fn comic_write_script(
     Json(params): Json<ScriptParams>,
 ) -> Result<Json<()>, AppCommandError> {
     let path = comic_folder_path(&state, params.folder_id).await?;
-    comic_commands::comic_write_script_core(
+    comic_commands::comic_write_script_checked_core(
         &state.emitter,
         params.folder_id,
         &path,
         &params.episode,
         &params.script,
+        params.create_only.unwrap_or(false),
     )
     .await?;
     Ok(Json(()))
@@ -263,6 +260,7 @@ pub struct ScriptParams {
     pub folder_id: i32,
     pub episode: String,
     pub script: String,
+    pub create_only: Option<bool>,
 }
 
 pub async fn comic_replace_storyboard(
@@ -271,12 +269,13 @@ pub async fn comic_replace_storyboard(
 ) -> Result<Json<Storyboard>, AppCommandError> {
     let path = comic_folder_path(&state, params.folder_id).await?;
     Ok(Json(
-        comic_commands::comic_replace_storyboard_core(
+        comic_commands::comic_replace_storyboard_checked_core(
             &state.emitter,
             params.folder_id,
             &path,
             &params.episode,
             params.shots,
+            params.expected_storyboard.as_ref(),
         )
         .await?,
     ))
@@ -288,6 +287,7 @@ pub struct StoryboardParams {
     pub folder_id: i32,
     pub episode: String,
     pub shots: Vec<StoryShot>,
+    pub expected_storyboard: Option<Storyboard>,
 }
 
 pub async fn comic_upsert_shot(
@@ -832,4 +832,43 @@ async fn comic_folder_path(
         .map_err(AppCommandError::from)?
         .map(|f| std::path::PathBuf::from(f.path))
         .ok_or_else(|| AppCommandError::not_found(format!("folder not found: {folder_id}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_preconditions_are_optional_and_empty_board_is_an_explicit_snapshot() {
+        let legacy: EpisodeParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "meta": {"id": "ep001", "title": "Pilot"}
+        }))
+        .unwrap();
+        assert_eq!(legacy.create_only, None);
+        assert_eq!(legacy.expected_meta, None);
+        let guarded: EpisodeParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "meta": {"id": "ep001", "title": "Pilot"},
+            "createOnly": true, "expectedMeta": {"id": "ep001", "title": "Original"}
+        }))
+        .unwrap();
+        assert_eq!(guarded.create_only, Some(true));
+        assert_eq!(guarded.expected_meta.unwrap().title, "Original");
+        for create_only in [None, Some(true)] {
+            let params: ScriptParams = serde_json::from_value(serde_json::json!({
+                "folderId": 7, "episode": "ep001", "script": "Script", "createOnly": create_only
+            }))
+            .unwrap();
+            assert_eq!(params.create_only, create_only);
+        }
+        let legacy: StoryboardParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "episode": "ep001", "shots": []
+        }))
+        .unwrap();
+        assert_eq!(legacy.expected_storyboard, None);
+        let guarded: StoryboardParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "episode": "ep001", "shots": [], "expectedStoryboard": {"shots": []}
+        }))
+        .unwrap();
+        assert_eq!(guarded.expected_storyboard, Some(Storyboard::default()));
+    }
 }

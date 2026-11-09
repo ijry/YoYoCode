@@ -202,6 +202,7 @@ async fn end_to_end_named_pipe_happy_path() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from(r"C:\Windows\Temp"),
+                comic_enabled: false,
             },
         )
         .await;
@@ -311,6 +312,7 @@ async fn end_to_end_named_pipe_back_to_back_requests() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from(r"C:\Windows\Temp"),
+                comic_enabled: false,
             },
         )
         .await;

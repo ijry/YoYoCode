@@ -37,6 +37,10 @@ import {
 import type { ComposerInjectContent } from "@/components/chat/message-input"
 import { type AgentType, type ExpertListItem } from "@/lib/types"
 import { getAgentLabel } from "@/lib/custom-agents"
+import {
+  COMIC_PRODUCTION_SKILL_ID,
+  useComicProductionEntry,
+} from "@/lib/comic-production-entry"
 
 // Three primary office categories — prominent fixed cards (keep their color).
 const OFFICE_FIXED: (OfficeAction & { accent: string })[] =
@@ -378,14 +382,20 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
   const { enabledIds, ready, supported } = useEnabledSkillIds(agentType)
   const { showWelcomeQuickActions } = useWelcomeQuickActions()
   const lockHint = t("notEnabled.hint")
+  const { manualOnly: comicManualOnly, open: openComicEntry } =
+    useComicProductionEntry(agentType)
 
   // A skill card is locked when we know which agent will run (welcome mode
   // always does) and — after the status snapshot has loaded — that skill is not
   // linked to it. Before `ready` we optimistically treat everything as usable
   // to avoid a flash of all-locked cards on first paint.
   const isLocked = useCallback(
-    (id: string) => !!agentType && ready && !enabledIds.has(id),
-    [agentType, ready, enabledIds]
+    (id: string) =>
+      !(id === COMIC_PRODUCTION_SKILL_ID && comicManualOnly) &&
+      !!agentType &&
+      ready &&
+      !enabledIds.has(id),
+    [agentType, ready, enabledIds, comicManualOnly]
   )
 
   // Clicking a locked card: warn (with the agent's name) and offer a one-click
@@ -432,16 +442,22 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
   const handleOffice = useCallback(
     (action: OfficeAction) => {
       const label = t(action.id as Parameters<typeof t>[0])
+      const isComic = action.skillId === COMIC_PRODUCTION_SKILL_ID
+      if (isComic && comicManualOnly) {
+        openComicEntry()
+        return
+      }
       if (isLocked(action.skillId)) {
-        notifyNotEnabled(label, "office-tools")
+        notifyNotEnabled(label, action.settingsSection ?? "office-tools")
         return
       }
       onSelect({
         text: t(action.promptKey as Parameters<typeof t>[0]),
         skill: { id: action.skillId, label },
       })
+      if (isComic) openComicEntry()
     },
-    [onSelect, t, isLocked, notifyNotEnabled]
+    [onSelect, t, isLocked, notifyNotEnabled, comicManualOnly, openComicEntry]
   )
 
   const handleResearch = useCallback(
@@ -488,7 +504,11 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
       } => v !== null
     )
     const rest = experts
-      .filter((e) => !CODING_FEATURED_IDS.has(e.metadata.id))
+      .filter(
+        (e) =>
+          !CODING_FEATURED_IDS.has(e.metadata.id) &&
+          e.metadata.id !== COMIC_PRODUCTION_SKILL_ID
+      )
       .sort(
         (a, b) =>
           (a.metadata.sort_order ?? 0) - (b.metadata.sort_order ?? 0) ||

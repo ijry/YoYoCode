@@ -73,6 +73,31 @@ describe("comic resource drafts", () => {
 })
 
 describe("comic project synchronization", () => {
+  it("shows structured backend details instead of an object string", async () => {
+    vi.mocked(comicApi.getOverview).mockRejectedValueOnce({
+      code: "io",
+      message: "Cannot open project",
+      detail: "Permission denied: story/series.json",
+    })
+    await useComicStore.getState().load(7)
+    expect(useComicStore.getState().errors[7]).toBe(
+      "Permission denied: story/series.json"
+    )
+  })
+
+  it("handles failed event subscriptions without an unhandled rejection", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    transport.subscribe.mockRejectedValueOnce(new Error("Disconnected"))
+    const dispose = subscribeComicChanged(vi.fn())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(dispose).not.toThrow()
+    expect(warn).toHaveBeenCalledWith(
+      "Comic event subscription failed:",
+      "Disconnected"
+    )
+    warn.mockRestore()
+  })
+
   it("consumes the Rust snake_case task notification", async () => {
     let receive: (payload: unknown) => void = () => {}
     const unlisten = vi.fn()

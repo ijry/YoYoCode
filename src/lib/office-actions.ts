@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 /**
- * A daily-office (officecli) skill shortcut. Shared by the welcome-page quick
+ * An Office skill shortcut (OfficeCLI or a bundled expert). Shared by the welcome-page quick
  * actions and the composer "+" menu so both resolve the same glyphs, labels,
  * and prompt templates.
  */
@@ -24,8 +24,10 @@ export interface OfficeAction {
   /** i18n key under `Folder.chat.welcomePanel.quickActions` for the localized
    *  prompt template injected on click. */
   promptKey: string
-  /** OfficeCLI skill invocation id, used as the leading badge on click. */
+  /** Bundled skill invocation id, used as the leading badge on click. */
   skillId: string
+  /** Skill settings destination; existing OfficeCLI actions default to Office Tools. */
+  settingsSection?: "experts" | "office-tools"
 }
 
 /**
@@ -51,6 +53,13 @@ export const OFFICE_ACTIONS: OfficeAction[] = [
     icon: Presentation,
     promptKey: "prompts.ppt",
     skillId: "officecli-pptx",
+  },
+  {
+    id: "comicProduction",
+    icon: Clapperboard,
+    promptKey: "prompts.comicProduction",
+    skillId: "comic-production",
+    settingsSection: "experts",
   },
   {
     id: "pitchDeck",

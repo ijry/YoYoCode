@@ -8,6 +8,7 @@ import {
   Clapperboard,
   FileText,
   Film,
+  MoreHorizontal,
   Loader2,
   Pencil,
   Plus,
@@ -21,6 +22,9 @@ import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 
 import { ComicImage } from "./comic-image"
+import { ComicEpisodeManager } from "./comic-episode-manager"
+import { ComicStoryboardImportDialog } from "./comic-storyboard-import-dialog"
+import { toErrorMessage } from "@/lib/app-error"
 import { readComicUpload } from "@/lib/comic-upload"
 import { openComicExport, openComicShotClip } from "@/lib/comic-export"
 import {
@@ -57,7 +61,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { comicEntryIsManualOnly } from "@/lib/comic-production-entry"
 import {
   comicApi,
   type Chapter,
@@ -124,24 +135,24 @@ export function ComicWorkbenchPanel({ folderId }: { folderId?: number } = {}) {
       </ComicShell>
     )
   }
-  if (loading && !overview) {
-    return (
-      <ComicShell>
+  return (
+    <ComicShell>
+      {overview ? (
+        <ComicWorkbench
+          key={activeFolderId}
+          folderId={activeFolderId}
+          overview={overview}
+        />
+      ) : loading ? (
         <div className="flex h-full items-center justify-center">
           <Loader2 className="size-5 animate-spin text-muted-foreground/60" />
         </div>
-      </ComicShell>
-    )
-  }
-  if (error != null && !overview) {
-    // The dominant error here is "not a comic project" — the folder has no
-    // story/ root yet. Offer the wizard instead of a dead end; other errors
-    // (transport, permission) render as-is with the same escape hatch.
-    return (
-      <ComicShell>
+      ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
           <Clapperboard className="size-8 opacity-60" />
-          <p className="max-w-sm text-center text-sm">{error}</p>
+          <p className="max-w-sm text-center text-sm">
+            {error ?? t("initProjectDesc")}
+          </p>
           <Button
             variant="outline"
             onClick={() => setWizardOpen(activeFolderId, true)}
@@ -149,24 +160,15 @@ export function ComicWorkbenchPanel({ folderId }: { folderId?: number } = {}) {
             <Plus className="size-4" /> {t("initProject")}
           </Button>
         </div>
-        <InitWizardDialog
-          folderId={activeFolderId}
-          open={wizardOpen}
-          onOpenChange={(open) => setWizardOpen(activeFolderId, open)}
-        />
-      </ComicShell>
-    )
-  }
-  if (!overview) {
-    return (
-      <ComicShell>
-        <EmptyState icon={Clapperboard} text={t("noFolderActive")} />
-      </ComicShell>
-    )
-  }
-  return (
-    <ComicShell>
-      <ComicWorkbench folderId={activeFolderId} overview={overview} />
+      )}
+      {/* Keep the same wizard mounted when init emits the first project
+          overview, so an in-flight source import cannot be submitted twice. */}
+      <InitWizardDialog
+        key={`setup-${activeFolderId}`}
+        folderId={activeFolderId}
+        open={wizardOpen}
+        onOpenChange={(open) => setWizardOpen(activeFolderId, open)}
+      />
     </ComicShell>
   )
 }
@@ -204,8 +206,7 @@ function ComicWorkbench({
   const t = useTranslations("Comic")
   const panel = useComicStore((s) => s.panel[folderId] ?? null)
   const openPanel = useComicStore((s) => s.openPanel)
-  const wizardOpen = useComicStore((s) => s.wizardOpen[folderId] ?? false)
-  const setWizardOpen = useComicStore((s) => s.setWizardOpen)
+  const [createEpisodeOpen, setCreateEpisodeOpen] = useState(false)
   const activePanel: ComicPanelKind =
     panel ??
     (overview.episodes.length > 0
@@ -250,6 +251,16 @@ function ComicWorkbench({
           <RefreshCw className="size-3.5" />
         </Button>
       </div>
+      <ComicEpisodeManager
+        key={folderId}
+        folderId={folderId}
+        overview={overview}
+        selectedId={
+          activePanel.kind === "storyboard" ? activePanel.episodeId : undefined
+        }
+        createOpen={createEpisodeOpen}
+        onCreateOpenChange={setCreateEpisodeOpen}
+      />
       <div className="shrink-0 space-y-2 border-b p-3">
         <label
           className="block text-xs text-muted-foreground"
@@ -310,7 +321,12 @@ function ComicWorkbench({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {activePanel.kind === "source" && (
-          <SourcePanel key={folderId} folderId={folderId} overview={overview} />
+          <SourcePanel
+            key={folderId}
+            folderId={folderId}
+            overview={overview}
+            onCreateEpisode={() => setCreateEpisodeOpen(true)}
+          />
         )}
         {activePanel.kind === "storyboard" && (
           <StoryboardPanel
@@ -334,11 +350,6 @@ function ComicWorkbench({
           <NextActionCard overview={overview} />
         </div>
       </div>
-      <InitWizardDialog
-        folderId={folderId}
-        open={wizardOpen}
-        onOpenChange={(open) => setWizardOpen(folderId, open)}
-      />
     </section>
   )
 }
@@ -374,11 +385,20 @@ function useComicTaskTrigger(folderId: number) {
   const current = useTabStore(
     (state) => state.tabs.find((tab) => tab.id === state.activeTabId) ?? null
   )
-  const enabled = current?.folderId === folderId && !current.isChat
+  const manualOnly = comicEntryIsManualOnly(current?.agentType ?? null)
+  const enabled =
+    current?.kind === "conversation" &&
+    current.folderId === folderId &&
+    !current.isChat &&
+    !manualOnly
   const send = useCallback(
     (text: string) => {
       const state = useTabStore.getState()
       const tab = state.tabs.find((tab) => tab.id === state.activeTabId) ?? null
+      if (comicEntryIsManualOnly(tab?.agentType ?? null)) {
+        toast.error(t("comicManualOnlyHint"))
+        return false
+      }
       const queued = requestComicConversationTask(tab, folderId, text)
       if (queued) toast.success(t("instructionQueued"))
       else toast.error(t("noCurrentConversation"))
@@ -386,7 +406,7 @@ function useComicTaskTrigger(folderId: number) {
     },
     [folderId, t]
   )
-  return { enabled, send }
+  return { enabled, send, manualOnly }
 }
 
 function ComicQuickActions({
@@ -399,30 +419,75 @@ function ComicQuickActions({
   episodeId?: string
 }) {
   const t = useTranslations("Comic")
-  const { enabled, send } = useComicTaskTrigger(folderId)
-  const episode = episodeId ?? overview.episodes[0]?.id
+  const { enabled, send, manualOnly } = useComicTaskTrigger(folderId)
+  const episode = episodeId
+  const scriptDraft = useComicStore((state) =>
+    episode ? state.drafts[folderId]?.[`episodes/${episode}/script`] : undefined
+  )
+  const scriptDirty = scriptDraft?.kind === "script"
+  const hasScriptDrafts = useComicStore((state) =>
+    Object.values(state.drafts[folderId] ?? {}).some(
+      (draft) => draft.kind === "script"
+    )
+  )
+  const original = overview.source?.mode === "original"
+  const scriptActionDisabled =
+    !enabled || (original && !!episode && scriptDirty)
   return (
     <div className="space-y-2">
       <p className="text-xs leading-5 text-muted-foreground">
-        {t("currentConversationHint")}
+        {t(
+          manualOnly
+            ? "comicManualOnlyHint"
+            : enabled
+              ? "currentConversationHint"
+              : "noCurrentConversation"
+        )}
       </p>
+      {hasScriptDrafts && (
+        <p className="text-xs text-muted-foreground">
+          {t("scriptSaveBeforeAI")}
+        </p>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <Button
           variant="outline"
           size="sm"
-          disabled={!enabled}
-          onClick={() => send(t("qaAdaptPrompt"))}
+          disabled={scriptActionDisabled}
+          onClick={() =>
+            !scriptActionDisabled &&
+            send(
+              original
+                ? episode
+                  ? t("qaOriginalEpisodePrompt", { episode })
+                  : t("qaOriginalPrompt")
+                : t("qaAdaptPrompt")
+            )
+          }
         >
           <Wand2 className="size-3.5" />
-          {t("qaAdapt")}
+          {t(original ? "qaOriginal" : "qaAdapt")}
         </Button>
         <Button
           variant="outline"
           size="sm"
-          disabled={!enabled || !episode}
-          onClick={() => episode && send(t("qaStoryboardPrompt", { episode }))}
+          disabled={!enabled || hasScriptDrafts}
+          onClick={() => {
+            const pendingDrafts =
+              useComicStore.getState().drafts[folderId] ?? {}
+            if (
+              Object.values(pendingDrafts).some(
+                (draft) => draft.kind === "script"
+              )
+            ) {
+              toast.error(t("scriptSaveBeforeAI"))
+              return
+            }
+            send(t("qaSaveConversationPrompt"))
+          }}
         >
-          {t("qaStoryboard")}
+          <Save className="size-3.5" />
+          {t("qaSaveConversation")}
         </Button>
         <Button
           variant="outline"
@@ -479,9 +544,11 @@ function ComicQuickActions({
 function SourcePanel({
   folderId,
   overview,
+  onCreateEpisode,
 }: {
   folderId: number
   overview: ComicOverviewPayload
+  onCreateEpisode: () => void
 }) {
   const t = useTranslations("Comic")
   const [chapters, setChapters] = useState<Chapter[] | null>(null)
@@ -490,17 +557,31 @@ function SourcePanel({
   const [read, setRead] = useState<WindowRead | null>(null)
   const [readFor, setReadFor] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const original = overview.source?.mode === "original"
+  const readableSource =
+    overview.has_source &&
+    (overview.source?.mode === "upload" ||
+      overview.source?.mode === "external_path") &&
+    !!overview.source.novel_file
 
   useEffect(() => {
-    if (!overview.has_source) return
+    if (!readableSource) return
+    let cancelled = false
     void comicApi
       .listChapters(folderId, 500)
-      .then(setChapters)
-      .catch((err) => toast.error(String(err)))
-  }, [folderId, overview.has_source])
+      .then((result) => {
+        if (!cancelled) setChapters(result)
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(toErrorMessage(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [folderId, readableSource])
 
   useEffect(() => {
-    if (!overview.has_source) return
+    if (!readableSource) return
     let cancelled = false
     void comicApi
       .readSource(folderId, {
@@ -514,40 +595,59 @@ function SourcePanel({
         setReadFor(selected)
       })
       .catch((err) => {
-        if (!cancelled) toast.error(String(err))
+        if (!cancelled) toast.error(toErrorMessage(err))
       })
     return () => {
       cancelled = true
     }
-  }, [folderId, selected, offset, overview.has_source])
+  }, [folderId, selected, offset, readableSource])
 
   const busy = readFor !== selected
 
   const ingestFile = (file: File) => {
-    void readComicUpload(file).then((base64) => {
-      return comicApi
-        .ingestSource(folderId, {
-          uploadBase64: base64,
-          title: file.name.replace(/\.[^.]+$/, ""),
-        })
-        .then((report: SourceReport) => {
-          toast.success(
-            t("ingested", {
-              chapters: report.chapter_count,
-              chars: report.total_chars,
-            })
-          )
-          void useComicStore.getState().refresh(folderId)
-        })
-        .catch((err) => toast.error(String(err)))
-    })
+    void readComicUpload(file)
+      .then((base64) => {
+        return comicApi
+          .ingestSource(folderId, {
+            uploadBase64: base64,
+            title: file.name.replace(/\.[^.]+$/, ""),
+          })
+          .then((report: SourceReport) => {
+            toast.success(
+              t("ingested", {
+                chapters: report.chapter_count,
+                chars: report.total_chars,
+              })
+            )
+            void useComicStore.getState().refresh(folderId)
+          })
+      })
+      .catch((err) => toast.error(toErrorMessage(err)))
   }
 
-  if (!overview.has_source) {
+  if (original) {
+    return (
+      <div className="space-y-4 p-4">
+        <p className="text-sm text-muted-foreground">
+          {t("originalSourceHint")}
+        </p>
+        <Button onClick={onCreateEpisode}>
+          <Plus className="size-4" />
+          {t(overview.episodes.length ? "episodeNew" : "episodeFirst")}
+        </Button>
+      </div>
+    )
+  }
+
+  if (!readableSource) {
     return (
       <div className="p-4">
-        <EmptyState icon={BookOpen} text={t("noSourceYet")} />
-        <div className="mt-4 flex justify-center">
+        <EmptyState icon={BookOpen} text={t("sourceUnavailable")} />
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={onCreateEpisode}>
+            <Plus className="size-4" />
+            {t(overview.episodes.length ? "episodeNew" : "episodeFirst")}
+          </Button>
           <Button onClick={() => fileRef.current?.click()}>
             <BookOpen className="size-4" /> {t("uploadNovel")}
           </Button>
@@ -636,6 +736,7 @@ function StoryboardPanel({
   episodeId: string
 }) {
   const t = useTranslations("Comic")
+  const { enabled, send } = useComicTaskTrigger(folderId)
   const [shots, setShots] = useState<StoryShot[]>([])
   const [script, setScript] = useState<string | null>(null)
   const draftKey = `episodes/${episodeId}/script`
@@ -643,6 +744,8 @@ function StoryboardPanel({
   const scriptDraft = draft?.kind === "script" ? draft.text : (script ?? "")
   const scriptDirty = draft?.kind === "script"
   const [showScript, setShowScript] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
   const [loading, setLoading] = useState(true)
   const shotDraftKey = `episodes/${episodeId}/shot-editor`
   const shotDraft = useComicStore(
@@ -673,7 +776,7 @@ function StoryboardPanel({
         preview,
       })
     } catch (error) {
-      toast.error(String(error))
+      toast.error(toErrorMessage(error))
     }
   }
 
@@ -687,7 +790,7 @@ function StoryboardPanel({
         const scriptText = (doc.script as string | undefined) ?? null
         setScript(scriptText)
       } catch (err) {
-        toast.error(String(err))
+        toast.error(toErrorMessage(err))
       } finally {
         setLoading(false)
       }
@@ -739,7 +842,7 @@ function StoryboardPanel({
       await reloadTasks()
       void useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     }
   }
 
@@ -754,7 +857,7 @@ function StoryboardPanel({
       setShots(board.shots)
       void useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     }
   }
 
@@ -765,7 +868,7 @@ function StoryboardPanel({
       await reload()
       void useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     }
   }
 
@@ -779,14 +882,37 @@ function StoryboardPanel({
       toast.success(t("scriptSaved"))
       void useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     }
+  }
+
+  const canGenerate = enabled && !loading && !scriptDirty && !!script?.trim()
+  const generateStoryboard = (confirmed = false) => {
+    if (!canGenerate) return
+    if (
+      useComicStore.getState().drafts[folderId]?.[draftKey]?.kind === "script"
+    ) {
+      toast.error(t("scriptSaveBeforeAI"))
+      return
+    }
+    if (shots.length > 0 && !confirmed) {
+      setConfirmRegenerate(true)
+      return
+    }
+    send(t("qaStoryboardPrompt", { episode: episodeId }))
   }
 
   return (
     <div className="p-4">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold">{episodeId}</h3>
+        <Button
+          size="sm"
+          disabled={!canGenerate}
+          onClick={() => generateStoryboard()}
+        >
+          <Wand2 className="size-3.5" /> {t("storyboardGenerate")}
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -794,14 +920,65 @@ function StoryboardPanel({
         >
           <FileText className="size-3.5" /> {t("script")}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}>
+        <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
           <Plus className="size-3.5" /> {t("addShot")}
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <MoreHorizontal className="size-3.5" />
+              {t("storyboardMore")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+              {t("storyboardImport")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {showScript && (
+      <p className="mb-4 text-xs text-muted-foreground">
+        {t(
+          !loading && !script?.trim()
+            ? "storyboardNeedsScript"
+            : "storyboardWorkflowHint"
+        )}
+      </p>
+      <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("storyboardGenerate")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("storyboardRegenerateConfirm", {
+                episode: episodeId,
+                count: shots.length,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!canGenerate}
+              onClick={() => generateStoryboard(true)}
+            >
+              {t("storyboardGenerate")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ComicStoryboardImportDialog
+        folderId={folderId}
+        episodeId={episodeId}
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={reload}
+      />
+
+      {(showScript || scriptDirty || (!loading && shots.length === 0)) && (
         <div className="mb-4">
           <Textarea
+            aria-label={t("script")}
             value={scriptDraft}
             onChange={(e) => {
               useComicStore.getState().setResourceDraft(folderId, draftKey, {
@@ -810,7 +987,7 @@ function StoryboardPanel({
               })
             }}
             className="min-h-72 font-mono text-xs leading-6"
-            placeholder={script ?? t("scriptPlaceholder")}
+            placeholder={script || t("scriptPlaceholder")}
           />
           <div className="mt-2 flex justify-end">
             <Button
@@ -875,7 +1052,7 @@ function StoryboardPanel({
                             await reload()
                             await reloadTasks()
                           })
-                          .catch((error) => toast.error(String(error)))
+                          .catch((error) => toast.error(toErrorMessage(error)))
                       }
                     >
                       {t("useSpeech")}
@@ -904,7 +1081,7 @@ function StoryboardPanel({
                         void openComicExport(
                           folderId,
                           task.artifactPath!
-                        ).catch((error) => toast.error(String(error)))
+                        ).catch((error) => toast.error(toErrorMessage(error)))
                       }
                     >
                       <Film className="size-3.5" />
@@ -1093,7 +1270,7 @@ function VideoReviewDialog({
         toast.error(t("videoConflict"))
         await onChanged()
       } else {
-        toast.error(String(error))
+        toast.error(toErrorMessage(error))
       }
     } finally {
       setBusy(false)
@@ -1134,7 +1311,7 @@ function VideoReviewDialog({
             variant="outline"
             onClick={() =>
               void openComicShotClip(folderId, review.task.artifactPath!).catch(
-                (error) => toast.error(String(error))
+                (error) => toast.error(toErrorMessage(error))
               )
             }
           >
@@ -1284,7 +1461,7 @@ function ShotEditDialog({
       })
       await onSaved()
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -1304,7 +1481,7 @@ function ShotEditDialog({
       setConfirmUnbind(false)
       await onSaved()
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -1596,7 +1773,7 @@ function AssetPanel({
       .then((doc) => {
         setCard(doc)
       })
-      .catch((err) => toast.error(String(err)))
+      .catch((err) => toast.error(toErrorMessage(err)))
   }, [folderId, assetKind, slug])
 
   if (!card) {
@@ -1657,7 +1834,7 @@ function AssetPanel({
       toast.success(t("assetSaved"))
       void useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -1688,7 +1865,7 @@ function AssetPanel({
           return comicApi.getAsset(folderId, assetKind, slug)
         })
         .then((doc) => setCard(doc))
-        .catch((err) => toast.error(String(err)))
+        .catch((err) => toast.error(toErrorMessage(err)))
     })
   }
 
@@ -1864,7 +2041,7 @@ function ProvidersPanel({
       await comicApi.setProvider(folderId, kind, providerId)
       await useComicStore.getState().refresh(folderId)
     } catch (err) {
-      toast.error(String(err))
+      toast.error(toErrorMessage(err))
     }
   }
 
@@ -1959,13 +2136,13 @@ function InitWizardDialog({
 }) {
   const t = useTranslations("Comic")
   const savedDraft = useComicStore((state) => state.drafts[folderId]?.setup)
-  const draft =
+  const draft: Extract<ComicResourceDraft, { kind: "setup" }> =
     savedDraft?.kind === "setup"
       ? savedDraft
       : {
           kind: "setup" as const,
           title: "",
-          sourceMode: "upload" as const,
+          sourceMode: "original" as const,
           novelPath: "",
           fileBase64: null,
           fileName: null,
@@ -1992,8 +2169,16 @@ function InitWizardDialog({
 
   const submit = async () => {
     setBusy(true)
+    let initialized = draft.initialized ?? false
+    let submittedDraft = savedDraft
+    updateDraft({ error: undefined })
     try {
-      await comicApi.initProject(folderId, title.trim())
+      if (!initialized) {
+        await comicApi.initProject(folderId, title.trim())
+        initialized = true
+        updateDraft({ initialized: true })
+      }
+      submittedDraft = useComicStore.getState().drafts[folderId]?.setup
       if (sourceMode === "original") {
         await comicApi.ingestSource(folderId, { original: true })
       } else if (sourceMode === "path") {
@@ -2007,22 +2192,31 @@ function InitWizardDialog({
           title: fileName ?? title.trim(),
         })
       }
-      if (savedDraft) {
+      if (submittedDraft) {
         useComicStore
           .getState()
-          .clearResourceDraft(folderId, "setup", savedDraft)
+          .clearResourceDraft(folderId, "setup", submittedDraft)
       }
       await useComicStore.getState().refresh(folderId)
       onOpenChange(false)
     } catch (err) {
-      toast.error(String(err))
+      const message = initialized
+        ? t("initSourceFailed", { error: toErrorMessage(err) })
+        : toErrorMessage(err)
+      updateDraft({ error: message, initialized })
+      toast.error(message)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!busy) onOpenChange(value)
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("initProject")}</DialogTitle>
@@ -2033,6 +2227,7 @@ function InitWizardDialog({
             <Label htmlFor="comic-title">{t("seriesTitle")}</Label>
             <Input
               id="comic-title"
+              disabled={busy || draft.initialized}
               value={title}
               onChange={(e) => updateDraft({ title: e.target.value })}
               placeholder={t("seriesTitlePlaceholder")}
@@ -2041,6 +2236,7 @@ function InitWizardDialog({
           <div className="space-y-1.5">
             <Label>{t("adaptSource")}</Label>
             <Select
+              disabled={busy}
               value={sourceMode}
               onValueChange={(v) =>
                 updateDraft({ sourceMode: v as "upload" | "path" | "original" })
@@ -2060,6 +2256,7 @@ function InitWizardDialog({
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={busy}
                   onClick={() => fileRef.current?.click()}
                 >
                   {t("chooseFile")}
@@ -2076,13 +2273,14 @@ function InitWizardDialog({
                     updateDraft({ fileName: file.name, fileBase64: null })
                     void readComicUpload(file)
                       .then((fileBase64) => updateDraft({ fileBase64 }))
-                      .catch((error) => toast.error(String(error)))
+                      .catch((error) => toast.error(toErrorMessage(error)))
                   }}
                 />
               </div>
             )}
             {sourceMode === "path" && (
               <Input
+                disabled={busy}
                 value={novelPath}
                 onChange={(e) => updateDraft({ novelPath: e.target.value })}
                 placeholder={t("novelPathPlaceholder")}
@@ -2090,6 +2288,11 @@ function InitWizardDialog({
             )}
           </div>
         </div>
+        {draft.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {draft.error}
+          </p>
+        )}
         <DialogFooter>
           <Button disabled={!canSubmit || busy} onClick={() => void submit()}>
             {busy && <Loader2 className="size-4 animate-spin" />}

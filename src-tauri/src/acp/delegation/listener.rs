@@ -86,6 +86,9 @@ pub trait ParentSessionLookup: Send + Sync {
 pub struct TokenEntry {
     pub parent_connection_id: String,
     pub working_dir: PathBuf,
+    /// Launch-time comic grant. False when host-tools=agent or comic was not
+    /// advertised; enforced here because companion feature flags are not auth.
+    pub comic_enabled: bool,
 }
 
 #[derive(Default)]
@@ -957,9 +960,12 @@ impl DelegationListener {
     /// The token entry's `working_dir` is the project folder the comic tools
     /// operate on — the session was launched inside it, so the LLM's "this
     /// project" is exactly that directory. An invalid token gets the same
-    /// not-a-comic-project refusal a comic-less folder gets (a caller that
+    /// not-a-comic-project refusal as an invalid directory (a caller that
     /// cannot prove it is a companion learns nothing about whether any
-    /// project exists); the backend itself re-checks the story root.
+    /// project exists). A valid token also needs the launch-time comic grant;
+    /// companion feature flags alone cannot authorize host filesystem access.
+    /// The backend allows read-only discovery / explicit init before story/
+    /// exists and re-checks the root for every other operation.
     async fn process_comic(
         &self,
         req: BrokerComicRequest,
@@ -970,6 +976,12 @@ impl DelegationListener {
         };
         if entry.parent_connection_id != req.parent_connection_id {
             return ComicOutcome::not_comic_project();
+        }
+        if !entry.comic_enabled {
+            return ComicOutcome::refused(
+                crate::acp::comic_tools::ERROR_UNAVAILABLE,
+                "Comic tools are not authorized for this session's launch policy.",
+            );
         }
         self.comic
             .call(
@@ -2290,6 +2302,167 @@ mod tests {
         }
     }
 
+    async fn make_comic_listener(tokens: Arc<TokenRegistry>) -> Arc<DelegationListener> {
+        let db = crate::db::test_helpers::fresh_in_memory_db().await;
+        make_listener(
+            make_broker(Arc::new(MockSpawner::new())).await,
+            tokens,
+            Some(1),
+        )
+        .with_comic(Arc::new(crate::commands::comic::McpComicTools::new(
+            db.conn,
+            crate::web::event_bridge::EventEmitter::Noop,
+            Arc::new(StubQuestion::default()),
+        )))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn comic_without_token_grant_refuses_fabricated_calls_before_and_after_init() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("private.txt");
+        std::fs::write(&source, "Not available to this agent").unwrap();
+        let tokens = Arc::new(TokenRegistry::default());
+        tokens
+            .register(
+                "restricted".into(),
+                TokenEntry {
+                    parent_connection_id: "parent-conn".into(),
+                    working_dir: dir.path().into(),
+                    comic_enabled: false,
+                },
+            )
+            .await;
+        let listener = make_comic_listener(tokens).await;
+        // A companion may still exist for feedback/result/task tools. Its valid
+        // token must not acquire comic access by fabricating a wire request.
+        assert_eq!(
+            listener
+                .feedback_target(&BrokerFeedbackRequest {
+                    token: "restricted".into(),
+                })
+                .await
+                .as_deref(),
+            Some("parent-conn")
+        );
+        let schema: Vec<Value> =
+            serde_json::from_str(crate::acp::delegation::companion::TOOL_SCHEMA_JSON).unwrap();
+        for initialized in [false, true] {
+            if initialized {
+                let store = crate::comic::store::StoryStore::init(dir.path(), "Keep title").unwrap();
+                store.write_script("ep001", "Keep script").unwrap();
+            }
+            for tool in schema.iter().filter_map(|tool| tool["name"].as_str()) {
+                if !tool.starts_with("comic_") {
+                    continue;
+                }
+                let args = match tool {
+                    "comic_init_project" => json!({"title": "Denied"}),
+                    "comic_set_source" => json!({"path": source}),
+                    "comic_write_script" => json!({"episode": "ep001", "script": "Denied"}),
+                    _ => json!({"comic_enabled": true}),
+                };
+                let result = listener
+                    .process_comic(
+                        BrokerComicRequest {
+                            token: "restricted".into(),
+                            parent_connection_id: "parent-conn".into(),
+                            tool: tool.into(),
+                            args,
+                        },
+                        tokio_util::sync::CancellationToken::new(),
+                    )
+                    .await;
+                assert!(!result.ok, "{tool} must be denied");
+                assert_eq!(
+                    result.error.unwrap().code,
+                    crate::acp::comic_tools::ERROR_UNAVAILABLE,
+                    "{tool} must be denied before the backend is reached"
+                );
+                assert!(result.data.is_null());
+            }
+            assert_eq!(dir.path().join("story").exists(), initialized);
+            if initialized {
+                let store = crate::comic::store::StoryStore::open(dir.path()).unwrap();
+                assert_eq!(store.read_series().unwrap().title, "Keep title");
+                assert_eq!(store.read_script("ep001").unwrap(), "Keep script");
+                assert_eq!(
+                    std::fs::read_dir(store.root().join("source")).unwrap().count(),
+                    0
+                );
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn comic_token_grant_keeps_bootstrap_parent_scope_and_revocation() {
+        let dir = tempfile::tempdir().unwrap();
+        let tokens = Arc::new(TokenRegistry::default());
+        tokens
+            .register(
+                "comic".into(),
+                TokenEntry {
+                    parent_connection_id: "parent-conn".into(),
+                    working_dir: dir.path().into(),
+                    comic_enabled: true,
+                },
+            )
+            .await;
+        let listener = make_comic_listener(tokens.clone()).await;
+        for (tool, args) in [
+            ("comic_get_project", json!({})),
+            ("comic_init_project", json!({"title": "Allowed"})),
+            (
+                "comic_write_script",
+                json!({"episode": "ep001", "script": "Allowed script"}),
+            ),
+        ] {
+            let result = listener
+                .process_comic(
+                    BrokerComicRequest {
+                        token: "comic".into(),
+                        parent_connection_id: "parent-conn".into(),
+                        tool: tool.into(),
+                        args,
+                    },
+                    tokio_util::sync::CancellationToken::new(),
+                )
+                .await;
+            assert!(result.ok, "{tool}: {result:?}");
+            if tool == "comic_get_project" {
+                assert_eq!(result.data["initialized"], false);
+                assert!(!dir.path().join("story").exists());
+            }
+        }
+        for (token, parent) in [
+            ("unknown", "parent-conn"),
+            ("comic", "other-parent"),
+            ("comic", "parent-conn"),
+        ] {
+            if parent == "parent-conn" && token == "comic" {
+                tokens.revoke(token).await;
+            }
+            let result = listener
+                .process_comic(
+                    BrokerComicRequest {
+                        token: token.into(),
+                        parent_connection_id: parent.into(),
+                        tool: "comic_write_script".into(),
+                        args: json!({"episode": "ep001", "script": "Denied"}),
+                    },
+                    tokio_util::sync::CancellationToken::new(),
+                )
+                .await;
+            assert!(!result.ok);
+            assert_eq!(
+                result.error.unwrap().code,
+                crate::acp::comic_tools::ERROR_NOT_COMIC_PROJECT
+            );
+        }
+        let store = crate::comic::store::StoryStore::open(dir.path()).unwrap();
+        assert_eq!(store.read_script("ep001").unwrap(), "Allowed script");
+    }
+
     #[tokio::test]
     async fn invalid_token_rejected() {
         let listener = make_listener(
@@ -2314,6 +2487,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "other-parent".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2338,6 +2512,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2363,6 +2538,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2394,6 +2570,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2468,6 +2645,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2619,6 +2797,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2724,6 +2903,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2772,6 +2952,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2886,6 +3067,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2953,6 +3135,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "p1".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2962,6 +3145,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "p1".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -2971,6 +3155,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "p2".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3009,6 +3194,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3086,6 +3272,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3137,6 +3324,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3178,6 +3366,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3246,6 +3435,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/repo/app"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3293,6 +3483,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/repo/app"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3370,6 +3561,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3485,6 +3677,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3542,6 +3735,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -3598,6 +3792,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "conn-1".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -4416,6 +4611,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;
@@ -4597,6 +4793,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/tmp"),
+                    comic_enabled: false,
                 },
             )
             .await;

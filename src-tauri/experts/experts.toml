@@ -1,5 +1,6 @@
-# Expert skills metadata for the bundled obra/superpowers v7.0.1 skills.
-# Bundled alongside skills/ and loaded at runtime; see NOTICE.md for provenance.
+# Expert skills metadata for bundled skills, including obra/superpowers v7.0.1.
+# Bundled alongside skills/ and loaded at runtime; see NOTICE.md for upstream provenance.
+# comic-production is Codeg's built-in comic workflow and has no external dependencies.
 # Category values must match ExpertCategory enum in commands/experts.rs.
 # Icons are lucide-react icon names referenced by the frontend.
 # display_name and description fall back to "en" when a locale is missing.
@@ -66,6 +67,37 @@ de = "Erstellt kompakte Implementierungspläne mit klaren Schnittstellen, Dateip
 fr = "Crée des plans d'implémentation concis avec interfaces, chemins de fichiers et étapes de vérification explicites."
 pt = "Cria planos de implementação concisos com interfaces, caminhos de arquivo e etapas de verificação explícitos."
 ar = "ينشئ خطط تنفيذ موجزة بواجهات ومسارات ملفات وخطوات تحقق واضحة."
+
+
+[[expert]]
+id = "comic-production"
+category = "planning"
+icon = "PlayCircle"
+sort_order = 25
+
+[expert.display_name]
+en = "Comic production"
+"zh-CN" = "漫剧创作"
+"zh-TW" = "漫劇創作"
+ja = "モーションコミック制作"
+ko = "모션 코믹 제작"
+es = "Producción de cómics animados"
+de = "Motion-Comic-Produktion"
+fr = "Création de bandes dessinées animées"
+pt = "Produção de quadrinhos animados"
+ar = "إنتاج القصص المصورة المتحركة"
+
+[expert.description]
+en = "Plans original or adapted series and saves episode scripts, asset cards, and storyboards to the comic workbench; media generation requires authorization."
+"zh-CN" = "规划原创或改编漫剧，将分集剧本、资源卡与分镜保存到漫剧工作台；素材生成需用户授权。"
+"zh-TW" = "規劃原創或改編漫劇，將分集劇本、資源卡與分鏡儲存至漫劇工作台；素材生成需使用者授權。"
+ja = "オリジナル・翻案シリーズを企画し、各話の脚本・素材カード・絵コンテを制作画面に保存します。メディア生成には承認が必要です。"
+ko = "창작 또는 각색 시리즈를 기획하고 회차별 대본, 자산 카드, 스토리보드를 작업대에 저장합니다. 미디어 생성에는 승인이 필요합니다."
+es = "Planifica series originales o adaptadas y guarda guiones por episodio, fichas y guiones gráficos en el taller. La generación multimedia requiere autorización."
+de = "Plant eigene oder adaptierte Serien und speichert Episodenskripte, Figuren- und Ressourcenkarten sowie Storyboards im Arbeitsbereich. Medienerzeugung erfordert eine Freigabe."
+fr = "Planifie des séries originales ou adaptées et enregistre les scripts, fiches et storyboards dans l'atelier. La génération de médias nécessite une autorisation."
+pt = "Planeja séries originais ou adaptadas e salva roteiros por episódio, fichas e storyboards no espaço de criação. A geração de mídia exige autorização."
+ar = "يخطط لسلاسل أصلية أو مقتبسة ويحفظ نصوص الحلقات وبطاقات الموارد ولوحات المشاهد في مساحة العمل. يتطلب إنشاء الوسائط إذن المستخدم."
 
 
 [[expert]]

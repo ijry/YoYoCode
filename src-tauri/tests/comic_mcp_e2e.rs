@@ -254,7 +254,7 @@ impl Companion {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn comic_mcp_stdio_resource_round_trip_and_scope() {
     let project = tempfile::tempdir().unwrap();
-    let store = StoryStore::init(project.path(), "MCP fixture").unwrap();
+    let outside = tempfile::tempdir().unwrap();
     let conn = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
     Migrator::up(&conn, None).await.unwrap();
     let folder_id = codeg_lib::db::service::folder_service::add_folder(
@@ -271,6 +271,7 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
             TokenEntry {
                 parent_connection_id: "comic-parent".into(),
                 working_dir: project.path().into(),
+                comic_enabled: true,
             },
         )
         .await;
@@ -280,7 +281,7 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
             Arc::new(NoSessions),
             Arc::new(NoSessions),
         )),
-        tokens,
+        tokens.clone(),
         Arc::new(NoSessions),
         aux.clone(),
         aux.clone(),
@@ -313,6 +314,9 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
         .iter()
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
+    assert_eq!(names.len(), 31);
+    assert!(names.contains(&"comic_init_project"));
+    assert!(names.contains(&"comic_clear_shot_video"));
     assert!(names.contains(&"comic_get_project"));
     assert!(names.contains(&"comic_present_candidates"));
     assert!(names.contains(&"comic_compose_episode"));
@@ -320,9 +324,44 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
     assert!(names.contains(&"comic_request_speech"));
     assert!(names.contains(&"comic_set_shot_audio"));
     assert!(names.iter().all(|name| name.starts_with("comic_")));
+    let before = std::fs::read_dir(project.path()).unwrap().count();
     let overview = companion.call("comic_get_project", json!({})).await;
     assert_eq!(overview["ok"], true);
     assert_eq!(overview["data"]["folderId"], folder_id);
+    assert_eq!(overview["data"]["initialized"], false);
+    assert_eq!(overview["data"]["nextTool"], "comic_init_project");
+    let refused = companion
+        .call("comic_upsert_series", json!({"title":"No implicit init"}))
+        .await;
+    assert_eq!(refused["ok"], false);
+    for args in [
+        json!({"title":" \n\t "}),
+        json!({"title":"x".repeat(201)}),
+        json!({"title":"Wrong folder","folderId":999}),
+        json!({"title":"Wrong folder","path":outside.path()}),
+    ] {
+        let invalid = companion.call("comic_init_project", args).await;
+        assert_eq!(invalid["ok"], false, "{invalid}");
+    }
+    assert_eq!(std::fs::read_dir(project.path()).unwrap().count(), before);
+    assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+    let initialized = companion
+        .call("comic_init_project", json!({"title":"  MCP fixture  "}))
+        .await;
+    assert_eq!(initialized["ok"], true, "{initialized}");
+    assert_eq!(initialized["data"]["initialized"], true);
+    assert_eq!(initialized["data"]["folderId"], folder_id);
+    assert_eq!(initialized["data"]["series"]["title"], "MCP fixture");
+    let store = StoryStore::open(project.path()).unwrap();
+    let episode = companion
+        .call(
+            "comic_upsert_episode",
+            json!({"id":"ep001","title":"First episode","folderId":999}),
+        )
+        .await;
+    assert_eq!(episode["ok"], true, "{episode}");
+    let overview = companion.call("comic_get_project", json!({})).await;
+    assert_eq!(overview["data"]["initialized"], true);
     let written = companion
         .call(
             "comic_write_script",
@@ -488,6 +527,19 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
     );
     wrong_parent.child.kill().await.unwrap();
     wrong_parent.child.wait().await.unwrap();
+
+    tokens.revoke("comic-test-token").await;
+    let mut revoked = Companion::spawn(&socket, "comic-parent", "comic");
+    for name in ["comic_get_project", "comic_init_project"] {
+        let denied = revoked
+            .call(name, json!({"title":"Unauthorized title"}))
+            .await;
+        assert_eq!(denied["ok"], false, "{denied}");
+        assert_eq!(denied["error"]["code"], "comic_not_a_comic_project");
+    }
+    assert_eq!(store.read_series().unwrap().title, "MCP fixture");
+    revoked.child.kill().await.unwrap();
+    revoked.child.wait().await.unwrap();
 
     let mut disabled = Companion::spawn(&socket, "comic-parent", "feedback");
     let tools = disabled.request("tools/list", json!({})).await;

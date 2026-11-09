@@ -13,7 +13,7 @@
 //!    renamed over the target, so a reader (the workbench, an agent's own
 //!    file tools) sees either the old or the new document, never a torn one.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
@@ -99,24 +99,39 @@ impl StoryStore {
     /// Create the `story/` skeleton for a new comic project. Idempotent:
     /// existing files are left untouched.
     pub fn init(folder_path: &Path, title: &str) -> Result<Self, StoreError> {
-        let root = story_root(folder_path);
-        std::fs::create_dir_all(&root)?;
-        for dir in [
-            "bible",
-            "source",
-            "episodes",
-            "characters",
-            "scenes",
-            "props",
-        ] {
-            std::fs::create_dir_all(root.join(dir))?;
+        // Canonicalize the same existing folder for init and subsequent opens,
+        // including when init creates the project directory itself.
+        std::fs::create_dir_all(folder_path)?;
+        let store = Self {
+            folder_path: folder_path.to_path_buf(),
+            root: story_root(folder_path),
+            _lock: folder_lock(folder_path),
+        };
+        {
+            let _guard = store.write_guard();
+            // Validate the whole skeleton before writing through any existing
+            // directory: init must respect the same symlink/reparse-point jail.
+            let series_path = store.resolve("series.json")?;
+            let dirs = [
+                "bible",
+                "source",
+                "episodes",
+                "characters",
+                "scenes",
+                "props",
+            ]
+            .iter()
+            .map(|dir| store.resolve(dir))
+            .collect::<Result<Vec<_>, _>>()?;
+            for dir in dirs {
+                std::fs::create_dir_all(dir)?;
+            }
+            if !series_path.try_exists()? {
+                let config = SeriesConfig::with_defaults(title.to_string());
+                store.write_json("series.json", &config)?;
+            }
         }
-        let series_path = root.join("series.json");
-        if !series_path.exists() {
-            let config = SeriesConfig::with_defaults(title.to_string());
-            write_json_atomic(&series_path, &config)?;
-        }
-        Self::open(folder_path)
+        Ok(store)
     }
 
     pub fn root(&self) -> &Path {
@@ -249,7 +264,34 @@ impl StoryStore {
     }
 
     pub fn read_episode(&self, ep: &str) -> Result<EpisodeMeta, StoreError> {
-        self.read_json(&format!("episodes/{ep}/episode.json"))
+        validate_slug(ep).map_err(StoreError::Invalid)?;
+        let rel = format!("episodes/{ep}/episode.json");
+        let path = self.resolve(&rel)?;
+        // Older writers could create a script/storyboard without episode.json.
+        // Keep those episodes readable without mutating a read or masking a
+        // malformed existing document. Missing directories remain an error.
+        if !path.try_exists()? && self.resolve(&format!("episodes/{ep}"))?.is_dir() {
+            return Ok(Self::default_episode_meta(ep));
+        }
+        self.read_json(&rel)
+    }
+
+    fn default_episode_meta(ep: &str) -> EpisodeMeta {
+        EpisodeMeta {
+            id: ep.to_string(),
+            title: ep.to_string(),
+            ..Default::default()
+        }
+    }
+
+    /// Caller holds the folder write lock. Never rewrite user-authored metadata.
+    fn ensure_episode_locked(&self, ep: &str) -> Result<(), StoreError> {
+        validate_slug(ep).map_err(StoreError::Invalid)?;
+        let rel = format!("episodes/{ep}/episode.json");
+        if !self.resolve(&rel)?.try_exists()? {
+            self.write_json(&rel, &Self::default_episode_meta(ep))?;
+        }
+        Ok(())
     }
 
     pub fn write_episode(&self, ep: &str, meta: &EpisodeMeta) -> Result<(), StoreError> {
@@ -260,13 +302,49 @@ impl StoryStore {
 
     /// Create or replace an episode; also creates its `shots/` directory.
     pub fn upsert_episode(&self, meta: &EpisodeMeta) -> Result<(), StoreError> {
+        self.upsert_episode_checked(meta, false, None)
+    }
+
+    /// Workbench opt-in preconditions. Creation claims the whole episode directory,
+    /// including legacy episodes whose script/board exists without metadata.
+    pub fn upsert_episode_checked(
+        &self,
+        meta: &EpisodeMeta,
+        create_only: bool,
+        expected_meta: Option<&EpisodeMeta>,
+    ) -> Result<(), StoreError> {
         let _guard = self.write_guard();
         validate_slug(&meta.id).map_err(StoreError::Invalid)?;
-        let rel = format!("episodes/{}/episode.json", meta.id);
-        self.write_json(&rel, meta)?;
-        let shots_dir = self.resolve(&format!("episodes/{}/shots", meta.id))?;
-        std::fs::create_dir_all(shots_dir)?;
-        Ok(())
+        let dir = self.resolve(&format!("episodes/{}", meta.id))?;
+        if create_only && dir.try_exists()? {
+            return Err(StoreError::Conflict(format!(
+                "episode {} already exists",
+                meta.id
+            )));
+        }
+        if let Some(expected) = expected_meta {
+            if &self.read_episode(&meta.id)? != expected {
+                return Err(StoreError::Conflict(format!(
+                    "episode {} changed while editing; refresh and try again",
+                    meta.id
+                )));
+            }
+        }
+        if create_only {
+            std::fs::create_dir(&dir)?;
+        }
+        let result = (|| {
+            self.write_json(&format!("episodes/{}/episode.json", meta.id), meta)?;
+            let shots_dir = self.resolve(&format!("episodes/{}/shots", meta.id))?;
+            std::fs::create_dir_all(shots_dir)?;
+            Ok(())
+        })();
+        if create_only && result.is_err() {
+            // No other StoryStore writer can enter this newly claimed directory
+            // until the guard drops. Roll back an incomplete allocation.
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        result
     }
 
     pub fn read_script(&self, ep: &str) -> Result<String, StoreError> {
@@ -277,11 +355,29 @@ impl StoryStore {
     }
 
     pub fn write_script(&self, ep: &str, script: &str) -> Result<(), StoreError> {
+        self.write_script_checked(ep, script, false)
+    }
+
+    /// Create-only script retries are idempotent for identical bytes, but must
+    /// never replace a script supplied by another writer while the UI waited.
+    pub fn write_script_checked(
+        &self,
+        ep: &str,
+        script: &str,
+        create_only: bool,
+    ) -> Result<(), StoreError> {
         let _guard = self.write_guard();
+        validate_slug(ep).map_err(StoreError::Invalid)?;
         let path = self.resolve(&format!("episodes/{ep}/script.md"))?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+        if create_only && path.try_exists()? {
+            if std::fs::read(&path)? == script.as_bytes() {
+                return Ok(());
+            }
+            return Err(StoreError::Conflict(format!(
+                "episode {ep} already has a script; the existing script was not replaced"
+            )));
         }
+        self.ensure_episode_locked(ep)?;
         write_bytes_atomic(&path, script.as_bytes())
             .map_err(|e| StoreError::Invalid(format!("write episodes/{ep}/script.md: {e}")))
     }
@@ -320,8 +416,26 @@ impl StoryStore {
         Ok(())
     }
 
+    fn validate_shot_ids(shots: &[StoryShot]) -> Result<(), StoreError> {
+        let mut ids = HashSet::new();
+        for shot in shots {
+            validate_slug(&shot.id).map_err(StoreError::Invalid)?;
+            if !ids.insert(&shot.id) {
+                return Err(StoreError::Invalid(format!(
+                    "duplicate shot id: {}",
+                    shot.id
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn write_storyboard_locked(&self, ep: &str, board: &Storyboard) -> Result<(), StoreError> {
-        self.write_json(&format!("episodes/{ep}/storyboard.json"), board)
+        Self::validate_shot_ids(&board.shots)?;
+        let rel = format!("episodes/{ep}/storyboard.json");
+        self.resolve(&rel)?;
+        self.ensure_episode_locked(ep)?;
+        self.write_json(&rel, board)
     }
 
     // -- shots ---------------------------------------------------------------
@@ -425,21 +539,29 @@ impl StoryStore {
         self.write_storyboard_locked(ep, &board)
     }
 
-    /// Validate and upsert one shot within an episode's storyboard,
-    /// renumbering `no` to stay ordered. Reference slugs are checked against
-    /// existing cards; unknown references are a value-level error.
+    /// Validate and upsert one shot, keeping its existing position or appending
+    /// a new shot. Renumber `no` in display order. Reference slugs are checked
+    /// against existing cards; unknown references are a value-level error.
     pub fn upsert_shot(&self, ep: &str, shot: &StoryShot) -> Result<(), StoreError> {
         let _guard = self.write_guard();
-        let mut board = self.read_storyboard(ep)?;
+        validate_slug(ep).map_err(StoreError::Invalid)?;
         validate_slug(&shot.id).map_err(StoreError::Invalid)?;
         self.validate_shot_refs(shot)?;
+        self.resolve(&format!("{}/shot.json", Self::shot_rel(ep, &shot.id)))?;
+        let mut board = if self
+            .resolve(&format!("episodes/{ep}/storyboard.json"))?
+            .try_exists()?
+        {
+            self.read_storyboard(ep)?
+        } else {
+            Storyboard::default()
+        };
         let mut updated = shot.clone();
         self.preserve_shot_videos_locked(ep, std::slice::from_mut(&mut updated))?;
         match board.shots.iter_mut().find(|s| s.id == shot.id) {
             Some(existing) => *existing = updated,
             None => board.shots.push(updated),
         }
-        board.shots.sort_by_key(|s| s.id.clone());
         for (idx, shot) in board.shots.iter_mut().enumerate() {
             shot.no = (idx + 1) as u32;
         }
@@ -454,15 +576,43 @@ impl StoryStore {
     pub fn replace_storyboard(
         &self,
         ep: &str,
+        shots: Vec<StoryShot>,
+    ) -> Result<Storyboard, StoreError> {
+        self.replace_storyboard_checked(ep, shots, None)
+    }
+
+    /// A workbench import confirms the exact board it read, including an empty
+    /// board. Compare under the same lock as all shot/media writes before any
+    /// file or directory is changed. Omission retains agent upsert semantics.
+    pub fn replace_storyboard_checked(
+        &self,
+        ep: &str,
         mut shots: Vec<StoryShot>,
+        expected_storyboard: Option<&Storyboard>,
     ) -> Result<Storyboard, StoreError> {
         let _guard = self.write_guard();
+        validate_slug(ep).map_err(StoreError::Invalid)?;
+        if let Some(expected) = expected_storyboard {
+            let current = if self
+                .resolve(&format!("episodes/{ep}/storyboard.json"))?
+                .try_exists()?
+            {
+                self.read_storyboard(ep)?
+            } else {
+                Storyboard::default()
+            };
+            if &current != expected {
+                return Err(StoreError::Conflict(format!(
+                    "episode {ep} storyboard changed since confirmation; refresh and confirm again"
+                )));
+            }
+        }
+        Self::validate_shot_ids(&shots)?;
         for shot in &shots {
-            validate_slug(&shot.id).map_err(StoreError::Invalid)?;
             self.validate_shot_refs(shot)?;
+            self.resolve(&format!("{}/shot.json", Self::shot_rel(ep, &shot.id)))?;
         }
         self.preserve_shot_videos_locked(ep, &mut shots)?;
-        shots.sort_by(|a, b| a.id.cmp(&b.id));
         for (idx, shot) in shots.iter_mut().enumerate() {
             shot.no = (idx + 1) as u32;
         }
@@ -520,9 +670,7 @@ impl StoryStore {
 
     /// Reorder an episode's shots to match the given id sequence (which must
     /// be exactly the existing ids, permuted). Renumbers `no` in the new
-    /// order. `comic_upsert_storyboard` and `upsert_shot` renumber by id
-    /// sort; this is the display-order override the board's drag-and-drop
-    /// writes through.
+    /// display order, which subsequent shot edits preserve.
     pub fn reorder_shots(&self, ep: &str, order: &[String]) -> Result<Storyboard, StoreError> {
         let _guard = self.write_guard();
         let mut board = self.read_storyboard(ep)?;
@@ -1025,7 +1173,561 @@ impl StoryStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::comic::model::{EpisodeMeta, ShotClip};
+    use crate::comic::model::{EpisodeMeta, ShotAudio, ShotClip};
+
+    fn shot(id: &str) -> StoryShot {
+        StoryShot {
+            id: id.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn simultaneous_episode_creates_have_one_owner_and_do_not_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Creation race").unwrap();
+        let barrier = std::sync::Barrier::new(2);
+        let results = std::thread::scope(|scope| {
+            let handles: Vec<_> = ["First", "Second"]
+                .into_iter()
+                .map(|title| {
+                    let barrier = &barrier;
+                    let path = dir.path();
+                    scope.spawn(move || {
+                        let writer = StoryStore::open(path).unwrap();
+                        let meta = EpisodeMeta {
+                            id: "ep001".into(),
+                            title: title.into(),
+                            ..Default::default()
+                        };
+                        barrier.wait();
+                        (
+                            meta.clone(),
+                            writer.upsert_episode_checked(&meta, true, None),
+                        )
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            results.iter().filter(|(_, result)| result.is_ok()).count(),
+            1
+        );
+        let winner = results.iter().find(|(_, result)| result.is_ok()).unwrap();
+        let loser = results.iter().find(|(_, result)| result.is_err()).unwrap();
+        assert!(matches!(&loser.1, Err(StoreError::Conflict(_))));
+        assert_eq!(store.read_episode("ep001").unwrap(), winner.0);
+        assert!(store.root().join("episodes/ep001/shots").is_dir());
+        // Existing MCP upserts intentionally retain their replacement behavior.
+        store.upsert_episode(&loser.0).unwrap();
+        assert_eq!(store.read_episode("ep001").unwrap(), loser.0);
+    }
+
+    #[test]
+    fn create_only_preserves_legacy_content_and_concurrent_script() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Create only").unwrap();
+        store
+            .write_artifact("episodes/ep001/script.md", b"Agent script")
+            .unwrap();
+        let meta = EpisodeMeta {
+            id: "ep001".into(),
+            title: "New".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            store.upsert_episode_checked(&meta, true, None),
+            Err(StoreError::Conflict(_))
+        ));
+        assert!(!store.root().join("episodes/ep001/episode.json").exists());
+        assert!(matches!(
+            store.write_script_checked("ep001", "User script", true),
+            Err(StoreError::Conflict(_))
+        ));
+        assert_eq!(store.read_script("ep001").unwrap(), "Agent script");
+        // A lost successful response can be retried without replacing content.
+        store
+            .write_script_checked("ep001", "Agent script", true)
+            .unwrap();
+        assert!(!store.root().join("episodes/ep001/episode.json").exists());
+    }
+
+    #[test]
+    fn simultaneous_script_creates_have_one_winner() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Script race").unwrap();
+        let barrier = std::sync::Barrier::new(2);
+        let results = std::thread::scope(|scope| {
+            let handles: Vec<_> = ["User script", "Other writer"]
+                .into_iter()
+                .map(|script| {
+                    let barrier = &barrier;
+                    let path = dir.path();
+                    scope.spawn(move || {
+                        let writer = StoryStore::open(path).unwrap();
+                        barrier.wait();
+                        (script, writer.write_script_checked("ep001", script, true))
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            results.iter().filter(|(_, result)| result.is_ok()).count(),
+            1
+        );
+        let winner = results.iter().find(|(_, result)| result.is_ok()).unwrap();
+        assert_eq!(store.read_script("ep001").unwrap(), winner.0);
+        assert!(results
+            .iter()
+            .any(|(_, result)| matches!(result, Err(StoreError::Conflict(_)))));
+    }
+
+    #[test]
+    fn stale_episode_metadata_cannot_replace_a_concurrent_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Rename race").unwrap();
+        let original = EpisodeMeta {
+            id: "ep001".into(),
+            title: "Original".into(),
+            ..Default::default()
+        };
+        store.upsert_episode(&original).unwrap();
+        let mut concurrent = original.clone();
+        concurrent.synopsis = "Agent update".into();
+        StoryStore::open(dir.path())
+            .unwrap()
+            .upsert_episode(&concurrent)
+            .unwrap();
+        let renamed = EpisodeMeta {
+            title: "Renamed".into(),
+            ..original.clone()
+        };
+        assert!(matches!(
+            store.upsert_episode_checked(&renamed, false, Some(&original)),
+            Err(StoreError::Conflict(_))
+        ));
+        assert_eq!(store.read_episode("ep001").unwrap(), concurrent);
+    }
+
+    #[test]
+    fn simultaneous_confirmed_imports_have_one_winner_even_when_initially_empty() {
+        for initially_filled in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let store = StoryStore::init(dir.path(), "Import race").unwrap();
+            let expected = if initially_filled {
+                store
+                    .replace_storyboard("ep001", vec![shot("original")])
+                    .unwrap()
+            } else {
+                Storyboard::default()
+            };
+            let barrier = std::sync::Barrier::new(2);
+            let results = std::thread::scope(|scope| {
+                let handles: Vec<_> = ["import-a", "import-b"]
+                    .into_iter()
+                    .map(|id| {
+                        let barrier = &barrier;
+                        let path = dir.path();
+                        let expected = &expected;
+                        scope.spawn(move || {
+                            let writer = StoryStore::open(path).unwrap();
+                            barrier.wait();
+                            (
+                                id,
+                                writer.replace_storyboard_checked(
+                                    "ep001",
+                                    vec![shot(id)],
+                                    Some(expected),
+                                ),
+                            )
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|h| h.join().unwrap())
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(
+                results.iter().filter(|(_, result)| result.is_ok()).count(),
+                1
+            );
+            let winner = results.iter().find(|(_, result)| result.is_ok()).unwrap();
+            let loser = results.iter().find(|(_, result)| result.is_err()).unwrap();
+            assert!(matches!(&loser.1, Err(StoreError::Conflict(_))));
+            assert_eq!(
+                store.read_storyboard("ep001").unwrap().shots[0].id,
+                winner.0
+            );
+            assert!(!store
+                .root()
+                .join(format!("episodes/ep001/shots/{}", loser.0))
+                .exists());
+        }
+    }
+
+    #[test]
+    fn confirmed_import_checks_video_changes_and_retains_matching_video() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Video import").unwrap();
+        let original = store
+            .replace_storyboard("ep001", vec![shot("shot-1")])
+            .unwrap();
+        let video = ShotClip {
+            path: "video/task-7.mp4".into(),
+            duration_secs: 3.0,
+            task_id: 7,
+        };
+        store
+            .bind_shot_video("ep001", "shot-1", video.clone(), None)
+            .unwrap();
+        assert!(matches!(
+            store.replace_storyboard_checked("ep001", vec![shot("shot-1")], Some(&original)),
+            Err(StoreError::Conflict(_))
+        ));
+        let refreshed = store.read_storyboard("ep001").unwrap();
+        let replaced = store
+            .replace_storyboard_checked("ep001", vec![shot("shot-1")], Some(&refreshed))
+            .unwrap();
+        assert_eq!(replaced.shots[0].video, Some(video));
+        assert!(matches!(
+            store.clear_shot_video("ep001", "shot-1", None),
+            Err(StoreError::Conflict(_))
+        ));
+    }
+
+    #[test]
+    fn script_first_persists_readable_episode_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Script first").unwrap();
+        store.write_script("ep001", "Opening scene").unwrap();
+
+        let reopened = StoryStore::open(dir.path()).unwrap();
+        let meta = reopened.read_episode("ep001").unwrap();
+        assert_eq!(meta.id, "ep001");
+        assert_eq!(meta.title, "ep001");
+        assert_eq!(meta.status, EpisodeStatus::Draft);
+        assert_eq!(reopened.read_script("ep001").unwrap(), "Opening scene");
+        assert!(store.root().join("episodes/ep001/episode.json").is_file());
+    }
+
+    #[test]
+    fn episode_content_writes_preserve_existing_metadata_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Existing metadata").unwrap();
+        // Unknown user-authored fields and formatting must survive too.
+        let metadata = br#"{ "id": "ep001", "title": "Custom title", "synopsis": "Keep me", "status": "done", "source_chapters": [2, 3], "custom": true }"#;
+        store
+            .write_artifact("episodes/ep001/episode.json", metadata)
+            .unwrap();
+        store.write_script("ep001", "New script").unwrap();
+        store
+            .replace_storyboard("ep001", vec![shot("shot-2")])
+            .unwrap();
+        store.upsert_shot("ep001", &shot("shot-1")).unwrap();
+        let board = store.read_storyboard("ep001").unwrap();
+        store.write_storyboard("ep001", &board).unwrap();
+        assert_eq!(
+            std::fs::read(store.root().join("episodes/ep001/episode.json")).unwrap(),
+            metadata
+        );
+    }
+
+    #[test]
+    fn legacy_episode_read_uses_defaults_without_writing_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Legacy episode").unwrap();
+        store
+            .write_artifact("episodes/ep001/script.md", b"Legacy script")
+            .unwrap();
+
+        let meta = store.read_episode("ep001").unwrap();
+        assert_eq!(meta.id, "ep001");
+        assert_eq!(meta.title, "ep001");
+        assert_eq!(store.read_script("ep001").unwrap(), "Legacy script");
+        assert_eq!(store.overview().unwrap().episodes[0].title, "ep001");
+        assert!(!store.root().join("episodes/ep001/episode.json").exists());
+        assert!(store.read_episode("missing").is_err());
+        assert!(!store.root().join("episodes/missing").exists());
+    }
+
+    #[test]
+    fn legacy_episode_fallback_does_not_hide_corrupt_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Corrupt metadata").unwrap();
+        store
+            .write_artifact("episodes/ep001/episode.json", b"not json")
+            .unwrap();
+        assert!(store.read_episode("ep001").is_err());
+        assert_eq!(
+            std::fs::read(store.root().join("episodes/ep001/episode.json")).unwrap(),
+            b"not json"
+        );
+    }
+
+    #[test]
+    fn storyboard_writes_persist_missing_episode_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Storyboard first").unwrap();
+        store
+            .replace_storyboard("replaced", vec![shot("shot-1")])
+            .unwrap();
+        store.upsert_shot("upserted", &shot("shot-1")).unwrap();
+        store
+            .write_storyboard("written", &Storyboard { shots: vec![] })
+            .unwrap();
+        // A previous version could leave a storyboard with no episode.json.
+        store
+            .write_artifact("episodes/legacy/storyboard.json", br#"{"shots": []}"#)
+            .unwrap();
+        store.upsert_shot("legacy", &shot("shot-1")).unwrap();
+
+        for ep in ["replaced", "upserted", "written", "legacy"] {
+            let meta = store.read_episode(ep).unwrap();
+            assert_eq!(meta.id, ep);
+            assert_eq!(meta.title, ep);
+            assert!(store
+                .root()
+                .join(format!("episodes/{ep}/episode.json"))
+                .is_file());
+            assert!(store.read_storyboard(ep).is_ok());
+        }
+    }
+
+    #[test]
+    fn editing_reordered_shot_keeps_order_media_and_shot_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Manual order").unwrap();
+        store
+            .replace_storyboard("ep001", vec![shot("shot-1"), shot("shot-2")])
+            .unwrap();
+        store
+            .reorder_shots("ep001", &["shot-2".into(), "shot-1".into()])
+            .unwrap();
+        let mut edited = store.read_storyboard("ep001").unwrap().shots[0].clone();
+        edited.description = "Edited second shot".into();
+        edited.state = ShotState::Selected;
+        edited.selected = Some("episodes/ep001/shots/shot-2/frame.png".into());
+        edited.audio = Some(ShotAudio {
+            path: "episodes/ep001/shots/shot-2/audio.wav".into(),
+            duration_secs: 2.0,
+            task_id: 7,
+        });
+        let metadata = ShotMeta {
+            id: "shot-2".into(),
+            prompt: Some("Keep the generation prompt".into()),
+            seed: Some(42),
+            ..Default::default()
+        };
+        store.write_shot_meta("ep001", "shot-2", &metadata).unwrap();
+        store.upsert_shot("ep001", &edited).unwrap();
+        // New shots append even if their id sorts before the existing shots.
+        store.upsert_shot("ep001", &shot("shot-0")).unwrap();
+
+        let board = store.read_storyboard("ep001").unwrap();
+        assert_eq!(
+            board
+                .shots
+                .iter()
+                .map(|s| (s.id.as_str(), s.no))
+                .collect::<Vec<_>>(),
+            vec![("shot-2", 1), ("shot-1", 2), ("shot-0", 3)]
+        );
+        assert_eq!(board.shots[0], edited);
+        assert_eq!(store.read_shot_meta("ep001", "shot-2").unwrap(), metadata);
+    }
+
+    #[test]
+    fn storyboard_replacement_preserves_input_order_and_renumbers() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Input order").unwrap();
+        let mut first = shot("shot-2");
+        first.no = 99;
+        let board = store
+            .replace_storyboard("ep001", vec![first, shot("shot-1")])
+            .unwrap();
+        assert_eq!(
+            board
+                .shots
+                .iter()
+                .map(|s| (s.id.as_str(), s.no))
+                .collect::<Vec<_>>(),
+            vec![("shot-2", 1), ("shot-1", 2)]
+        );
+        assert_eq!(store.read_storyboard("ep001").unwrap(), board);
+    }
+
+    #[test]
+    fn duplicate_storyboard_ids_are_rejected_before_writing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Duplicate ids").unwrap();
+        let duplicate = vec![shot("shot-1"), shot("shot-1")];
+        assert!(store.replace_storyboard("new", duplicate.clone()).is_err());
+        assert!(!store.root().join("episodes/new").exists());
+        assert!(store
+            .write_storyboard(
+                "direct",
+                &Storyboard {
+                    shots: duplicate.clone()
+                }
+            )
+            .is_err());
+        assert!(!store.root().join("episodes/direct").exists());
+
+        let original = store
+            .replace_storyboard("existing", vec![shot("shot-2")])
+            .unwrap();
+        assert!(store.replace_storyboard("existing", duplicate).is_err());
+        assert_eq!(store.read_storyboard("existing").unwrap(), original);
+        assert!(!store.root().join("episodes/existing/shots/shot-1").exists());
+    }
+
+    #[test]
+    fn duplicate_reorder_ids_do_not_replace_another_shot() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Duplicate reorder").unwrap();
+        let original = store
+            .replace_storyboard("ep001", vec![shot("shot-1"), shot("shot-2")])
+            .unwrap();
+        assert!(store
+            .reorder_shots("ep001", &["shot-1".into(), "shot-1".into()])
+            .is_err());
+        assert_eq!(store.read_storyboard("ep001").unwrap(), original);
+    }
+
+    #[test]
+    fn invalid_episode_and_shot_ids_cannot_write_outside_their_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Jail").unwrap();
+        for ep in [
+            "../outside",
+            "..\\outside",
+            "/absolute",
+            "ep001/nested",
+            "ep001:stream",
+            "",
+        ] {
+            assert!(store.write_script(ep, "Escape").is_err(), "accepted {ep:?}");
+            assert!(store.read_episode(ep).is_err(), "accepted {ep:?}");
+            assert!(store.replace_storyboard(ep, vec![shot("shot-1")]).is_err());
+            assert!(store.upsert_shot(ep, &shot("shot-1")).is_err());
+        }
+        assert!(store
+            .replace_storyboard("ep001", vec![shot("../escape")])
+            .is_err());
+        assert!(store.list_episode_ids().unwrap().is_empty());
+        assert!(!dir.path().join("outside").exists());
+        assert!(!store.root().join("outside").exists());
+    }
+
+    #[test]
+    fn init_keeps_existing_series_source_and_user_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Original title").unwrap();
+        let series = std::fs::read(store.root().join("series.json")).unwrap();
+        store.write_script("ep001", "Keep script").unwrap();
+        store
+            .write_artifact("source/novel.txt", b"Keep novel")
+            .unwrap();
+        store
+            .write_artifact("custom/notes.txt", b"Keep notes")
+            .unwrap();
+
+        let reopened = StoryStore::init(dir.path(), "Replacement title").unwrap();
+        assert_eq!(
+            std::fs::read(reopened.root().join("series.json")).unwrap(),
+            series
+        );
+        assert_eq!(reopened.read_script("ep001").unwrap(), "Keep script");
+        assert_eq!(
+            std::fs::read(reopened.root().join("source/novel.txt")).unwrap(),
+            b"Keep novel"
+        );
+        assert_eq!(
+            std::fs::read(reopened.root().join("custom/notes.txt")).unwrap(),
+            b"Keep notes"
+        );
+    }
+
+    #[test]
+    fn init_waits_for_an_existing_folder_writer() {
+        use std::sync::mpsc::{channel, RecvTimeoutError};
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Original").unwrap();
+        let guard = store.write_guard();
+        let folder = dir.path().to_path_buf();
+        let (started_tx, started_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let result = StoryStore::init(&folder, "Concurrent init");
+            finished_tx.send(()).unwrap();
+            result
+        });
+        started_rx.recv().unwrap();
+        let before_unlock = finished_rx.recv_timeout(Duration::from_millis(100));
+        drop(guard);
+        worker.join().unwrap().unwrap();
+        assert_eq!(before_unlock, Err(RecvTimeoutError::Timeout));
+        assert_eq!(store.read_series().unwrap().title, "Original");
+    }
+
+    #[test]
+    fn original_project_next_action_never_requires_a_novel() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Original screenplay").unwrap();
+        store
+            .write_source_meta(&SourceMeta {
+                mode: Some(crate::comic::model::SourceMode::Original),
+                ..Default::default()
+            })
+            .unwrap();
+        let overview = store.overview().unwrap();
+        assert!(overview.has_source);
+        assert!(overview.source_hint.is_none());
+        assert_eq!(overview.next_action, Some(NextAction::AdaptScript));
+        store.write_script("ep001", "Original script").unwrap();
+        assert_eq!(
+            store.overview().unwrap().next_action,
+            Some(NextAction::CreateStoryboard {
+                episode: "ep001".into()
+            })
+        );
+        assert!(!store.root().join("source/novel.txt").exists());
+        assert!(!store.root().join("source/chapters.json").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn init_and_episode_operations_reject_linked_directories() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        symlink(outside.path(), dir.path().join("story")).unwrap();
+        assert!(StoryStore::init(dir.path(), "Linked root").is_err());
+        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+        std::fs::remove_file(dir.path().join("story")).unwrap();
+
+        let store = StoryStore::init(dir.path(), "Linked episode").unwrap();
+        symlink(outside.path(), store.root().join("episodes/ep001")).unwrap();
+        assert!(store.read_episode("ep001").is_err());
+        assert!(store.write_script("ep001", "Escape").is_err());
+        assert!(store
+            .replace_storyboard("ep001", vec![shot("shot-1")])
+            .is_err());
+        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
+    }
 
     #[test]
     fn ordinary_shot_edits_cannot_overwrite_a_newer_confirmed_video() {

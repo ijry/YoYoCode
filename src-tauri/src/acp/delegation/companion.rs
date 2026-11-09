@@ -214,11 +214,10 @@ pub struct CompanionFeatures {
     /// `computer_clipboard_read` / `computer_clipboard_write`, on the
     /// person's own switch on top of `computer`, as `computer_launch` is.
     pub computer_clipboard: bool,
-    /// Comic (漫剧) production tools (`comic_get_project`, `comic_set_source`,
-    /// the resource readers/writers). Off unless the parent's session was
-    /// launched inside a comic project — a folder with a `story/` root — so
-    /// ordinary coding sessions never see the surface. Resource-scoped by
-    /// construction: every tool operates on the session's own project tree.
+    /// Comic discovery/init and production tools for sessions with a valid
+    /// working directory, even before story/ exists. Listing and discovery have
+    /// no project-creation side effects; only explicit init bootstraps a tree.
+    /// Every call remains scoped to the token's working directory.
     pub comic: bool,
 }
 
@@ -337,6 +336,7 @@ impl CompanionFeatures {
             // `story/` moved away) after launch degrades to a refusal, not a
             // stale allow.
             "comic_get_project"
+            | "comic_init_project"
             | "comic_set_source"
             | "comic_read_source"
             | "comic_get_source_outline"
@@ -364,6 +364,7 @@ impl CompanionFeatures {
             | "comic_set_shot_audio"
             | "comic_request_video"
             | "comic_set_shot_video"
+            | "comic_clear_shot_video"
             | "comic_check_compose" => self.comic,
             "delegate_to_agent"
             | "get_delegation_status"
@@ -5349,6 +5350,55 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap().to_string())
             .collect()
+    }
+
+    #[tokio::test]
+    async fn comic_tools_list_and_dispatch_cover_every_schema_tool() {
+        let features = CompanionFeatures::parse(Some("comic"));
+        let names = list_tool_names(
+            dispatch_with_features(
+                features,
+                r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#,
+            )
+            .await,
+        );
+        // The existing 30 tools remain, plus explicit project initialization.
+        assert_eq!(names.len(), 31);
+        assert!(names.iter().any(|name| name == "comic_init_project"));
+        assert!(names.iter().any(|name| name == "comic_clear_shot_video"));
+        let schema: Vec<Value> = serde_json::from_str(TOOL_SCHEMA_JSON).unwrap();
+        for tool in schema
+            .iter()
+            .filter(|t| t["name"].as_str().unwrap().starts_with("comic_"))
+        {
+            let name = tool["name"].as_str().unwrap();
+            assert!(names.iter().any(|listed| listed == name), "{name}");
+            let call = json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":name,"arguments":{}}}).to_string();
+            assert!(
+                matches!(
+                    dispatch_with_features(features, &call).await,
+                    LineAction::Spawn(_)
+                ),
+                "{name} must route to the listener"
+            );
+            let refused = unwrap_respond(
+                dispatch_with_features(CompanionFeatures::parse(Some("")), &call).await,
+            );
+            assert!(refused.error.is_some(), "{name} must remain gated");
+        }
+        assert!(names.iter().all(|name| name.starts_with("comic_")));
+        assert!(!features.allows_tool("comic_unknown"));
+        let init = schema
+            .iter()
+            .find(|t| t["name"] == "comic_init_project")
+            .unwrap();
+        assert_eq!(init["inputSchema"]["required"], json!(["title"]));
+        assert_eq!(
+            init["inputSchema"]["properties"].as_object().unwrap().len(),
+            1
+        );
+        assert_eq!(init["inputSchema"]["additionalProperties"], false);
+        assert_eq!(init["inputSchema"]["properties"]["title"]["maxLength"], 200);
     }
 
     #[test]

@@ -8092,8 +8092,8 @@ struct CompanionFeatureFlags {
     computer_launch: bool,
     /// `computer_clipboard_read` / `computer_clipboard_write`, the same.
     computer_clipboard: bool,
-    /// The comic (漫剧) production tools, scoped by project type: on when the
-    /// session's working directory is a comic project (`story/` exists).
+    /// Comic discovery/init and production tools for a valid working directory.
+    /// Advertising them does not initialize a project; writes stay token-scoped.
     comic: bool,
 }
 
@@ -8225,9 +8225,9 @@ where
     // back. A sandboxed agent that cannot read `.env` itself would just ask a
     // sibling to read it. That defeats the boundary this switch advertises, for
     // the same reason withholding only one of fs/terminal would, so `agent`
-    // withholds this group too. The other groups stay: they surface codeg's own
-    // state (feedback, ask, session info, task reporting), not arbitrary file
-    // or command execution on the user's machine.
+    // withholds this group too. Comic filesystem tools are gated below for the
+    // same reason. State-only groups (feedback, ask, session info, task reporting)
+    // remain available.
     let delegation_configured = injection.broker.config_snapshot().await.enabled;
     let delegation_enabled = delegation_configured && host_tools.hosts_channels();
     if delegation_configured && !delegation_enabled {
@@ -8277,13 +8277,13 @@ where
             && injection.computer.is_launch_enabled().await,
         computer_clipboard: injection.computer.is_served()
             && injection.computer.is_clipboard_enabled().await,
-        // Comic (漫剧) tools: scoped by PROJECT TYPE, not a settings toggle —
-        // a session launched inside a comic project (its folder has a
-        // `story/` root) carries the surface; any other session never sees
-        // it. No separate switch: the surface only ever touches this
-        // project's own story tree, and `comic_get_project` is how the LLM
-        // orients at all. The listener backend re-checks the root per call.
-        comic: crate::comic::paths::is_comic_project(working_dir),
+        // Comic tools read/write files in Codeg's process, including importing
+        // an arbitrary external novel path. Withhold them under host-tools=agent
+        // so they cannot bypass the agent's own sandbox. Bind the same grant to
+        // the token below: hiding tools in the companion is not authorization.
+        // For hosted sessions, discovery/init still work before story/ exists.
+        comic: host_tools.hosts_channels()
+            && crate::acp::comic_tools::comic_tools_available(working_dir),
     };
     // `None` (no feature enabled) short-circuits BEFORE the binary lookup, the
     // token registration and the server append: there is no companion to launch,
@@ -8314,6 +8314,7 @@ where
             crate::acp::delegation::listener::TokenEntry {
                 parent_connection_id: parent_connection_id.to_string(),
                 working_dir: working_dir.to_path_buf(),
+                comic_enabled: flags.comic,
             },
         )
         .await;
@@ -44190,48 +44191,93 @@ mod tests {
         }
     }
 
-    // ─── inject_codeg_mcp: enabled=false short-circuit ──────────
-    //
-    // Guards the "default off" product contract: when the broker config has
-    // `enabled: false` (the new production default for fresh installs), the
-    // delegate-MCP injection must not push a server entry and must not
-    // register a per-launch token. The early return at the top of
-    // `inject_codeg_mcp` is the single chokepoint that keeps a
-    // yoyocode-mcp stdio MCP out of every ACP session until the user
-    // opts in via the settings panel.
     #[tokio::test]
-    async fn inject_codeg_delegate_skipped_when_broker_disabled() {
-        // No set_config call: broker carries its default config, which is
-        // `enabled: false` after the product-default flip. This is the
-        // exact state a fresh install reaches before the user touches the
-        // settings panel. Feedback is likewise disabled by default, so with
-        // BOTH features off the companion isn't injected at all.
+    async fn comic_bootstrap_is_injected_before_story_exists_without_writes() {
+        let dir = tempfile::tempdir().unwrap();
         let injection = test_delegation_injection(
             Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
         );
-
-        let mut servers: Vec<McpServer> = Vec::new();
-        let result = inject_codeg_mcp(
+        let mut servers = Vec::new();
+        let injected = inject_codeg_mcp_with_binary_locator(
             &mut servers,
             &injection,
-            "parent-conn",
-            std::path::Path::new("/tmp"),
+            "comic-bootstrap",
+            dir.path(),
             LaunchGroups::default(),
             HostToolsPolicy::Default,
+            || Some(PathBuf::from("yoyocode-mcp")),
         )
-        .await;
+        .await
+        .expect("an existing directory gets the bootstrap comic surface");
+        assert!(!injected.delegation_enabled);
+        let McpServer::Stdio(server) = &servers[0] else {
+            panic!("expected stdio server");
+        };
+        let features = server
+            .args
+            .iter()
+            .position(|arg| arg == "--features")
+            .unwrap();
+        assert_eq!(server.args[features + 1], "comic");
+        let token = injection.tokens.lookup(&injected.token).await.unwrap();
+        assert_eq!(token.working_dir, dir.path());
+        assert_eq!(token.parent_connection_id, "comic-bootstrap");
+        assert!(token.comic_enabled);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
 
-        assert!(result.is_none(), "disabled broker must return None");
-        assert!(
-            servers.is_empty(),
-            "disabled broker must not push any MCP server entry; got {servers:?}"
+    #[tokio::test]
+    async fn host_tools_agent_withholds_comic_before_and_after_project_init() {
+        let dir = tempfile::tempdir().unwrap();
+        let injection = test_delegation_injection(
+            Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
         );
-        // Token registry stays untouched — no lookup should resolve to a
-        // valid entry because nothing was registered.
-        assert!(
-            injection.tokens.lookup("any-token").await.is_none(),
-            "disabled broker must not register a delegate token"
+        for initialized in [false, true] {
+            if initialized {
+                crate::comic::store::StoryStore::init(dir.path(), "Existing comic").unwrap();
+            }
+            let mut servers = Vec::new();
+            let result = inject_codeg_mcp_with_binary_locator(
+                &mut servers,
+                &injection,
+                "sandboxed-parent",
+                dir.path(),
+                LaunchGroups::default(),
+                HostToolsPolicy::Agent,
+                || panic!("host-tools=agent must not launch a comic-only companion"),
+            )
+            .await;
+            assert!(result.is_none());
+            assert!(servers.is_empty());
+            assert_eq!(injection.tokens.stats().await.companions, 0);
+            assert_eq!(dir.path().join("story").exists(), initialized);
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_directory_with_all_features_off_skips_companion_without_binary_lookup() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("not-a-directory");
+        std::fs::write(&file, "untouched").unwrap();
+        let injection = test_delegation_injection(
+            Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
         );
+        for path in [dir.path().join("missing"), file] {
+            let mut servers = Vec::new();
+            let result = inject_codeg_mcp_with_binary_locator(
+                &mut servers,
+                &injection,
+                "parent-conn",
+                &path,
+                LaunchGroups::default(),
+                HostToolsPolicy::Default,
+                || panic!("no enabled groups should look for a binary"),
+            )
+            .await;
+            assert!(result.is_none());
+            assert!(servers.is_empty());
+        }
+        assert!(!dir.path().join("missing").exists());
     }
 
     /// The root of a `yoyo-cli` run given `--output-schema` gets a companion
@@ -44242,12 +44288,13 @@ mod tests {
         let injection = test_delegation_injection(
             Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
         );
+        let dir = tempfile::tempdir().unwrap();
         let mut servers: Vec<McpServer> = Vec::new();
         let injected = inject_codeg_mcp_with_binary_locator(
             &mut servers,
             &injection,
             "cli-root",
-            std::path::Path::new("/tmp"),
+            dir.path(),
             LaunchGroups {
                 tasks: false,
                 result: true,
@@ -44268,7 +44315,8 @@ mod tests {
             .position(|a| a == "--features")
             .map(|i| server.args[i + 1].clone());
         assert_eq!(features.as_deref(), Some("result"));
-        assert!(injection.tokens.lookup(&injected.token).await.is_some());
+        let token = injection.tokens.lookup(&injected.token).await.unwrap();
+        assert!(!token.comic_enabled);
     }
 
     // ─── delegate_target_args: enable-toggle filtering ──────────

@@ -1394,8 +1394,25 @@
     }
   },
   {
+    "name": "comic_init_project",
+    "description": "Explicitly initialize the comic project in this session's fixed working directory after comic_get_project reports initialized:false. Accepts only a title (trimmed, 1–200 characters); never accepts a folder ID or directory path. Creates the local story skeleton and series config, preserving an existing project. Returns initialized:true, folderId (null if unregistered), and series. No model or media generation runs. Continue on this same connection: comic_upsert_series for the series plan/style, comic_upsert_episode for each episode, comic_write_script, asset cards, then comic_upsert_storyboard; read back saved state and get user review before requesting any paid media generation.",
+    "inputSchema": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Series title, nonempty after trimming whitespace."
+        }
+      }
+    }
+  },
+  {
     "name": "comic_get_project",
-    "description": "Read the comic (漫剧) project this session works in: series config, novel-source status, episode list with per-episode shot progress, character/scene/prop rosters, the current media-provider pointers, and next_action — the pipeline's suggestion of what to do next (provide source → adapt → design assets → storyboard → images → videos → compose). CALL THIS FIRST before any comic work, and again whenever you resume: file state is the truth, so a fresh session reconstructs exactly where the last one stopped. If has_source is false and source_hint is set, the project cannot be adapted yet: ask the user to upload the full novel (they can drag the txt into this chat) or give a local path to it — do NOT start writing a script from nothing unless the user says it is an original work. Results are size-capped; images are NEVER returned here, only story-relative paths the workbench renders.",
+    "description": "CALL THIS FIRST before comic work and whenever resuming. Read-only discovery in this session's fixed working directory; never creates files. If no project exists, returns initialized:false, folderId (null if unregistered), nextTool:comic_init_project and a bootstrap message. Initialize explicitly with a title before other tools; comic_upsert_series does not initialize. Existing projects return initialized:true plus series config, source mode/status, episodes, assets, providers and next_action. Follow series planning → episode metadata → full script → asset cards → ordered storyboard → user review. For source.mode=original do not request a novel or call novel-reading tools. For adaptation with no source, ask for the full novel or its local path. Persist through comic tools and read back with comic_get_project/comic_get_asset; chat prose is not a saved deliverable. Only request paid image/video/speech generation when the user explicitly asks; initialization never authorizes media generation or composition. Results contain story-relative paths, never media bytes.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1548,7 +1565,7 @@
   },
   {
     "name": "comic_upsert_series",
-    "description": "Create or update the project-level series config: title, adapted_from note, style_bible summary, bible_refs (story-relative paths of bible/*.md you wrote via your file tools), global_seed, default_candidate_count, and the cost guardrails (max_images_per_request, max_concurrent_tasks). Provider pointers are NOT set here — use comic_set_project_provider. Call once when setting up a new project's style bible, and whenever the user revises global style.",
+    "description": "Update an initialized project's series plan/style BEFORE creating episodes. Does not initialize a missing project: call comic_get_project then comic_init_project first. Project-level series config: title, adapted_from note, style_bible summary, bible_refs (story-relative paths of bible/*.md you wrote via your file tools), global_seed, default_candidate_count, and the cost guardrails (max_images_per_request, max_concurrent_tasks). Provider pointers are NOT set here — use comic_set_project_provider. Call once when setting up a new project's style bible, and whenever the user revises global style.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -1594,7 +1611,7 @@
   },
   {
     "name": "comic_upsert_episode",
-    "description": "Create or update one episode: id (slug like ep001), title, synopsis, source_chapters (which chapter numbers it adapts — for adapted projects cite them so the workbench can show the source alongside the script), status (draft/scripted/storyboarded/rendering/done). The status is YOURS to maintain honestly: the workbench's pipeline view and next_action derive from it.",
+    "description": "Create or update one episode AFTER the series plan and BEFORE comic_write_script, asset cards and storyboard. Each episode belongs to the same series project; do not initialize another project per episode. Fields: id (slug like ep001), title, synopsis, source_chapters (which chapter numbers it adapts — for adapted projects cite them so the workbench can show the source alongside the script), status (draft/scripted/storyboarded/rendering/done). The status is YOURS to maintain honestly: the workbench's pipeline view and next_action derive from it.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -1984,7 +2001,7 @@
   },
   {
     "name": "comic_request_generation",
-    "description": "Start an image generation job for one shot: the prompt built by comic_build_shot_prompt goes to the project's image provider (or a per-call override), and `count` candidates are queued. ASYNCHRONOUS: returns a taskId right away; poll with comic_check_generation (wait_ms up to ~30000 per call), and present the finished candidates with comic_present_candidates. COST GUARDRAIL: count above the project's max_images_per_request is refused with code `comic_confirm_batch` — ask the user with ask_user_question first, then retry with confirmed=true. Only ONE batch per shot is in flight at a time; do not re-request while a task is running.",
+    "description": "Only call after the user explicitly requests image generation and reviews the storyboard; project initialization or planning is not permission to spend. Start an image generation job for one shot: the prompt built by comic_build_shot_prompt goes to the project's image provider (or a per-call override), and `count` candidates are queued. ASYNCHRONOUS: returns a taskId right away; poll with comic_check_generation (wait_ms up to ~30000 per call), and present the finished candidates with comic_present_candidates. COST GUARDRAIL: count above the project's max_images_per_request is refused with code `comic_confirm_batch` — ask the user with ask_user_question first, then retry with confirmed=true. Only ONE batch per shot is in flight at a time; do not re-request while a task is running.",
     "inputSchema": {
       "type": "object",
       "required": [
@@ -2123,7 +2140,7 @@
   },
   {
     "name": "comic_compose_episode",
-    "description": "Queue a local FFmpeg motion-comic export from every selected episode keyframe in storyboard order. Writes an immutable task-ID MP4 plus dialogue SRT in the episode export directory. Requires 1–200 shots with selected PNG/JPEG/WebP frames and finite durations; refuses missing frames and non-cut transitions. Supports Ken Burns and subtitle burn-in. Bound shot video clips replace their still frame (Ken Burns applies to still frames only); shots extend to fit bound speech or clips instead of truncating them. Default vertical 1080x1920 at 24fps. Returns taskId immediately; poll comic_check_compose and use comic_cancel_generation to cancel. Never returns media bytes.",
+    "description": "Only compose after the user explicitly requests an export and reviews the selected media. Queue a local FFmpeg motion-comic export from every selected episode keyframe in storyboard order. Writes an immutable task-ID MP4 plus dialogue SRT in the episode export directory. Requires 1–200 shots with selected PNG/JPEG/WebP frames and finite durations; refuses missing frames and non-cut transitions. Supports Ken Burns and subtitle burn-in. Bound shot video clips replace their still frame (Ken Burns applies to still frames only); shots extend to fit bound speech or clips instead of truncating them. Default vertical 1080x1920 at 24fps. Returns taskId immediately; poll comic_check_compose and use comic_cancel_generation to cancel. Never returns media bytes.",
     "inputSchema": {
       "type": "object",
       "required": ["episode"],
@@ -2153,7 +2170,7 @@
   },
   {
     "name": "comic_request_speech",
-    "description": "Queue speech for one storyboard shot using the project's TTS provider or a one-call override. Text defaults to the shot's dialogue; supply text explicitly for narration. Read provider capabilities in comic_get_project, choose a supported voice and MP3/WAV format; refuses unsupported image options, voices, speed or instructions before submission. A missing voice needs a real user choice or configured default. Returns taskId; poll comic_check_generation and bind completed audio with comic_set_shot_audio. Does not replace previous bound audio or return binary media.",
+    "description": "Only call when the user explicitly requests speech generation; project setup and script approval alone do not authorize paid calls. Queue speech for one storyboard shot using the project's TTS provider or a one-call override. Text defaults to the shot's dialogue; supply text explicitly for narration. Read provider capabilities in comic_get_project, choose a supported voice and MP3/WAV format; refuses unsupported image options, voices, speed or instructions before submission. A missing voice needs a real user choice or configured default. Returns taskId; poll comic_check_generation and bind completed audio with comic_set_shot_audio. Does not replace previous bound audio or return binary media.",
     "inputSchema": {
       "type": "object",
       "required": ["episode", "shot"],
@@ -2187,7 +2204,7 @@
   },
   {
     "name": "comic_request_video",
-    "description": "Queue video generation for one storyboard shot with a job-based vendor. Default protocol \"ark\" (Volcengine Ark / Seedance-style); a provider row configured with protocol \"newapi\" speaks the new-api /v1/video/generations contract (e.g. an ai-switch gateway) — set the provider's api_url to the gateway base and its api_key to a gateway video key. The prompt is the shot's brief plus its camera move; card references are not attached. If the shot has a bound frame it is used as the image-to-video first frame automatically; pass use_first_frame=false to force text-to-video, or true to require a bound frame. duration_secs must be within the provider's configured range (default 4–30); the composer extends the still-frame shot to fit the finished clip, so a clip may play longer than the storyboard duration. Returns taskId; poll comic_check_generation, then bind with comic_set_shot_video. Never returns video bytes.",
+    "description": "Only call after the user explicitly requests video generation and reviews the storyboard; project setup alone does not authorize paid calls. Queue video generation for one storyboard shot with a job-based vendor. Default protocol \"ark\" (Volcengine Ark / Seedance-style); a provider row configured with protocol \"newapi\" speaks the new-api /v1/video/generations contract (e.g. an ai-switch gateway) — set the provider's api_url to the gateway base and its api_key to a gateway video key. The prompt is the shot's brief plus its camera move; card references are not attached. If the shot has a bound frame it is used as the image-to-video first frame automatically; pass use_first_frame=false to force text-to-video, or true to require a bound frame. duration_secs must be within the provider's configured range (default 4–30); the composer extends the still-frame shot to fit the finished clip, so a clip may play longer than the storyboard duration. Returns taskId; poll comic_check_generation, then bind with comic_set_shot_video. Never returns video bytes.",
     "inputSchema": {
       "type": "object",
       "required": ["episode", "shot"],

@@ -25,10 +25,18 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// The session's working directory is not a comic project — there is no
-/// `story/` root. The uniform answer for every tool call, whether the folder
-/// truly has none or the token did not check out (an unauthenticated caller
-/// learns nothing about which it is).
+/// A directory session intentionally gets the comic surface before `story/`
+/// exists, so discovery followed by explicit init works on one live connection.
+/// This probe never creates directories or registers a comic project. Companions
+/// started before this bootstrap surface shipped need an update/reconnect; their
+/// fixed launch flags cannot be retroactively re-advertised.
+pub fn comic_tools_available(working_dir: &Path) -> bool {
+    working_dir.is_absolute() && working_dir.is_dir()
+}
+
+/// The directory has no story root for a project-only operation, or the token
+/// / working directory is invalid. Authenticated discovery and explicit init
+/// handle an empty directory separately; unauthenticated callers learn nothing.
 pub const ERROR_NOT_COMIC_PROJECT: &str = "comic_not_a_comic_project";
 
 /// The comic tool group is switched off, or this build has no comic backend
@@ -84,7 +92,8 @@ impl ComicOutcome {
         Self::refused(
             ERROR_NOT_COMIC_PROJECT,
             "This session's working directory is not a comic project (no story/ root). \
-             Open the comic workbench to create one, or ask the user which project to work in.",
+             Call comic_get_project to inspect this session, then comic_init_project with a title \
+             to initialize it explicitly, or open the comic workbench.",
         )
     }
 }

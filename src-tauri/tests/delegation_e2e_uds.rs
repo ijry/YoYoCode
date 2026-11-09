@@ -212,6 +212,7 @@ async fn end_to_end_uds_happy_path() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from("/tmp"),
+                comic_enabled: false,
             },
         )
         .await;
@@ -334,6 +335,7 @@ async fn end_to_end_uds_batch_status() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from("/tmp"),
+                comic_enabled: false,
             },
         )
         .await;
@@ -498,6 +500,7 @@ async fn end_to_end_uds_ask_question_round_trip() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from("/tmp"),
+                comic_enabled: false,
             },
         )
         .await;
@@ -642,6 +645,7 @@ async fn end_to_end_uds_ask_revoked_after_register_declines() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from("/tmp"),
+                comic_enabled: false,
             },
         )
         .await;
@@ -801,6 +805,7 @@ async fn end_to_end_uds_assistant_delegation() {
             TokenEntry {
                 parent_connection_id: "p1".into(),
                 working_dir: PathBuf::from("/tmp"),
+                comic_enabled: false,
             },
         )
         .await;
