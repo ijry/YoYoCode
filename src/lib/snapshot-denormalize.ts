@@ -7,6 +7,7 @@ import type {
   LiveContentBlock as WireLiveContentBlock,
   LiveMessage as WireLiveMessage,
   LiveSessionSnapshot,
+  ModelSwitchInfo,
   PendingPlanApprovalState,
   PendingQuestionState,
   PromptCapabilitiesInfo,
@@ -102,6 +103,7 @@ export interface SnapshotPatch {
    *  on both hydrate branches by `mergeToolApprovals` (later decision per call
    *  wins, so it can only add). `[]` when the server omitted the field. */
   toolApprovals: ToolApprovalInfo[]
+  modelSwitches: ModelSwitchInfo[]
   /** AIR async tasks carried by the snapshot, already merged backend-side.
    *  Terminal rows included — they are the ids subsequent live deltas revise.
    *  `[]` when the server omitted the field. */
@@ -190,6 +192,7 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     backgroundOutstanding: wire.background_outstanding ?? 0,
     sessionFailures: wire.session_failures ?? [],
     toolApprovals: wire.tool_approvals ?? [],
+    modelSwitches: wire.model_switches ?? [],
     asyncTasks: wire.async_tasks ?? [],
     lastError,
     lastErrorCode,

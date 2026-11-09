@@ -62,6 +62,7 @@ function seed(turns: MessageTurn[]) {
     acpLoadError: null,
     // A promoted reply in hand is what arms the strip.
     localTurns: [turn("live-reply", "assistant")],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,

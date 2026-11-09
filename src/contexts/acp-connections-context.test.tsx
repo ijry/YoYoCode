@@ -5268,6 +5268,80 @@ describe("HYDRATE_FROM_SNAPSHOT last_error recovery", () => {
   })
 })
 
+describe("model switch records", () => {
+  it("routes live and snapshot records to the conversation without replay duplicates", async () => {
+    const {
+      useConversationRuntimeStore,
+      getTimelineTurns,
+      resetConversationRuntimeStore,
+    } = await import("@/stores/conversation-runtime-store")
+    resetConversationRuntimeStore()
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1", 42)
+    })
+    const handlers = latestAttachHandlers()
+    const record = {
+      id: "switch-1",
+      connection_id: "spawned-conn",
+      session_id: "sess-1",
+      sequence: 1,
+      config_id: "model",
+      previous_model_id: "a",
+      previous_model_name: "A",
+      model_id: "b",
+      model_name: "B",
+      requested_model_id: "b",
+      status: "confirmed" as const,
+      created_at: "2026-11-09T10:00:00Z",
+      after_turn_id: null,
+      after_turn_started_at: null,
+    }
+    emitAcpEvent(handlers, {
+      seq: 3,
+      connection_id: "spawned-conn",
+      type: "model_switch",
+      record,
+    })
+    expect(getTimelineTurns(42).map((item) => item.turn.id)).toEqual([
+      "model-switch-switch-1",
+    ])
+    h.denormalizeSnapshot.mockReturnValue({
+      ...snapshotBase(),
+      eventSeq: 1,
+      sessionId: "sess-1",
+      modelSwitches: [record, { ...record, id: "switch-0", sequence: 0 }],
+    })
+    hydrateSnapshot(handlers, { event_seq: 1 } as LiveSessionSnapshot)
+    expect(getTimelineTurns(42).map((item) => item.turn.id)).toEqual([
+      "model-switch-switch-0",
+      "model-switch-switch-1",
+    ])
+    expect(
+      useConversationRuntimeStore.getState().byConversationId.get(42)
+        ?.localTurns
+    ).toEqual([])
+    emitAcpEvent(handlers, {
+      seq: 4,
+      connection_id: "spawned-conn",
+      type: "session_started",
+      session_id: "sess-1",
+    })
+    emitAcpEvent(handlers, {
+      seq: 5,
+      connection_id: "spawned-conn",
+      type: "session_started",
+      session_id: "sess-2",
+    })
+    expect(getTimelineTurns(42)).toEqual([])
+    // A snapshot requested before the fork cannot resurrect its records.
+    hydrateSnapshot(handlers, { event_seq: 1 } as LiveSessionSnapshot)
+    expect(getTimelineTurns(42)).toEqual([])
+    resetConversationRuntimeStore()
+  })
+})
+
 describe("tool approvals", () => {
   async function connectOwner(): Promise<AttachHandlers> {
     h.acpFindConnectionForConversation.mockResolvedValue(null)

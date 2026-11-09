@@ -19,6 +19,7 @@ import {
 import { isWindowedDetail } from "@/lib/turn-window"
 import { CompletedTurnContent } from "./completed-turn-content"
 import { ContextCompactionCard } from "./context-compaction-card"
+import { ModelSwitchRow } from "./model-switch-row"
 import { CollapsibleUserMessage } from "./collapsible-user-message"
 import { CollapsibleSystemMessage } from "./collapsible-system-message"
 import { ContentPartsRenderer } from "./content-parts-renderer"
@@ -99,6 +100,7 @@ import type {
   AvailableCommandInfo,
   ConnectionStatus,
   MessageTurn,
+  ModelSwitchInfo,
   PlanEntryInfo,
 } from "@/lib/types"
 import { cn, copyTextToClipboard } from "@/lib/utils"
@@ -239,6 +241,11 @@ export interface ResolvedMessageGroup {
 }
 
 export type ThreadRenderItem =
+  | {
+      key: string
+      kind: "model-switch"
+      record: ModelSwitchInfo
+    }
   | {
       key: string
       kind: "turn"
@@ -1175,6 +1182,9 @@ export function markThreadTail(items: ThreadRenderItem[]): void {
   for (let idx = items.length - 1; idx >= 0; idx--) {
     const item = items[idx]
     if (item.kind === "turn" && isEmptyTurnItem(item)) continue
+    // Model selections are journal metadata; a tail fork still lands at the
+    // preceding native turn, even when switches were recorded after it.
+    if (item.kind === "model-switch") continue
     // Nor is a failed round's closing line where a fork lands: a tail fork
     // keeps everything up to the reply before it — the failure is nothing the
     // agent carries on from — so that reply is still the thread's tail.
@@ -1591,6 +1601,14 @@ export function MessageListView({
       // remounting the whole list and dropping the virtualizer's measurement
       // cache mid-scroll.
       const key = `${group.role}-${group.id}`
+      const onlyPart = group.parts[0]
+      if (
+        group.role === "system" &&
+        group.parts.length === 1 &&
+        onlyPart?.type === "model-switch"
+      ) {
+        return { key, kind: "model-switch" as const, record: onlyPart.record }
+      }
       // Hoist a compaction-only turn that ends a run to its own standalone
       // divider item so it renders BETWEEN turns instead of being merged into
       // (and wedged inside) the preceding assistant reply by
@@ -1795,6 +1813,8 @@ export function MessageListView({
               <PendingReply />
             </div>
           )
+        case "model-switch":
+          return <ModelSwitchRow record={item.record} />
         case "compaction":
           // Chrome-less centered divider between turns (no avatar / stats footer).
           return (

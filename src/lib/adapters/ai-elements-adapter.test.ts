@@ -13,7 +13,7 @@ import {
   type AdaptedToolCallPart,
 } from "./ai-elements-adapter"
 import type { PageHandoffBlock } from "@/lib/browser/page-handoff-block"
-import type { ContentBlock } from "@/lib/types"
+import type { ContentBlock, ModelSwitchInfo } from "@/lib/types"
 import { CODEX_SEARCH_ACTION_META_KEY } from "@/lib/codex-command-action"
 import { buildStreamingTurnsFromLiveMessage } from "@/stores/conversation-runtime-store"
 
@@ -56,6 +56,49 @@ function goalRunOf(part: AdaptedContentPart) {
   }
   return part
 }
+
+describe("model-switch history", () => {
+  it.each(["confirmed", "accepted"] as const)(
+    "preserves the complete %s record as system metadata",
+    (status) => {
+      const record: ModelSwitchInfo = {
+        id: "switch-1",
+        connection_id: "connection-1",
+        session_id: "session-1",
+        sequence: 1,
+        config_id: "model",
+        previous_model_id: "provider/old",
+        previous_model_name: "Saved old name",
+        model_id: "provider/new",
+        model_name: null,
+        requested_model_id: "provider/new",
+        status,
+        created_at: "2026-11-09T10:00:00.000Z",
+        after_turn_id: "user-1",
+        after_turn_started_at: "2026-11-09T09:59:00.000Z",
+      }
+      const adapted = adaptMessageTurn(
+        {
+          id: "model-switch-switch-1",
+          role: "system",
+          blocks: [{ type: "model_switch", record }],
+          timestamp: record.created_at,
+        },
+        {
+          attachedResources: "Attachments",
+          toolCallFailed: "Failed",
+          pageHandoffName,
+        }
+      )
+
+      expect(adapted.role).toBe("system")
+      expect(adapted.content).toEqual([{ type: "model-switch", record }])
+      expect(adapted.timestamp).toBe("2026-11-09T10:00:00.000Z")
+      expect(adapted.usage).toBeUndefined()
+      expect(adapted.model).toBeUndefined()
+    }
+  )
+})
 
 describe("groupConsecutiveDelegationStatus", () => {
   it("wraps a run of consecutive status polls into one group", () => {

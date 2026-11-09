@@ -42,6 +42,7 @@ import {
   openSettingsWindow,
 } from "@/lib/api"
 import { denormalizeSnapshot } from "@/lib/snapshot-denormalize"
+import { mergeModelSwitches } from "@/lib/model-switch-history"
 import { buildDelegationSeedEnvelopes } from "@/lib/delegation-seed"
 import {
   isConnectionBusy,
@@ -64,6 +65,7 @@ import type {
   ContentBlock,
   ConversationConnectionInfo,
   EventEnvelope,
+  ModelSwitchInfo,
   PlanEntryInfo,
   PermissionOptionInfo,
   PendingQuestionState,
@@ -395,6 +397,8 @@ export interface ConnectionState {
    * and the reloaded history carries the backend's stored copy as well.
    */
   toolApprovals: ToolApprovalMap
+  /** Immutable journal records, retained across turns and snapshot replay. */
+  modelSwitches?: ModelSwitchInfo[]
   /** AIR async tasks — Claude's background shells / workflows / monitors (see
    *  `lib/async-tasks.ts` for the merge contract). Retained after they settle,
    *  because the adapter keeps revising a finished task; the strip filters to
@@ -583,6 +587,7 @@ type Action =
       contextKey: string
       patch: import("@/lib/snapshot-denormalize").SnapshotPatch
     }
+  | { type: "MODEL_SWITCH"; contextKey: string; record: ModelSwitchInfo }
   | { type: "CONNECTION_REMOVED"; contextKey: string }
   | { type: "REMOVE_ALL" }
   | { type: "REKEY_CONNECTION"; fromKey: string; toKey: string }
@@ -2077,7 +2082,8 @@ function connectionsReducer(
       // snapshot from the same host reports the same value, so a stale one
       // cannot downgrade it.
       const mergedMessageQueueBackendDrain =
-        action.patch.messageQueueBackendDrain || current.messageQueueBackendDrain
+        action.patch.messageQueueBackendDrain ||
+        current.messageQueueBackendDrain
       const mergedModes = current.modes ?? action.patch.modes
       const mergedConfigOptions =
         current.configOptions ?? action.patch.configOptions
@@ -2137,6 +2143,14 @@ function connectionsReducer(
         current.sessionId === null ||
         action.patch.sessionId === current.sessionId
       const isStaleSnapshot = action.patch.eventSeq <= current.lastAppliedSeq
+      const mergedModelSwitches = sameSession
+        ? mergeModelSwitches(
+            current.modelSwitches ?? [],
+            action.patch.modelSwitches ?? []
+          )
+        : isStaleSnapshot
+          ? current.modelSwitches
+          : (action.patch.modelSwitches ?? [])
       const mergedAsyncTasks = !sameSession
         ? current.asyncTasks
         : isStaleSnapshot
@@ -2155,6 +2169,7 @@ function connectionsReducer(
           mergedHasPrompted === current.hasPrompted &&
           mergedSessionFailures === current.sessionFailures &&
           mergedToolApprovals === current.toolApprovals &&
+          mergedModelSwitches === current.modelSwitches &&
           mergedAsyncTasks === current.asyncTasks
         ) {
           return state
@@ -2172,6 +2187,7 @@ function connectionsReducer(
           hasPrompted: mergedHasPrompted,
           sessionFailures: mergedSessionFailures,
           toolApprovals: mergedToolApprovals,
+          modelSwitches: mergedModelSwitches,
           asyncTasks: mergedAsyncTasks,
         })
         return next
@@ -2239,6 +2255,7 @@ function connectionsReducer(
         backgroundOutstanding: action.patch.backgroundOutstanding,
         sessionFailures: mergedSessionFailures,
         toolApprovals: mergedToolApprovals,
+        modelSwitches: mergedModelSwitches,
         asyncTasks: mergedAsyncTasks,
         // Current state, like `status`: the session's error as the backend
         // holds it. Never a notification — that fired when it happened.
@@ -2783,6 +2800,18 @@ function connectionsReducer(
       return next
     }
 
+    case "MODEL_SWITCH": {
+      const conn = state.get(action.contextKey)
+      if (!conn) return state
+      const modelSwitches = mergeModelSwitches(conn.modelSwitches ?? [], [
+        action.record,
+      ])
+      if (modelSwitches === conn.modelSwitches) return state
+      const next = new Map(state)
+      next.set(action.contextKey, { ...conn, modelSwitches })
+      return next
+    }
+
     case "TOOL_APPROVAL": {
       const conn = state.get(action.contextKey)
       if (!conn) return state
@@ -2888,6 +2917,7 @@ function connectionsReducer(
         ...conn,
         sessionId: action.sessionId,
         asyncTasks: forked ? [] : conn.asyncTasks,
+        modelSwitches: forked ? [] : conn.modelSwitches,
         // Likewise the predicted prompt: it follows the last turn of the
         // session left behind, and a fork starts from an earlier point of it.
         promptSuggestion: forked ? null : conn.promptSuggestion,
@@ -3535,7 +3565,11 @@ export interface AcpActionsValue {
    * only removes the entry if it still points at this sink). See
    * `LiveMessageSink`.
    */
-  registerLiveMessageSink(contextKey: string, sink: LiveMessageSink): () => void
+  registerLiveMessageSink(
+    contextKey: string,
+    sink: LiveMessageSink,
+    runtimeConversationId?: number
+  ): () => void
   /**
    * Clear `loadError` (and its `loadErrorCommand`) set by a `session/load`
    * failure so the next auto-connect attempt isn't gated by stale failure
@@ -4087,6 +4121,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // connection's liveMessage reference changes, mirroring it into the runtime
   // store outside React (see `LiveMessageSink`). A ref → no re-renders.
   const liveMessageSinksRef = useRef(new Map<string, LiveMessageSink>())
+  const runtimeConversationIdsRef = useRef(new Map<string, number>())
 
   // Activity tracking (no re-renders)
   const lastActivityRef = useRef(new Map<string, number>())
@@ -4297,6 +4332,33 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         sink(nextConn.liveMessage, nextConn.status === "prompting")
       }
 
+      const mirrorModelSwitches = (key: string) => {
+        const conn = next.get(key)
+        if (!conn) return
+        const previous = prev.get(key)
+        const successor =
+          previous?.sessionId &&
+          conn.sessionId &&
+          previous.sessionId !== conn.sessionId
+            ? conn.sessionId
+            : undefined
+        if (!conn.modelSwitches?.length && !successor) return
+        const id =
+          runtimeConversationIdsRef.current.get(key) ??
+          (conn.sessionId
+            ? getConversationIdByExternalIdFromStore(conn.sessionId)
+            : null) ??
+          (previous?.sessionId
+            ? getConversationIdByExternalIdFromStore(previous.sessionId)
+            : null) ??
+          lastConnectParamsRef.current.get(key)?.conversationId
+        if (id != null) {
+          useConversationRuntimeStore
+            .getState()
+            .actions.applyModelSwitches(id, conn.modelSwitches ?? [], successor)
+        }
+      }
+
       // A list the connection now advertises is also what its folder's
       // transcripts badge until the next connection there advertises (see
       // `advertised-commands-store`). Read off the reducer's result like the
@@ -4381,6 +4443,13 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               noteTurnEndedUnseen(before)
           }
           mirrorLiveMessage(key)
+          if (
+            action.type === "MODEL_SWITCH" ||
+            action.type === "SESSION_STARTED" ||
+            action.type === "HYDRATE_FROM_SNAPSHOT"
+          ) {
+            mirrorModelSwitches(key)
+          }
           notifyKeyListeners(key)
           rememberCommands(key)
         }
@@ -4455,8 +4524,22 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   )
 
   const registerLiveMessageSink = useCallback(
-    (contextKey: string, sink: LiveMessageSink) => {
+    (
+      contextKey: string,
+      sink: LiveMessageSink,
+      runtimeConversationId?: number
+    ) => {
       liveMessageSinksRef.current.set(contextKey, sink)
+      if (runtimeConversationId != null) {
+        runtimeConversationIdsRef.current.set(contextKey, runtimeConversationId)
+        const records =
+          storeRef.current.connections.get(contextKey)?.modelSwitches
+        if (records?.length) {
+          useConversationRuntimeStore
+            .getState()
+            .actions.applyModelSwitches(runtimeConversationId, records)
+        }
+      }
       // Replay the CURRENT liveMessage immediately, matching the removed mirror
       // effect's setup write. A panel can mount/remount over a connection that
       // already holds a non-null liveMessage — connection reuse, a viewer
@@ -4473,6 +4556,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // remount may have already replaced it).
         if (liveMessageSinksRef.current.get(contextKey) === sink) {
           liveMessageSinksRef.current.delete(contextKey)
+          runtimeConversationIdsRef.current.delete(contextKey)
         }
       }
     },
@@ -5614,6 +5698,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           }
           break
         }
+        case "model_switch":
+          flushStreamingQueue(contextKey)
+          dispatch({ type: "MODEL_SWITCH", contextKey, record: e.record })
+          break
         case "session_config_options": {
           flushStreamingQueue(contextKey)
           // Same as `session_modes`: backend already merged saved prefs

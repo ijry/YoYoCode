@@ -20,6 +20,7 @@ pub mod folder_group;
 pub mod folder_link;
 pub mod media_provider;
 pub mod model_provider;
+pub mod model_switch;
 pub mod opened_tab;
 pub mod prelude;
 pub mod message_queue_item;

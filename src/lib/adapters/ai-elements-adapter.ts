@@ -8,6 +8,7 @@ import type {
   ToolCallStatus,
   PlanEntryInfo,
   ImageData,
+  ModelSwitchInfo,
 } from "@/lib/types"
 import {
   isAgentLikeToolName,
@@ -166,6 +167,7 @@ export type AdaptedProposedPlanPart = {
 }
 
 export type AdaptedContentPart =
+  | { type: "model-switch"; record: ModelSwitchInfo }
   | { type: "text"; text: string }
   | AdaptedToolCallPart
   | {
@@ -1582,6 +1584,9 @@ function adaptContentBlock(
     case "turn_error":
       return { type: "turn-error", message: block.message }
 
+    case "model_switch":
+      return { type: "model-switch", record: block.record }
+
     default:
       return null
   }
@@ -2034,6 +2039,7 @@ export function isTurnAnswerPart(part: AdaptedContentPart): boolean {
     case "background-task-group":
     case "goal-run":
     case "plan":
+    case "model-switch":
       return false
   }
 }

@@ -401,6 +401,7 @@ fn prune_reaped(draining: &mut DrainingChildren) {
 }
 
 pub struct ConnectionManager {
+    model_switch_journal: Arc<std::sync::OnceLock<crate::acp::model_switch::ModelSwitchJournal>>,
     pub(crate) connections: Arc<Mutex<HashMap<String, AgentConnection>>>,
     /// Connections whose teardown was requested but whose child process has
     /// not been reaped yet.
@@ -512,8 +513,13 @@ impl Default for ConnectionManager {
 }
 
 impl ConnectionManager {
+    pub fn install_model_switch_journal(&self, db: DatabaseConnection) {
+        let _ = self.model_switch_journal.set(crate::acp::model_switch::ModelSwitchJournal::new(db));
+    }
+
     pub fn new() -> Self {
         Self {
+            model_switch_journal: Arc::new(std::sync::OnceLock::new()),
             connections: Arc::new(Mutex::new(HashMap::new())),
             external_restore_lock: Arc::new(tokio::sync::RwLock::new(())),
             draining: Arc::new(Mutex::new(Vec::new())),
@@ -532,6 +538,7 @@ impl ConnectionManager {
     /// Returns a shallow clone sharing the same underlying connection map.
     pub fn clone_ref(&self) -> Self {
         Self {
+            model_switch_journal: self.model_switch_journal.clone(),
             connections: self.connections.clone(),
             external_restore_lock: self.external_restore_lock.clone(),
             draining: self.draining.clone(),
@@ -596,6 +603,7 @@ impl ConnectionManager {
     #[cfg(test)]
     fn with_spawn_handshake_timeout(timeout: Duration) -> Self {
         Self {
+            model_switch_journal: Arc::new(std::sync::OnceLock::new()),
             connections: Arc::new(Mutex::new(HashMap::new())),
             external_restore_lock: Arc::new(tokio::sync::RwLock::new(())),
             draining: Arc::new(Mutex::new(Vec::new())),
@@ -891,6 +899,7 @@ impl ConnectionManager {
             self.delegation_snapshot(),
             self.terminal_shell_config.clone(),
             cli_root,
+            self.model_switch_journal.get().cloned(),
         )
         .await?;
 
@@ -1709,6 +1718,12 @@ impl ConnectionManager {
                         None
                     };
 
+                    let switch_session_id = task_state.read().await.external_id.clone();
+                    crate::db::service::model_switch_service::bind_connection(
+                        &db_conn, &task_conn_id, linked_conversation_id,
+                        switch_session_id.as_deref(),
+                    ).await.map_err(|error| AcpError::protocol(error.to_string()))?;
+
                     // Bound (or nothing to bind). NOW the link is real, so
                     // announce it: this is the write that makes `already_linked`
                     // true for every subsequent prompt on this connection.
@@ -2023,21 +2038,7 @@ impl ConnectionManager {
         config_id: String,
         value_id: String,
     ) -> Result<(), AcpError> {
-        let cmd_tx = {
-            let connections = self.connections.lock().await;
-            let conn = connections
-                .get(conn_id)
-                .ok_or_else(|| AcpError::ConnectionNotFound(conn_id.into()))?;
-            conn.cmd_tx.clone()
-        };
-        cmd_tx
-            .send(ConnectionCommand::SetConfigOption {
-                config_id,
-                value_id,
-                reply: None,
-            })
-            .await
-            .map_err(|_| AcpError::ProcessExited)
+        self.set_config_option_and_wait(conn_id, config_id, value_id).await.map(|_| ())
     }
 
     /// [`Self::set_config_option`], then wait for the agent's answer, as
@@ -2048,17 +2049,21 @@ impl ConnectionManager {
         config_id: String,
         value_id: String,
     ) -> Result<SetterOutcome, AcpError> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.cmd_sender(conn_id)
-            .await?
-            .send(ConnectionCommand::SetConfigOption {
+        let guard = self.clone_prompt_lock(conn_id).await?.lock_owned().await;
+        let sender = self.cmd_sender(conn_id).await?;
+        // The loop owns the setter once queued. Keep its ordering gate until
+        // the durable acknowledgement even if the HTTP/UI waiter disappears:
+        // a tail fork must take its journal snapshot after this selection.
+        tokio::spawn(async move {
+            let _guard = guard;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            sender.send(ConnectionCommand::SetConfigOption {
                 config_id,
                 value_id,
                 reply: Some(tx),
-            })
-            .await
-            .map_err(|_| AcpError::ProcessExited)?;
-        Self::await_setter_reply(rx).await
+            }).await.map_err(|_| AcpError::ProcessExited)?;
+            Self::await_setter_reply(rx).await
+        }).await.map_err(|error| AcpError::protocol(format!("model setter task failed: {error}")))?
     }
 
     async fn cmd_sender(
@@ -2396,43 +2401,24 @@ impl ConnectionManager {
         // a read-only parse, so a caller that disappears here has changed
         // nothing. Failing to resolve is not an error — it degrades to the tail
         // fork rather than refusing the user's click.
-        let fork_point = match fork_from_turn_id {
-            None => None,
-            Some(turn_id) => {
-                let agent_type = state_arc.read().await.agent_type;
-                match crate::commands::conversations::get_folder_conversation_core(
-                    &db.conn,
-                    conversation_id,
-                )
-                .await
-                {
-                    Ok((detail, _)) => {
-                        let point = crate::acp::fork::resolve_fork_point(
-                            &detail.turns,
-                            &turn_id,
-                            agent_type,
-                        );
-                        if point.is_none() {
-                            tracing::info!(
-                                connection_id = %conn_id,
-                                turn_id = %turn_id,
-                                agent = %agent_type,
-                                "[ACP] no fork point for this turn; forking at the tail"
-                            );
-                        }
-                        point
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            connection_id = %conn_id,
-                            turn_id = %turn_id,
-                            "[ACP] could not read the conversation to resolve a fork point \
-                             ({e}); forking at the tail"
-                        );
-                        None
-                    }
-                }
-            }
+        if let Some(journal) = self.model_switch_journal.get() {
+            journal.flush().await.map_err(|error| AcpError::protocol(error.to_string()))?;
+        }
+        let detail = crate::commands::conversations::get_folder_conversation_core(
+            &db.conn, conversation_id,
+        ).await.ok().map(|(detail, _)| detail);
+        let agent_type = state_arc.read().await.agent_type;
+        let fork_point = detail.as_ref().and_then(|detail| fork_from_turn_id.as_deref().and_then(|turn_id| {
+            crate::acp::fork::resolve_fork_point(&detail.turns, turn_id, agent_type)
+        }));
+        // If the adapter cannot resolve a chosen point it forks at the tail;
+        // copy the journal against that actual boundary, not the requested one.
+        let fork_model_switch_ids = if let Some(detail) = detail {
+            crate::acp::model_switch::fork_record_ids(&detail.turns, fork_point.as_ref().and(fork_from_turn_id.as_deref()))
+        } else {
+            crate::db::service::model_switch_service::list_by_conversation(&db.conn, conversation_id)
+                .await.map_err(|error| AcpError::protocol(error.to_string()))?
+                .into_iter().map(|record| record.id).collect()
         };
 
         // Reject if a turn is already in flight. `prompt_lock` is FREE between a
@@ -2494,6 +2480,7 @@ impl ConnectionManager {
                     conversation_id,
                     forked_session_id.clone(),
                     original_session_id.clone(),
+                    fork_model_switch_ids,
                 )
                 .await?;
 
@@ -2591,6 +2578,7 @@ impl ConnectionManager {
         conversation_id: i32,
         forked_session_id: String,
         original_session_id: String,
+        model_switch_ids: Vec<String>,
     ) -> Result<i32, AcpError> {
         use sea_orm::sea_query::Expr;
         use sea_orm::{ColumnTrait, QueryFilter};
@@ -2691,7 +2679,7 @@ impl ConnectionManager {
                         // still give it its first name.
                         active.title_locked = Set(true);
                     }
-                    active.external_id = Set(Some(forked_session_id));
+                    active.external_id = Set(Some(forked_session_id.clone()));
                     active.updated_at = Set(now);
                     active.update(txn).await?;
 
@@ -2719,6 +2707,8 @@ impl ConnectionManager {
                         .one(txn)
                         .await?
                     {
+                        crate::db::service::model_switch_service::move_history(txn, conversation_id, existing.id, &forked_session_id).await?;
+                        crate::db::service::model_switch_service::copy_to_fork(txn, conversation_id, &forked_session_id, &model_switch_ids).await?;
                         return Ok(existing.id);
                     }
 
@@ -2759,6 +2749,8 @@ impl ConnectionManager {
                         inserted.id,
                     )
                     .await?;
+                    crate::db::service::model_switch_service::move_history(txn, conversation_id, inserted.id, &forked_session_id).await?;
+                    crate::db::service::model_switch_service::copy_to_fork(txn, conversation_id, &forked_session_id, &model_switch_ids).await?;
                     Ok(inserted.id)
                 })
             })
@@ -6007,6 +5999,26 @@ mod tests {
     /// The waiting setters hand back whatever the connection loop answered,
     /// and read a loop that went away without answering as the process gone.
     #[tokio::test]
+    async fn model_switch_cancelled_waiter_keeps_fork_gate_until_acknowledged() {
+        let mgr = Arc::new(ConnectionManager::new());
+        let mut rx = insert_live_connection(&mgr, "cancelled-setter", AgentType::Codex, None).await;
+        let caller = mgr.clone();
+        let task = tokio::spawn(async move {
+            caller.set_config_option_and_wait("cancelled-setter", "model".into(), "B".into()).await
+        });
+        let reply = match rx.recv().await.unwrap() {
+            ConnectionCommand::SetConfigOption { reply, .. } => reply.unwrap(),
+            _ => panic!("expected model selection"),
+        };
+        task.abort();
+        let _ = task.await;
+        let gate = mgr.clone_prompt_lock("cancelled-setter").await.unwrap();
+        assert!(gate.try_lock().is_err(), "fork must not read history before the queued setter is durably acknowledged");
+        reply.send(Ok(SetterOutcome::Accepted)).unwrap();
+        let _guard = tokio::time::timeout(Duration::from_secs(2), gate.lock()).await.expect("ack releases gate");
+    }
+
+    #[tokio::test]
     async fn waiting_setters_return_the_loops_answer() {
         use crate::acp::connection::SetterOutcome;
         let mgr = ConnectionManager::new();
@@ -8787,6 +8799,34 @@ mod tests {
             }
         });
         (mgr, join)
+    }
+
+    #[tokio::test]
+    async fn model_switch_fork_preserves_original_and_copies_selected_history_atomically() {
+        use crate::db::{service::model_switch_service, test_helpers};
+        let db = test_helpers::fresh_in_memory_db().await;
+        let folder = test_helpers::seed_folder(&db, "/tmp/model-switch-fork").await;
+        let cid = test_helpers::seed_conversation(&db, folder, AgentType::ClaudeCode).await;
+        conversation_service::bind_external_id(&db.conn, cid, "session-S1", &[]).await.unwrap();
+        for (id, sequence) in [("inherited", 1), ("later", 2)] {
+            let record = crate::models::ModelSwitchInfo {
+                id: id.into(), connection_id: "fork-connection".into(), session_id: Some("session-S1".into()),
+                sequence, config_id: "model".into(), previous_model_id: Some("A".into()), previous_model_name: None,
+                model_id: "B".into(), model_name: None, requested_model_id: "B".into(),
+                status: crate::models::ModelSwitchStatus::Confirmed, created_at: chrono::Utc::now(),
+                after_turn_id: Some("user-1".into()), after_turn_started_at: None,
+            };
+            model_switch_service::append(&db.conn, Some(cid), AgentType::ClaudeCode, &record).await.unwrap();
+        }
+        let sibling = ConnectionManager::persist_fork_outcome(&db.conn, cid, "session-S2".into(), "session-S1".into(), vec!["inherited".into()]).await.unwrap();
+        let original = model_switch_service::list_by_conversation(&db.conn, sibling).await.unwrap();
+        assert_eq!(original.len(), 2);
+        assert_eq!(original[0].id, "inherited");
+        assert_eq!(original[0].session_id.as_deref(), Some("session-S1"));
+        let copied = model_switch_service::list_by_conversation(&db.conn, cid).await.unwrap();
+        assert_eq!(copied.len(), 1);
+        assert_eq!(copied[0].id, format!("inherited-fork-{cid}"));
+        assert_eq!(copied[0].session_id.as_deref(), Some("session-S2"));
     }
 
     #[tokio::test]

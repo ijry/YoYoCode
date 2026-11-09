@@ -6,12 +6,16 @@
  * Renders the real `MessageListView` against the runtime store, with the
  * virtual list stubbed to record the keys it is handed.
  */
-import { act, cleanup, render } from "@testing-library/react"
+import { act, cleanup, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { LiveMessage } from "@/contexts/acp-connections-context"
-import type { DbConversationDetail, MessageTurn } from "@/lib/types"
+import type {
+  DbConversationDetail,
+  MessageTurn,
+  ModelSwitchInfo,
+} from "@/lib/types"
 import {
   resetConversationRuntimeStore,
   useConversationRuntimeStore,
@@ -41,15 +45,21 @@ vi.mock("@/components/message/virtualized-message-thread", () => ({
   VirtualizedMessageThread: ({
     items,
     getItemKey,
+    renderItem,
   }: {
     items: ThreadRenderItem[]
     getItemKey: (item: ThreadRenderItem, index: number) => string
+    renderItem: (item: ThreadRenderItem) => ReactNode
   }) => {
     rendered.rows = items.map((item, index) => ({
       key: getItemKey(item, index),
       item,
     }))
-    return null
+    return items.map((item) =>
+      item.kind === "model-switch" ? (
+        <div key={item.key}>{renderItem(item)}</div>
+      ) : null
+    )
   },
 }))
 vi.mock("@/components/ai-elements/message-thread", () => ({
@@ -89,7 +99,7 @@ vi.mock("@/lib/browser/use-page-handoff-name", () => ({
   usePageHandoffName: () => "page",
 }))
 
-import { MessageListView } from "./message-list-view"
+import { currentNavTurnIdAt, MessageListView } from "./message-list-view"
 
 const CID = 41
 const at = (n: number) => new Date(1_700_000_000_000 + n * 1000).toISOString()
@@ -144,6 +154,7 @@ function seed(): void {
     detailError: null,
     acpLoadError: null,
     localTurns: [],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,
@@ -186,6 +197,138 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   resetConversationRuntimeStore()
+})
+
+const SWITCH: ModelSwitchInfo = {
+  id: "switch-1",
+  connection_id: "connection-1",
+  session_id: "ext-41",
+  sequence: 1,
+  config_id: "model",
+  previous_model_id: "provider/old",
+  previous_model_name: "Saved old name",
+  model_id: "provider/new",
+  model_name: "Saved new name",
+  requested_model_id: "provider/new",
+  status: "confirmed",
+  created_at: at(3),
+  after_turn_id: "u1",
+  after_turn_started_at: at(1),
+}
+
+function seedSwitches(records: ModelSwitchInfo[]) {
+  seed()
+  const session = useConversationRuntimeStore
+    .getState()
+    .byConversationId.get(CID)!
+  useConversationRuntimeStore.setState({
+    byConversationId: new Map([
+      [
+        CID,
+        {
+          ...session,
+          detail: {
+            ...detail(),
+            turns: [
+              ...TURNS,
+              {
+                id: "live-reply",
+                role: "assistant",
+                timestamp: at(2),
+                blocks: [{ type: "text", text: "Done" }],
+              },
+              ...records.map(
+                (record): MessageTurn => ({
+                  id: `model-switch-${record.id}`,
+                  role: "system",
+                  timestamp: record.created_at,
+                  blocks: [{ type: "model_switch", record }],
+                })
+              ),
+            ],
+          },
+        },
+      ],
+    ]),
+  })
+  return render(
+    <MessageListView
+      conversationId={CID}
+      imageRoot={null}
+      agentType="claude_code"
+      availableCommands={[]}
+    />
+  )
+}
+
+describe("MessageListView: model-switch history", () => {
+  it("renders A→B→A as standalone rows after the complete reply and retains navigation and tail fork", () => {
+    seedSwitches([
+      SWITCH,
+      {
+        ...SWITCH,
+        id: "switch-2",
+        sequence: 2,
+        previous_model_id: "provider/new",
+        previous_model_name: "Saved new name",
+        model_id: "provider/old",
+        model_name: "Saved old name",
+        requested_model_id: "provider/old",
+      },
+    ])
+    const items = rendered.rows.map((row) => row.item)
+    expect(items.map((item) => item.kind)).toEqual([
+      "turn",
+      "turn",
+      "model-switch",
+      "model-switch",
+    ])
+    expect(new Set(rendered.rows.map((row) => row.key)).size).toBe(4)
+    const replyItem = items[1]
+    expect(replyItem.kind).toBe("turn")
+    if (replyItem.kind !== "turn") throw new Error("missing reply")
+    expect(replyItem.group.parts).toEqual([{ type: "text", text: "Done" }])
+    expect(replyItem.sourceTurns.map((turn) => turn.id)).toEqual(["live-reply"])
+    expect(replyItem.isThreadTail).toBe(true)
+    expect(replyItem.previousUserIndex).toBe(0)
+    expect(currentNavTurnIdAt(items, { index: 3, atEnd: true }, null)).toBe(
+      "u1"
+    )
+    expect(screen.getAllByText("modelSwitchConfirmed")).toHaveLength(2)
+    expect(screen.getAllByText("Saved old name")).toHaveLength(2)
+    expect(screen.getAllByText("Saved new name")).toHaveLength(2)
+    expect(document.querySelectorAll("time[datetime]")).toHaveLength(2)
+  })
+
+  it("shows accepted requests without claiming confirmation, with full ID fallback and literal labels", () => {
+    seedSwitches([
+      {
+        ...SWITCH,
+        status: "accepted",
+        previous_model_name: " ",
+        model_name: "<img src=x onerror=alert(1)>",
+      },
+    ])
+    expect(screen.getByText("modelSwitchAccepted")).toBeInTheDocument()
+    expect(screen.queryByText("modelSwitchConfirmed")).not.toBeInTheDocument()
+    expect(screen.getByText("provider/old")).toBeInTheDocument()
+    expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument()
+    expect(document.querySelector("img")).toBeNull()
+    expect(document.querySelector("time")).toHaveAttribute("datetime", at(3))
+  })
+
+  it("shows an unknown previous model and retains provider-qualified new IDs", () => {
+    seedSwitches([
+      {
+        ...SWITCH,
+        previous_model_name: null,
+        previous_model_id: null,
+        model_name: null,
+      },
+    ])
+    expect(screen.getByText("modelSwitchUnknown")).toBeInTheDocument()
+    expect(screen.getByText("provider/new")).toBeInTheDocument()
+  })
 })
 
 describe("MessageListView: a reply settling into history", () => {

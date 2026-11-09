@@ -74,6 +74,7 @@ function emptySession(conversationId: number): ConversationRuntimeSession {
     detailError: null,
     acpLoadError: null,
     localTurns: [],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,

@@ -33,6 +33,9 @@ export function useExportLabels(): ExportLabels {
       toolResult: tExport("toolResult"),
       toolError: tExport("toolError"),
       turnFailed: tExport("turnFailed"),
+      modelSwitchConfirmed: tExport("modelSwitchConfirmed"),
+      modelSwitchAccepted: tExport("modelSwitchAccepted"),
+      modelSwitchUnknown: tExport("modelSwitchUnknown"),
       statusLabels: {
         in_progress: tStatus("in_progress"),
         pending_review: tStatus("pending_review"),

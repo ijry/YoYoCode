@@ -25,6 +25,7 @@ function seedSession(sessionStats: SessionStats) {
           detailError: null,
           acpLoadError: null,
           localTurns: [],
+          modelSwitches: [],
           backgroundTurns: [],
           pendingBackgroundSettlements: [],
           pendingCancelledTurnReports: null,

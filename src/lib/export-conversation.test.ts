@@ -21,6 +21,7 @@ import {
 import { isDesktop } from "@/lib/platform"
 import { save } from "@tauri-apps/plugin-dialog"
 import { invoke } from "@tauri-apps/api/core"
+import type { ModelSwitchInfo } from "@/lib/types"
 
 const mockIsDesktop = vi.mocked(isDesktop)
 const mockSave = vi.mocked(save)
@@ -72,6 +73,9 @@ function makeLabels(): ExportLabels {
     toolResult: "Tool result",
     toolError: "Tool error",
     turnFailed: "Turn failed",
+    modelSwitchConfirmed: "Model switched",
+    modelSwitchAccepted: "Model switch requested (accepted, unconfirmed)",
+    modelSwitchUnknown: "Unknown model",
     statusLabels: {},
   }
 }
@@ -110,6 +114,114 @@ function makeData(): ExportConversationData {
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+const modelSwitch: ModelSwitchInfo = {
+  id: "switch-1",
+  connection_id: "connection-1",
+  session_id: "session-1",
+  sequence: 1,
+  config_id: "model",
+  previous_model_id: "provider/old",
+  previous_model_name: "Saved old name",
+  model_id: "provider/new",
+  model_name: "Saved new name",
+  requested_model_id: "provider/new",
+  status: "confirmed",
+  created_at: "2026-11-09T10:00:00.000Z",
+  after_turn_id: "t1",
+  after_turn_started_at: "2026-05-27T00:00:00Z",
+}
+
+function switchData(
+  overrides: Partial<ModelSwitchInfo> = {}
+): ExportConversationData {
+  const data = makeData()
+  const record = { ...modelSwitch, ...overrides }
+  data.turns.push({
+    id: `model-switch-${record.id}`,
+    role: "system",
+    timestamp: record.created_at,
+    blocks: [{ type: "model_switch", record }],
+  })
+  return data
+}
+
+function savedContents(): string {
+  const calls = mockInvoke.mock.calls
+  return (calls[calls.length - 1][1] as { contents: string }).contents
+}
+
+describe("model-switch export", () => {
+  beforeEach(() => {
+    mockIsDesktop.mockReturnValue(true)
+    mockSave.mockResolvedValue("/tmp/conversation.md")
+    mockInvoke.mockResolvedValue(undefined)
+  })
+
+  it.each([exportAsMarkdown, exportAsHtml])(
+    "exports saved names, confirmed wording and event time",
+    async (exportConversation) => {
+      await exportConversation(switchData())
+      const contents = savedContents()
+      expect(contents).toContain("Model switched")
+      expect(contents).toContain("Saved old name → Saved new name")
+      expect(contents).toContain(
+        new Date("2026-11-09T10:00:00.000Z").toLocaleString()
+      )
+      expect(contents.indexOf("hello")).toBeLessThan(
+        contents.indexOf("Model switched")
+      )
+    }
+  )
+
+  it.each([exportAsMarkdown, exportAsHtml])(
+    "distinguishes accepted from confirmed with provider ID fallbacks",
+    async (exportConversation) => {
+      await exportConversation(
+        switchData({
+          status: "accepted",
+          previous_model_name: " ",
+          model_name: null,
+        })
+      )
+      const contents = savedContents()
+      expect(contents).toContain("Model switch requested")
+      expect(contents).toContain("unconfirmed")
+      expect(contents).not.toContain("Model switched")
+      expect(contents).toContain("provider/old → provider/new")
+    }
+  )
+
+  it("escapes model labels as literal Markdown without breaking the metadata line", async () => {
+    await exportAsMarkdown(
+      switchData({
+        previous_model_name: null,
+        previous_model_id: null,
+        model_name: "[click](javascript:alert(1))\n<script>x</script> & *fast*",
+      })
+    )
+    const contents = savedContents()
+    expect(contents).toContain(
+      "Unknown model → \\[click\\]\\(javascript:alert\\(1\\)\\) &lt;script&gt;x&lt;/script&gt; &amp; \\*fast\\*"
+    )
+    expect(contents).not.toContain("<script>")
+    expect(contents).not.toContain("[click](javascript:")
+  })
+
+  it("escapes HTML and never turns saved labels into markup", async () => {
+    await exportAsHtml(
+      switchData({ model_name: '<img src=x onerror="alert(1)">' })
+    )
+    const doc = new DOMParser().parseFromString(savedContents(), "text/html")
+    expect(doc.querySelector("main img")).toBeNull()
+    expect(doc.querySelector("main")?.textContent).toContain(
+      '<img src=x onerror="alert(1)">'
+    )
+    expect(doc.querySelector(".model-switch")?.textContent).toContain(
+      "Model switched"
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

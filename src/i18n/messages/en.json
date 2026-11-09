@@ -2382,6 +2382,9 @@
       "exportFailed": "Export failed",
       "exportImageTooLong": "Conversation is too long to export as image",
       "exportLabels": {
+        "modelSwitchConfirmed": "Model switched",
+        "modelSwitchAccepted": "Model switch requested (accepted, unconfirmed)",
+        "modelSwitchUnknown": "Unknown model",
         "untitledConversation": "Untitled Conversation",
         "agent": "Agent",
         "model": "Model",
@@ -3848,6 +3851,9 @@
         "downloadFailed": "Failed to download {name}"
       },
       "messageList": {
+        "modelSwitchConfirmed": "Model switched",
+        "modelSwitchAccepted": "Model switch requested (accepted, unconfirmed)",
+        "modelSwitchUnknown": "Unknown model",
         "loading": "Loading...",
         "loadBackgroundActivity": "Load background activity",
         "loadEarlier": "Load earlier messages",

@@ -975,8 +975,11 @@ const ConversationTabView = memo(function ConversationTabView({
   // is owned by COMPLETE_TURN (nulls liveMessage); unmount clearing by
   // releaseRuntimeSession. `tabId` is the connection contextKey.
   useEffect(() => {
-    return acpActions.registerLiveMessageSink(tabId, (liveMessage, isLive) =>
-      setLiveMessage(effectiveConversationId, liveMessage, isLive)
+    return acpActions.registerLiveMessageSink(
+      tabId,
+      (liveMessage, isLive) =>
+        setLiveMessage(effectiveConversationId, liveMessage, isLive),
+      effectiveConversationId
     )
   }, [acpActions, tabId, effectiveConversationId, setLiveMessage])
 

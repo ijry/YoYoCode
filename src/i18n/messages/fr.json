@@ -2343,6 +2343,9 @@
       "exportFailed": "Échec de l'exportation",
       "exportImageTooLong": "La conversation est trop longue pour être exportée en image",
       "exportLabels": {
+        "modelSwitchConfirmed": "Modèle changé",
+        "modelSwitchAccepted": "Demande de changement de modèle acceptée (non confirmée)",
+        "modelSwitchUnknown": "Modèle inconnu",
         "untitledConversation": "Conversation sans titre",
         "agent": "Agent",
         "model": "Modèle",
@@ -3809,6 +3812,9 @@
         "downloadFailed": "Échec du téléchargement de {name}"
       },
       "messageList": {
+        "modelSwitchConfirmed": "Modèle changé",
+        "modelSwitchAccepted": "Demande de changement de modèle acceptée (non confirmée)",
+        "modelSwitchUnknown": "Modèle inconnu",
         "loading": "Chargement...",
         "loadBackgroundActivity": "Charger l'activité en arrière-plan",
         "loadEarlier": "Charger les messages précédents",

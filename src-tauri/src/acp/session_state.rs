@@ -532,6 +532,11 @@ pub struct SessionState {
 
     // 事件锚点
     pub event_seq: u64,
+    pub model_switches: Vec<crate::models::ModelSwitchInfo>,
+    pub(crate) model_switch_sequence: u64,
+    pub(crate) model_switch_after_turn_id: Option<String>,
+    pub(crate) model_switch_after_turn_started_at: Option<DateTime<Utc>>,
+    pub(crate) model_switch_journal: Option<crate::acp::model_switch::ModelSwitchJournal>,
     pub last_activity_at: DateTime<Utc>,
 
     /// Per-connection event broadcaster used by the WS attach protocol.
@@ -944,6 +949,11 @@ impl SessionState {
             last_error: None,
             session_started_tx: None,
             event_seq: 0,
+            model_switches: Vec::new(),
+            model_switch_sequence: 0,
+            model_switch_after_turn_id: None,
+            model_switch_after_turn_started_at: None,
+            model_switch_journal: None,
             last_activity_at: Utc::now(),
             event_stream: Arc::new(ConnectionEventStream::new()),
             recent_events: RecentEventsBuffer::new(),
@@ -1029,6 +1039,13 @@ impl SessionState {
     /// seq 由 emit_with_state 在外层管理（这样 apply_event 可独立单元测试）。
     pub fn apply_event(&mut self, payload: &AcpEvent) {
         match payload {
+            AcpEvent::ModelSwitch { record } => {
+                if let Some(existing) = self.model_switches.iter_mut().find(|item| item.id == record.id) {
+                    *existing = record.clone();
+                } else {
+                    self.model_switches.push(record.clone());
+                }
+            }
             AcpEvent::SessionStarted { session_id } => {
                 if self.external_id.as_deref() != Some(session_id.as_str()) {
                     self.external_id_changed_at = Some(std::time::SystemTime::now());
@@ -1043,6 +1060,9 @@ impl SessionState {
                     // fork is the ordinary way here: a background task outlives
                     // the turn that started it, and "fork from here" is only
                     // accepted between turns.
+                    self.model_switches.clear();
+                    self.model_switch_after_turn_id = None;
+                    self.model_switch_after_turn_started_at = None;
                     self.async_tasks.clear();
                     self.async_task_activity_at = None;
                     // A prediction follows the last turn of the session it was
@@ -1500,6 +1520,8 @@ impl SessionState {
                 let now = Utc::now();
                 self.pending_user_message_started_at =
                     DateTime::from_timestamp_millis(now.timestamp_millis());
+                self.model_switch_after_turn_id = Some(message_id.clone());
+                self.model_switch_after_turn_started_at = self.pending_user_message_started_at;
                 // Live-feedback notes are turn-scoped steering: a new user turn
                 // starts with a clean slate. The previous turn's notes (read or
                 // not) are history at this point; the frontend's "agent didn't
@@ -2455,6 +2477,7 @@ impl SessionState {
             active_delegations: self.active_delegations.values().cloned().collect(),
             feedback: self.feedback.clone(),
             tool_approvals: self.tool_approvals.clone(),
+            model_switches: self.model_switches.clone(),
             background_outstanding: self.background_outstanding,
             feedback_tool_available: self.feedback_tool_available,
             native_steering_available: self.native_steering_available,
@@ -2581,6 +2604,8 @@ pub struct LiveSessionSnapshot {
     /// for a connection that has answered nothing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_approvals: Vec<ToolApprovalInfo>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub model_switches: Vec<crate::models::ModelSwitchInfo>,
     /// Launched-but-unresolved background tasks (see
     /// `SessionState.background_outstanding`) — lets a client attaching
     /// mid-episode (web reconnect, new window) recover the pending count the

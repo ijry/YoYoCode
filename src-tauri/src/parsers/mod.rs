@@ -879,7 +879,7 @@ pub(crate) fn message_turn_count(turns: &[MessageTurn]) -> u32 {
                 && turn
                     .blocks
                     .iter()
-                    .all(|block| matches!(block, ContentBlock::TurnError { .. })))
+                    .all(|block| matches!(block, ContentBlock::TurnError { .. } | ContentBlock::ModelSwitch { .. })))
         })
         .count() as u32
 }

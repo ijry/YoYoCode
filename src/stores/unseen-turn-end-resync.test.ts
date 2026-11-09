@@ -102,6 +102,7 @@ function seedStreamingOwner(
     detailError: null,
     acpLoadError: null,
     localTurns: [],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,

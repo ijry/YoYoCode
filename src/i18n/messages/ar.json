@@ -2343,6 +2343,9 @@
       "exportFailed": "فشل التصدير",
       "exportImageTooLong": "المحادثة طويلة جداً ولا يمكن تصديرها كصورة",
       "exportLabels": {
+        "modelSwitchConfirmed": "تم تغيير النموذج",
+        "modelSwitchAccepted": "تم قبول طلب تغيير النموذج (لم يُؤكَّد التطبيق)",
+        "modelSwitchUnknown": "نموذج غير معروف",
         "untitledConversation": "محادثة بدون عنوان",
         "agent": "الوكيل",
         "model": "النموذج",
@@ -3809,6 +3812,9 @@
         "downloadFailed": "فشل تنزيل {name}"
       },
       "messageList": {
+        "modelSwitchConfirmed": "تم تغيير النموذج",
+        "modelSwitchAccepted": "تم قبول طلب تغيير النموذج (لم يُؤكَّد التطبيق)",
+        "modelSwitchUnknown": "نموذج غير معروف",
         "loading": "جارٍ التحميل...",
         "loadBackgroundActivity": "تحميل نشاط الخلفية",
         "loadEarlier": "تحميل الرسائل السابقة",

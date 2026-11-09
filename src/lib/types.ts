@@ -194,7 +194,26 @@ export interface ImageData {
   uri?: string | null
 }
 
+/** An acknowledged explicit model selection, retained as session metadata. */
+export interface ModelSwitchInfo {
+  id: string
+  connection_id: string
+  session_id: string | null
+  sequence: number
+  config_id: string
+  previous_model_id: string | null
+  previous_model_name: string | null
+  model_id: string
+  model_name: string | null
+  requested_model_id: string
+  status: "confirmed" | "accepted"
+  created_at: string
+  after_turn_id: string | null
+  after_turn_started_at: string | null
+}
+
 export type ContentBlock =
+  | { type: "model_switch"; record: ModelSwitchInfo }
   | { type: "text"; text: string }
   | {
       type: "image"
@@ -2968,6 +2987,7 @@ export interface BackgroundSettledInfo {
 }
 
 export type AcpEvent =
+  | { type: "model_switch"; record: ModelSwitchInfo }
   /**
    * `parent_tool_use_id` = subagent attribution (claude-agent-acp ≥0.63 with
    * the `subagent-transcript` capability): chunks of a live subagent carry the
@@ -3766,6 +3786,8 @@ export interface AsyncTaskDelta {
 }
 
 export interface LiveSessionSnapshot {
+  /** Session model selections; absent on older hosts. */
+  model_switches?: ModelSwitchInfo[]
   connection_id: string
   conversation_id: number | null
   folder_id: number | null

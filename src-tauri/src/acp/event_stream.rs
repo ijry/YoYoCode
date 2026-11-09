@@ -501,6 +501,7 @@ fn message_turn_size(turn: &crate::models::message::MessageTurn) -> usize {
 fn content_block_size(block: &crate::models::message::ContentBlock) -> usize {
     use crate::models::message::ContentBlock as CB;
     match block {
+        CB::ModelSwitch { .. } => serde_json::to_vec(block).map_or(512, |bytes| bytes.len()),
         // `{"type":"text","text":…}` / `{"type":"thinking","text":…}`
         CB::Text { text } | CB::Thinking { text } => 32 + json_str_len(text),
         // `{"type":"turn_error","message":…}`

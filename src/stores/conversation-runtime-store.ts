@@ -14,6 +14,7 @@ import type {
   ConversationTurnsPage,
   DbConversationDetail,
   MessageTurn,
+  ModelSwitchInfo,
   PlanEntryInfo,
   SessionStats,
   ToolCallStatus,
@@ -45,6 +46,11 @@ import {
   parseBackgroundTaskMarker,
 } from "@/lib/background-agent"
 import { imageCardLabel } from "@/lib/image-tool-label"
+import {
+  mergeModelSwitches,
+  mergeModelSwitchTimeline,
+  retireModelSwitches,
+} from "@/lib/model-switch-history"
 
 /**
  * Conversation-runtime shared state as a Zustand store — the per-conversation
@@ -181,6 +187,9 @@ export interface ConversationRuntimeSession {
   // next detail refetch; the watermark rule above retires them once a refetch
   // catches up, so overlay and persisted copies never coexist in the timeline.
   backgroundTurns: BackgroundOverlayEntry[]
+
+  // Journal events not yet covered by the loaded history window.
+  modelSwitches: ModelSwitchInfo[]
 
   // Settled async sub-agents awaiting their launch card's in-memory flip until
   // the launching turn promotes into `localTurns` (see
@@ -396,6 +405,12 @@ type Action =
       liveMessage?: LiveMessage | null
     }
   | {
+      type: "APPLY_MODEL_SWITCHES"
+      conversationId: number
+      records: ModelSwitchInfo[]
+      successorSessionId?: string
+    }
+  | {
       // Upsert out-of-turn overlay turns from a `background_activity` event
       // (see `BackgroundOverlayEntry`). Turns are keyed by id: new ids append
       // in event order, a re-emitted (still-growing) turn replaces its entry
@@ -516,6 +531,7 @@ function createEmptySession(
     acpLoadError: null,
     localTurns: [],
     backgroundTurns: [],
+    modelSwitches: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,
     optimisticTurns: [],
@@ -2279,6 +2295,17 @@ function reducer(
         externalId: nextExternalId ?? current.externalId,
         sessionStats: action.detail.session_stats ?? current.sessionStats,
         backgroundTurns: nextBackgroundTurns,
+        modelSwitches: retireModelSwitches(
+          // A fork can race new events on its successor. Retire only the old
+          // session's overlay; the new session's records may not be in this
+          // response yet. An empty drop list still denotes a fork refresh.
+          action.dropLiveTurnIds !== undefined
+            ? current.modelSwitches.filter(
+                (record) => record.session_id === nextExternalId
+              )
+            : current.modelSwitches,
+          action.detail.turns
+        ),
         ...(isActivelyInteracting
           ? keepAllLiveBuffers
             ? {}
@@ -2420,6 +2447,7 @@ function reducer(
         ...s,
         detail: nextDetail,
         backgroundTurns: nextBackgroundTurns,
+        modelSwitches: retireModelSwitches(s.modelSwitches, nextDetail.turns),
         loadingOlderTurns: false,
         // Explicit prepend signal for the virtualized thread's `shift`
         // derivation — see the field doc.
@@ -2566,6 +2594,26 @@ function reducer(
         pendingBackgroundSettlements: remainingSettlements,
         pendingCancelledTurnReports: null,
       }))
+    }
+
+    case "APPLY_MODEL_SWITCHES": {
+      if (action.records.length === 0 && !action.successorSessionId)
+        return state
+      return updateSessionInState(state, action.conversationId, (current) => {
+        const retained = action.successorSessionId
+          ? current.modelSwitches.filter(
+              (record) => record.session_id === action.successorSessionId
+            )
+          : current.modelSwitches
+        const merged = mergeModelSwitches(retained, action.records)
+        const modelSwitches = retireModelSwitches(
+          merged,
+          current.detail?.turns ?? []
+        )
+        return modelSwitches === current.modelSwitches
+          ? current
+          : { ...current, modelSwitches }
+      })
     }
 
     case "APPLY_BACKGROUND_ACTIVITY": {
@@ -2938,6 +2986,7 @@ function reducer(
         detailLoading: to.detailLoading || from.detailLoading,
         detailError: to.detailError ?? from.detailError,
         localTurns: [...from.localTurns, ...to.localTurns],
+        modelSwitches: mergeModelSwitches(from.modelSwitches, to.modelSwitches),
         optimisticTurns: [...from.optimisticTurns, ...to.optimisticTurns],
         liveMessage: mergedLiveMessage,
         syncState: to.syncState !== "idle" ? to.syncState : from.syncState,
@@ -3150,6 +3199,11 @@ export interface RuntimeActions {
   ) => void
   removeOptimisticTurn: (conversationId: number, id: string) => void
   appendViewerUserTurn: (conversationId: number, turn: MessageTurn) => void
+  applyModelSwitches: (
+    conversationId: number,
+    records: ModelSwitchInfo[],
+    successorSessionId?: string
+  ) => void
   applyBackgroundActivity: (
     conversationId: number,
     turns: MessageTurn[],
@@ -4205,8 +4259,13 @@ function computeTimeline(
     deduped = collides ? dedupeTimeline(head.concat(tail)) : head.concat(tail)
   }
 
-  timelineCache.set(session, deduped)
-  return deduped
+  const timeline = mergeModelSwitchTimeline(
+    deduped,
+    session.modelSwitches ?? [],
+    session.detail?.turns_offset ?? 0
+  )
+  timelineCache.set(session, timeline)
+  return timeline
 }
 
 export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
@@ -4990,6 +5049,13 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       dispatch({ type: "REMOVE_OPTIMISTIC_TURN", conversationId, id }),
     appendViewerUserTurn: (conversationId, turn) =>
       dispatch({ type: "APPEND_VIEWER_USER_TURN", conversationId, turn }),
+    applyModelSwitches: (conversationId, records, successorSessionId) =>
+      dispatch({
+        type: "APPLY_MODEL_SWITCHES",
+        conversationId,
+        records,
+        successorSessionId,
+      }),
     applyBackgroundActivity: (conversationId, turns, watermark) =>
       dispatch({
         type: "APPLY_BACKGROUND_ACTIVITY",

@@ -2,6 +2,7 @@ import type {
   ContentBlock,
   DbConversationSummary,
   MessageTurn,
+  ModelSwitchInfo,
   SessionStats,
   TurnUsage,
 } from "@/lib/types"
@@ -32,6 +33,9 @@ export interface ExportLabels {
   toolResult: string
   toolError: string
   turnFailed: string
+  modelSwitchConfirmed: string
+  modelSwitchAccepted: string
+  modelSwitchUnknown: string
   statusLabels: Record<string, string>
 }
 
@@ -96,6 +100,27 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
+}
+
+// Journal labels are data, never Markdown authored by the assistant. Keep
+// them on one metadata line and escape both Markdown syntax and raw HTML.
+function escapeMarkdownLabel(text: string): string {
+  return escapeHtml(
+    text.replace(/\s+/g, " ").replace(/[\\`*_{}\[\]()#+.!|~-]/g, "\\$&")
+  )
+}
+
+function modelSwitchText(record: ModelSwitchInfo, labels: ExportLabels) {
+  const previous =
+    record.previous_model_name?.trim() ||
+    record.previous_model_id ||
+    labels.modelSwitchUnknown
+  const next = record.model_name?.trim() || record.model_id
+  const status =
+    record.status === "confirmed"
+      ? labels.modelSwitchConfirmed
+      : labels.modelSwitchAccepted
+  return `${status}: ${previous} → ${next} · ${formatTimestamp(record.created_at)}`
 }
 
 const ALLOWED_IMAGE_MIMES = new Set([
@@ -178,6 +203,8 @@ function blocksToMarkdown(
   return blocks
     .map((block) => {
       switch (block.type) {
+        case "model_switch":
+          return `> ${escapeMarkdownLabel(modelSwitchText(block.record, labels))}`
         case "text":
           return block.text
         case "thinking":
@@ -235,6 +262,8 @@ function blocksToHtml(blocks: ContentBlock[], labels: ExportLabels): string {
   return blocks
     .map((block) => {
       switch (block.type) {
+        case "model_switch":
+          return `<div class="model-switch">${escapeHtml(modelSwitchText(block.record, labels))}</div>`
         case "text":
           return `<div class="text-block">${escapeHtml(block.text).replace(/\n/g, "<br>")}</div>`
         case "thinking":

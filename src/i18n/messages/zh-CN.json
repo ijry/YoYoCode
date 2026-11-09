@@ -2382,6 +2382,9 @@
       "exportFailed": "导出失败",
       "exportImageTooLong": "会话内容过长，不支持导出为图片",
       "exportLabels": {
+        "modelSwitchConfirmed": "已切换模型",
+        "modelSwitchAccepted": "模型切换请求已接受（尚未确认生效）",
+        "modelSwitchUnknown": "未知模型",
         "untitledConversation": "未命名会话",
         "agent": "代理",
         "model": "模型",
@@ -3848,6 +3851,9 @@
         "downloadFailed": "下载 {name} 失败"
       },
       "messageList": {
+        "modelSwitchConfirmed": "已切换模型",
+        "modelSwitchAccepted": "模型切换请求已接受（尚未确认生效）",
+        "modelSwitchUnknown": "未知模型",
         "loading": "加载中...",
         "loadBackgroundActivity": "加载后台活动",
         "loadEarlier": "加载更早的消息",

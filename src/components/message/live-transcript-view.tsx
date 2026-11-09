@@ -232,8 +232,14 @@ export function LiveTranscriptView({
   const transcriptAgent = agentType ?? conn?.agentType ?? null
   const isStreaming = connStatus === "prompting"
 
-  const { refetchDetail, setLiveOwnsActiveTurn } =
+  const { refetchDetail, setLiveOwnsActiveTurn, applyModelSwitches } =
     useConversationRuntimeActions()
+
+  useEffect(() => {
+    if (conn?.modelSwitches?.length) {
+      applyModelSwitches(conversationId, conn.modelSwitches)
+    }
+  }, [conversationId, conn?.modelSwitches, applyModelSwitches])
 
   // Enter viewer mode: mark the session live-owned and record the known
   // kickoff text. `getTimelineTurns` then (a) synthesizes the kickoff user

@@ -38,6 +38,7 @@ pub mod js_text;
 pub mod latest_release;
 pub mod lifecycle;
 pub mod manager;
+pub mod model_switch;
 pub mod message_queue_drain;
 #[cfg(test)]
 mod message_queue_admission_tests;

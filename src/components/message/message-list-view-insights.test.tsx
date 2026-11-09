@@ -194,6 +194,7 @@ function seed(over: Partial<DbConversationDetail> = {}): void {
     detailError: null,
     acpLoadError: null,
     localTurns: [],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,

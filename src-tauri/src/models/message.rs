@@ -112,6 +112,7 @@ pub struct ImageData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
+    ModelSwitch { record: super::ModelSwitchInfo },
     Text {
         text: String,
     },

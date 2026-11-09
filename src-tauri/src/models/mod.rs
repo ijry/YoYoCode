@@ -8,6 +8,8 @@ pub mod conversation;
 pub mod folder;
 pub mod message;
 pub mod model_provider;
+pub mod model_switch;
+pub use model_switch::{ModelSwitchInfo, ModelSwitchStatus};
 pub mod pet;
 pub mod message_queue;
 pub mod quick_message;

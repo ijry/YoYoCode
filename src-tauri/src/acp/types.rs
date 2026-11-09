@@ -367,6 +367,8 @@ pub fn async_task_state_is_terminal(state: &str) -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AcpEvent {
+    /// An explicit model selection, durably journaled after the agent answered.
+    ModelSwitch { record: crate::models::ModelSwitchInfo },
     /// Agent returned text content (streaming delta)
     ContentDelta {
         text: String,

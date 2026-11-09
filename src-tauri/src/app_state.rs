@@ -168,6 +168,7 @@ pub fn build_delegation_stack(
     use crate::acp::delegation::spawner::ConnectionSpawner;
     use crate::acp::manager::ConnectionManagerSpawner;
 
+    connection_manager.install_model_switch_journal(db_conn.clone());
     let cm_arc = Arc::new(connection_manager.clone_ref());
     let db_arc = Arc::new(AppDatabase {
         conn: db_conn.clone(),

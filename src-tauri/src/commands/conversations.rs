@@ -1726,6 +1726,9 @@ pub async fn get_folder_conversation_core(
         .await
         .unwrap_or_default();
     inject_tool_approvals(&mut turns, &approvals);
+    let model_switches = crate::db::service::model_switch_service::list_by_conversation(conn, conversation_id)
+        .await.map_err(AppCommandError::from)?;
+    crate::acp::model_switch::inject(&mut turns, &model_switches);
 
     Ok((
         DbConversationDetail {

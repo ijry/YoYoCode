@@ -2718,6 +2718,7 @@ pub async fn spawn_agent_connection(
     delegation_injection: Option<DelegationInjection>,
     terminal_shell_config: TerminalShellRuntimeConfig,
     cli_root: Option<crate::cli_run::RootSeed>,
+    model_switch_journal: Option<crate::acp::model_switch::ModelSwitchJournal>,
 ) -> Result<tokio::sync::oneshot::Receiver<()>, AcpError> {
     // Use the same cwd for launch settings, the subprocess and session/new.
     let launch_cwd = resolve_working_dir(working_dir.as_deref());
@@ -2731,6 +2732,8 @@ pub async fn spawn_agent_connection(
         owner_window_label.clone(),
         None, // folder_id 由后续 prompt handler 在首次 send 时绑定 (Phase 2)
     );
+
+    initial_state.model_switch_journal = model_switch_journal;
 
     // Install the SessionStarted dedup signal BEFORE wrapping into Arc so the
     // first event (StatusChanged{Connecting} below) doesn't race with the
@@ -5753,18 +5756,29 @@ async fn set_config_option_for_agent(
     config_id: String,
     value_id: String,
 ) -> Result<SetterOutcome, agent_client_protocol::Error> {
-    match agent_type {
+    let journal = state.read().await.model_switch_journal.clone();
+    if let Some(journal) = journal {
+        journal.prelink(state, emitter).await
+            .map_err(|error| agent_client_protocol::util::internal_error(error.to_string()))?;
+    }
+    let before = crate::acp::model_switch::SelectionBefore::capture(&*state.read().await, &config_id);
+    let outcome = match agent_type {
         AgentType::Grok => {
-            set_grok_config_option(cx, session_id, state, emitter, config_id, value_id).await
+            set_grok_config_option(cx, session_id, state, emitter, config_id.clone(), value_id.clone()).await
         }
         AgentType::Kiro => {
-            set_kiro_config_option(cx, session_id, state, emitter, config_id, value_id).await
+            set_kiro_config_option(cx, session_id, state, emitter, config_id.clone(), value_id.clone()).await
         }
         AgentType::Hermes => {
-            set_hermes_config_option(cx, session_id, state, emitter, config_id, value_id).await
+            set_hermes_config_option(cx, session_id, state, emitter, config_id.clone(), value_id.clone()).await
         }
-        _ => set_session_config_option(cx, session_id, state, emitter, config_id, value_id).await,
-    }
+        _ => set_session_config_option(cx, session_id, state, emitter, config_id.clone(), value_id.clone()).await,
+    }?;
+    crate::acp::model_switch::acknowledged(state, emitter, before, &config_id, &value_id, &outcome)
+        .await.map_err(|error| agent_client_protocol::util::internal_error(format!(
+            "Agent answered the model selection, but its history write failed (retained for retry): {error}"
+        )))?;
+    Ok(outcome)
 }
 
 /// Apply a composer selector change for Kiro. Each synthesized selector goes

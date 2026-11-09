@@ -103,6 +103,7 @@ function seed(
     detailError: null,
     acpLoadError: null,
     localTurns: overrides.localTurns ?? [],
+    modelSwitches: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
     pendingCancelledTurnReports: null,

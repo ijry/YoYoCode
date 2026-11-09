@@ -858,6 +858,7 @@ pub async fn bind_external_id(
                 // can tell, so it keeps the tags they put on it.
                 conversation_tag_service::copy_conversation_tags(txn, conversation_id, preserved.id)
                     .await?;
+                super::model_switch_service::move_history(txn, conversation_id, preserved.id, &external_id).await?;
                 // The one signal that this happened at all. Deliberately WARN:
                 // every occurrence means a connection bound to a row while
                 // holding a session unrelated to that row's history, which is
