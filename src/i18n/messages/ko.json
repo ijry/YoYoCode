@@ -4539,8 +4539,27 @@
         "unsupportedBind": "이 웹 서비스 주소는 Funnel에서 사용할 수 없습니다. 루프백 주소 또는 모든 인터페이스에서 수신하도록 설정하세요.",
         "busy": "다른 Tailscale 작업이 진행 중입니다. 기다리거나 취소하세요.",
         "cleanupFailed": "공개 접속을 제거하지 못했습니다. Tailscale을 확인하고 다시 시도하세요.",
-        "notOwned": "이 공개 접속은 Codeg 외부에서 관리되므로 여기서 제거할 수 없습니다."
-      }
+        "notOwned": "이 공개 접속은 Codeg 외부에서 관리되므로 여기서 제거할 수 없습니다.",
+        "dnsNotReady": "Tailscale DNS가 준비되지 않았습니다. MagicDNS를 켠 후 새로 고치세요.",
+        "deviceApproval": "이 기기는 Tailscale 관리자의 승인이 필요합니다."
+      },
+      "stages": {
+        "startWebService": "Web 서비스 시작 중…",
+        "connect": "Tailscale 연결 중…",
+        "authorize": "승인 완료 대기 중…",
+        "publish": "공개 접근 활성화 중…"
+      },
+      "hints": {
+        "install": "이 컴퓨터에만 Tailscale을 설치하세요. 휴대폰에는 필요하지 않습니다. 설치 후 이 페이지로 돌아오세요.",
+        "startDaemon": "이 컴퓨터에서 Tailscale 앱과 서비스를 시작한 다음 새로 고치세요.",
+        "connect": "Tailscale이 연결되지 않았습니다. 공개 접근을 켜면 자동으로 연결됩니다.",
+        "login": "공개 접근을 켜고 로그인하면 나머지 설정이 자동으로 진행됩니다.",
+        "approveDevice": "Tailscale 관리자에게 이 기기 승인을 요청한 다음 새로 고치세요.",
+        "configureDns": "Tailscale에서 MagicDNS를 켜고 기기의 DNS 이름이 준비되면 새로 고치세요.",
+        "startWebService": "공개 접근을 켜면 Web 서비스도 시작됩니다."
+      },
+      "authorizationHint": "브라우저에서 승인을 완료하세요. 설정이 자동으로 계속됩니다. 페이지가 열리지 않으면 아래 버튼을 사용하세요.",
+      "openAuthFailed": "승인 페이지를 열지 못했습니다. 직접 열거나 URL을 복사하세요."
     },
     "addressSwitchHint": "전환하면 여기서 열기, 복사 및 QR 코드에 사용하는 주소만 바뀝니다. 로컬 수신 또는 공개 접속 설정은 변경되지 않습니다.",
     "sectionTitle": "웹 서비스",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "모바일 원격 관리",
     "mobileRemoteDescription": "휴대폰에서 이 작업 공간을 관리하세요 — 모바일 앱을 설치해 위 웹 서비스와 페어링하면 언제 어디서나 세션을 확인하고 제어할 수 있습니다.",
-    "mobileRemoteDownload": "모바일 앱 받기"
+    "mobileRemoteDownload": "모바일 앱 받기",
+    "mobileConfigQrLabel": "MCode 연결 설정 QR 코드",
+    "mobileConfigCopy": "설정 코드 복사",
+    "mobileConfigCopied": "설정 코드를 복사했습니다",
+    "mobileConfigHint": "MCode에서 스캔하면 선택한 주소와 토큰을 가져옵니다. 위에서 휴대폰이 접속할 수 있는 LAN 또는 공용 주소를 선택하세요.",
+    "mobileConfigSecretHint": "접근 토큰이 포함되어 있습니다. 이 코드를 공유하지 마세요.",
+    "mobileConfigStartHint": "Web 서비스를 시작하면 연결 설정 코드가 표시됩니다.",
+    "mobileConfigUnavailable": "이 주소 또는 토큰으로 QR 코드를 생성할 수 없습니다. MCode에 직접 입력하세요."
   },
   "DirectoryBrowser": {
     "title": "디렉토리 찾아보기",

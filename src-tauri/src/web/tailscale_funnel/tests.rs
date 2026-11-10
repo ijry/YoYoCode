@@ -21,6 +21,7 @@ struct FakeCli {
 struct FakeData {
     installed: bool,
     backend: String,
+    hostname: String,
     config: Value,
     apply: bool,
     fail: Option<Failure>,
@@ -32,6 +33,7 @@ impl Default for FakeData {
         Self {
             installed: true,
             backend: "Running".into(),
+            hostname: format!("{DNS}."),
             config: json!({}),
             apply: true,
             fail: None,
@@ -55,7 +57,10 @@ impl Executor for FakeCli {
     ) -> Result<String, Failure> {
         self.data.lock().unwrap().calls.push(args.clone());
         if args == ["status", "--json"] {
-            return Ok(json!({"BackendState":self.data.lock().unwrap().backend, "Self":{"DNSName":format!("{DNS}.")}}).to_string());
+            let data = self.data.lock().unwrap();
+            return Ok(
+                json!({"BackendState":data.backend, "Self":{"DNSName":data.hostname}}).to_string(),
+            );
         }
         if args == ["funnel", "status", "--json"] {
             return Ok(self.data.lock().unwrap().config.to_string());
@@ -146,6 +151,86 @@ async fn finished(ws: &WebServerState, conn: &DatabaseConnection) -> FunnelStatu
     })
     .await
     .expect("operation did not settle")
+}
+
+#[tokio::test]
+async fn setup_reports_distinct_prerequisites_and_can_connect_a_stopped_node() {
+    let conn = database().await;
+    let cli = Arc::new(FakeCli::default());
+    let ws = server(cli.clone(), 3080);
+    for (backend, prerequisite) in [
+        ("NeedsLogin", "login"),
+        ("NeedsMachineAuth", "approveDevice"),
+        ("Stopped", "connect"),
+    ] {
+        cli.data.lock().unwrap().backend = backend.into();
+        let status = serde_json::to_value(status_core(&ws, &conn).await.unwrap()).unwrap();
+        assert_eq!(status["prerequisite"], prerequisite);
+    }
+    login_core(&ws, &conn).await.unwrap();
+    assert_eq!(finished(&ws, &conn).await.state, "ready");
+    assert!(cli
+        .data
+        .lock()
+        .unwrap()
+        .calls
+        .iter()
+        .any(|args| args == &["up", "--timeout=120s"]));
+    ws.running.store(false, Ordering::Release);
+    let status = serde_json::to_value(status_core(&ws, &conn).await.unwrap()).unwrap();
+    assert_eq!(status["prerequisite"], "startWebService");
+    cli.data.lock().unwrap().installed = false;
+    let status = serde_json::to_value(status_core(&ws, &conn).await.unwrap()).unwrap();
+    assert_eq!(status["prerequisite"], "install");
+}
+
+#[tokio::test]
+async fn running_without_dns_does_not_request_login() {
+    let conn = database().await;
+    let cli = Arc::new(FakeCli::default());
+    cli.data.lock().unwrap().hostname.clear();
+    let ws = server(cli.clone(), 3080);
+    for status in [
+        status_core(&ws, &conn).await.unwrap(),
+        enable_core(&ws, &conn).await.unwrap(),
+    ] {
+        let wire = serde_json::to_value(status).unwrap();
+        assert_eq!(wire["state"], "error");
+        assert_eq!(wire["prerequisite"], "configureDns");
+        assert_eq!(wire["error"], "dnsNotReady");
+    }
+    assert!(!cli
+        .data
+        .lock()
+        .unwrap()
+        .calls
+        .iter()
+        .any(|args| args.contains(&"up".into()) || args.contains(&"--bg".into())));
+}
+
+#[tokio::test]
+async fn device_approval_does_not_repeat_login() {
+    let conn = database().await;
+    let cli = Arc::new(FakeCli::default());
+    cli.data.lock().unwrap().backend = "NeedsMachineAuth".into();
+    let ws = server(cli.clone(), 3080);
+    let login = login_core(&ws, &conn).await.unwrap();
+    assert_eq!(
+        serde_json::to_value(login).unwrap()["prerequisite"],
+        "approveDevice"
+    );
+    let enable = enable_core(&ws, &conn).await.unwrap();
+    assert_eq!(
+        serde_json::to_value(enable).unwrap()["prerequisite"],
+        "approveDevice"
+    );
+    assert!(!cli
+        .data
+        .lock()
+        .unwrap()
+        .calls
+        .iter()
+        .any(|args| args.contains(&"up".into()) || args.contains(&"--bg".into())));
 }
 
 #[tokio::test]

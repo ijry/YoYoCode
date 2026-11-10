@@ -4578,8 +4578,27 @@
         "unsupportedBind": "The Web service address cannot be used with Funnel. Use a loopback or all-interfaces listener.",
         "busy": "Another Tailscale operation is in progress. Wait or cancel it.",
         "cleanupFailed": "Could not remove public access. Check Tailscale and try again.",
-        "notOwned": "This public access is managed outside Codeg and cannot be removed here."
-      }
+        "notOwned": "This public access is managed outside Codeg and cannot be removed here.",
+        "dnsNotReady": "Tailscale DNS is not ready. Enable MagicDNS and refresh.",
+        "deviceApproval": "This device needs approval from your Tailscale administrator."
+      },
+      "stages": {
+        "startWebService": "Starting the Web service…",
+        "connect": "Connecting to Tailscale…",
+        "authorize": "Waiting for your authorization…",
+        "publish": "Enabling public access…"
+      },
+      "hints": {
+        "install": "Install Tailscale on this computer only. Your phone does not need it. Return here after installation.",
+        "startDaemon": "Open the Tailscale app on this computer and start its service, then refresh.",
+        "connect": "Tailscale is disconnected. Enable public access to reconnect automatically.",
+        "login": "Enable public access to sign in and finish setup in one flow.",
+        "approveDevice": "Ask your Tailscale administrator to approve this device, then refresh.",
+        "configureDns": "Enable MagicDNS in Tailscale and wait for the device DNS name, then refresh.",
+        "startWebService": "Enabling public access will also start the Web service."
+      },
+      "authorizationHint": "Complete the browser authorization. This setup will continue automatically. If no page opens, use the button below.",
+      "openAuthFailed": "Could not open the authorization page. Open it manually or copy the URL."
     },
     "addressSwitchHint": "Switching changes only the address used here for opening, copying and QR codes. It does not change the local listener or public access settings.",
     "sectionTitle": "Web Service",
@@ -4621,7 +4640,14 @@
     },
     "mobileRemoteTitle": "Mobile remote management",
     "mobileRemoteDescription": "Manage this workspace from your phone — install the mobile app, pair it with the Web service above, and take your sessions anywhere.",
-    "mobileRemoteDownload": "Get the mobile app"
+    "mobileRemoteDownload": "Get the mobile app",
+    "mobileConfigQrLabel": "MCode connection QR code",
+    "mobileConfigCopy": "Copy configuration code",
+    "mobileConfigCopied": "Configuration code copied",
+    "mobileConfigHint": "Scan in MCode to import the selected address and token. Choose a LAN or public address reachable from your phone.",
+    "mobileConfigSecretHint": "Contains your access token. Do not share this code.",
+    "mobileConfigStartHint": "Start the Web service to show its connection code.",
+    "mobileConfigUnavailable": "Unable to generate a QR code for this address or token. Enter them manually in MCode."
   },
   "DirectoryBrowser": {
     "title": "Browse Directory",

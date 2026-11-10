@@ -44,6 +44,7 @@ const DEFAULT_PORT = 3080
 import { openUrl } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
+import { buildMcodeConfigCode } from "@/lib/mcode-config-code"
 import { TailscaleFunnelSettings } from "./tailscale-funnel-settings"
 
 // Remembers which reachable address the user last chose to display/open.
@@ -190,6 +191,39 @@ function AddressQrcodeDialog({
   )
 }
 
+function MobileConnectionCode({ code }: { code: string }) {
+  const t = useTranslations("WebServiceSettings")
+  const [copied, markCopied] = useCopiedFlag()
+
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      <div className="rounded-lg border bg-white p-2 text-black">
+        <QRCodeSVG
+          value={code}
+          size={200}
+          marginSize={4}
+          role="img"
+          aria-label={t("mobileConfigQrLabel")}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={async () => {
+          if (await copyTextToClipboard(code)) markCopied()
+        }}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+        {copied ? t("mobileConfigCopied") : t("mobileConfigCopy")}
+      </button>
+    </div>
+  )
+}
+
 function generateRandomToken() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID().replace(/-/g, "")
@@ -293,6 +327,10 @@ export function WebServiceSettings() {
   const [publicUrl, setPublicUrl] = useState<string | null>(null)
   const manuallySelectedAddress = useRef(false)
   const [funnelRefreshVersion, setFunnelRefreshVersion] = useState(0)
+  const stopIntent = useRef(0)
+  const [stopIntentVersion, setStopIntentVersion] = useState(0)
+  const serviceOperation = useRef(false)
+  const [statusLoaded, setStatusLoaded] = useState(false)
   const addresses = useMemo(
     () => [
       ...new Set([
@@ -358,6 +396,8 @@ export function WebServiceSettings() {
       setConfigLoaded(configResult.ok)
     } catch {
       // Server status unavailable
+    } finally {
+      setStatusLoaded(true)
     }
   }, [probePort])
 
@@ -439,7 +479,10 @@ export function WebServiceSettings() {
     "web_server.bind_failed": "errors.bindFailed",
   }
 
-  async function handleStart() {
+  async function handleStart(): Promise<boolean> {
+    if (serviceOperation.current || !statusLoaded) return false
+    if (status) return true
+    serviceOperation.current = true
     setError("")
     setLoading(true)
     try {
@@ -452,6 +495,7 @@ export function WebServiceSettings() {
       setToken(info.token)
       setPort(String(info.port))
       setPortProbe(null)
+      return true
     } catch (e: unknown) {
       const rawMsg =
         e && typeof e === "object" && "message" in e
@@ -473,13 +517,20 @@ export function WebServiceSettings() {
       if (rawMsg === "web_server.port_in_use") {
         probePort(parseInt(port, 10) || DEFAULT_PORT)
       }
+      return false
     } finally {
+      serviceOperation.current = false
       setLoading(false)
       setFunnelRefreshVersion((version) => version + 1)
     }
   }
 
   async function handleStop() {
+    if (serviceOperation.current) return
+    // Invalidate setup synchronously, before the stop request can yield.
+    stopIntent.current += 1
+    setStopIntentVersion(stopIntent.current)
+    serviceOperation.current = true
     setError("")
     setLoading(true)
     try {
@@ -503,6 +554,7 @@ export function WebServiceSettings() {
     } finally {
       // A failed Funnel cleanup can be returned after the listener has stopped.
       await fetchStatus()
+      serviceOperation.current = false
       setLoading(false)
       setFunnelRefreshVersion((version) => version + 1)
     }
@@ -513,6 +565,9 @@ export function WebServiceSettings() {
     selectedAddress && addresses.includes(selectedAddress)
       ? selectedAddress
       : (addresses[0] ?? null)
+  const mobileConfigCode = status
+    ? buildMcodeConfigCode(currentAddress, status.token)
+    : null
   const hasMultipleAddresses = addresses.length > 1
   const showStaleBanner =
     !isRunning &&
@@ -558,7 +613,7 @@ export function WebServiceSettings() {
                 setPort(e.target.value)
                 setPortProbe(null)
               }}
-              disabled={isRunning}
+              disabled={isRunning || loading}
               min={1024}
               max={65535}
               className="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
@@ -570,7 +625,7 @@ export function WebServiceSettings() {
             label={t("tokenLabel")}
             value={token}
             onChange={setToken}
-            disabled={isRunning}
+            disabled={isRunning || loading}
             placeholder={t("tokenPlaceholder")}
           />
           <p className="text-xs text-muted-foreground">{t("tokenHint")}</p>
@@ -606,7 +661,7 @@ export function WebServiceSettings() {
               </span>
               <button
                 onClick={isRunning ? handleStop : handleStart}
-                disabled={loading}
+                disabled={loading || !statusLoaded}
                 className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
               >
                 {loading ? t("processing") : isRunning ? t("stop") : t("start")}
@@ -619,6 +674,11 @@ export function WebServiceSettings() {
           <TailscaleFunnelSettings
             onAddressChange={handleFunnelAddress}
             refreshVersion={funnelRefreshVersion}
+            serviceRunning={isRunning}
+            serviceBusy={loading || !statusLoaded}
+            ensureWebServiceRunning={handleStart}
+            stopIntent={stopIntent}
+            stopIntentVersion={stopIntentVersion}
           />
 
           {/* Display selection never changes the listener or Funnel routing. */}
@@ -641,17 +701,38 @@ export function WebServiceSettings() {
             </div>
           )}
 
-          {/* 移动端远程管理：下载入口（YoYoCode 增补） */}
-          <div className="rounded-md border p-3">
-            <div className="flex items-start gap-3">
+          {/* 移动端远程管理：下载与当前服务的 MCode 配置码。 */}
+          <div className="flex flex-col gap-4 rounded-md border p-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-2">
                 <div className="text-sm font-medium">
                   {t("mobileRemoteTitle")}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {t("mobileRemoteDescription")}
                 </p>
+                {mobileConfigCode ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {t("mobileConfigHint")}
+                    </p>
+                    <code className="block text-xs break-all text-muted-foreground">
+                      {currentAddress}
+                    </code>
+                    <p className="text-xs text-muted-foreground">
+                      {t("mobileConfigSecretHint")}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      status
+                        ? "mobileConfigUnavailable"
+                        : "mobileConfigStartHint"
+                    )}
+                  </p>
+                )}
                 <button
                   onClick={() => void openUrl("https://getmcode.lingyun.net")}
                   className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -660,6 +741,12 @@ export function WebServiceSettings() {
                 </button>
               </div>
             </div>
+            {mobileConfigCode && (
+              <MobileConnectionCode
+                key={mobileConfigCode}
+                code={mobileConfigCode}
+              />
+            )}
           </div>
         </div>
       </div>

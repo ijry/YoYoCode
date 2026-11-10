@@ -4539,8 +4539,27 @@
         "unsupportedBind": "この Web サービスのアドレスは Funnel に対応していません。ループバックまたは全インターフェースで待ち受けてください。",
         "busy": "別の Tailscale 操作が進行中です。待機するかキャンセルしてください。",
         "cleanupFailed": "公開アクセスを削除できませんでした。Tailscale を確認して再試行してください。",
-        "notOwned": "この公開アクセスは Codeg の外部で管理されているため、ここでは削除できません。"
-      }
+        "notOwned": "この公開アクセスは Codeg の外部で管理されているため、ここでは削除できません。",
+        "dnsNotReady": "Tailscale の DNS が未準備です。MagicDNS を有効にして更新してください。",
+        "deviceApproval": "このデバイスには Tailscale 管理者の承認が必要です。"
+      },
+      "stages": {
+        "startWebService": "Web サービスを起動中…",
+        "connect": "Tailscale に接続中…",
+        "authorize": "承認の完了を待っています…",
+        "publish": "公開アクセスを有効化中…"
+      },
+      "hints": {
+        "install": "Tailscale はこのパソコンにだけインストールしてください。スマホには不要です。インストール後に戻ってください。",
+        "startDaemon": "このパソコンで Tailscale を開き、サービスを起動してから更新してください。",
+        "connect": "Tailscale は未接続です。公開アクセスを有効にすると自動接続します。",
+        "login": "公開アクセスを有効にしてログインすると、残りの設定が自動で進みます。",
+        "approveDevice": "Tailscale 管理者にこのデバイスの承認を依頼し、更新してください。",
+        "configureDns": "Tailscale の MagicDNS を有効にし、デバイスの DNS 名が準備できたら更新してください。",
+        "startWebService": "公開アクセスを有効にすると Web サービスも起動します。"
+      },
+      "authorizationHint": "ブラウザで承認を完了してください。設定は自動で続行されます。ページが開かない場合は下のボタンを使ってください。",
+      "openAuthFailed": "承認ページを開けませんでした。手動で開くか URL をコピーしてください。"
     },
     "addressSwitchHint": "切り替えると、ここで開く・コピーする・QR コードに使うアドレスだけが変わります。ローカルの待ち受けや公開アクセスの設定は変わりません。",
     "sectionTitle": "Webサービス",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "モバイルリモート管理",
     "mobileRemoteDescription": "スマホからこのワークスペースを操作 — モバイルアプリをインストールして上の Web サービスとペアリングすれば、いつでもセッションを確認・操作できます。",
-    "mobileRemoteDownload": "モバイルアプリを入手"
+    "mobileRemoteDownload": "モバイルアプリを入手",
+    "mobileConfigQrLabel": "MCode 接続設定 QR コード",
+    "mobileConfigCopy": "設定コードをコピー",
+    "mobileConfigCopied": "設定コードをコピーしました",
+    "mobileConfigHint": "MCode でスキャンすると、選択中のアドレスとトークンを取り込めます。上でスマホから接続できる LAN または公開アドレスを選んでください。",
+    "mobileConfigSecretHint": "アクセス用トークンを含みます。このコードを共有しないでください。",
+    "mobileConfigStartHint": "Web サービスを起動すると接続設定コードが表示されます。",
+    "mobileConfigUnavailable": "このアドレスまたはトークンの QR コードを生成できません。MCode に手動で入力してください。"
   },
   "DirectoryBrowser": {
     "title": "ディレクトリを参照",

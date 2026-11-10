@@ -4539,8 +4539,27 @@
         "unsupportedBind": "Die Webdienst-Adresse ist nicht mit Funnel kompatibel. Verwende Loopback oder einen Listener auf allen Schnittstellen.",
         "busy": "Ein anderer Tailscale-Vorgang läuft. Warte oder brich ihn ab.",
         "cleanupFailed": "Der öffentliche Zugriff konnte nicht entfernt werden. Prüfe Tailscale und versuche es erneut.",
-        "notOwned": "Dieser öffentliche Zugriff wird außerhalb von Codeg verwaltet und kann hier nicht entfernt werden."
-      }
+        "notOwned": "Dieser öffentliche Zugriff wird außerhalb von Codeg verwaltet und kann hier nicht entfernt werden.",
+        "dnsNotReady": "Tailscale-DNS ist noch nicht bereit. Aktiviere MagicDNS und aktualisiere.",
+        "deviceApproval": "Dieses Gerät muss vom Tailscale-Administrator freigegeben werden."
+      },
+      "stages": {
+        "startWebService": "Webdienst wird gestartet…",
+        "connect": "Verbindung zu Tailscale wird hergestellt…",
+        "authorize": "Warten auf deine Freigabe…",
+        "publish": "Öffentlicher Zugriff wird aktiviert…"
+      },
+      "hints": {
+        "install": "Installiere Tailscale nur auf diesem Computer. Auf dem Handy ist es nicht nötig. Kehre nach der Installation hierher zurück.",
+        "startDaemon": "Öffne Tailscale auf diesem Computer und starte den Dienst. Aktualisiere danach den Status.",
+        "connect": "Tailscale ist getrennt. Beim Aktivieren des öffentlichen Zugriffs wird die Verbindung hergestellt.",
+        "login": "Aktiviere den öffentlichen Zugriff und melde dich an. Die Einrichtung wird automatisch fortgesetzt.",
+        "approveDevice": "Bitte den Tailscale-Administrator, dieses Gerät freizugeben, und aktualisiere danach.",
+        "configureDns": "Aktiviere MagicDNS in Tailscale und warte auf den DNS-Namen des Geräts. Aktualisiere danach.",
+        "startWebService": "Beim Aktivieren des öffentlichen Zugriffs wird auch der Webdienst gestartet."
+      },
+      "authorizationHint": "Bestätige die Freigabe im Browser. Die Einrichtung läuft danach automatisch weiter. Öffnet sich keine Seite, nutze die Schaltfläche unten.",
+      "openAuthFailed": "Die Freigabeseite konnte nicht geöffnet werden. Öffne sie manuell oder kopiere die URL."
     },
     "addressSwitchHint": "Das Umschalten ändert nur die hier zum Öffnen, Kopieren und für QR-Codes verwendete Adresse. Der lokale Listener und die Einstellungen für den öffentlichen Zugriff bleiben unverändert.",
     "sectionTitle": "Webdienst",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "Mobile Fernverwaltung",
     "mobileRemoteDescription": "Verwalte diesen Workspace vom Handy aus — installiere die mobile App, koppel sie mit dem obigen Webdienst und nimm deine Sessions überall mit hin.",
-    "mobileRemoteDownload": "Mobile App holen"
+    "mobileRemoteDownload": "Mobile App holen",
+    "mobileConfigQrLabel": "QR-Code für die MCode-Verbindung",
+    "mobileConfigCopy": "Konfigurationscode kopieren",
+    "mobileConfigCopied": "Konfigurationscode kopiert",
+    "mobileConfigHint": "Mit MCode scannen, um die gewählte Adresse und das Token zu importieren. Wähle oben eine vom Handy erreichbare LAN- oder öffentliche Adresse.",
+    "mobileConfigSecretHint": "Enthält dein Zugriffstoken. Teile diesen Code nicht.",
+    "mobileConfigStartHint": "Starte den Webdienst, um den Verbindungscode anzuzeigen.",
+    "mobileConfigUnavailable": "Für diese Adresse oder dieses Token lässt sich kein QR-Code erstellen. Gib beide manuell in MCode ein."
   },
   "DirectoryBrowser": {
     "title": "Verzeichnis durchsuchen",

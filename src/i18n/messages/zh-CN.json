@@ -4578,8 +4578,27 @@
         "unsupportedBind": "当前 Web 服务监听地址不支持 Funnel，请使用回环地址或监听所有网卡。",
         "busy": "另一个 Tailscale 操作正在进行，请等待或取消。",
         "cleanupFailed": "无法移除公网访问，请检查 Tailscale 后重试。",
-        "notOwned": "此公网访问由 Codeg 之外的配置管理，无法在此移除。"
-      }
+        "notOwned": "此公网访问由 Codeg 之外的配置管理，无法在此移除。",
+        "dnsNotReady": "Tailscale 域名尚未就绪，请启用 MagicDNS 后刷新。",
+        "deviceApproval": "此设备需要 Tailscale 管理员批准。"
+      },
+      "stages": {
+        "startWebService": "正在启动 Web 服务…",
+        "connect": "正在连接 Tailscale…",
+        "authorize": "等待你完成授权…",
+        "publish": "正在开启公网访问…"
+      },
+      "hints": {
+        "install": "只需在这台电脑安装 Tailscale，手机无需安装。安装完成后回到此页面。",
+        "startDaemon": "请在这台电脑打开 Tailscale 并启动其服务，然后刷新。",
+        "connect": "Tailscale 尚未连接，点击开启公网访问即可自动连接。",
+        "login": "点击开启公网访问，登录后会自动完成后续设置。",
+        "approveDevice": "请让 Tailscale 管理员批准此设备，然后刷新。",
+        "configureDns": "请在 Tailscale 中启用 MagicDNS，等待生成设备域名后刷新。",
+        "startWebService": "开启公网访问时会一并启动 Web 服务。"
+      },
+      "authorizationHint": "请在浏览器中完成授权，本次设置将自动继续。若没有打开页面，请使用下方按钮。",
+      "openAuthFailed": "无法打开授权页面，请手动打开或复制网址。"
     },
     "addressSwitchHint": "切换只改变这里用于打开、复制和生成二维码的地址，不会更改本地监听或公网访问设置。",
     "sectionTitle": "Web 服务",
@@ -4621,7 +4640,14 @@
     },
     "mobileRemoteTitle": "移动端远程管理",
     "mobileRemoteDescription": "在手机上管理这个工作区——安装移动端应用并与上方 Web 服务配对，随时随地查看和操控会话。",
-    "mobileRemoteDownload": "获取移动端"
+    "mobileRemoteDownload": "获取移动端",
+    "mobileConfigQrLabel": "MCode 连接配置二维码",
+    "mobileConfigCopy": "复制配置码",
+    "mobileConfigCopied": "配置码已复制",
+    "mobileConfigHint": "用 MCode 扫码即可导入当前地址和令牌。请在上方选择手机可访问的局域网或公网地址。",
+    "mobileConfigSecretHint": "配置码包含访问令牌，请勿分享。",
+    "mobileConfigStartHint": "启动 Web 服务后显示连接配置码。",
+    "mobileConfigUnavailable": "当前地址或令牌无法生成二维码，请在 MCode 中手动填写。"
   },
   "DirectoryBrowser": {
     "title": "浏览目录",

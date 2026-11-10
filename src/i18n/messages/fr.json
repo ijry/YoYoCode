@@ -4539,8 +4539,27 @@
         "unsupportedBind": "L’adresse du service Web est incompatible avec Funnel. Utilisez une adresse de boucle locale ou une écoute sur toutes les interfaces.",
         "busy": "Une autre opération Tailscale est en cours. Patientez ou annulez-la.",
         "cleanupFailed": "Impossible de supprimer l’accès public. Vérifiez Tailscale et réessayez.",
-        "notOwned": "Cet accès public est géré en dehors de Codeg et ne peut pas être supprimé ici."
-      }
+        "notOwned": "Cet accès public est géré en dehors de Codeg et ne peut pas être supprimé ici.",
+        "dnsNotReady": "Le DNS Tailscale n’est pas prêt. Activez MagicDNS et actualisez.",
+        "deviceApproval": "Cet appareil doit être approuvé par votre administrateur Tailscale."
+      },
+      "stages": {
+        "startWebService": "Démarrage du service Web…",
+        "connect": "Connexion à Tailscale…",
+        "authorize": "En attente de votre autorisation…",
+        "publish": "Activation de l’accès public…"
+      },
+      "hints": {
+        "install": "Installez Tailscale uniquement sur cet ordinateur. Votre téléphone n’en a pas besoin. Revenez ici après l’installation.",
+        "startDaemon": "Ouvrez Tailscale sur cet ordinateur, démarrez son service, puis actualisez.",
+        "connect": "Tailscale est déconnecté. L’activation de l’accès public le connectera automatiquement.",
+        "login": "Activez l’accès public et connectez-vous ; la configuration se poursuivra automatiquement.",
+        "approveDevice": "Demandez à l’administrateur Tailscale d’approuver cet appareil, puis actualisez.",
+        "configureDns": "Activez MagicDNS dans Tailscale, attendez le nom DNS de l’appareil, puis actualisez.",
+        "startWebService": "L’activation de l’accès public démarrera également le service Web."
+      },
+      "authorizationHint": "Terminez l’autorisation dans le navigateur. La configuration continuera automatiquement. Si la page ne s’ouvre pas, utilisez le bouton ci-dessous.",
+      "openAuthFailed": "Impossible d’ouvrir la page d’autorisation. Ouvrez-la manuellement ou copiez l’URL."
     },
     "addressSwitchHint": "Le changement ne modifie que l’adresse utilisée ici pour l’ouverture, la copie et les codes QR. Il ne modifie ni l’écoute locale ni les paramètres d’accès public.",
     "sectionTitle": "Service Web",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "Gestion à distance mobile",
     "mobileRemoteDescription": "Gérez cet espace de travail depuis votre téléphone — installez l'app mobile, associez-la au service Web ci-dessus et emportez vos sessions partout.",
-    "mobileRemoteDownload": "Obtenir l'app mobile"
+    "mobileRemoteDownload": "Obtenir l'app mobile",
+    "mobileConfigQrLabel": "Code QR de connexion MCode",
+    "mobileConfigCopy": "Copier le code de configuration",
+    "mobileConfigCopied": "Code de configuration copié",
+    "mobileConfigHint": "Scannez avec MCode pour importer l’adresse sélectionnée et le jeton. Choisissez ci-dessus une adresse locale ou publique accessible depuis votre téléphone.",
+    "mobileConfigSecretHint": "Contient votre jeton d’accès. Ne partagez pas ce code.",
+    "mobileConfigStartHint": "Démarrez le service Web pour afficher son code de connexion.",
+    "mobileConfigUnavailable": "Impossible de générer un code QR pour cette adresse ou ce jeton. Saisissez-les manuellement dans MCode."
   },
   "DirectoryBrowser": {
     "title": "Parcourir le répertoire",

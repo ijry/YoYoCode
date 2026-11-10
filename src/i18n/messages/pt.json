@@ -4539,8 +4539,27 @@
         "unsupportedBind": "O endereço do serviço Web não pode ser usado com Funnel. Use um endereço de loopback ou escute em todas as interfaces.",
         "busy": "Outra operação do Tailscale está em andamento. Aguarde ou cancele-a.",
         "cleanupFailed": "Não foi possível remover o acesso público. Verifique o Tailscale e tente novamente.",
-        "notOwned": "Este acesso público é gerenciado fora do Codeg e não pode ser removido aqui."
-      }
+        "notOwned": "Este acesso público é gerenciado fora do Codeg e não pode ser removido aqui.",
+        "dnsNotReady": "O DNS do Tailscale não está pronto. Ative o MagicDNS e atualize.",
+        "deviceApproval": "Este dispositivo precisa da aprovação do administrador do Tailscale."
+      },
+      "stages": {
+        "startWebService": "Iniciando o serviço Web…",
+        "connect": "Conectando ao Tailscale…",
+        "authorize": "Aguardando sua autorização…",
+        "publish": "Ativando o acesso público…"
+      },
+      "hints": {
+        "install": "Instale o Tailscale apenas neste computador. O celular não precisa dele. Volte aqui após a instalação.",
+        "startDaemon": "Abra o Tailscale neste computador, inicie o serviço e atualize o estado.",
+        "connect": "O Tailscale está desconectado. Ao ativar o acesso público, ele será conectado automaticamente.",
+        "login": "Ative o acesso público e entre na conta; o restante da configuração continuará automaticamente.",
+        "approveDevice": "Peça ao administrador do Tailscale para aprovar este dispositivo e atualize.",
+        "configureDns": "Ative o MagicDNS no Tailscale, aguarde o nome DNS do dispositivo e atualize.",
+        "startWebService": "Ativar o acesso público também iniciará o serviço Web."
+      },
+      "authorizationHint": "Conclua a autorização no navegador. A configuração continuará automaticamente. Se a página não abrir, use o botão abaixo.",
+      "openAuthFailed": "Não foi possível abrir a página de autorização. Abra-a manualmente ou copie a URL."
     },
     "addressSwitchHint": "Alternar muda apenas o endereço usado aqui para abrir, copiar e gerar códigos QR. Não altera a escuta local nem as configurações de acesso público.",
     "sectionTitle": "Serviço Web",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "Gestão remota pelo celular",
     "mobileRemoteDescription": "Gerencie este espaço de trabalho pelo celular — instale o app móvel, pareie com o serviço Web acima e leve suas sessões para qualquer lugar.",
-    "mobileRemoteDownload": "Obter o app móvel"
+    "mobileRemoteDownload": "Obter o app móvel",
+    "mobileConfigQrLabel": "Código QR de conexão do MCode",
+    "mobileConfigCopy": "Copiar código de configuração",
+    "mobileConfigCopied": "Código de configuração copiado",
+    "mobileConfigHint": "Leia com o MCode para importar o endereço e o token selecionados. Escolha acima um endereço de rede local ou público acessível pelo celular.",
+    "mobileConfigSecretHint": "Contém seu token de acesso. Não compartilhe este código.",
+    "mobileConfigStartHint": "Inicie o serviço Web para mostrar o código de conexão.",
+    "mobileConfigUnavailable": "Não foi possível gerar um QR para este endereço ou token. Digite-os manualmente no MCode."
   },
   "DirectoryBrowser": {
     "title": "Explorar diretório",

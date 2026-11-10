@@ -4539,8 +4539,27 @@
         "unsupportedBind": "目前 Web 服務的監聽位址不支援 Funnel，請使用回送位址或監聽所有網路介面。",
         "busy": "另一個 Tailscale 操作正在進行，請等待或取消。",
         "cleanupFailed": "無法移除公開存取，請檢查 Tailscale 後再試。",
-        "notOwned": "此公開存取由 Codeg 以外的設定管理，無法在此移除。"
-      }
+        "notOwned": "此公開存取由 Codeg 以外的設定管理，無法在此移除。",
+        "dnsNotReady": "Tailscale 網域名稱尚未就緒，請啟用 MagicDNS 後重新整理。",
+        "deviceApproval": "此裝置需要 Tailscale 管理員核准。"
+      },
+      "stages": {
+        "startWebService": "正在啟動 Web 服務…",
+        "connect": "正在連線至 Tailscale…",
+        "authorize": "等待你完成授權…",
+        "publish": "正在啟用公開存取…"
+      },
+      "hints": {
+        "install": "只需在這台電腦安裝 Tailscale，手機無需安裝。安裝完成後回到此頁面。",
+        "startDaemon": "請在這台電腦開啟 Tailscale 並啟動其服務，然後重新整理。",
+        "connect": "Tailscale 尚未連線，啟用公開存取即可自動連線。",
+        "login": "啟用公開存取並登入後，將自動完成後續設定。",
+        "approveDevice": "請讓 Tailscale 管理員核准此裝置，然後重新整理。",
+        "configureDns": "請在 Tailscale 中啟用 MagicDNS，等待產生裝置網域名稱後重新整理。",
+        "startWebService": "啟用公開存取時會一併啟動 Web 服務。"
+      },
+      "authorizationHint": "請在瀏覽器中完成授權，本次設定將自動繼續。若沒有開啟頁面，請使用下方按鈕。",
+      "openAuthFailed": "無法開啟授權頁面，請手動開啟或複製網址。"
     },
     "addressSwitchHint": "切換只會改變這裡用於開啟、複製與產生 QR Code 的位址，不會變更本機監聽或公開存取設定。",
     "sectionTitle": "Web 服務",
@@ -4582,7 +4601,14 @@
     },
     "mobileRemoteTitle": "行動裝置遠端管理",
     "mobileRemoteDescription": "在手機上管理這個工作區——安裝行動裝置應用程式並與上方 Web 服務配對，隨時隨地檢視與操控會話。",
-    "mobileRemoteDownload": "取得行動裝置版"
+    "mobileRemoteDownload": "取得行動裝置版",
+    "mobileConfigQrLabel": "MCode 連線設定 QR 碼",
+    "mobileConfigCopy": "複製設定碼",
+    "mobileConfigCopied": "設定碼已複製",
+    "mobileConfigHint": "使用 MCode 掃碼即可匯入目前的位址和權杖。請在上方選擇手機可存取的區域網路或公開位址。",
+    "mobileConfigSecretHint": "設定碼包含存取權杖，請勿分享。",
+    "mobileConfigStartHint": "啟動 Web 服務後顯示連線設定碼。",
+    "mobileConfigUnavailable": "無法為目前的位址或權杖產生 QR 碼，請在 MCode 中手動填寫。"
   },
   "DirectoryBrowser": {
     "title": "瀏覽目錄",

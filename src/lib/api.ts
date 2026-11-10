@@ -5412,6 +5412,15 @@ export interface TailscaleFunnelStatus {
   url: string | null
   authUrl: string | null
   error: string | null
+  prerequisite?:
+    | "install"
+    | "startDaemon"
+    | "connect"
+    | "login"
+    | "approveDevice"
+    | "configureDns"
+    | "startWebService"
+    | null
 }
 
 export async function getTailscaleFunnelStatus(): Promise<TailscaleFunnelStatus> {

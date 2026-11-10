@@ -44,6 +44,20 @@ pub struct FunnelStatus {
     pub url: Option<String>,
     pub auth_url: Option<String>,
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prerequisite: Option<FunnelPrerequisite>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FunnelPrerequisite {
+    Install,
+    StartDaemon,
+    Connect,
+    Login,
+    ApproveDevice,
+    ConfigureDns,
+    StartWebService,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -152,7 +166,37 @@ impl FunnelManager {
             url: None,
             auth_url: runtime.auth_url.clone(),
             error: runtime.error.clone(),
+            prerequisite: match state {
+                "notInstalled" => Some(FunnelPrerequisite::Install),
+                "unavailable" => Some(FunnelPrerequisite::StartDaemon),
+                _ => None,
+            },
         }
+    }
+
+    fn node_prerequisite(&self, backend: &str, hostname: Option<&str>) -> Option<FunnelStatus> {
+        let (state, prerequisite, error) = match backend {
+            "Running" if hostname.is_some() => return None,
+            "Running" => (
+                "error",
+                FunnelPrerequisite::ConfigureDns,
+                Some("dnsNotReady"),
+            ),
+            "NeedsMachineAuth" => (
+                "needsLogin",
+                FunnelPrerequisite::ApproveDevice,
+                Some("deviceApproval"),
+            ),
+            "NeedsLogin" | "NoState" => ("needsLogin", FunnelPrerequisite::Login, None),
+            "Stopped" => ("stopped", FunnelPrerequisite::Connect, None),
+            _ => ("unavailable", FunnelPrerequisite::StartDaemon, None),
+        };
+        let mut status = self.base_status(state);
+        status.prerequisite = Some(prerequisite);
+        if let Some(error) = error {
+            status.error = Some(error.into());
+        }
+        Some(status)
     }
 
     async fn json(&self, args: &[&str]) -> Result<Value, Failure> {
@@ -189,6 +233,7 @@ impl FunnelManager {
         let mut status = self.base_status("ready");
         if !status.installed {
             status.state = "notInstalled".into();
+            status.prerequisite = Some(FunnelPrerequisite::Install);
             return status;
         }
         if self.active() {
@@ -204,24 +249,15 @@ impl FunnelManager {
             Ok(value) => value,
             Err(Failure(code)) => {
                 status.state = "unavailable".into();
+                status.prerequisite = Some(FunnelPrerequisite::StartDaemon);
                 status.error = Some(code.into());
                 return status;
             }
         };
-        if backend != "Running" {
-            status.state = match backend.as_str() {
-                "NeedsLogin" | "NeedsMachineAuth" | "NoState" => "needsLogin",
-                "Stopped" => "stopped",
-                _ => "unavailable",
-            }
-            .into();
-            return status;
+        if let Some(prerequisite) = self.node_prerequisite(&backend, hostname.as_deref()) {
+            return prerequisite;
         }
-        let Some(hostname) = hostname else {
-            status.state = "error".into();
-            status.error = Some("invalidResponse".into());
-            return status;
-        };
+        let hostname = hostname.expect("running node prerequisite validated hostname");
         let config = match self.json(&["funnel", "status", "--json"]).await {
             Ok(value) => value,
             Err(Failure(code)) => {
@@ -233,6 +269,7 @@ impl FunnelManager {
         // The service may have stopped during a CLI query; never publish stale addresses.
         let Some(port) = live_port(ws) else {
             status.state = "stopped".into();
+            status.prerequisite = Some(FunnelPrerequisite::StartWebService);
             return status;
         };
         match inspect_mapping(&config, &hostname, port) {
@@ -413,6 +450,11 @@ pub async fn login_core(
     }
     match manager.node().await {
         Ok((backend, _)) if backend == "Running" => return Ok(manager.refresh(ws).await),
+        Ok((backend, hostname)) if backend == "NeedsMachineAuth" => {
+            return Ok(manager
+                .node_prerequisite(&backend, hostname.as_deref())
+                .expect("machine approval has a prerequisite"));
+        }
         Err(Failure(code)) => {
             manager.set_error(Some(code));
             return Ok(manager.base_status("unavailable"));
@@ -438,8 +480,10 @@ async fn enable_locked(
         return Ok(manager.refresh(ws).await);
     }
     let Some(port) = live_port(ws) else {
-        manager.set_error(Some("stopped"));
-        return Ok(manager.base_status("stopped"));
+        let mut status = manager.base_status("stopped");
+        status.error = Some("stopped".into());
+        status.prerequisite = Some(FunnelPrerequisite::StartWebService);
+        return Ok(status);
     };
     if !matches!(ws.host.lock().unwrap().as_str(), "0.0.0.0" | "127.0.0.1") {
         manager.set_error(Some("unsupportedBind"));
@@ -450,9 +494,10 @@ async fn enable_locked(
     }
     let hostname = match manager.node().await {
         Ok((backend, Some(hostname))) if backend == "Running" => hostname,
-        Ok(_) => {
-            manager.set_error(Some("needsLogin"));
-            return Ok(manager.base_status("needsLogin"));
+        Ok((backend, hostname)) => {
+            return Ok(manager
+                .node_prerequisite(&backend, hostname.as_deref())
+                .expect("non-ready node has a prerequisite"));
         }
         Err(Failure(code)) => {
             manager.set_error(Some(code));
