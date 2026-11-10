@@ -20,10 +20,10 @@ use minisign_verify::{PublicKey, Signature};
 
 use crate::update::version::trim_v_prefix;
 
-/// Tauri-format minisign public key — copied verbatim from
-/// `tauri.conf.json` `plugins.updater.pubkey`. Base64 of the two-line
-/// `minisign.pub` file (`untrusted comment:` + `RW…` key line).
-const TAURI_PUBKEY_B64: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4OEM3NkMyMTVENjdBODgKUldTSWV0WVZ3bmFNU0NnSzhpdFg2bXFmMHFidWd1eWpuZ2Y2WmU5QmVXdWVrU0ZpOCt2dnd6WW4K";
+/// Tauri-format PLUS public key, matching `scripts/apply-plus-identity.mjs`.
+/// Both desktop and server releases use the same signing key. Base64 of
+/// the two-line `minisign.pub` file (`untrusted comment:` + `RW…` key line).
+const TAURI_PUBKEY_B64: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5OTQ5NzFCOUM0RjA1NjIKUldSaUJVK2NHNWVVK1RSVnNpK2Q4am0zS1B3cnR1Sy91Mzd4UVl3OTJzTzhlSVM0VElaSk0wL04K";
 
 /// Decode an outer base64 wrapper into the inner minisign text file.
 fn unwrap_base64(b64: &str) -> Result<String, String> {
@@ -129,9 +129,14 @@ mod tests {
 
     #[test]
     fn embedded_pubkey_parses() {
-        // The const baked from tauri.conf.json must always decode to a
-        // usable key — a bad paste would silently disable verification.
         embedded_public_key().expect("embedded pubkey should parse");
+        let identity = include_str!("../../../scripts/apply-plus-identity.mjs");
+        let desktop_key = identity
+            .split("const PLUS_UPDATER_PUBKEY =")
+            .nth(1)
+            .and_then(|rest| rest.split('"').nth(1))
+            .expect("desktop PLUS updater public key");
+        assert_eq!(TAURI_PUBKEY_B64, desktop_key);
     }
 
     #[test]

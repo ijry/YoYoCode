@@ -1,10 +1,9 @@
 //! Update manifest fetching and version comparison.
 //!
-//! The manifest (`latest.json`) is the same artifact the desktop
-//! `tauri-plugin-updater` consults, so desktop and server modes agree on
-//! "what is the latest version". Server mode additionally downloads the
-//! platform tarball from the deterministic `releases/latest/download/`
-//! path (see `install.rs`).
+//! The server manifest (`server-latest.json`) carries the full PLUS tag.
+//! Desktop's `latest.json` keeps its MSI-compatible base version, while
+//! server versions must distinguish each PLUS iteration and match the
+//! archive's signed version. Both are published in the same release.
 
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -13,15 +12,20 @@ use serde::Deserialize;
 
 use crate::app_error::AppCommandError;
 
-/// Update manifest URL — mirrors the `endpoints` entry in `tauri.conf.json`
-/// so desktop and server modes consult the same source of truth.
+/// Server manifest URL, carrying the full PLUS version used to sign archives.
+#[cfg(not(feature = "tauri-runtime"))]
 pub const UPDATE_MANIFEST_URL: &str =
-    "https://github.com/spacering-net/codeg/releases/latest/download/latest.json";
+    "https://github.com/ijry/YoYoCode/releases/latest/download/server-latest.json";
+
+/// The desktop's built-in Web service checks the desktop release instead.
+#[cfg(feature = "tauri-runtime")]
+pub const UPDATE_MANIFEST_URL: &str =
+    "https://github.com/ijry/YoYoCode/releases/latest/download/latest.json";
 
 /// Deterministic base for "latest" release assets (server tarballs + their
 /// `.sig` detached signatures). Same channel as the manifest.
 pub const RELEASE_DOWNLOAD_BASE: &str =
-    "https://github.com/spacering-net/codeg/releases/latest/download";
+    "https://github.com/ijry/YoYoCode/releases/latest/download";
 
 /// Short-timeout client for the small manifest fetch. Proxy env vars are
 /// sampled at build time, so `init_proxy_from_db` must run before the first
@@ -113,6 +117,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn manifest_matches_the_running_product() {
+        let expected = if cfg!(feature = "tauri-runtime") {
+            "https://github.com/ijry/YoYoCode/releases/latest/download/latest.json"
+        } else {
+            "https://github.com/ijry/YoYoCode/releases/latest/download/server-latest.json"
+        };
+        assert_eq!(UPDATE_MANIFEST_URL, expected);
+    }
+
+    #[test]
     fn newer_by_semver() {
         assert!(is_newer("0.14.12", "0.14.11"));
         assert!(is_newer("v1.0.0", "0.14.11"));
@@ -125,6 +139,15 @@ mod tests {
         // A prerelease is older than its release per semver.
         assert!(is_newer("1.0.0", "1.0.0-rc.1"));
         assert!(!is_newer("1.0.0-rc.1", "1.0.0"));
+    }
+
+    #[test]
+    fn plus_iterations_are_ordered_numerically() {
+        assert!(is_newer("0.42.0-plus.5", "0.42.0-plus.4"));
+        assert!(is_newer("v0.42.0-plus.10", "0.42.0-plus.9"));
+        assert!(!is_newer("0.42.0-plus.4", "0.42.0-plus.4"));
+        assert!(!is_newer("0.42.0-plus.4", "0.42.0-plus.5"));
+        assert!(is_newer("0.43.0-plus.1", "0.42.0-plus.10"));
     }
 
     #[test]

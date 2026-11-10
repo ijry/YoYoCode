@@ -823,18 +823,21 @@ jobs:
           - name: "Linux x64"
             runner: "ubuntu-22.04"
             target: "x86_64-unknown-linux-gnu"
-            artifact: "codeg-server-linux-x64"
+            artifact: "yoyocode-server-linux-x64"
+            legacy_artifact: "codeg-server-linux-x64"
           - name: "Linux arm64"
             runner: "ubuntu-22.04"
             target: "aarch64-unknown-linux-gnu"
-            artifact: "codeg-server-linux-arm64"
+            artifact: "yoyocode-server-linux-arm64"
+            legacy_artifact: "codeg-server-linux-arm64"
           # server 不上 macOS：未签名的 server 二进制每次更新都会丢 TCC 授权
           # （上游 #1035 为此专门做了 Developer ID 签名）。签名证书就绪前，
           # macOS 用户走桌面版（build-tauri 的 ad-hoc 包）即可。
           - name: "Windows x64"
             runner: "windows-2022"
             target: "x86_64-pc-windows-msvc"
-            artifact: "codeg-server-windows-x64"
+            artifact: "yoyocode-server-windows-x64"
+            legacy_artifact: "codeg-server-windows-x64"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -898,13 +901,12 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
-      # 与 build-tauri 相同的身份注入（server 的版本接口读 package.json 的
-      # version / 身份字段时保持一致）。见 build-tauri 的同名步骤注释。
+      # Server 的 Cargo 运行版本使用完整 PLUS tag，与 server-latest.json 和签名一致。
       - name: Apply PLUS identity
         shell: bash
         run: |
           if [[ "${GITHUB_REF_NAME}" =~ -plus\.([0-9]+)$ ]]; then
-            node scripts/apply-plus-identity.mjs --iteration "${BASH_REMATCH[1]}"
+            node scripts/apply-plus-identity.mjs --server --iteration "${BASH_REMATCH[1]}"
           else
             echo "FATAL: PLUS release tag must end in -plus.N" >&2
             exit 1
@@ -1132,7 +1134,11 @@ jobs:
           cp src-tauri/target/${{ matrix.target }}/release/yoyo-cli dist/${{ matrix.artifact }}/
           chmod +x dist/${{ matrix.artifact }}/codeg-server dist/${{ matrix.artifact }}/yoyocode-mcp dist/${{ matrix.artifact }}/codeg-computer-helper dist/${{ matrix.artifact }}/yoyo-cli
           cp -r out dist/${{ matrix.artifact }}/web
-          cd dist && tar czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
+          # Legacy installers require a root directory matching the old asset name.
+          cp -r dist/${{ matrix.artifact }} dist/${{ matrix.legacy_artifact }}
+          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
+            tar czf "dist/${artifact}.tar.gz" -C dist "$artifact"
+          done
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -1144,7 +1150,10 @@ jobs:
           Copy-Item src-tauri/target/${{ matrix.target }}/release/codeg-computer-helper.exe dist/${{ matrix.artifact }}/
           Copy-Item src-tauri/target/${{ matrix.target }}/release/yoyo-cli.exe dist/${{ matrix.artifact }}/
           Copy-Item -Recurse out dist/${{ matrix.artifact }}/web
-          Compress-Archive -Path dist/${{ matrix.artifact }} -DestinationPath dist/${{ matrix.artifact }}.zip
+          Copy-Item -Recurse dist/${{ matrix.artifact }} dist/${{ matrix.legacy_artifact }}
+          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
+            Compress-Archive -Path "dist/$artifact" -DestinationPath "dist/$artifact.zip"
+          }
 
       - name: Smoke test packaged artifact (Unix)
         if: runner.os != 'Windows'
@@ -1160,6 +1169,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-gnu" ] || \
              [ "${{ matrix.target }}" = "x86_64-apple-darwin" ] || \
              [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            test "$("dist/${{ matrix.artifact }}/codeg-server" --version)" = "${GITHUB_REF_NAME#v}"
             "dist/${{ matrix.artifact }}/yoyocode-mcp" --help | grep -F 'yoyocode-mcp --parent-connection-id'
             "dist/${{ matrix.artifact }}/yoyo-cli" --version | grep -F 'yoyo-cli '
             "dist/${{ matrix.artifact }}/yoyo-cli" --help | grep -F 'Usage: yoyo-cli'
@@ -1182,6 +1192,10 @@ jobs:
           }
           if (-not (Test-Path "dist/${{ matrix.artifact }}/yoyo-cli.exe")) {
             throw "yoyo-cli.exe missing from packaged artifact"
+          }
+          $serverVersion = & "dist/${{ matrix.artifact }}/codeg-server.exe" --version
+          if ($LASTEXITCODE -ne 0 -or $serverVersion -ne $env:GITHUB_REF_NAME.TrimStart('v')) {
+            throw "server version does not match release tag: $serverVersion"
           }
           $help = & "dist/${{ matrix.artifact }}/yoyocode-mcp.exe" --help
           if ($help -notlike "*yoyocode-mcp --parent-connection-id*") {
@@ -1208,7 +1222,7 @@ jobs:
       # public key before installing — see src-tauri/src/update/verify.rs.
       # `--app-version` binds it to this release's version (the tag, which
       # the draft-release job matched against tauri.conf.json): the server
-      # refuses an archive signed for any other version than latest.json
+      # refuses an archive signed for any other version than server-latest.json
       # announces, or for none.
       - name: Sign and checksum bundle (Unix)
         if: runner.os != 'Windows'
@@ -1217,9 +1231,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "dist/${{ matrix.artifact }}.tar.gz"
-          test -f "dist/${{ matrix.artifact }}.tar.gz.sig"
-          ( cd dist && shasum -a 256 "${{ matrix.artifact }}.tar.gz" > "${{ matrix.artifact }}.tar.gz.sha256" )
+          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
+            pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "dist/${artifact}.tar.gz"
+            test -f "dist/${artifact}.tar.gz.sig"
+            ( cd dist && shasum -a 256 "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256" )
+          done
 
       - name: Sign and checksum bundle (Windows)
         if: runner.os == 'Windows'
@@ -1229,29 +1245,59 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          pnpm tauri signer sign --app-version $version "dist/${{ matrix.artifact }}.zip"
-          if (-not (Test-Path "dist/${{ matrix.artifact }}.zip.sig")) {
-            throw "signature not produced for ${{ matrix.artifact }}.zip"
+          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
+            pnpm tauri signer sign --app-version $version "dist/$artifact.zip"
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path "dist/$artifact.zip.sig")) {
+              throw "signature not produced for $artifact.zip"
+            }
+            $hash = (Get-FileHash -Algorithm SHA256 "dist/$artifact.zip").Hash.ToLower()
+            "$hash  $artifact.zip" | Out-File -Encoding ascii "dist/$artifact.zip.sha256"
           }
-          $hash = (Get-FileHash -Algorithm SHA256 "dist/${{ matrix.artifact }}.zip").Hash.ToLower()
-          "$hash  ${{ matrix.artifact }}.zip" | Out-File -Encoding ascii "dist/${{ matrix.artifact }}.zip.sha256"
 
       - name: Upload to release (Unix)
         if: runner.os != 'Windows'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.ref_name }}" \
-            "dist/${{ matrix.artifact }}.tar.gz" \
-            "dist/${{ matrix.artifact }}.tar.gz.sig" \
-            "dist/${{ matrix.artifact }}.tar.gz.sha256" \
-            --clobber
+          set -euo pipefail
+          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
+            gh release upload "${{ github.ref_name }}" \
+              "dist/${artifact}.tar.gz" \
+              "dist/${artifact}.tar.gz.sig" \
+              "dist/${artifact}.tar.gz.sha256" \
+              --clobber
+          done
 
       - name: Upload to release (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" "dist/${{ matrix.artifact }}.zip" "dist/${{ matrix.artifact }}.zip.sig" "dist/${{ matrix.artifact }}.zip.sha256" --clobber
+        run: |
+          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
+            gh release upload "${{ github.ref_name }}" "dist/$artifact.zip" "dist/$artifact.zip.sig" "dist/$artifact.zip.sha256" --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Upload failed for $artifact" }
+          }
+
+      - name: Generate server update manifest
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const version = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+            writeFileSync("dist/server-latest.json", JSON.stringify({
+              version,
+              pub_date: new Date().toISOString(),
+              notes: `YoYoCode Server ${version}`,
+            }, null, 2) + "\n");
+          '
+
+      - name: Upload server update manifest
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" dist/server-latest.json --clobber
 
   build-docker:
     needs:
@@ -1268,13 +1314,13 @@ jobs:
       - name: Download Linux x64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: codeg-server-linux-x64
+          name: yoyocode-server-linux-x64
           path: artifacts/linux-x64
 
       - name: Download Linux arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: codeg-server-linux-arm64
+          name: yoyocode-server-linux-arm64
           path: artifacts/linux-arm64
 
       - name: Prepare Docker build context

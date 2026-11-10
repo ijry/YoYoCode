@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Codeg Server installer
+# YoYoCode Server installer
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash -s -- --version v0.5.0
+#   curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash -s -- --version v0.5.0
 #
 
 set -euo pipefail
 
-REPO="spacering-net/codeg"
+REPO="ijry/YoYoCode"
 INSTALL_DIR="${CODEG_INSTALL_DIR:-/usr/local/bin}"
 WEB_DIR="${CODEG_WEB_DIR:-/usr/local/share/codeg/web}"
 VERSION=""
@@ -74,7 +74,7 @@ case "$ARCH" in
   *)              echo "Error: unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-ARTIFACT="codeg-server-${PLATFORM}-${ARCH_SUFFIX}"
+ARTIFACT="yoyocode-server-${PLATFORM}-${ARCH_SUFFIX}"
 
 # ── Resolve version ──
 
@@ -547,7 +547,19 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Downloading ${DOWNLOAD_URL}..."
-if ! curl -fSL --progress-bar -o "${TMP_DIR}/${ARTIFACT}.tar.gz" "$DOWNLOAD_URL"; then
+CURL_STATUS=0
+HTTP_STATUS=$(curl -fSL --progress-bar -w '%{http_code}' \
+  -o "${TMP_DIR}/${ARTIFACT}.tar.gz" "$DOWNLOAD_URL") || CURL_STATUS=$?
+# Older releases in this repository used the codeg-server asset name.
+# Only a missing asset warrants a retry; preserve other download failures.
+if [ "$CURL_STATUS" -eq 22 ] && [ "$HTTP_STATUS" = "404" ]; then
+  ARTIFACT="codeg-server-${PLATFORM}-${ARCH_SUFFIX}"
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARTIFACT}.tar.gz"
+  echo "New asset not found; downloading ${DOWNLOAD_URL}..."
+  CURL_STATUS=0
+  curl -fSL --progress-bar -o "${TMP_DIR}/${ARTIFACT}.tar.gz" "$DOWNLOAD_URL" || CURL_STATUS=$?
+fi
+if [ "$CURL_STATUS" -ne 0 ]; then
   echo "Error: download failed. Check that version ${VERSION} exists and has a ${ARTIFACT} asset."
   exit 1
 fi

@@ -1,7 +1,7 @@
 #
-# Codeg Server installer for Windows
+# YoYoCode Server installer for Windows
 # Usage:
-#   irm https://raw.githubusercontent.com/spacering-net/codeg/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
 #   .\install.ps1 -Version v0.5.0
 #
 
@@ -12,8 +12,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Repo = "spacering-net/codeg"
-$Artifact = "codeg-server-windows-x64"
+$Repo = "ijry/YoYoCode"
+$Artifact = "yoyocode-server-windows-x64"
 
 # Where the server goes when no -InstallDir is given. Not
 # $env:LOCALAPPDATA\codeg: the codeg desktop app installs itself there for
@@ -363,7 +363,20 @@ $ArtifactDir = Join-Path $TmpDir $Artifact
 
 Write-Host "Downloading $Url..."
 try {
-    Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
+    try {
+        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
+    } catch {
+        # Only a missing new asset falls back, within the same repo and version.
+        if (-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) {
+            throw
+        }
+        $Artifact = "codeg-server-windows-x64"
+        $Url = "https://github.com/$Repo/releases/download/$Version/$Artifact.zip"
+        $ZipPath = Join-Path $TmpDir "$Artifact.zip"
+        $ArtifactDir = Join-Path $TmpDir $Artifact
+        Write-Host "New asset not found; downloading $Url..."
+        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
+    }
 } catch {
     Write-Error "Download failed. Check that version $Version exists and has a $Artifact asset."
     exit 1

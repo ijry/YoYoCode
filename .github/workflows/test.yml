@@ -65,6 +65,9 @@ jobs:
         # repo-wide typecheck in `pnpm build` never sees our entry point.
         run: pnpm browser:agent:types
 
+      - name: Server release identity and archive compatibility
+        run: node --test scripts/server-release.test.mjs scripts/server-install-download.test.mjs
+
       - name: Unit tests (vitest)
         run: pnpm test
 

@@ -21,6 +21,7 @@ import { createRequire } from "node:module"
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const TAURI_CONF = resolve(ROOT, "src-tauri/tauri.conf.json")
 const PKG_JSON = resolve(ROOT, "package.json")
+const CARGO_TOML = resolve(ROOT, "src-tauri/Cargo.toml")
 
 const PLUS_IDENTIFIER = "net.lingyun.yoyocode"
 const PLUS_PRODUCT_NAME = "YoYoCode"
@@ -43,20 +44,27 @@ const PLUS_UPDATER_PUBKEY =
   "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5OTQ5NzFCOUM0RjA1NjIKUldSaUJVK2NHNWVVK1RSVnNpK2Q4am0zS1B3cnR1Sy91Mzd4UVl3OTJzTzhlSVM0VElaSk0wL04K"
 
 function parseArgs(argv) {
-  const args = { iteration: process.env.PLUS_ITERATION || "1", versionMode: "safe", check: false }
+  const args = {
+    iteration: process.env.PLUS_ITERATION || "1",
+    versionMode: "safe",
+    check: false,
+  }
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]
     if (a === "--iteration") args.iteration = argv[++i]
     else if (a === "--version-mode") args.versionMode = argv[++i]
     else if (a === "--check") args.check = true
+    else if (a === "--server") args.server = true
     else if (a === "--help" || a === "-h") args.help = true
     else throw new Error(`未知参数：${a}`)
   }
-  if (!/^\d+$/.test(String(args.iteration))) {
+  if (!/^(0|[1-9]\d*)$/.test(String(args.iteration))) {
     throw new Error(`--iteration 必须是正整数，收到：${args.iteration}`)
   }
   if (!["safe", "semver"].includes(args.versionMode)) {
-    throw new Error(`--version-mode 只能是 safe | semver，收到：${args.versionMode}`)
+    throw new Error(
+      `--version-mode 只能是 safe | semver，收到：${args.versionMode}`
+    )
   }
   return args
 }
@@ -85,7 +93,9 @@ function prettierize(file) {
     )
     execFileSync(process.execPath, [bin, "--write", file], { stdio: "pipe" })
   } catch {
-    console.log("  （prettier 不可用，保留 stringify 输出，diff 会带几行格式噪声）")
+    console.log(
+      "  （prettier 不可用，保留 stringify 输出，diff 会带几行格式噪声）"
+    )
   }
 }
 
@@ -108,7 +118,9 @@ function assertPristineBaseVersion(version) {
 function main() {
   const args = parseArgs(process.argv.slice(2))
   if (args.help) {
-    console.log("用法: node scripts/apply-plus-identity.mjs [--iteration N] [--version-mode safe|semver] [--check]")
+    console.log(
+      "用法: node scripts/apply-plus-identity.mjs [--iteration N] [--version-mode safe|semver] [--server] [--check]"
+    )
     return
   }
 
@@ -129,11 +141,20 @@ function main() {
   // 安装后的应用靠 productName「YoYoCode」区分，不会和官方版混淆。
   //
   // 等你在 Windows 上实测过 semver 模式能出包，把默认切成 semver 即可。
-  const injectedVersion = args.versionMode === "semver" ? plusVersion : baseVersion
+  const injectedVersion =
+    args.versionMode === "semver" ? plusVersion : baseVersion
 
   const changes = [
-    ["src-tauri/tauri.conf.json  productName", conf.productName, PLUS_PRODUCT_NAME],
-    ["src-tauri/tauri.conf.json  identifier ", conf.identifier, PLUS_IDENTIFIER],
+    [
+      "src-tauri/tauri.conf.json  productName",
+      conf.productName,
+      PLUS_PRODUCT_NAME,
+    ],
+    [
+      "src-tauri/tauri.conf.json  identifier ",
+      conf.identifier,
+      PLUS_IDENTIFIER,
+    ],
     ["src-tauri/tauri.conf.json  version    ", conf.version, injectedVersion],
     [
       "src-tauri/tauri.conf.json  updater    ",
@@ -147,6 +168,21 @@ function main() {
   console.log(`  PLUS 版本标识: ${plusVersion}`)
   for (const [field, from, to] of changes) {
     console.log(`  ${field}: ${from} -> ${to}`)
+  }
+
+  // Server 不受 MSI 版本格式限制；Cargo 的运行版本必须与清单及签名的 PLUS tag 一致。
+  let serverCargo
+  if (args.server) {
+    const cargo = readFileSync(CARGO_TOML, "utf8")
+    const packageVersion = /(^\[package\][\s\S]*?^version\s*=\s*")[^"]+("\s*$)/m
+    if (!packageVersion.test(cargo)) {
+      throw new Error("src-tauri/Cargo.toml 中未找到 package.version")
+    }
+    serverCargo = cargo.replace(
+      packageVersion,
+      (_, before, after) => `${before}${plusVersion}${after}`
+    )
+    console.log(`  src-tauri/Cargo.toml  version: -> ${plusVersion}`)
   }
 
   if (args.check) {
@@ -170,14 +206,18 @@ function main() {
   conf.bundle = conf.bundle || {}
   if (PLUS_UPDATER_ENDPOINTS.length === 0) {
     conf.bundle.createUpdaterArtifacts = false
-    console.log("  src-tauri/tauri.conf.json  createUpdaterArtifacts: true -> false（无自有更新源）")
+    console.log(
+      "  src-tauri/tauri.conf.json  createUpdaterArtifacts: true -> false（无自有更新源）"
+    )
   }
 
   // macOS ad-hoc 签名：无 Developer ID 证书，signingIdentity 用 "-"（codesign
   // 的 ad-hoc 身份）。不设的话 bundler 完全不签名，交付的 .app 无签名。
   // 备好证书后删除此行，走 release.yml 上游的 APPLE_SIGNING_IDENTITY 流程。
   conf.bundle.macOS = { ...(conf.bundle.macOS || {}), signingIdentity: "-" }
-  console.log("  src-tauri/tauri.conf.json  macOS.signingIdentity: -> \"-\"（ad-hoc）")
+  console.log(
+    '  src-tauri/tauri.conf.json  macOS.signingIdentity: -> "-"（ad-hoc）'
+  )
 
   writeJson(TAURI_CONF, conf)
   prettierize(TAURI_CONF)
@@ -187,6 +227,8 @@ function main() {
   pkg.version = injectedVersion
   writeJson(PKG_JSON, pkg)
   prettierize(PKG_JSON)
+
+  if (serverCargo !== undefined) writeFileSync(CARGO_TOML, serverCargo, "utf8")
 
   console.log("\n已写入 src-tauri/tauri.conf.json 与 package.json。")
   emitOutputs({ baseVersion, plusVersion, injectedVersion })

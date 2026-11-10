@@ -50,11 +50,11 @@ pub struct InstallOutcome {
 pub fn asset_basename() -> Option<&'static str> {
     use std::env::consts::{ARCH, OS};
     Some(match (OS, ARCH) {
-        ("linux", "x86_64") => "codeg-server-linux-x64",
-        ("linux", "aarch64") => "codeg-server-linux-arm64",
-        ("macos", "x86_64") => "codeg-server-darwin-x64",
-        ("macos", "aarch64") => "codeg-server-darwin-arm64",
-        ("windows", "x86_64") => "codeg-server-windows-x64",
+        ("linux", "x86_64") => "yoyocode-server-linux-x64",
+        ("linux", "aarch64") => "yoyocode-server-linux-arm64",
+        ("macos", "x86_64") => "yoyocode-server-darwin-x64",
+        ("macos", "aarch64") => "yoyocode-server-darwin-arm64",
+        ("windows", "x86_64") => "yoyocode-server-windows-x64",
         _ => return None,
     })
 }
@@ -2898,7 +2898,11 @@ mod tests {
 
         let archive = steps
             .iter()
-            .position(|step| run_of(step).contains("tar czf ${{ matrix.artifact }}.tar.gz"))
+            .position(|step| {
+                step["name"].as_str() == Some("Package (Unix)")
+                    && run_of(step).contains("tar czf")
+                    && run_of(step).contains(".tar.gz")
+            })
             .expect("build-server makes no .tar.gz release archive");
         assert!(
             sign < archive,
