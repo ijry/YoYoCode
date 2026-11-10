@@ -174,7 +174,9 @@ mod tauri_app {
             access.unpublish_now();
         }
         if let Some(ws) = app.try_state::<web::WebServerState>() {
-            tauri::async_runtime::block_on(web::do_stop_web_server(&ws));
+            if let Err(error) = tauri::async_runtime::block_on(web::do_stop_web_server(&ws)) {
+                tracing::warn!("[WEB] Shutdown cleanup failed: {}", error);
+            }
         }
         if let Some(tm) = app.try_state::<TerminalManager>() {
             tm.kill_all();
@@ -1520,6 +1522,16 @@ mod tauri_app {
                     });
                 }
 
+                // Reconcile a background Funnel left by an earlier crash even
+                // when Web auto-start is off or the next bind will fail.
+                if let Err(error) = tauri::async_runtime::block_on(
+                    web::tailscale_funnel::initialize(
+                        &app.state::<web::WebServerState>(),
+                        &db.conn,
+                    ),
+                ) {
+                    tracing::warn!("[WEB] Public access initialization failed: {}", error);
+                }
                 match tauri::async_runtime::block_on(web::load_web_service_config(&db.conn)) {
                     Ok(config) if config.auto_start => {
                         let port = config.port.unwrap_or(web::DEFAULT_WEB_SERVICE_PORT);
@@ -2625,6 +2637,11 @@ mod tauri_app {
                 web::get_web_service_config,
                 web::update_web_service_config,
                 web::probe_web_service_port,
+                web::get_tailscale_funnel_status,
+                web::start_tailscale_login,
+                web::enable_tailscale_funnel,
+                web::disable_tailscale_funnel,
+                web::cancel_tailscale_funnel_operation,
                 // Screenshot capture: freeze the monitors, select a region on
                 // the overlay windows, pull the crop into the editor.
                 crate::commands::screenshot::screenshot_begin_selection,

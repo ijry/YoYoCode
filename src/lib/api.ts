@@ -5391,6 +5391,49 @@ export async function getWebServerStatus(): Promise<WebServerInfo | null> {
   return getTransport().call("get_web_server_status")
 }
 
+export type TailscaleFunnelState =
+  | "notInstalled"
+  | "unavailable"
+  | "needsLogin"
+  | "stopped"
+  | "ready"
+  | "starting"
+  | "authorizing"
+  | "enabled"
+  | "conflict"
+  | "error"
+
+export interface TailscaleFunnelStatus {
+  state: TailscaleFunnelState
+  installed: boolean
+  enabled: boolean
+  desiredEnabled: boolean
+  owned: boolean
+  url: string | null
+  authUrl: string | null
+  error: string | null
+}
+
+export async function getTailscaleFunnelStatus(): Promise<TailscaleFunnelStatus> {
+  return getTransport().call("get_tailscale_funnel_status")
+}
+
+export async function startTailscaleLogin(): Promise<TailscaleFunnelStatus> {
+  return getTransport().call("start_tailscale_login")
+}
+
+export async function enableTailscaleFunnel(): Promise<TailscaleFunnelStatus> {
+  return getTransport().call("enable_tailscale_funnel")
+}
+
+export async function disableTailscaleFunnel(): Promise<TailscaleFunnelStatus> {
+  return getTransport().call("disable_tailscale_funnel")
+}
+
+export async function cancelTailscaleFunnelOperation(): Promise<TailscaleFunnelStatus> {
+  return getTransport().call("cancel_tailscale_funnel_operation")
+}
+
 export interface WebServiceConfig {
   token: string | null
   port: number | null

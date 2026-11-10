@@ -77,7 +77,7 @@ pub async fn stop_web_server(
             "Cannot stop web server from within web mode",
         ));
     }
-    do_stop_web_server(&state.web_server_state).await;
+    do_stop_web_server(&state.web_server_state).await?;
     Ok(Json(()))
 }
 
@@ -94,6 +94,41 @@ pub async fn probe_web_service_port(
     do_probe_web_service_port(&state.db.conn, params.port)
         .await
         .map(Json)
+}
+
+pub async fn get_tailscale_funnel_status(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<crate::web::tailscale_funnel::FunnelStatus>, AppCommandError> {
+    crate::web::tailscale_funnel::status_core(&state.web_server_state, &state.db.conn)
+        .await.map(Json)
+}
+
+pub async fn start_tailscale_login(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<crate::web::tailscale_funnel::FunnelStatus>, AppCommandError> {
+    crate::web::tailscale_funnel::login_core(&state.web_server_state, &state.db.conn)
+        .await.map(Json)
+}
+
+pub async fn enable_tailscale_funnel(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<crate::web::tailscale_funnel::FunnelStatus>, AppCommandError> {
+    crate::web::tailscale_funnel::enable_core(&state.web_server_state, &state.db.conn)
+        .await.map(Json)
+}
+
+pub async fn disable_tailscale_funnel(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<crate::web::tailscale_funnel::FunnelStatus>, AppCommandError> {
+    crate::web::tailscale_funnel::disable_core(&state.web_server_state, &state.db.conn)
+        .await.map(Json)
+}
+
+pub async fn cancel_tailscale_funnel_operation(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<crate::web::tailscale_funnel::FunnelStatus>, AppCommandError> {
+    crate::web::tailscale_funnel::cancel_core(&state.web_server_state, &state.db.conn)
+        .await.map(Json)
 }
 
 #[derive(Serialize)]

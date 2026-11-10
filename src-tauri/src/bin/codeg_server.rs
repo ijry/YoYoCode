@@ -826,6 +826,12 @@ async fn async_main(
         shutdown_signal,
     );
 
+    if let Err(error) = codeg_lib::web::tailscale_funnel::initialize(
+        &state.web_server_state,
+        &state.db.conn,
+    ).await {
+        tracing::warn!("[SERVER] Public access initialization failed: {}", error);
+    }
     // Bind
     let addr = format!("{}:{}", host, port);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
@@ -859,6 +865,10 @@ async fn async_main(
     state
         .web_server_state
         .mark_externally_running(advertised_host.clone(), actual_port, token.clone());
+    codeg_lib::web::tailscale_funnel::restore(
+        state.web_server_state.clone(),
+        state.db.conn.clone(),
+    );
     let addresses = addresses_for_bind(&advertised_host, actual_port);
 
     // Token on stderr ONLY (bearer credential — keep it out of the log files
@@ -887,8 +897,30 @@ async fn async_main(
         tracing::info!("  {}", addr);
     }
 
-    // Start serving
-    if let Err(e) = axum::serve(listener, router).await {
+    let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
+    let serve = std::future::IntoFuture::into_future(
+        axum::serve(listener, router).with_graceful_shutdown(async {
+            let _ = stop_rx.await;
+        }),
+    );
+    tokio::pin!(serve);
+    let result = tokio::select! {
+        result = &mut serve => {
+            if let Err(error) = codeg_lib::web::do_stop_web_server(&state.web_server_state).await {
+                tracing::warn!("[SERVER] Shutdown cleanup failed: {}", error);
+            }
+            result
+        }
+        _ = server_shutdown_signal() => {
+            if let Err(error) = codeg_lib::web::do_stop_web_server(&state.web_server_state).await {
+                tracing::warn!("[SERVER] Public access cleanup failed: {}", error);
+            }
+            let _ = stop_tx.send(());
+            tokio::time::timeout(std::time::Duration::from_secs(2), &mut serve)
+                .await.unwrap_or(Ok(()))
+        }
+    };
+    if let Err(e) = result {
         tracing::error!("[SERVER] Server error: {}", e);
         state.cli_access.stop().await;
         return ExitCode::from(1);
@@ -899,6 +931,23 @@ async fn async_main(
     // (kill_on_drop is the backstop, but this frees their ports promptly).
     codeg_lib::office_watch::stop_all_office_watches();
     ExitCode::SUCCESS
+}
+
+async fn server_shutdown_signal() {
+    #[cfg(unix)]
+    {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {},
+                    _ = terminate.recv() => {},
+                }
+            }
+            Err(_) => { let _ = tokio::signal::ctrl_c().await; }
+        }
+    }
+    #[cfg(not(unix))]
+    { let _ = tokio::signal::ctrl_c().await; }
 }
 
 /// Whether whoever runs this server lets it share the screen it runs on with

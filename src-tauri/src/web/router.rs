@@ -1691,6 +1691,26 @@ pub fn build_router_with_proxy_auth(
             post(handlers::web_server::probe_web_service_port),
         )
         .route(
+            "/get_tailscale_funnel_status",
+            post(handlers::web_server::get_tailscale_funnel_status),
+        )
+        .route(
+            "/start_tailscale_login",
+            post(handlers::web_server::start_tailscale_login),
+        )
+        .route(
+            "/enable_tailscale_funnel",
+            post(handlers::web_server::enable_tailscale_funnel),
+        )
+        .route(
+            "/disable_tailscale_funnel",
+            post(handlers::web_server::disable_tailscale_funnel),
+        )
+        .route(
+            "/cancel_tailscale_funnel_operation",
+            post(handlers::web_server::cancel_tailscale_funnel_operation),
+        )
+        .route(
             "/check_app_update",
             post(handlers::web_server::check_app_update),
         )

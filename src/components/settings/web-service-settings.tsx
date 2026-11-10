@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -44,6 +44,7 @@ const DEFAULT_PORT = 3080
 import { openUrl } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
+import { TailscaleFunnelSettings } from "./tailscale-funnel-settings"
 
 // Remembers which reachable address the user last chose to display/open.
 // Keyed by host (IP) only, so the choice survives a port change.
@@ -289,6 +290,31 @@ export function WebServiceSettings() {
   const [autoStart, setAutoStart] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
+  const [publicUrl, setPublicUrl] = useState<string | null>(null)
+  const manuallySelectedAddress = useRef(false)
+  const [funnelRefreshVersion, setFunnelRefreshVersion] = useState(0)
+  const addresses = useMemo(
+    () => [
+      ...new Set([
+        ...(publicUrl ? [publicUrl] : []),
+        ...(status?.addresses ?? []),
+      ]),
+    ],
+    [publicUrl, status]
+  )
+  const handleFunnelAddress = useCallback(
+    (url: string | null, select: "initial" | "enabled" | null) => {
+      setPublicUrl(url)
+      if (
+        url &&
+        (select === "enabled" ||
+          (select === "initial" && !manuallySelectedAddress.current))
+      ) {
+        setSelectedAddress(url)
+      }
+    },
+    []
+  )
 
   const probePort = useCallback(async (portNum: number) => {
     try {
@@ -339,12 +365,9 @@ export function WebServiceSettings() {
     fetchStatus()
   }, [fetchStatus])
 
-  // Pick which reachable address to display/open. Keep a still-valid prior
-  // choice; otherwise honor the remembered host, falling back to the first
-  // entry (loopback). Selection is display-only — the service always binds
-  // 0.0.0.0, so every listed address stays reachable regardless of choice.
+  // Ordinary refreshes preserve a valid user choice. The Funnel component
+  // explicitly selects a confirmed public URL on mount and after enabling.
   useEffect(() => {
-    const addresses = status?.addresses ?? []
     if (addresses.length === 0) {
       setSelectedAddress(null)
       return
@@ -357,9 +380,10 @@ export function WebServiceSettings() {
         : undefined
       return matched ?? addresses[0]
     })
-  }, [status])
+  }, [addresses])
 
   function handleSelectAddress(address: string) {
+    manuallySelectedAddress.current = true
     setSelectedAddress(address)
     try {
       window.localStorage.setItem(
@@ -451,10 +475,12 @@ export function WebServiceSettings() {
       }
     } finally {
       setLoading(false)
+      setFunnelRefreshVersion((version) => version + 1)
     }
   }
 
   async function handleStop() {
+    setError("")
     setLoading(true)
     try {
       await stopWebServer()
@@ -462,16 +488,32 @@ export function WebServiceSettings() {
       // After stop, re-probe so the user can see whether the port was
       // released cleanly or is being held by an orphan child process.
       probePort(parseInt(port, 10) || DEFAULT_PORT)
-    } catch {
-      setError(t("stopFailed"))
+    } catch (error) {
+      const code =
+        typeof error === "string"
+          ? error
+          : error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : ""
+      setError(
+        code === "cleanupFailed"
+          ? t("funnel.errors.cleanupFailed")
+          : t("stopFailed")
+      )
     } finally {
+      // A failed Funnel cleanup can be returned after the listener has stopped.
+      await fetchStatus()
       setLoading(false)
+      setFunnelRefreshVersion((version) => version + 1)
     }
   }
 
   const isRunning = status !== null
-  const currentAddress = selectedAddress ?? status?.addresses[0] ?? null
-  const hasMultipleAddresses = (status?.addresses.length ?? 0) > 1
+  const currentAddress =
+    selectedAddress && addresses.includes(selectedAddress)
+      ? selectedAddress
+      : (addresses[0] ?? null)
+  const hasMultipleAddresses = addresses.length > 1
   const showStaleBanner =
     !isRunning &&
     portProbe !== null &&
@@ -574,18 +616,20 @@ export function WebServiceSettings() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {/* Address (only when running). The listener is bound to
-              0.0.0.0, so every local IP reaches the service; the selector
-              only changes which address is shown and opened by the arrow —
-              it never changes what the service actually listens on. */}
-          {isRunning && currentAddress && (
+          <TailscaleFunnelSettings
+            onAddressChange={handleFunnelAddress}
+            refreshVersion={funnelRefreshVersion}
+          />
+
+          {/* Display selection never changes the listener or Funnel routing. */}
+          {currentAddress && (
             <div className="space-y-2">
               <div className="text-xs font-medium text-muted-foreground">
                 {t("addressLabel")}
               </div>
               <AddressBar
                 address={currentAddress}
-                addresses={status.addresses}
+                addresses={addresses}
                 hasMultiple={hasMultipleAddresses}
                 onSelect={handleSelectAddress}
               />

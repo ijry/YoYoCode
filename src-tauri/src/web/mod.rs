@@ -9,6 +9,7 @@ pub mod proxy_auth;
 pub mod router;
 pub mod shutdown;
 pub mod socket_inherit;
+pub mod tailscale_funnel;
 pub mod ws;
 pub mod ws_attach;
 
@@ -33,22 +34,26 @@ const WEB_SERVICE_PORT_KEY: &str = "web_service_port";
 const WEB_SERVICE_AUTO_START_KEY: &str = "web_service_auto_start";
 pub const DEFAULT_WEB_SERVICE_PORT: u16 = 3080;
 
+#[derive(Clone)]
 pub struct WebServerState {
-    handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    shutdown_tx: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    shutdown_tx: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Coordinates shutdown of live WebSocket handlers. Sticky flag +
     /// `Notify` together: existing handlers wake immediately, and any
     /// handshake completing during the stop window also exits without
     /// leaking an orphan task. Reused across stop→start cycles via
     /// `reset()` at the start of every successful bind.
     pub(crate) shutdown_signal: Arc<ShutdownSignal>,
-    port: AtomicU16,
-    token: Mutex<String>,
+    port: Arc<AtomicU16>,
+    token: Arc<Mutex<String>>,
     /// Address the listener is bound to (`0.0.0.0` for a wildcard bind).
     /// Lets `get_web_server_status` advertise only reachable addresses: a
     /// specific bind makes the other interfaces' IPs unreachable.
-    host: Mutex<String>,
-    running: std::sync::atomic::AtomicBool,
+    host: Arc<Mutex<String>>,
+    running: Arc<std::sync::atomic::AtomicBool>,
+    /// Shared by desktop commands and HTTP handlers, including shutdown.
+    pub(crate) lifecycle: Arc<tokio::sync::Mutex<()>>,
+    pub(crate) funnel: Arc<tailscale_funnel::FunnelManager>,
 }
 
 impl Default for WebServerState {
@@ -60,13 +65,15 @@ impl Default for WebServerState {
 impl WebServerState {
     pub fn new() -> Self {
         Self {
-            handle: Mutex::new(None),
-            shutdown_tx: Mutex::new(None),
+            handle: Arc::new(Mutex::new(None)),
+            shutdown_tx: Arc::new(Mutex::new(None)),
             shutdown_signal: Arc::new(ShutdownSignal::new()),
-            port: AtomicU16::new(0),
-            token: Mutex::new(String::new()),
-            host: Mutex::new("0.0.0.0".to_string()),
-            running: std::sync::atomic::AtomicBool::new(false),
+            port: Arc::new(AtomicU16::new(0)),
+            token: Arc::new(Mutex::new(String::new())),
+            host: Arc::new(Mutex::new("0.0.0.0".to_string())),
+            running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            lifecycle: Arc::new(tokio::sync::Mutex::new(())),
+            funnel: Arc::new(tailscale_funnel::FunnelManager::default()),
         }
     }
 
@@ -529,6 +536,7 @@ pub(crate) async fn do_start_web_server_with_state(
 ) -> Result<WebServerInfo, AppCommandError> {
     let ws = &app_state.web_server_state;
 
+    let _lifecycle = ws.lifecycle.lock().await;
     // Atomically claim the running flag; concurrent starts see AlreadyExists.
     ws.running
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -623,6 +631,7 @@ pub(crate) async fn do_start_web_server_with_state(
     *ws.host.lock().unwrap() = advertised_host.clone();
     // running already true from compare_exchange; disarm guard so it doesn't flip back.
     guard.disarm();
+    tailscale_funnel::restore(ws.clone(), app_state.db.conn.clone());
 
     let addresses = addresses_for_bind(&advertised_host, actual_port);
     Ok(WebServerInfo {
@@ -680,7 +689,11 @@ pub fn describe_ports(ports: &[u16]) -> String {
     }
 }
 
-pub(crate) async fn do_stop_web_server(state: &WebServerState) {
+/// Stop the managed listener, or prepare the externally owned server for exit.
+/// HTTP handlers must reject stop requests for externally managed listeners.
+pub async fn do_stop_web_server(state: &WebServerState) -> Result<(), AppCommandError> {
+    let _lifecycle = state.lifecycle.lock().await;
+    let funnel_result = tailscale_funnel::shutdown(state).await;
     // The bridge listeners belong to this web service: no API, no grants.
     browser_bridge::configure(None);
     let handle_opt = state.handle.lock().unwrap().take();
@@ -718,6 +731,7 @@ pub(crate) async fn do_stop_web_server(state: &WebServerState) {
     *state.host.lock().unwrap() = "0.0.0.0".to_string();
     state.running.store(false, Ordering::Release);
     tracing::info!("[WEB] Web server stopped");
+    funnel_result
 }
 
 pub(crate) fn do_get_web_server_status(state: &WebServerState) -> Option<WebServerInfo> {
@@ -765,6 +779,7 @@ pub(crate) async fn do_start_web_server_tauri(
 
     let ws = state;
 
+    let _lifecycle = ws.lifecycle.lock().await;
     // Atomically claim the running flag; concurrent starts see AlreadyExists.
     ws.running
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -855,7 +870,7 @@ pub(crate) async fn do_start_web_server_tauri(
         data_dir: crate::paths::resolve_effective_data_dir(
             &app.path().app_data_dir().unwrap_or_default(),
         ),
-        web_server_state: WebServerState::new(), // placeholder; not used by handlers
+        web_server_state: ws.clone(),
         // Reuse the manager Tauri registered and started, NOT a fresh one: a
         // fresh `ChatChannelManager` has an empty channel registry, so every
         // handler that renames a bound chat thread (`update_conversation_title`,
@@ -953,7 +968,7 @@ pub(crate) async fn do_start_web_server_tauri(
     handlers::files::purge_upload_staging().await;
 
     let router = router::build_router(
-        app_state,
+        app_state.clone(),
         token.clone(),
         static_dir,
         shutdown_signal.clone(),
@@ -983,6 +998,7 @@ pub(crate) async fn do_start_web_server_tauri(
     *ws.host.lock().unwrap() = advertised_host.clone();
     // running already true from compare_exchange; disarm guard so it doesn't flip back.
     guard.disarm();
+    tailscale_funnel::restore(ws.clone(), app_state.db.conn.clone());
 
     let addresses = addresses_for_bind(&advertised_host, actual_port);
     Ok(WebServerInfo {
@@ -1009,8 +1025,7 @@ pub async fn start_web_server(
 pub async fn stop_web_server(
     state: tauri::State<'_, WebServerState>,
 ) -> Result<(), AppCommandError> {
-    do_stop_web_server(&state).await;
-    Ok(())
+    do_stop_web_server(&state).await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -1047,12 +1062,70 @@ pub async fn probe_web_service_port(
     do_probe_web_service_port(&db.conn, port).await
 }
 
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn get_tailscale_funnel_status(
+    state: tauri::State<'_, WebServerState>,
+    db: tauri::State<'_, crate::db::AppDatabase>,
+) -> Result<tailscale_funnel::FunnelStatus, AppCommandError> {
+    tailscale_funnel::status_core(&state, &db.conn).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn start_tailscale_login(
+    state: tauri::State<'_, WebServerState>,
+    db: tauri::State<'_, crate::db::AppDatabase>,
+) -> Result<tailscale_funnel::FunnelStatus, AppCommandError> {
+    tailscale_funnel::login_core(&state, &db.conn).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn enable_tailscale_funnel(
+    state: tauri::State<'_, WebServerState>,
+    db: tauri::State<'_, crate::db::AppDatabase>,
+) -> Result<tailscale_funnel::FunnelStatus, AppCommandError> {
+    tailscale_funnel::enable_core(&state, &db.conn).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn disable_tailscale_funnel(
+    state: tauri::State<'_, WebServerState>,
+    db: tauri::State<'_, crate::db::AppDatabase>,
+) -> Result<tailscale_funnel::FunnelStatus, AppCommandError> {
+    tailscale_funnel::disable_core(&state, &db.conn).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn cancel_tailscale_funnel_operation(
+    state: tauri::State<'_, WebServerState>,
+    db: tauri::State<'_, crate::db::AppDatabase>,
+) -> Result<tailscale_funnel::FunnelStatus, AppCommandError> {
+    tailscale_funnel::cancel_core(&state, &db.conn).await
+}
+
 #[cfg(test)]
 mod local_address_tests {
     use super::{
         addresses_for_bind, advertise_host, get_local_addresses, is_advertisable_ipv4,
     };
     use std::net::{Ipv4Addr, SocketAddr};
+
+    #[tokio::test]
+    async fn shared_web_state_exposes_the_same_runtime_and_shutdown() {
+        let state = super::WebServerState::new();
+        let http_state = state.clone();
+        state.mark_externally_running("127.0.0.1".into(), 3080, "token".into());
+        let info = super::do_get_web_server_status(&http_state).unwrap();
+        assert_eq!(info.port, 3080);
+        assert_eq!(info.token, "token");
+        assert!(http_state.is_externally_managed());
+        super::do_stop_web_server(&state).await.unwrap();
+        assert!(super::do_get_web_server_status(&http_state).is_none());
+    }
 
     #[test]
     fn advertisable_predicate_rejects_loopback_linklocal_and_unspecified() {
