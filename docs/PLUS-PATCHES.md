@@ -43,6 +43,19 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
 | （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10 | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；上游动这些文件时需手动合并 |
 
+### Web 公网访问与 MCode 配置（v0.42.0-plus.4）
+
+- `5f70cc35c`：设置 → Web 服务集成 Tailscale Funnel。主机 CLI 检测、登录/授权、配置确认、启停恢复及自有映射清理；成功后公网 HTTPS 地址优先显示。
+- `746d04dfe`：一键衔接 Web 启动、Tailscale 连接/登录和 Funnel 发布；区分设备审批、DNS 与服务未启动，取消/停止阻止后续步骤。新增 MCode v2 配置二维码，跟随当前地址并携带运行中访问令牌，供手机扫码或粘贴导入。
+- 冲突面：`web/tailscale_funnel*`、`web/mod.rs` 状态共享及启停、Tauri/HTTP 注册、Web 服务设置组件、`api.ts`、国际化文件。上游同步需保留身份/映射归属、取消和地址选择逻辑。
+- 验证和真实网络限制见 [tailscale-funnel-verification.md](tailscale-funnel-verification.md)，使用方式见 [tailscale-funnel.md](tailscale-funnel.md)。可在上游具备同等固定公网入口和 MCode 协议支持后评估移除。
+
+### 会话模型切换与漫画工作台（v0.42.0-plus.4）
+
+- `2d6f8b05a`：持久化并展示会话内模型切换；冲突面为会话事件、数据模型和前端展示，上游提供同等能力后评估合并替代。
+- `6d1a591e8`：漫画工作台创作流程改进；冲突面为 `comic/` 后端与对应前端工作台，上游覆盖相同流程后评估替代。
+- `86671550e`：桌面运行时窗口与托盘显示名统一，详见下节。
+
 ### 桌面窗口与托盘显示名（2026-11-10）
 
 - 主窗口、远程工作台窗口标题、托盘悬停提示和 10 种语言的退出菜单统一使用 `YoYoCode`；保留连接名和现有菜单行为。
