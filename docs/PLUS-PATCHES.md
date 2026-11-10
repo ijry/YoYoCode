@@ -43,6 +43,11 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
 | （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10 | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；上游动这些文件时需手动合并 |
 
+### 桌面窗口与托盘显示名（2026-11-10）
+
+- 主窗口、远程工作台窗口标题、托盘悬停提示和 10 种语言的退出菜单统一使用 `YoYoCode`；保留连接名和现有菜单行为。
+- 冲突面：`src-tauri/src/lib.rs`、`commands/windows.rs`、`commands/remote_workspace.rs`。这些运行时硬编码不受产品身份构建期注入覆盖，上游同步时需保留品牌差异。
+
 ### 截图窗口自动选区（2026-11-08）
 
 - Windows 原生枚举可见顶层窗口并读取 DWM 边界，在冻结屏幕时生成按叠放顺序排列的候选选区；隐藏、最小化、cloaked、桌面与任务栏窗口被排除。

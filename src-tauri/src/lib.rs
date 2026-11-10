@@ -1707,7 +1707,7 @@ mod tauri_app {
                 if app.get_webview_window("main").is_none() {
                     let url = tauri::WebviewUrl::App(workspace_path.into());
                     let builder = tauri::WebviewWindowBuilder::new(app, "main", url)
-                        .title("Codeg")
+                        .title("YoYoCode")
                         .inner_size(1260.0, 860.0)
                         .min_inner_size(400.0, 600.0)
                         .visible(restore.show_local());

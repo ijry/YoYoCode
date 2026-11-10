@@ -245,7 +245,7 @@ pub(crate) fn build_remote_workspace_window(
         format!("workspace?remoteConnectionId={id}&remoteWindowId={window_instance_id}").into(),
     );
     let builder = WebviewWindowBuilder::new(app, &label, url)
-        .title(format!("Codeg - {}", connection.name))
+        .title(format!("YoYoCode - {}", connection.name))
         .inner_size(1260.0, 860.0)
         .min_inner_size(400.0, 600.0)
         .focused(focus)
