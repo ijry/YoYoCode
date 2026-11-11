@@ -34,7 +34,8 @@ impl Default for ComposeOptions {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ComposeShot {
     pub id: String,
-    pub image: String,
+    #[serde(default)]
+    pub image: Option<String>,
     pub frames: u32,
     pub subtitle: String,
     #[serde(default)]
@@ -117,10 +118,15 @@ pub fn build_plan(
                 shot.id
             )));
         }
-        let image = shot.selected.ok_or_else(|| {
-            ComposeError::Invalid(format!("shot {} has no selected keyframe", shot.id))
-        })?;
-        frame_path(store, &image)?;
+        let image = if shot.video.is_some() {
+            None
+        } else {
+            let image = shot.selected.ok_or_else(|| {
+                ComposeError::Invalid(format!("shot {} has no selected keyframe", shot.id))
+            })?;
+            frame_path(store, &image)?;
+            Some(image)
+        };
         let mut frames = (shot.duration_secs * options.fps as f32).round().max(1.0) as u32;
         if let Some(audio) = &shot.audio {
             if !audio.duration_secs.is_finite() || !(0.01..=120.0).contains(&audio.duration_secs) {
@@ -334,16 +340,21 @@ pub async fn render(
             if tokio::time::Instant::now() >= deadline {
                 return Err(ComposeError::Timeout);
             }
-            let frame = read_frame(&store, &shot.image)?;
-            if preparing.is_cancelled() {
-                return Err(ComposeError::Cancelled);
+            if shot.video.is_none() {
+                let image = shot.image.as_deref().ok_or_else(|| {
+                    ComposeError::Invalid(format!("shot {} has no selected keyframe", shot.id))
+                })?;
+                let frame = read_frame(&store, image)?;
+                if preparing.is_cancelled() {
+                    return Err(ComposeError::Cancelled);
+                }
+                frame
+                    .save_with_format(
+                        root.join(format!("frame-{index:03}.png")),
+                        image::ImageFormat::Png,
+                    )
+                    .map_err(|error| ComposeError::Invalid(error.to_string()))?;
             }
-            frame
-                .save_with_format(
-                    root.join(format!("frame-{index:03}.png")),
-                    image::ImageFormat::Png,
-                )
-                .map_err(|error| ComposeError::Invalid(error.to_string()))?;
             if let Some(audio) = &shot.audio {
                 let source = store
                     .resolve(&audio.path)
@@ -737,6 +748,98 @@ mod tests {
     }
 
     #[test]
+    fn bound_video_needs_no_keyframe_even_if_the_old_image_was_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = project(dir.path());
+        let mut board = store.read_storyboard("ep001").unwrap();
+        board.shots.truncate(1);
+        let image = board.shots[0].selected.clone().unwrap();
+        store.write_storyboard("ep001", &board).unwrap();
+        let clip = "episodes/ep001/shots/shot-0002/video/task-9.mp4";
+        store.write_artifact(clip, b"Encoded fixture").unwrap();
+        store
+            .bind_shot_video(
+                "ep001",
+                "shot-0002",
+                crate::comic::model::ShotClip {
+                    path: clip.into(),
+                    duration_secs: 0.5,
+                    task_id: 9,
+                },
+                None,
+            )
+            .unwrap();
+        std::fs::remove_file(store.resolve(&image).unwrap()).unwrap();
+        let plan = build_plan(&store, "ep001", options()).unwrap();
+        assert!(serde_json::to_value(&plan).unwrap()["shots"][0]["image"].is_null());
+        assert_eq!(plan.shots[0].video.as_ref().unwrap().task_id, 9);
+        let mut updated = store.read_storyboard("ep001").unwrap();
+        updated.shots[0].selected = None;
+        store.write_storyboard("ep001", &updated).unwrap();
+        assert!(build_plan(&store, "ep001", options()).is_ok());
+    }
+
+    #[test]
+    fn legacy_compose_plan_keeps_its_string_image() {
+        let plan: ComposePlan = serde_json::from_value(serde_json::json!({
+            "episode": "ep001", "options": {},
+            "shots": [{"id": "shot-0001", "image": "frame.png", "frames": 12, "subtitle": ""}]
+        }))
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(plan).unwrap()["shots"][0]["image"],
+            "frame.png"
+        );
+    }
+
+    #[tokio::test]
+    async fn video_only_plan_renders_without_decoding_an_unused_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = project(dir.path());
+        let mut board = store.read_storyboard("ep001").unwrap();
+        board.shots.truncate(1);
+        let image = board.shots[0].selected.clone().unwrap();
+        board.shots[0].selected = None;
+        store.write_storyboard("ep001", &board).unwrap();
+        let clip = "episodes/ep001/shots/shot-0002/video/task-9.mp4";
+        let bytes = crate::comic::video::mp4_fixture(dir.path(), false).await;
+        store.write_artifact(clip, &bytes).unwrap();
+        store
+            .bind_shot_video(
+                "ep001",
+                "shot-0002",
+                crate::comic::model::ShotClip {
+                    path: clip.into(),
+                    duration_secs: 0.5,
+                    task_id: 9,
+                },
+                None,
+            )
+            .unwrap();
+        std::fs::remove_file(store.resolve(&image).unwrap()).unwrap();
+        let plan = build_plan(&store, "ep001", options()).unwrap();
+        let rendered = render(&store, &plan, &CancellationToken::new())
+            .await
+            .unwrap();
+        let output = tokio::process::Command::new("ffprobe")
+            .args(["-v", "error", "-show_streams", "-of", "json"])
+            .arg(&rendered.video)
+            .output()
+            .await
+            .unwrap();
+        assert!(output.status.success());
+        let probe: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let video = probe["streams"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|stream| stream["codec_type"] == "video")
+            .unwrap();
+        let duration: f64 = video["duration"].as_str().unwrap().parse().unwrap();
+        assert!((duration - 0.5).abs() < 0.1, "{duration}");
+    }
+
+    #[test]
     fn queued_plan_checks_metadata_without_decoding_image_bodies() {
         let dir = tempfile::tempdir().unwrap();
         let store = project(dir.path());
@@ -755,7 +858,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = project(dir.path());
         let mut plan = build_plan(&store, "ep001", options()).unwrap();
-        let image = plan.shots[0].image.clone();
+        let image = plan.shots[0].image.clone().unwrap();
         let mut bytes = std::io::Cursor::new(Vec::new());
         image::DynamicImage::new_rgb8(1024, 1024)
             .write_to(&mut bytes, image::ImageFormat::Png)

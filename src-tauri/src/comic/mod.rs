@@ -29,6 +29,7 @@
 pub mod audio;
 pub mod compose;
 pub mod compose_task;
+mod media_tools;
 pub mod model;
 pub mod paths;
 pub mod preview;

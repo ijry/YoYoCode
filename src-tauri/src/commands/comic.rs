@@ -20,8 +20,8 @@ use crate::acp::question::{QuestionOption, QuestionSpec, SessionQuestionAccess};
 use crate::app_error::AppCommandError;
 pub use crate::comic::model::SeriesConfig;
 use crate::comic::model::{
-    CharacterCard, EpisodeMeta, ProjectOverview, PropCard, SceneCard, ShotMeta, StoryShot,
-    Storyboard,
+    AssetTextPatch, CharacterCard, EpisodeMeta, ProjectOverview, PropCard, SceneCard,
+    ShotFieldsPatch, ShotMeta, StoryShot, Storyboard,
 };
 pub use crate::comic::source::SourceReport;
 use crate::comic::source::{self, ReadWindow, WindowRead};
@@ -556,6 +556,38 @@ pub async fn comic_upsert_shot_core(
         .map_err(|e| AppCommandError::invalid_input(e.message()))?;
     emit_upsert(emitter, folder_id, "episode", episode);
     Ok(())
+}
+
+pub async fn comic_update_shot_fields_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    episode: &str,
+    shot: &str,
+    patch: ShotFieldsPatch,
+) -> Result<Storyboard, AppCommandError> {
+    let store = store_for(folder_path).map_err(story_write_error)?;
+    let board = store
+        .update_shot_fields(episode, shot, &patch)
+        .map_err(story_write_error)?;
+    emit_upsert(emitter, folder_id, "episode", episode);
+    Ok(board)
+}
+
+pub async fn comic_update_asset_text_core(
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    kind: &str,
+    slug: &str,
+    patch: AssetTextPatch,
+) -> Result<Value, AppCommandError> {
+    let store = store_for(folder_path).map_err(story_write_error)?;
+    let card = store
+        .update_asset_text(kind, slug, &patch)
+        .map_err(story_write_error)?;
+    emit_upsert(emitter, folder_id, kind, slug);
+    Ok(card)
 }
 
 /// Remove one shot (and its artifacts) from an episode.
@@ -2430,6 +2462,36 @@ pub async fn comic_upsert_shot(
 
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
+pub async fn comic_update_shot_fields(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    folder_id: i32,
+    episode: String,
+    shot: String,
+    patch: ShotFieldsPatch,
+) -> Result<Storyboard, AppCommandError> {
+    let path = folder_path(&db.conn, folder_id).await?;
+    let emitter = EventEmitter::Tauri(app);
+    comic_update_shot_fields_core(&emitter, folder_id, &path, &episode, &shot, patch).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn comic_update_asset_text(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    folder_id: i32,
+    kind: String,
+    slug: String,
+    patch: AssetTextPatch,
+) -> Result<Value, AppCommandError> {
+    let path = folder_path(&db.conn, folder_id).await?;
+    let emitter = EventEmitter::Tauri(app);
+    comic_update_asset_text_core(&emitter, folder_id, &path, &kind, &slug, patch).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
 pub async fn comic_delete_shot(
     db: tauri::State<'_, AppDatabase>,
     app: tauri::AppHandle,
@@ -2620,9 +2682,18 @@ pub async fn comic_clear_shot_video(
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub async fn comic_list_provider_models(
-    params: ListProviderModelsParams,
+    kind: String,
+    api_url: String,
+    api_key: String,
+    extra_json: Option<String>,
 ) -> Result<Value, AppCommandError> {
-    comic_list_provider_models_core(params).await
+    comic_list_provider_models_core(ListProviderModelsParams {
+        kind,
+        api_url,
+        api_key,
+        extra_json: extra_json.unwrap_or_default(),
+    })
+    .await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2789,6 +2860,49 @@ pub async fn comic_read_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn workbench_field_edits_emit_only_after_a_successful_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Workbench patches").unwrap();
+        store
+            .replace_storyboard(
+                "ep001",
+                vec![StoryShot {
+                    id: "shot-0001".into(),
+                    description: "Original".into(),
+                    ..Default::default()
+                }],
+            )
+            .unwrap();
+        let broadcaster = std::sync::Arc::new(crate::web::event_bridge::WebEventBroadcaster::new());
+        let mut events = broadcaster.subscribe();
+        let emitter = EventEmitter::test_web_only(broadcaster);
+        let patch = serde_json::from_value(serde_json::json!({
+            "description": {"expected": "Original", "value": "Edited"}
+        }))
+        .unwrap();
+        let board =
+            comic_update_shot_fields_core(&emitter, 7, dir.path(), "ep001", "shot-0001", patch)
+                .await
+                .unwrap();
+        assert_eq!(board.shots[0].description, "Edited");
+        assert_eq!(events.try_recv().unwrap().payload["id"], "ep001");
+        let stale = serde_json::from_value(serde_json::json!({
+            "description": {"expected": "Original", "value": "Conflicting"}
+        }))
+        .unwrap();
+        let error =
+            comic_update_shot_fields_core(&emitter, 7, dir.path(), "ep001", "shot-0001", stale)
+                .await
+                .unwrap_err();
+        assert!(matches!(
+            error.code,
+            crate::app_error::AppErrorCode::Conflict
+        ));
+        assert!(events.try_recv().is_err());
+        assert_eq!(store.read_storyboard("ep001").unwrap(), board);
+    }
 
     #[tokio::test]
     async fn guarded_writes_report_conflict_without_events_and_legacy_calls_still_upsert() {

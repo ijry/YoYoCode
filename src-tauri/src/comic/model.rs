@@ -258,6 +258,45 @@ pub struct StoryShot {
     pub video: Option<ShotClip>,
 }
 
+/// One explicitly changed field. Both values are required, including null.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
+pub struct FieldEdit<T> {
+    #[serde(deserialize_with = "T::deserialize")]
+    pub expected: T,
+    #[serde(deserialize_with = "T::deserialize")]
+    pub value: T,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShotRefsPatch {
+    pub characters: Option<FieldEdit<Vec<CharacterRef>>>,
+    pub scene: Option<FieldEdit<Option<String>>>,
+    pub props: Option<FieldEdit<Vec<String>>>,
+}
+
+/// Workbench edits exclude bindings, generation state and display identity.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShotFieldsPatch {
+    pub description: Option<FieldEdit<String>>,
+    pub dialogue: Option<FieldEdit<Vec<DialogueLine>>>,
+    pub duration_secs: Option<FieldEdit<f32>>,
+    pub camera: Option<FieldEdit<Option<String>>>,
+    pub shot_size: Option<FieldEdit<Option<String>>>,
+    pub transition: Option<FieldEdit<Option<String>>>,
+    pub refs: Option<ShotRefsPatch>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AssetTextPatch {
+    pub name: Option<FieldEdit<String>>,
+    pub description: Option<FieldEdit<String>>,
+    pub prompt_fragment: Option<FieldEdit<String>>,
+}
+
 /// A shot's bound generated video clip (`video/task-<id>.mp4`), measured at
 /// bind time. The composer extends the still-frame duration to fit it.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

@@ -26,7 +26,29 @@ pub async fn submit(
     episode: &str,
     options: ComposeOptions,
 ) -> Result<i32, ComposeError> {
+    submit_with_tools(
+        conn,
+        emitter,
+        folder_id,
+        folder_path,
+        episode,
+        options,
+        &super::media_tools::HOST_TOOLS,
+    )
+    .await
+}
+
+async fn submit_with_tools(
+    conn: &DatabaseConnection,
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &Path,
+    episode: &str,
+    options: ComposeOptions,
+    tools: &super::media_tools::MediaTools,
+) -> Result<i32, ComposeError> {
     super::paths::validate_slug(episode).map_err(ComposeError::Invalid)?;
+    tools.check(super::provider::MediaKind::Video).await?;
     static ADMISSION: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
     let _guard = ADMISSION
         .get_or_init(|| tokio::sync::Mutex::new(()))
@@ -61,29 +83,36 @@ pub async fn submit(
             std::collections::HashMap::new();
         let mut total_bytes = 0_u64;
         for (index, shot) in plan.shots.iter_mut().enumerate() {
-            if let Some(relative) = copied.get(&shot.image) {
-                shot.image = relative.clone();
+            if shot.video.is_some() {
+                shot.image = None;
             } else {
-                let source = compose::frame_path(&store, &shot.image)?;
-                total_bytes += source.metadata()?.len();
-                if total_bytes > 512 * 1024 * 1024 {
-                    return Err(ComposeError::Invalid(
-                        "an export's input frames exceed 512 MiB".into(),
-                    ));
+                let image = shot.image.as_ref().ok_or_else(|| {
+                    ComposeError::Invalid(format!("shot {} has no selected keyframe", shot.id))
+                })?;
+                if let Some(relative) = copied.get(image) {
+                    shot.image = Some(relative.clone());
+                } else {
+                    let source = compose::frame_path(&store, image)?;
+                    total_bytes += source.metadata()?.len();
+                    if total_bytes > 512 * 1024 * 1024 {
+                        return Err(ComposeError::Invalid(
+                            "an export's input frames exceed 512 MiB".into(),
+                        ));
+                    }
+                    let extension = source
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        .unwrap_or("png");
+                    let relative = format!(
+                        "episodes/{}/export/inputs-{snapshot}/frame-{index:03}.{extension}",
+                        plan.episode
+                    );
+                    store
+                        .copy_artifact(&relative, &source)
+                        .map_err(|error| ComposeError::Invalid(error.message()))?;
+                    copied.insert(image.clone(), relative.clone());
+                    shot.image = Some(relative);
                 }
-                let extension = source
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .unwrap_or("png");
-                let relative = format!(
-                    "episodes/{}/export/inputs-{snapshot}/frame-{index:03}.{extension}",
-                    plan.episode
-                );
-                store
-                    .copy_artifact(&relative, &source)
-                    .map_err(|error| ComposeError::Invalid(error.message()))?;
-                copied.insert(shot.image.clone(), relative.clone());
-                shot.image = relative;
             }
             if let Some(audio) = &mut shot.audio {
                 if let Some(relative) = copied.get(&audio.path) {
@@ -381,6 +410,82 @@ mod tests {
             )
             .unwrap();
         store
+    }
+
+    #[tokio::test]
+    async fn missing_media_tools_do_not_copy_inputs_or_queue_composition() {
+        let db = fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        let store = project(dir.path());
+        let folder = seed_folder(&db, &dir.path().to_string_lossy()).await;
+        let tools = super::super::media_tools::MediaTools {
+            ffmpeg: "codeg-missing-ffmpeg-test",
+            ffprobe: "codeg-missing-ffprobe-test",
+        };
+        let result = submit_with_tools(
+            &db.conn,
+            &EventEmitter::Noop,
+            folder,
+            dir.path(),
+            "ep001",
+            options(),
+            &tools,
+        )
+        .await;
+        assert!(matches!(result, Err(ComposeError::Unavailable)));
+        assert!(task::list_tasks(&db.conn, folder, None, 50)
+            .await
+            .is_empty());
+        assert!(!store.root().join("episodes/ep001/export").exists());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn queued_video_only_inputs_are_frozen_without_a_keyframe() {
+        let db = fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        let store = project(dir.path());
+        let mut board = store.read_storyboard("ep001").unwrap();
+        board.shots[0].selected = None;
+        store.write_storyboard("ep001", &board).unwrap();
+        let clip = "episodes/ep001/shots/shot-0001/video/task-9.mp4";
+        let bytes = crate::comic::video::mp4_fixture(dir.path(), false).await;
+        store.write_artifact(clip, &bytes).unwrap();
+        store
+            .bind_shot_video(
+                "ep001",
+                "shot-0001",
+                crate::comic::model::ShotClip {
+                    path: clip.into(),
+                    duration_secs: 0.5,
+                    task_id: 9,
+                },
+                None,
+            )
+            .unwrap();
+        let folder = seed_folder(&db, &dir.path().to_string_lossy()).await;
+        let permit = task::job_slots().acquire_many_owned(8).await.unwrap();
+        let id = submit(
+            &db.conn,
+            &EventEmitter::Noop,
+            folder,
+            dir.path(),
+            "ep001",
+            options(),
+        )
+        .await
+        .unwrap();
+        let row = comic_generation_task::Entity::find_by_id(id)
+            .one(&db.conn)
+            .await
+            .unwrap()
+            .unwrap();
+        let request: serde_json::Value = serde_json::from_str(&row.request_json).unwrap();
+        assert!(request["shots"][0]["image"].is_null());
+        assert_ne!(request["shots"][0]["video"]["path"], clip);
+        std::fs::remove_file(store.resolve(clip).unwrap()).unwrap();
+        drop(permit);
+        let finished = task::check_task(&db.conn, id, 60_000).await.unwrap();
+        assert_eq!(finished.status, "succeeded", "{:?}", finished.error_message);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

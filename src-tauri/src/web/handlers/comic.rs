@@ -17,7 +17,10 @@ use serde_json::Value;
 use crate::app_error::AppCommandError;
 use crate::app_state::AppState;
 use crate::comic::model::Chapter;
-use crate::comic::model::{CharacterCard, EpisodeMeta, PropCard, SceneCard, StoryShot, Storyboard};
+use crate::comic::model::{
+    AssetTextPatch, CharacterCard, EpisodeMeta, PropCard, SceneCard, ShotFieldsPatch, StoryShot,
+    Storyboard,
+};
 use crate::comic::source::{ReadWindow, WindowRead};
 use crate::commands::comic as comic_commands;
 use crate::commands::comic::{
@@ -314,6 +317,60 @@ pub struct ShotParams {
     pub shot: StoryShot,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShotFieldsParams {
+    pub folder_id: i32,
+    pub episode: String,
+    pub shot: String,
+    pub patch: ShotFieldsPatch,
+}
+
+pub async fn comic_update_shot_fields(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<ShotFieldsParams>,
+) -> Result<Json<Storyboard>, AppCommandError> {
+    let path = comic_folder_path(&state, params.folder_id).await?;
+    Ok(Json(
+        comic_commands::comic_update_shot_fields_core(
+            &state.emitter,
+            params.folder_id,
+            &path,
+            &params.episode,
+            &params.shot,
+            params.patch,
+        )
+        .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetTextParams {
+    pub folder_id: i32,
+    pub kind: String,
+    pub slug: String,
+    pub patch: AssetTextPatch,
+}
+
+pub async fn comic_update_asset_text(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<AssetTextParams>,
+) -> Result<Json<Value>, AppCommandError> {
+    let path = comic_folder_path(&state, params.folder_id).await?;
+    Ok(Json(
+        comic_commands::comic_update_asset_text_core(
+            &state.emitter,
+            params.folder_id,
+            &path,
+            &params.kind,
+            &params.slug,
+            params.patch,
+        )
+        .await?,
+    ))
+}
+
 pub async fn comic_delete_shot(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<ShotRefParams>,
@@ -592,13 +649,7 @@ pub async fn comic_clear_shot_video(
     ))
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListProviderModelsPayload {
-    pub kind: String,
-    #[serde(flatten)]
-    pub params: comic_commands::ListProviderModelsParams,
-}
+pub type ListProviderModelsPayload = comic_commands::ListProviderModelsParams;
 
 pub async fn comic_list_provider_models(
     Extension(state): Extension<Arc<AppState>>,
@@ -606,7 +657,7 @@ pub async fn comic_list_provider_models(
 ) -> Result<Json<Value>, AppCommandError> {
     let _ = state;
     Ok(Json(
-        comic_commands::comic_list_provider_models_core(payload.params).await?,
+        comic_commands::comic_list_provider_models_core(payload).await?,
     ))
 }
 
@@ -837,6 +888,79 @@ async fn comic_folder_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn model_listing_flat_payload_reaches_the_configured_endpoint() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0_u8; 4096];
+            let count = socket.read(&mut bytes).await.unwrap();
+            let request = String::from_utf8_lossy(&bytes[..count]).into_owned();
+            let reply = r#"{"data":[{"id":"b-model"},{"id":"a-model"}]}"#;
+            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len()).as_bytes()).await.unwrap();
+            request
+        });
+        let params: ListProviderModelsPayload = serde_json::from_value(serde_json::json!({
+            "kind": "image", "apiUrl": format!("http://{address}/v1"), "apiKey": "test-key", "extraJson": "{}"
+        })).unwrap();
+        let reply = comic_commands::comic_list_provider_models_core(params)
+            .await
+            .unwrap();
+        assert_eq!(reply, serde_json::json!({"models": ["a-model", "b-model"]}));
+        let request = server.await.unwrap();
+        assert!(request.starts_with("GET /v1/models "), "{request}");
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer test-key"));
+    }
+
+    #[test]
+    fn model_listing_accepts_the_clients_flat_payload() {
+        let params: ListProviderModelsPayload = serde_json::from_value(serde_json::json!({
+            "kind": "image", "apiUrl": "http://localhost:18080/v1", "apiKey": "test-key", "extraJson": "{}"
+        })).unwrap();
+        assert_eq!(params.kind, "image");
+    }
+
+    #[test]
+    fn workbench_patches_keep_explicit_null_and_reject_material_fields() {
+        let params: ShotFieldsParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "episode": "ep001", "shot": "shot-0001",
+            "patch": {"camera": {"expected": "pan", "value": null}}
+        }))
+        .unwrap();
+        assert_eq!(params.patch.camera.unwrap().value, None);
+        assert!(
+            serde_json::from_value::<ShotFieldsParams>(serde_json::json!({
+                "folderId": 7, "episode": "ep001", "shot": "shot-0001",
+                "patch": {"selected": {"expected": null, "value": "image.png"}}
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<ShotFieldsParams>(serde_json::json!({
+                "folderId": 7, "episode": "ep001", "shot": "shot-0001",
+                "patch": {"camera": {"value": null}}
+            }))
+            .is_err()
+        );
+        let params: AssetTextParams = serde_json::from_value(serde_json::json!({
+            "folderId": 7, "kind": "character", "slug": "lead",
+            "patch": {"name": {"expected": "Original", "value": "Edited"}}
+        }))
+        .unwrap();
+        assert_eq!(params.patch.name.unwrap().value, "Edited");
+        assert!(
+            serde_json::from_value::<AssetTextParams>(serde_json::json!({
+                "folderId": 7, "kind": "character", "slug": "lead",
+                "patch": {"refs": []}
+            }))
+            .is_err()
+        );
+    }
 
     #[test]
     fn write_preconditions_are_optional_and_empty_board_is_an_explicit_snapshot() {

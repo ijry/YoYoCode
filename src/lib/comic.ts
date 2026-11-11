@@ -314,6 +314,31 @@ export interface StoryShotInput {
   video?: { path: string; duration_secs: number; task_id: number } | null
 }
 
+export interface FieldEdit<T> {
+  expected: T
+  value: T
+}
+
+export interface ShotFieldsPatch {
+  description?: FieldEdit<string>
+  dialogue?: FieldEdit<StoryShot["dialogue"]>
+  duration_secs?: FieldEdit<number>
+  camera?: FieldEdit<string | null>
+  shot_size?: FieldEdit<string | null>
+  transition?: FieldEdit<string | null>
+  refs?: {
+    characters?: FieldEdit<ShotRefs["characters"]>
+    scene?: FieldEdit<string | null>
+    props?: FieldEdit<string[]>
+  }
+}
+
+export interface AssetTextPatch {
+  name?: FieldEdit<string>
+  description?: FieldEdit<string>
+  prompt_fragment?: FieldEdit<string>
+}
+
 // ---------------------------------------------------------------------------
 // API wrappers
 // ---------------------------------------------------------------------------
@@ -420,6 +445,32 @@ export const comicApi = {
     shot: StoryShotInput
   ): Promise<void> =>
     getTransport().call("comic_upsert_shot", { folderId, episode, shot }),
+
+  updateShotFields: (
+    folderId: number,
+    episode: string,
+    shot: string,
+    patch: ShotFieldsPatch
+  ): Promise<StoryboardSnapshot> =>
+    getTransport().call("comic_update_shot_fields", {
+      folderId,
+      episode,
+      shot,
+      patch,
+    }),
+
+  updateAssetText: (
+    folderId: number,
+    kind: "character" | "scene" | "prop",
+    slug: string,
+    patch: AssetTextPatch
+  ): Promise<Record<string, unknown>> =>
+    getTransport().call("comic_update_asset_text", {
+      folderId,
+      kind,
+      slug,
+      patch,
+    }),
 
   deleteShot: (
     folderId: number,

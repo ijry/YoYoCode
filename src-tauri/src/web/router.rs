@@ -521,6 +521,14 @@ pub fn build_router_with_proxy_auth(
             post(handlers::comic::comic_upsert_shot),
         )
         .route(
+            "/comic_update_shot_fields",
+            post(handlers::comic::comic_update_shot_fields),
+        )
+        .route(
+            "/comic_update_asset_text",
+            post(handlers::comic::comic_update_asset_text),
+        )
+        .route(
             "/comic_delete_shot",
             post(handlers::comic::comic_delete_shot),
         )

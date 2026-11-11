@@ -145,6 +145,40 @@ pub async fn submit_generation(
     provider_id: Option<i32>,
     provider_name_hint: Option<String>,
 ) -> Result<i32, GenerationError> {
+    submit_generation_with_tools(
+        conn,
+        emitter,
+        folder_id,
+        folder_path,
+        kind,
+        target_kind,
+        target_id,
+        req,
+        provider_id,
+        provider_name_hint,
+        &super::media_tools::HOST_TOOLS,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn submit_generation_with_tools(
+    conn: &DatabaseConnection,
+    emitter: &EventEmitter,
+    folder_id: i32,
+    folder_path: &std::path::Path,
+    kind: MediaKind,
+    target_kind: &str,
+    target_id: &str,
+    req: GenerationRequest,
+    provider_id: Option<i32>,
+    provider_name_hint: Option<String>,
+    tools: &super::media_tools::MediaTools,
+) -> Result<i32, GenerationError> {
+    tools
+        .check(kind)
+        .await
+        .map_err(|error| GenerationError::new(error.kind(), error.to_string()))?;
     let store = StoryStore::open(folder_path)
         .map_err(|e| GenerationError::new("bad_request", e.message()))?;
     let series = store
@@ -290,6 +324,17 @@ async fn run_task(
     adapter: Box<dyn MediaProvider>,
     req: GenerationRequest,
 ) {
+    run_task_with_tools(conn, emitter, task_id, adapter, req, &super::media_tools::HOST_TOOLS).await;
+}
+
+async fn run_task_with_tools(
+    conn: DatabaseConnection,
+    emitter: EventEmitter,
+    task_id: i32,
+    adapter: Box<dyn MediaProvider>,
+    req: GenerationRequest,
+    tools: &super::media_tools::MediaTools,
+) {
     let mut req = req;
     let Ok(_slot) = job_slots().acquire_owned().await else {
         return;
@@ -366,6 +411,10 @@ async fn run_task(
             }
         }
     } else {
+        if let Err(error) = tools.check(adapter.kind()).await {
+            fail_task(&conn, &emitter, task_id, &GenerationError::new(error.kind(), error.to_string())).await;
+            return;
+        }
         // Persist before contacting the vendor: a crash during submission is
         // ambiguous and must not lead to a second charge on restart.
         if set_row_status(&conn, task_id, "running", json!({"stage": "submitting"}))
@@ -841,16 +890,7 @@ fn append_generation(store: &StoryStore, episode: &str, shot: &str, record: Gene
 }
 
 fn mark_candidate(store: &StoryStore, episode: &str, shot: &str) {
-    let Ok(mut board) = store.read_storyboard(episode) else {
-        return;
-    };
-    let Some(target) = board.shots.iter_mut().find(|s| s.id == shot) else {
-        return;
-    };
-    if matches!(target.state, ShotState::Prompted | ShotState::Generating) {
-        target.state = ShotState::Candidate;
-        let _ = store.write_storyboard(episode, &board);
-    }
+    let _ = store.mark_shot_candidate(episode, shot);
 }
 
 /// Long-poll one task. Terminal rows return immediately; queued/running rows
@@ -1063,20 +1103,9 @@ pub async fn bind_candidate(
             format!("candidate file not found: {candidate_rel}"),
         ));
     }
-    let mut board = store
-        .read_storyboard(episode)
+    let board = store
+        .bind_shot_image(episode, shot, candidate_rel)
         .map_err(|e| GenerationError::new("bad_request", e.message()))?;
-    let Some(target) = board.shots.iter_mut().find(|s| s.id == shot) else {
-        return Err(GenerationError::new(
-            "bad_request",
-            format!("episode {episode} has no shot {shot}"),
-        ));
-    };
-    target.selected = Some(candidate_rel.to_string());
-    target.state = ShotState::Selected;
-    store
-        .write_storyboard(episode, &board)
-        .map_err(|e| GenerationError::new("internal", e.message()))?;
     // Selection does not delete history. Storage cleanup is a separate,
     // explicit operation so an old task never points at a removed candidate.
     emit_event(
@@ -1172,6 +1201,104 @@ mod tests {
         .await
         .unwrap();
         id
+    }
+
+    struct CountSubmissions(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+    #[async_trait::async_trait]
+    impl MediaProvider for CountSubmissions {
+        fn kind(&self) -> MediaKind { MediaKind::Tts }
+        fn capabilities(&self) -> provider::capabilities::MediaCapabilities {
+            provider::capabilities::describe(MediaKind::Tts, &json!({}))
+        }
+        async fn submit(&self, _: &GenerationRequest) -> Result<Value, GenerationError> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Err(GenerationError::new("network", "test submission"))
+        }
+        async fn poll(&self, _: &Value, _: &GenerationRequest) -> Result<PollState, GenerationError> {
+            unreachable!("failed submission cannot poll")
+        }
+    }
+
+    #[tokio::test]
+    async fn recovered_queued_media_checks_tools_before_its_first_paid_call() {
+        let db = fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        project(dir.path());
+        let folder = seed_folder(&db, &dir.path().to_string_lossy()).await;
+        let id = seed_speech_task(&db.conn, folder).await;
+        comic_generation_task::ActiveModel { id: Set(id), status: Set("queued".into()), ..Default::default() }
+            .update(&db.conn).await.unwrap();
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let tools = super::super::media_tools::MediaTools { ffmpeg: "codeg-missing-ffmpeg-test", ffprobe: "codeg-missing-ffprobe-test" };
+        run_task_with_tools(db.conn.clone(), EventEmitter::Noop, id, Box::new(CountSubmissions(calls.clone())), GenerationRequest::default(), &tools).await;
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let view = check_task(&db.conn, id, 0).await.unwrap();
+        assert_eq!(view.status, "failed");
+        assert_eq!(view.error_kind.as_deref(), Some("unavailable"));
+    }
+
+    #[tokio::test]
+    async fn missing_media_tools_refuse_before_provider_submission() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let db = fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        let store = project(dir.path());
+        let folder_id = seed_folder(&db, &dir.path().to_string_lossy()).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let accepted = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let calls = accepted.clone();
+        let server = tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let mut buffer = [0_u8; 4096];
+                let _ = socket.read(&mut buffer).await;
+                let _ = socket.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+            }
+        });
+        let tools = super::super::media_tools::MediaTools {
+            ffmpeg: "codeg-missing-ffmpeg-test",
+            ffprobe: "codeg-missing-ffprobe-test",
+        };
+        for kind in [MediaKind::Tts, MediaKind::Video] {
+            let provider = media_provider_service::create(
+                &db.conn,
+                media_provider_service::NewMediaProvider {
+                    kind: kind.as_str().into(),
+                    name: format!("Test {}", kind.as_str()),
+                    api_url: format!("http://{address}/v1"),
+                    api_key: "test".into(),
+                    model: "test-model".into(),
+                    extra_json: r#"{"protocol":"openai_compat"}"#.into(),
+                    is_default: false,
+                },
+            )
+            .await
+            .unwrap();
+            let result = submit_generation_with_tools(
+                &db.conn,
+                &EventEmitter::Noop,
+                folder_id,
+                dir.path(),
+                kind,
+                "shot",
+                TARGET,
+                GenerationRequest {
+                    prompt: "Approved".into(),
+                    ..Default::default()
+                },
+                Some(provider.id),
+                None,
+                &tools,
+            )
+            .await;
+            assert_eq!(result.unwrap_err().kind, "unavailable");
+        }
+        assert_eq!(accepted.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(list_tasks(&db.conn, folder_id, None, 50).await.is_empty());
+        assert!(store.read_storyboard("ep001").is_ok());
+        server.abort();
     }
 
     #[tokio::test]

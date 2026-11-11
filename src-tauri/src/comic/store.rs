@@ -22,9 +22,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::model::{
-    AssetSummary, ChapterIndex, CharacterCard, EpisodeMeta, EpisodeStatus, EpisodeSummary,
-    NextAction, ProjectOverview, PropCard, SceneCard, SeriesConfig, ShotMeta, ShotState,
-    SourceMeta, StoryShot, Storyboard,
+    AssetSummary, AssetTextPatch, ChapterIndex, CharacterCard, EpisodeMeta, EpisodeStatus,
+    EpisodeSummary, FieldEdit, NextAction, ProjectOverview, PropCard, SceneCard, SeriesConfig,
+    ShotFieldsPatch, ShotMeta, ShotState, SourceMeta, StoryShot, Storyboard,
 };
 use super::paths::{is_comic_project, resolve_in_story, story_root, validate_slug};
 
@@ -54,6 +54,33 @@ impl StoreError {
             StoreError::Json(e) => e.to_string(),
         }
     }
+}
+
+fn apply_field_edit<T: PartialEq + Clone>(
+    current: &mut T,
+    edit: &Option<FieldEdit<T>>,
+    field: &str,
+) -> Result<(), StoreError> {
+    if let Some(edit) = edit {
+        if *current != edit.expected && *current != edit.value {
+            return Err(StoreError::Conflict(format!(
+                "{field} changed since editing started; refresh and review the current value"
+            )));
+        }
+        *current = edit.value.clone();
+    }
+    Ok(())
+}
+
+fn apply_asset_text(
+    name: &mut String,
+    description: &mut String,
+    prompt_fragment: &mut String,
+    patch: &AssetTextPatch,
+) -> Result<(), StoreError> {
+    apply_field_edit(name, &patch.name, "name")?;
+    apply_field_edit(description, &patch.description, "description")?;
+    apply_field_edit(prompt_fragment, &patch.prompt_fragment, "prompt_fragment")
 }
 
 type FolderLock = Arc<Mutex<()>>;
@@ -539,6 +566,95 @@ impl StoryStore {
         self.write_storyboard_locked(ep, &board)
     }
 
+    pub fn mark_shot_candidate(&self, ep: &str, shot: &str) -> Result<(), StoreError> {
+        let _guard = self.write_guard();
+        validate_slug(shot).map_err(StoreError::Invalid)?;
+        let mut board = self.read_storyboard(ep)?;
+        let target = board
+            .shots
+            .iter_mut()
+            .find(|target| target.id == shot)
+            .ok_or_else(|| StoreError::Invalid(format!("episode {ep} has no shot {shot}")))?;
+        if matches!(target.state, ShotState::Prompted | ShotState::Generating) {
+            target.state = ShotState::Candidate;
+            self.write_storyboard_locked(ep, &board)?;
+        }
+        Ok(())
+    }
+
+    pub fn bind_shot_image(
+        &self,
+        ep: &str,
+        shot: &str,
+        candidate: &str,
+    ) -> Result<Storyboard, StoreError> {
+        let _guard = self.write_guard();
+        validate_slug(shot).map_err(StoreError::Invalid)?;
+        let mut board = self.read_storyboard(ep)?;
+        let target = board
+            .shots
+            .iter_mut()
+            .find(|target| target.id == shot)
+            .ok_or_else(|| StoreError::Invalid(format!("episode {ep} has no shot {shot}")))?;
+        target.selected = Some(candidate.to_string());
+        target.state = ShotState::Selected;
+        self.write_storyboard_locked(ep, &board)?;
+        Ok(board)
+    }
+
+    pub fn update_shot_fields(
+        &self,
+        ep: &str,
+        shot: &str,
+        patch: &ShotFieldsPatch,
+    ) -> Result<Storyboard, StoreError> {
+        let _guard = self.write_guard();
+        validate_slug(ep).map_err(StoreError::Invalid)?;
+        validate_slug(shot).map_err(StoreError::Invalid)?;
+        let mut board = self.read_storyboard(ep)?;
+        let target = board
+            .shots
+            .iter_mut()
+            .find(|target| target.id == shot)
+            .ok_or_else(|| StoreError::Conflict(format!("shot {shot} no longer exists")))?;
+        apply_field_edit(&mut target.description, &patch.description, "description")?;
+        apply_field_edit(&mut target.dialogue, &patch.dialogue, "dialogue")?;
+        apply_field_edit(
+            &mut target.duration_secs,
+            &patch.duration_secs,
+            "duration_secs",
+        )?;
+        apply_field_edit(&mut target.camera, &patch.camera, "camera")?;
+        apply_field_edit(&mut target.shot_size, &patch.shot_size, "shot_size")?;
+        apply_field_edit(&mut target.transition, &patch.transition, "transition")?;
+        if let Some(refs) = &patch.refs {
+            apply_field_edit(
+                &mut target.refs.characters,
+                &refs.characters,
+                "refs.characters",
+            )?;
+            apply_field_edit(&mut target.refs.scene, &refs.scene, "refs.scene")?;
+            apply_field_edit(&mut target.refs.props, &refs.props, "refs.props")?;
+            self.validate_shot_refs(target)?;
+        }
+        if let Some(description) = &patch.description {
+            if description.value.trim().is_empty() {
+                return Err(StoreError::Invalid(
+                    "shot description must not be empty".into(),
+                ));
+            }
+        }
+        if let Some(duration) = &patch.duration_secs {
+            if !duration.value.is_finite() || !(0.1..=120.0).contains(&duration.value) {
+                return Err(StoreError::Invalid(
+                    "shot duration must be 0.1–120 seconds".into(),
+                ));
+            }
+        }
+        self.write_storyboard_locked(ep, &board)?;
+        Ok(board)
+    }
+
     /// Validate and upsert one shot, keeping its existing position or appending
     /// a new shot. Renumber `no` in display order. Reference slugs are checked
     /// against existing cards; unknown references are a value-level error.
@@ -867,6 +983,53 @@ impl StoryStore {
 
     // -- assets (characters / scenes / props) --------------------------------
 
+    pub fn update_asset_text(
+        &self,
+        kind: &str,
+        slug: &str,
+        patch: &AssetTextPatch,
+    ) -> Result<serde_json::Value, StoreError> {
+        let _guard = self.write_guard();
+        validate_slug(slug).map_err(StoreError::Invalid)?;
+        let result = match kind {
+            "character" => {
+                let mut card = self.read_character(slug)?;
+                apply_asset_text(
+                    &mut card.name,
+                    &mut card.description,
+                    &mut card.prompt_fragment,
+                    patch,
+                )?;
+                self.upsert_character_locked(&card)?;
+                serde_json::to_value(card)?
+            }
+            "scene" => {
+                let mut card = self.read_scene(slug)?;
+                apply_asset_text(
+                    &mut card.name,
+                    &mut card.description,
+                    &mut card.prompt_fragment,
+                    patch,
+                )?;
+                self.upsert_scene_locked(&card)?;
+                serde_json::to_value(card)?
+            }
+            "prop" => {
+                let mut card = self.read_prop(slug)?;
+                apply_asset_text(
+                    &mut card.name,
+                    &mut card.description,
+                    &mut card.prompt_fragment,
+                    patch,
+                )?;
+                self.upsert_prop_locked(&card)?;
+                serde_json::to_value(card)?
+            }
+            _ => return Err(StoreError::Invalid(format!("unknown asset kind: {kind}"))),
+        };
+        Ok(result)
+    }
+
     pub fn list_characters(&self) -> Result<Vec<CharacterCard>, StoreError> {
         self.list_cards("characters", "character.json")
     }
@@ -1180,6 +1343,244 @@ mod tests {
             id: id.into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn field_edit_keeps_current_shot_media_and_unedited_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Field edits").unwrap();
+        store
+            .replace_storyboard(
+                "ep001",
+                vec![StoryShot {
+                    description: "Original".into(),
+                    camera: Some("static".into()),
+                    duration_secs: 3.0,
+                    ..shot("shot-0001")
+                }],
+            )
+            .unwrap();
+        let mut latest = store.read_storyboard("ep001").unwrap().shots.remove(0);
+        latest.camera = Some("pan".into());
+        latest.selected = Some("episodes/ep001/shots/shot-0001/first-frame.png".into());
+        latest.audio = Some(ShotAudio {
+            path: "episodes/ep001/shots/shot-0001/audio/task-7.wav".into(),
+            duration_secs: 2.0,
+            task_id: 7,
+        });
+        latest.state = ShotState::Selected;
+        store.upsert_shot("ep001", &latest).unwrap();
+        let clip = ShotClip {
+            path: "episodes/ep001/shots/shot-0001/video/task-8.mp4".into(),
+            duration_secs: 3.0,
+            task_id: 8,
+        };
+        store
+            .bind_shot_video("ep001", "shot-0001", clip.clone(), None)
+            .unwrap();
+        let patch = serde_json::from_value(serde_json::json!({
+            "description": {"expected": "Original", "value": "Edited"}
+        }))
+        .unwrap();
+        let board = store
+            .update_shot_fields("ep001", "shot-0001", &patch)
+            .unwrap();
+        let updated = &board.shots[0];
+        assert_eq!(updated.description, "Edited");
+        assert_eq!(updated.camera.as_deref(), Some("pan"));
+        assert_eq!(updated.selected, latest.selected);
+        assert_eq!(updated.audio, latest.audio);
+        assert_eq!(updated.video, Some(clip));
+        assert_eq!(updated.state, ShotState::Selected);
+        assert_eq!(store.read_storyboard("ep001").unwrap(), board);
+    }
+
+    #[test]
+    fn field_edit_checks_all_preconditions_before_writing_and_allows_retry() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Conflicting fields").unwrap();
+        store
+            .replace_storyboard(
+                "ep001",
+                vec![StoryShot {
+                    description: "Agent edit".into(),
+                    camera: Some("static".into()),
+                    ..shot("shot-0001")
+                }],
+            )
+            .unwrap();
+        let path = store.resolve("episodes/ep001/storyboard.json").unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let stale = serde_json::from_value(serde_json::json!({
+            "camera": {"expected": "static", "value": null},
+            "description": {"expected": "Original", "value": "User edit"}
+        }))
+        .unwrap();
+        assert!(matches!(
+            store.update_shot_fields("ep001", "shot-0001", &stale),
+            Err(StoreError::Conflict(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        let current = serde_json::from_value(serde_json::json!({
+            "camera": {"expected": "static", "value": null},
+            "description": {"expected": "Agent edit", "value": "User edit"}
+        }))
+        .unwrap();
+        let first = store
+            .update_shot_fields("ep001", "shot-0001", &current)
+            .unwrap();
+        assert_eq!(first.shots[0].camera, None);
+        assert_eq!(first.shots[0].description, "User edit");
+        assert_eq!(
+            store
+                .update_shot_fields("ep001", "shot-0001", &current)
+                .unwrap(),
+            first
+        );
+    }
+
+    #[test]
+    fn field_edit_validates_refs_and_cannot_recreate_deleted_shots() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Invalid fields").unwrap();
+        store
+            .replace_storyboard("ep001", vec![shot("shot-0001")])
+            .unwrap();
+        let path = store.resolve("episodes/ep001/storyboard.json").unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let invalid = serde_json::from_value(serde_json::json!({
+            "refs": {"characters": {
+                "expected": [], "value": [{"slug": "missing", "outfit": ""}]
+            }}
+        }))
+        .unwrap();
+        assert!(matches!(
+            store.update_shot_fields("ep001", "shot-0001", &invalid),
+            Err(StoreError::Invalid(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        store.delete_shot("ep001", "shot-0001").unwrap();
+        let patch = serde_json::from_value(serde_json::json!({
+            "description": {"expected": "", "value": "Do not revive"}
+        }))
+        .unwrap();
+        assert!(store
+            .update_shot_fields("ep001", "shot-0001", &patch)
+            .is_err());
+        assert!(store.read_storyboard("ep001").unwrap().shots.is_empty());
+        assert!(!store.root().join("episodes/ep001/shots/shot-0001").exists());
+    }
+
+    #[test]
+    fn asset_text_edit_preserves_seed_and_latest_materials() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Resource edits").unwrap();
+        let original = CharacterCard {
+            slug: "lead".into(),
+            name: "Original".into(),
+            seed: Some(42),
+            personality: "Quiet".into(),
+            ..Default::default()
+        };
+        store.upsert_character(&original).unwrap();
+        let latest = CharacterCard {
+            description: "Agent description".into(),
+            refs: vec!["characters/lead/ref-2.png".into()],
+            turnaround: crate::comic::model::Turnaround {
+                front: Some("characters/lead/turnaround/front.png".into()),
+                ..Default::default()
+            },
+            outfits: vec![crate::comic::model::Outfit {
+                slug: "coat".into(),
+                name: "Coat".into(),
+                ..Default::default()
+            }],
+            expressions: vec!["characters/lead/expressions/smile.png".into()],
+            ..original
+        };
+        store.upsert_character(&latest).unwrap();
+        let patch = serde_json::from_value(serde_json::json!({
+            "name": {"expected": "Original", "value": "Renamed"}
+        }))
+        .unwrap();
+        let returned = store
+            .update_asset_text("character", "lead", &patch)
+            .unwrap();
+        let mut expected = latest;
+        expected.name = "Renamed".into();
+        assert_eq!(store.read_character("lead").unwrap(), expected);
+        assert_eq!(returned, serde_json::to_value(expected).unwrap());
+        for kind in ["scene", "prop"] {
+            let refs = vec![format!("{kind}s/set/ref-2.png")];
+            if kind == "scene" {
+                store
+                    .upsert_scene(&SceneCard {
+                        slug: "set".into(),
+                        name: "Original".into(),
+                        refs: refs.clone(),
+                        ..Default::default()
+                    })
+                    .unwrap();
+            } else {
+                store
+                    .upsert_prop(&PropCard {
+                        slug: "set".into(),
+                        name: "Original".into(),
+                        refs: refs.clone(),
+                        ..Default::default()
+                    })
+                    .unwrap();
+            }
+            let card = store.update_asset_text(kind, "set", &patch).unwrap();
+            assert_eq!(card["name"], "Renamed");
+            assert_eq!(card["refs"], serde_json::json!(refs));
+        }
+    }
+
+    #[test]
+    fn candidate_mark_and_image_binding_wait_for_latest_storyboard() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = StoryStore::init(dir.path(), "Atomic updates").unwrap();
+        store
+            .replace_storyboard("ep001", vec![shot("shot-0001"), shot("shot-0002")])
+            .unwrap();
+        let guard = store.write_guard();
+        let (started, ready) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn({
+            let path = dir.path().to_path_buf();
+            move || {
+                let writer = StoryStore::open(&path).unwrap();
+                started.send(()).unwrap();
+                writer
+                    .bind_shot_image(
+                        "ep001",
+                        "shot-0001",
+                        "episodes/ep001/shots/shot-0001/first-frame.png",
+                    )
+                    .unwrap()
+            }
+        });
+        ready.recv().unwrap();
+        let mut board = store.read_storyboard("ep001").unwrap();
+        board.shots[0].description = "Latest text".into();
+        board.shots[1].description = "Other shot".into();
+        board.shots[0].state = ShotState::Generating;
+        store.write_storyboard_locked("ep001", &board).unwrap();
+        drop(guard);
+        let bound = worker.join().unwrap();
+        assert_eq!(bound.shots[0].description, "Latest text");
+        assert_eq!(bound.shots[1].description, "Other shot");
+        assert_eq!(bound.shots[0].state, ShotState::Selected);
+        store.mark_shot_candidate("ep001", "shot-0001").unwrap();
+        assert_eq!(store.read_storyboard("ep001").unwrap(), bound);
+        let mut current = bound;
+        current.shots[1].state = ShotState::Generating;
+        store.write_storyboard("ep001", &current).unwrap();
+        store.mark_shot_candidate("ep001", "shot-0002").unwrap();
+        let after = store.read_storyboard("ep001").unwrap();
+        assert_eq!(after.shots[0].state, ShotState::Selected);
+        assert_eq!(after.shots[1].state, ShotState::Candidate);
+        assert_eq!(after.shots[0].description, "Latest text");
     }
 
     #[test]

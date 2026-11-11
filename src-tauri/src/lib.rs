@@ -2600,6 +2600,8 @@ mod tauri_app {
                 comic_commands::comic_write_script,
                 comic_commands::comic_replace_storyboard,
                 comic_commands::comic_upsert_shot,
+                comic_commands::comic_update_shot_fields,
+                comic_commands::comic_update_asset_text,
                 comic_commands::comic_delete_shot,
                 comic_commands::comic_reorder_shots,
                 comic_commands::comic_upsert_character,

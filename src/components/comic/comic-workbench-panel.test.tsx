@@ -11,6 +11,7 @@ import type { ComicOverviewPayload } from "@/lib/comic"
 import messages from "@/i18n/messages/en.json"
 
 const mocks = vi.hoisted(() => ({
+  image: vi.fn(),
   overview: vi.fn(),
   asset: vi.fn(),
   tasks: vi.fn(),
@@ -19,6 +20,10 @@ const mocks = vi.hoisted(() => ({
   clearShotVideo: vi.fn(),
   preview: vi.fn(),
   upsertShot: vi.fn(),
+  updateShotFields: vi.fn(),
+  updateAssetText: vi.fn(),
+  upsertCharacter: vi.fn(),
+  saveAssetImage: vi.fn(),
   subscribe: vi.fn(),
   createConversation: vi.fn(),
   listConversations: vi.fn(),
@@ -75,10 +80,14 @@ vi.mock("@/lib/comic", () => ({
     clearShotVideo: mocks.clearShotVideo,
     requestVideoPreview: mocks.preview,
     upsertShot: mocks.upsertShot,
+    updateShotFields: mocks.updateShotFields,
+    updateAssetText: mocks.updateAssetText,
+    upsertCharacter: mocks.upsertCharacter,
+    saveAssetImage: mocks.saveAssetImage,
   },
 }))
 vi.mock("@/lib/transport", () => ({
-  getTransport: () => ({ subscribe: mocks.subscribe }),
+  getTransport: () => ({ subscribe: mocks.subscribe, call: mocks.image }),
   isDesktop: () => mocks.isDesktop,
   isRemoteDesktopMode: () => mocks.isRemote,
   getServerBaseUrl: () => "http://workbench.local",
@@ -136,10 +145,14 @@ beforeEach(() => {
     title: "Draft",
     isPinned: false,
   }
+  mocks.image.mockResolvedValue({ mime: "image/png", data: "AA==" })
   mocks.overview.mockImplementation(async (folderId) => overview(folderId))
   mocks.listConversations.mockResolvedValue([])
   mocks.tasks.mockResolvedValue([])
   mocks.upsertShot.mockResolvedValue(undefined)
+  mocks.updateShotFields.mockResolvedValue({ shots: [] })
+  mocks.updateAssetText.mockResolvedValue({})
+  mocks.upsertCharacter.mockResolvedValue({ slug: "lead", affectedShots: [] })
   mocks.bindVideo.mockResolvedValue({ bound: true })
   mocks.preview.mockResolvedValue({ token: "tok", url: null })
   mocks.subscribe.mockResolvedValue(() => {})
@@ -677,7 +690,7 @@ describe("comic workbench next to the existing conversation", () => {
     )
   })
 
-  it("preserves a bound video when editing another shot field", async () => {
+  it("saves edited text without submitting stale shot media", async () => {
     useComicStore.setState({
       panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
     })
@@ -721,19 +734,394 @@ describe("comic workbench next to the existing conversation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() =>
-      expect(mocks.upsertShot).toHaveBeenCalledWith(
+      expect(mocks.updateShotFields).toHaveBeenCalledWith(
         7,
         "ep001",
-        expect.objectContaining({
-          description: "Updated frame",
-          video: {
-            path: "episodes/ep001/shots/shot-0001/video/task-42.mp4",
-            duration_secs: 3.25,
-            task_id: 42,
-          },
-        })
+        "shot-0001",
+        { description: { expected: "Old frame", value: "Updated frame" } }
       )
     )
+    expect(mocks.upsertShot).not.toHaveBeenCalled()
+  })
+
+  it("keeps text entered while an earlier save is pending", async () => {
+    useComicStore.setState({
+      panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
+    })
+    let complete!: () => void
+    const pending = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    mocks.upsertShot.mockReturnValue(pending)
+    mocks.updateShotFields.mockReturnValue(pending)
+    renderPanel()
+    await screen.findByText("Old frame")
+    fireEvent.click(
+      document.querySelector(".lucide-pencil")!.closest("button")!
+    )
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Submitted edit" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "New unsaved edit" },
+    })
+    await act(async () => {
+      complete()
+      await pending
+    })
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getAllByRole("textbox")[0]).toHaveValue("New unsaved edit")
+    expect(
+      useComicStore.getState().drafts[7]["episodes/ep001/shot-editor"]
+    ).toMatchObject({ description: "New unsaved edit" })
+  })
+
+  it("uses the saved baseline when resubmitting text typed during a save", async () => {
+    useComicStore.setState({
+      panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
+    })
+    let complete!: (value: unknown) => void
+    const pending = new Promise((resolve) => {
+      complete = resolve
+    })
+    mocks.updateShotFields.mockReturnValueOnce(pending)
+    renderPanel()
+    await screen.findByText("Old frame")
+    fireEvent.click(
+      document.querySelector(".lucide-pencil")!.closest("button")!
+    )
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Submitted edit" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Next edit" },
+    })
+    await act(async () => {
+      complete({
+        shots: [
+          {
+            id: "shot-0001",
+            no: 1,
+            description: "Submitted edit",
+            dialogue: [],
+            duration_secs: 3,
+            refs: { characters: [], scene: null, props: [] },
+            state: "draft",
+          },
+        ],
+      })
+      await pending
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(mocks.updateShotFields).toHaveBeenLastCalledWith(
+        7,
+        "ep001",
+        "shot-0001",
+        { description: { expected: "Submitted edit", value: "Next edit" } }
+      )
+    )
+  })
+
+  it("preserves a text draft when removing a bound video", async () => {
+    useComicStore.setState({
+      panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
+    })
+    mocks.asset.mockResolvedValue({
+      script: "Script",
+      storyboard: {
+        shots: [
+          {
+            id: "shot-0001",
+            no: 1,
+            description: "Old frame",
+            dialogue: [],
+            duration_secs: 3,
+            refs: { characters: [], scene: null, props: [] },
+            state: "done",
+            selected: null,
+            audio: null,
+            video: {
+              path: "episodes/ep001/shots/shot-0001/video/task-42.mp4",
+              duration_secs: 3,
+              task_id: 42,
+            },
+          },
+        ],
+      },
+    })
+    mocks.clearShotVideo.mockResolvedValue({ unbound: true })
+    renderPanel()
+    await screen.findByText("Old frame")
+    fireEvent.click(
+      document.querySelector(".lucide-pencil")!.closest("button")!
+    )
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Not saved yet" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Unbind clip" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Unbind clip" }))
+    await waitFor(() => expect(mocks.clearShotVideo).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(screen.getAllByRole("textbox")[0]).toHaveValue("Not saved yet")
+  })
+
+  it("saves only changed asset text without a stale seed or refs payload", async () => {
+    const card = {
+      slug: "lead",
+      name: "Lead",
+      description: "Original",
+      prompt_fragment: "Portrait",
+      seed: 42,
+      personality: "Quiet",
+      turnaround: {},
+      outfits: [],
+      expressions: [],
+      refs: [],
+    }
+    useComicStore.setState({
+      panel: { 7: { kind: "asset", assetKind: "character", slug: "lead" } },
+    })
+    mocks.asset.mockResolvedValue(card)
+    mocks.updateAssetText.mockResolvedValue({
+      ...card,
+      name: "Renamed",
+      refs: ["new.png"],
+    })
+    renderPanel()
+    await screen.findByDisplayValue("Lead")
+    fireEvent.change(screen.getByDisplayValue("Lead"), {
+      target: { value: "Renamed" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(mocks.updateAssetText).toHaveBeenCalledWith(
+        7,
+        "character",
+        "lead",
+        { name: { expected: "Lead", value: "Renamed" } }
+      )
+    )
+    expect(mocks.upsertCharacter).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue("Renamed")).toBeInTheDocument()
+  })
+
+  it("rebases newer asset text after an earlier save succeeds", async () => {
+    const card = {
+      slug: "lead",
+      name: "Lead",
+      description: "Original",
+      prompt_fragment: "Portrait",
+      seed: 42,
+      personality: "Quiet",
+      turnaround: {},
+      outfits: [],
+      expressions: [],
+      refs: [],
+    }
+    useComicStore.setState({
+      panel: { 7: { kind: "asset", assetKind: "character", slug: "lead" } },
+    })
+    mocks.asset.mockResolvedValue(card)
+    let complete!: (value: unknown) => void
+    const pending = new Promise((resolve) => {
+      complete = resolve
+    })
+    mocks.updateAssetText.mockReturnValueOnce(pending)
+    mocks.updateAssetText.mockResolvedValueOnce({ ...card, name: "Next" })
+    renderPanel()
+    await screen.findByDisplayValue("Lead")
+    fireEvent.change(screen.getByDisplayValue("Lead"), {
+      target: { value: "Submitted" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.change(screen.getByDisplayValue("Submitted"), {
+      target: { value: "Next" },
+    })
+    await act(async () => {
+      complete({ ...card, name: "Submitted" })
+      await pending
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(mocks.updateAssetText).toHaveBeenLastCalledWith(
+        7,
+        "character",
+        "lead",
+        { name: { expected: "Submitted", value: "Next" } }
+      )
+    )
+  })
+
+  it("continues editing the created shot instead of creating a second shot", async () => {
+    useComicStore.setState({
+      panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
+    })
+    let complete!: () => void
+    const pending = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    mocks.upsertShot.mockReturnValueOnce(pending)
+    renderPanel()
+    await screen.findByText("Old frame")
+    fireEvent.click(screen.getByRole("button", { name: "Add shot" }))
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Created text" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.change(screen.getAllByRole("textbox")[0], {
+      target: { value: "Continued text" },
+    })
+    await act(async () => {
+      complete()
+      await pending
+    })
+    expect(screen.getAllByRole("textbox")[0]).toHaveValue("Continued text")
+    expect(
+      useComicStore.getState().drafts[7]["episodes/ep001/shot-editor"]
+    ).toMatchObject({
+      shot: { id: "shot-0002", description: "Created text" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(mocks.updateShotFields).toHaveBeenCalledWith(
+        7,
+        "ep001",
+        "shot-0002",
+        { description: { expected: "Created text", value: "Continued text" } }
+      )
+    )
+    expect(mocks.upsertShot).toHaveBeenCalledTimes(1)
+  })
+
+  it("can start editing over HTTP when native randomUUID is unavailable", async () => {
+    const generate = crypto.randomUUID
+    Object.defineProperty(crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    })
+    try {
+      useComicStore.setState({
+        panel: { 7: { kind: "storyboard", episodeId: "ep001" } },
+      })
+      renderPanel()
+      await screen.findByText("Old frame")
+      fireEvent.click(screen.getByRole("button", { name: "Add shot" }))
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(
+        useComicStore.getState().drafts[7]["episodes/ep001/shot-editor"]
+      ).toMatchObject({
+        editId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      })
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", {
+        configurable: true,
+        value: generate,
+      })
+    }
+  })
+
+  it("keeps a remounted assets newer field baseline when an old save finishes", async () => {
+    const card = {
+      slug: "lead",
+      name: "Lead",
+      description: "Original",
+      prompt_fragment: "Portrait",
+      turnaround: {},
+      refs: [],
+      outfits: [],
+      expressions: [],
+    }
+    useComicStore.setState({
+      panel: { 7: { kind: "asset", assetKind: "character", slug: "lead" } },
+    })
+    mocks.asset.mockResolvedValue(card)
+    let complete!: (value: unknown) => void
+    const pending = new Promise((resolve) => {
+      complete = resolve
+    })
+    mocks.updateAssetText.mockReturnValueOnce(pending)
+    const first = renderPanel()
+    await screen.findByDisplayValue("Lead")
+    fireEvent.change(screen.getByDisplayValue("Lead"), {
+      target: { value: "Saved name" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    first.unmount()
+    mocks.asset.mockResolvedValue({ ...card, name: "Saved name" })
+    renderPanel()
+    await screen.findByDisplayValue("Original")
+    act(() =>
+      useComicStore.getState().setResourceDraft(7, "character/lead", {
+        kind: "asset",
+        name: "Saved name",
+        description: "Next description",
+        promptFragment: "Portrait",
+        baseline: {
+          name: "Saved name",
+          description: "Saved description",
+          promptFragment: "Portrait",
+        },
+      })
+    )
+    await act(async () => {
+      complete({ ...card, name: "Saved name" })
+      await pending
+    })
+    expect(useComicStore.getState().drafts[7]["character/lead"]).toMatchObject({
+      baseline: { name: "Saved name", description: "Saved description" },
+      description: "Next description",
+    })
+  })
+
+  it("ignores an upload readback that predates a successful text save", async () => {
+    const card = {
+      slug: "lead",
+      name: "Lead",
+      description: "Original",
+      prompt_fragment: "Portrait",
+      turnaround: {},
+      refs: [],
+      outfits: [],
+      expressions: [],
+    }
+    useComicStore.setState({
+      panel: { 7: { kind: "asset", assetKind: "character", slug: "lead" } },
+    })
+    let complete!: (value: unknown) => void
+    const pending = new Promise((resolve) => {
+      complete = resolve
+    })
+    mocks.asset.mockResolvedValueOnce(card).mockReturnValueOnce(pending)
+    mocks.saveAssetImage.mockResolvedValue("characters/lead/refs/new.png")
+    mocks.updateAssetText.mockResolvedValue({ ...card, name: "Saved name" })
+    renderPanel()
+    await screen.findByDisplayValue("Lead")
+    const file = new File(["png"], "new.png", { type: "image/png" })
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => new ArrayBuffer(2),
+    })
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    })
+    await waitFor(() => expect(mocks.asset).toHaveBeenCalledTimes(2))
+    fireEvent.change(screen.getByDisplayValue("Lead"), {
+      target: { value: "Saved name" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(
+        useComicStore.getState().drafts[7]?.["character/lead"]
+      ).toBeUndefined()
+    )
+    await act(async () => {
+      complete(card)
+      await pending
+    })
+    expect(screen.getByDisplayValue("Saved name")).toBeInTheDocument()
   })
 
   it("updates finished shots without replacing a script draft", async () => {

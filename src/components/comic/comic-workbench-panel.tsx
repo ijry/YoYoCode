@@ -67,15 +67,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn, randomUUID } from "@/lib/utils"
 import { comicEntryIsManualOnly } from "@/lib/comic-production-entry"
 import {
   comicApi,
+  type AssetTextPatch,
   type Chapter,
-  type CharacterCard,
   type ComicOverviewPayload,
+  type FieldEdit,
   type GenerationTaskView,
-  type SceneCard,
+  type ShotFieldsPatch,
   type SourceReport,
   type StoryShot,
   type WindowRead,
@@ -1210,8 +1211,14 @@ function StoryboardPanel({
         onOpenChange={(open) => {
           if (!open) setEditing(null)
         }}
-        onSaved={async () => {
-          setEditing(null)
+        onSaved={async (submittedDraft) => {
+          useComicStore
+            .getState()
+            .clearResourceDraft(folderId, shotDraftKey, submittedDraft)
+          await reload()
+          void useComicStore.getState().refresh(folderId)
+        }}
+        onChanged={async () => {
           await reload()
           void useComicStore.getState().refresh(folderId)
         }}
@@ -1342,6 +1349,7 @@ function makeShotDraft(shot: StoryShot | "new" | null): ComicShotDraft {
   return {
     kind: "shot",
     shot: shot ?? "new",
+    editId: randomUUID(),
     description: current?.description ?? "",
     dialogue:
       current?.dialogue.map((line) => ({
@@ -1362,6 +1370,62 @@ function makeShotDraft(shot: StoryShot | "new" | null): ComicShotDraft {
   }
 }
 
+function changedField<T>(expected: T, value: T): FieldEdit<T> | undefined {
+  return JSON.stringify(expected) === JSON.stringify(value)
+    ? undefined
+    : { expected, value }
+}
+
+function shotFieldsPatch(draft: ComicShotDraft): ShotFieldsPatch {
+  const original = draft.shot === "new" ? null : draft.shot
+  const dialogue = draft.dialogue
+    .filter((line) => line.text.trim())
+    .map((line) => ({ character: line.character || null, text: line.text }))
+  return {
+    description: changedField(
+      original?.description ?? "",
+      draft.description.trim()
+    ),
+    dialogue: changedField(original?.dialogue ?? [], dialogue),
+    duration_secs: changedField(
+      original?.duration_secs || 3,
+      Number(draft.duration) || 3
+    ),
+    camera: changedField(original?.camera ?? null, draft.camera || null),
+    shot_size: changedField(
+      original?.shot_size ?? null,
+      draft.shotSize || null
+    ),
+    transition: changedField(
+      original?.transition ?? null,
+      draft.transition || null
+    ),
+    refs: [
+      changedField(
+        original?.refs.characters ?? [],
+        draft.charRefs.filter((character) => character.slug)
+      ),
+      changedField(original?.refs.scene ?? null, draft.sceneRef || null),
+      changedField(original?.refs.props ?? [], draft.propRefs.filter(Boolean)),
+    ].some((field) => field !== undefined)
+      ? {
+          characters: changedField(
+            original?.refs.characters ?? [],
+            draft.charRefs.filter((character) => character.slug)
+          ),
+          scene: changedField(
+            original?.refs.scene ?? null,
+            draft.sceneRef || null
+          ),
+          props: changedField(
+            original?.refs.props ?? [],
+            draft.propRefs.filter(Boolean)
+          ),
+        }
+      : undefined,
+  }
+}
+
 function ShotEditDialog({
   folderId,
   episodeId,
@@ -1369,13 +1433,15 @@ function ShotEditDialog({
   editing,
   onOpenChange,
   onSaved,
+  onChanged,
 }: {
   folderId: number
   episodeId: string
   shots: StoryShot[]
   editing: StoryShot | "new" | null
   onOpenChange: (open: boolean) => void
-  onSaved: () => Promise<void> | void
+  onSaved: (submittedDraft: ComicShotDraft) => Promise<void> | void
+  onChanged: () => Promise<void> | void
 }) {
   const t = useTranslations("Comic")
   const overview = useComicStore((state) => state.overviews[folderId])
@@ -1389,7 +1455,9 @@ function ShotEditDialog({
   // current clip through untouched, so this dialog is the only place a bound
   // clip can be cleared.
   const boundVideo =
-    editing !== "new" && editing ? (editing.video ?? null) : null
+    editing !== "new" && editing
+      ? (shots.find((shot) => shot.id === editing.id)?.video ?? null)
+      : null
   const [confirmUnbind, setConfirmUnbind] = useState(false)
   const {
     description,
@@ -1437,29 +1505,95 @@ function ShotEditDialog({
 
   const submit = async () => {
     if (!description.trim()) return
+    const submittedDraft = draft
     setBusy(true)
     try {
-      await comicApi.upsertShot(folderId, episodeId, {
-        id: isNew ? nextShotId() : (editing as StoryShot).id,
-        description: description.trim(),
-        dialogue: dialogue
-          .filter((d) => d.text.trim())
-          .map((d) => ({ character: d.character || null, text: d.text })),
-        duration_secs: Number(duration) || 3,
-        camera: camera || null,
-        shot_size: shotSize || null,
-        transition: transition || null,
-        refs: {
-          characters: charRefs.filter((c) => c.slug),
-          scene: sceneRef || null,
-          props: propRefs.filter(Boolean),
-        },
-        state: isNew ? "draft" : (editing as StoryShot).state,
-        selected: isNew ? null : (editing as StoryShot).selected,
-        audio: isNew ? null : (editing as StoryShot).audio,
-        video: isNew ? null : (editing as StoryShot).video,
-      })
-      await onSaved()
+      if (isNew) {
+        const createdShot: StoryShot = {
+          id: nextShotId(),
+          no: shots.length + 1,
+          description: description.trim(),
+          dialogue: dialogue
+            .filter((line) => line.text.trim())
+            .map((line) => ({
+              character: line.character || null,
+              text: line.text,
+            })),
+          duration_secs: Number(duration) || 3,
+          camera: camera || null,
+          shot_size: shotSize || null,
+          transition: transition || null,
+          refs: {
+            characters: charRefs.filter((character) => character.slug),
+            scene: sceneRef || null,
+            props: propRefs.filter(Boolean),
+          },
+          state: "draft",
+          selected: null,
+          audio: null,
+          video: null,
+        }
+        await comicApi.upsertShot(folderId, episodeId, createdShot)
+        const state = useComicStore.getState()
+        const currentDraft = state.drafts[folderId]?.[draftKey]
+        if (
+          currentDraft?.kind === "shot" &&
+          currentDraft !== submittedDraft &&
+          currentDraft.shot === "new" &&
+          currentDraft.editId === submittedDraft.editId
+        ) {
+          state.setResourceDraft(folderId, draftKey, {
+            ...currentDraft,
+            shot: createdShot,
+          })
+        }
+      } else {
+        const updated = await comicApi.updateShotFields(
+          folderId,
+          episodeId,
+          (editing as StoryShot).id,
+          shotFieldsPatch(submittedDraft)
+        )
+        const state = useComicStore.getState()
+        const currentDraft = state.drafts[folderId]?.[draftKey]
+        const savedShot = updated.shots.find(
+          (shot) => shot.id === (editing as StoryShot).id
+        )
+        if (
+          savedShot &&
+          currentDraft?.kind === "shot" &&
+          currentDraft !== submittedDraft &&
+          currentDraft.shot !== "new" &&
+          currentDraft.shot.id === savedShot.id &&
+          currentDraft.editId === submittedDraft.editId
+        ) {
+          const baseline = { ...currentDraft.shot }
+          const patch = shotFieldsPatch(submittedDraft)
+          if (patch.description) baseline.description = savedShot.description
+          if (patch.dialogue) baseline.dialogue = savedShot.dialogue
+          if (patch.duration_secs)
+            baseline.duration_secs = savedShot.duration_secs
+          if (patch.camera) baseline.camera = savedShot.camera
+          if (patch.shot_size) baseline.shot_size = savedShot.shot_size
+          if (patch.transition) baseline.transition = savedShot.transition
+          baseline.refs = {
+            characters: patch.refs?.characters
+              ? savedShot.refs.characters
+              : baseline.refs.characters,
+            scene: patch.refs?.scene
+              ? savedShot.refs.scene
+              : baseline.refs.scene,
+            props: patch.refs?.props
+              ? savedShot.refs.props
+              : baseline.refs.props,
+          }
+          state.setResourceDraft(folderId, draftKey, {
+            ...currentDraft,
+            shot: baseline,
+          })
+        }
+      }
+      await onSaved(submittedDraft)
     } catch (err) {
       toast.error(toErrorMessage(err))
     } finally {
@@ -1479,7 +1613,7 @@ function ShotEditDialog({
       )
       toast.success(t("videoUnbound"))
       setConfirmUnbind(false)
-      await onSaved()
+      await onChanged()
     } catch (err) {
       toast.error(toErrorMessage(err))
     } finally {
@@ -1747,33 +1881,43 @@ function AssetPanel({
   const [card, setCard] = useState<Record<string, unknown> | null>(null)
   const draftKey = `${assetKind}/${slug}`
   const draft = useComicStore((state) => state.drafts[folderId]?.[draftKey])
-  const fields =
-    draft?.kind === "asset"
-      ? draft
-      : {
-          name: String(card?.name ?? ""),
-          description: String(card?.description ?? ""),
-          promptFragment: String(card?.prompt_fragment ?? ""),
-        }
+  const currentText = {
+    name: String(card?.name ?? ""),
+    description: String(card?.description ?? ""),
+    promptFragment: String(card?.prompt_fragment ?? ""),
+  }
+  const fields = draft?.kind === "asset" ? draft : currentText
   const { name, description, promptFragment } = fields
-  const updateFields = (patch: Partial<typeof fields>) => {
+  const baseline =
+    draft?.kind === "asset" ? (draft.baseline ?? currentText) : currentText
+  const updateFields = (patch: Partial<typeof currentText>) => {
     useComicStore.getState().setResourceDraft(folderId, draftKey, {
       ...fields,
       ...patch,
       kind: "asset",
+      baseline,
     })
   }
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const slotRef = useRef<string>("refs")
 
+  const requestVersion = useRef(0)
   useEffect(() => {
+    const request = ++requestVersion.current
+    let disposed = false
     void comicApi
       .getAsset(folderId, assetKind, slug)
       .then((doc) => {
-        setCard(doc)
+        if (!disposed && request === requestVersion.current) setCard(doc)
       })
-      .catch((err) => toast.error(toErrorMessage(err)))
+      .catch((err) => {
+        if (!disposed && request === requestVersion.current)
+          toast.error(toErrorMessage(err))
+      })
+    return () => {
+      disposed = true
+    }
   }, [folderId, assetKind, slug])
 
   if (!card) {
@@ -1796,40 +1940,45 @@ function AssetPanel({
   }[]
 
   const save = async () => {
+    const request = ++requestVersion.current
+    const submittedDraft = draft
+    const patch: AssetTextPatch = {
+      name: changedField(baseline.name, name),
+      description: changedField(baseline.description, description),
+      prompt_fragment: changedField(baseline.promptFragment, promptFragment),
+    }
     setBusy(true)
     try {
-      if (assetKind === "character") {
-        await comicApi.upsertCharacter(folderId, {
-          slug,
-          name,
-          description,
-          prompt_fragment: promptFragment,
-          personality: String(card.personality ?? ""),
-          turnaround: turnaround as CharacterCard["turnaround"],
-          outfits: outfits as CharacterCard["outfits"],
-          expressions: (card.expressions ?? []) as string[],
-          refs,
-        })
-      } else if (assetKind === "scene") {
-        await comicApi.upsertScene(folderId, {
-          slug,
-          name,
-          description,
-          prompt_fragment: promptFragment,
-          refs,
-        } as SceneCard)
-      } else {
-        await comicApi.upsertProp(folderId, {
-          slug,
-          name,
-          description,
-          prompt_fragment: promptFragment,
-          refs,
+      const updated = await comicApi.updateAssetText(
+        folderId,
+        assetKind,
+        slug,
+        patch
+      )
+      if (request === requestVersion.current) setCard(updated)
+      const state = useComicStore.getState()
+      const currentDraft = state.drafts[folderId]?.[draftKey]
+      if (currentDraft?.kind === "asset" && currentDraft !== submittedDraft) {
+        state.setResourceDraft(folderId, draftKey, {
+          ...currentDraft,
+          baseline: {
+            ...(currentDraft.baseline ?? baseline),
+            ...(patch.name ? { name: String(updated.name ?? name) } : {}),
+            ...(patch.description
+              ? { description: String(updated.description ?? description) }
+              : {}),
+            ...(patch.prompt_fragment
+              ? {
+                  promptFragment: String(
+                    updated.prompt_fragment ?? promptFragment
+                  ),
+                }
+              : {}),
+          },
         })
       }
-      setCard({ ...card, name, description, prompt_fragment: promptFragment })
-      if (draft) {
-        useComicStore.getState().clearResourceDraft(folderId, draftKey, draft)
+      if (submittedDraft) {
+        state.clearResourceDraft(folderId, draftKey, submittedDraft)
       }
       toast.success(t("assetSaved"))
       void useComicStore.getState().refresh(folderId)
@@ -1860,11 +2009,12 @@ function AssetPanel({
           slotRef.current,
           btoa(binary)
         )
-        .then(() => {
+        .then(async () => {
           toast.success(t("imageSaved"))
-          return comicApi.getAsset(folderId, assetKind, slug)
+          const request = ++requestVersion.current
+          const doc = await comicApi.getAsset(folderId, assetKind, slug)
+          if (request === requestVersion.current) setCard(doc)
         })
-        .then((doc) => setCard(doc))
         .catch((err) => toast.error(toErrorMessage(err)))
     })
   }

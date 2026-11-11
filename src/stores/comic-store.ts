@@ -34,6 +34,7 @@ export type ComicPanelKind =
 export interface ComicShotDraft {
   kind: "shot"
   shot: StoryShot | "new"
+  editId?: string
   description: string
   dialogue: { character: string; text: string }[]
   duration: string
@@ -45,11 +46,22 @@ export interface ComicShotDraft {
   propRefs: string[]
 }
 
+export interface ComicAssetText {
+  name: string
+  description: string
+  promptFragment: string
+}
+
+export interface ComicAssetDraft extends ComicAssetText {
+  kind: "asset"
+  baseline?: ComicAssetText
+}
+
 export type ComicResourceDraft =
   | { kind: "script"; text: string }
   | { kind: "storyboard-import"; text: string }
   | { kind: "episode"; title: string; script: string; createdId?: string }
-  | { kind: "asset"; name: string; description: string; promptFragment: string }
+  | ComicAssetDraft
   | ComicShotDraft
   | {
       kind: "setup"
