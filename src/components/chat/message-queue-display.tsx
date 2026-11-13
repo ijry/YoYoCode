@@ -256,11 +256,17 @@ export function MessageQueueDisplay({
     initialAt: string | null
   } | null>(null)
   const [scheduling, setScheduling] = useState(false)
-  const paused = queueControl && queueControl.status !== "open"
+  // The banner is an interruption notice, not a progress display. Once the
+  // recovery turn is admitted (`resuming`) the conversation itself shows the
+  // running turn, so the banner goes away — a later failure re-raises it as
+  // `paused`. `resume_requested` keeps it: nothing is visibly running yet and
+  // the disabled "Continuing…" button is the click's only feedback.
+  const paused =
+    queueControl &&
+    queueControl.status !== "open" &&
+    queueControl.status !== "resuming"
   const resumeRunning =
-    continuing ||
-    queueControl?.status === "resuming" ||
-    queueControl?.status === "resume_requested"
+    continuing || queueControl?.status === "resume_requested"
   const continueTask = async () => {
     if (
       !onContinue ||

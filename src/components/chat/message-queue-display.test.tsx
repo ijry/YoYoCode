@@ -88,7 +88,9 @@ describe("MessageQueueDisplay click-to-insert", () => {
     expect(onContinue).toHaveBeenCalledTimes(1)
   })
 
-  it("prevents another continuation while the original recovery is still running", () => {
+  it("hides the banner once the recovery turn is actually running", () => {
+    // The conversation itself shows the running turn; keeping the banner up
+    // would only duplicate it. A later failure re-raises it as `paused`.
     renderDisplay({
       queue: [],
       queueControl: {
@@ -96,6 +98,25 @@ describe("MessageQueueDisplay click-to-insert", () => {
         status: "resuming",
         failed_attempt_id: "a",
         active_attempt_id: "r",
+        error: "quota error",
+        revision: 2,
+      },
+      onContinue: vi.fn(),
+    })
+    expect(screen.queryByText("quota error")).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Continuing unfinished task…" })
+    ).toBeNull()
+  })
+
+  it("prevents another continuation while recovery is requested but not yet admitted", () => {
+    renderDisplay({
+      queue: [],
+      queueControl: {
+        owner_id: "42",
+        status: "resume_requested",
+        failed_attempt_id: "a",
+        active_attempt_id: null,
         error: "quota error",
         revision: 2,
       },
