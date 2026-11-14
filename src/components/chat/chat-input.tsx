@@ -54,6 +54,12 @@ interface ChatInputProps {
   queue?: QueuedMessage[]
   queueControl?: import("@/lib/types").MessageQueueState | null
   onQueueContinue?: () => Promise<void> | void
+  /** Lift the user-stop hold so the queue drains again (see
+   *  `MessageQueueDisplayProps.onReleaseHold`). */
+  onQueueReleaseHold?: () => Promise<void> | void
+  /** Send ONE queued row immediately at the user's request — the manual
+   *  override for a held queue (see `MessageQueueDisplayProps.onSendNow`). */
+  onQueueSendNow?: (id: string) => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   /** One-off scheduled send (see `MessageInput.onEnqueueScheduled`); present
    *  only on hosts that declare `scheduled_send`. */
@@ -146,6 +152,8 @@ export const ChatInput = memo(function ChatInput({
   queue,
   queueControl,
   onQueueContinue,
+  onQueueReleaseHold,
+  onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
   onQueueSchedule,
@@ -210,7 +218,9 @@ export const ChatInput = memo(function ChatInput({
       }}
     >
       {queue &&
-        (queue.length > 0 || (queueControl && queueControl.status !== "open")) &&
+        (queue.length > 0 ||
+          (queueControl &&
+            (queueControl.status !== "open" || queueControl.hold != null))) &&
         onQueueReorder &&
         onQueueEdit &&
         onQueueDelete && (
@@ -218,6 +228,8 @@ export const ChatInput = memo(function ChatInput({
             queue={queue}
             queueControl={queueControl}
             onContinue={onQueueContinue}
+            onReleaseHold={onQueueReleaseHold}
+            onSendNow={onQueueSendNow}
             onReorder={onQueueReorder}
             onEdit={onQueueEdit}
             onDelete={onQueueDelete}

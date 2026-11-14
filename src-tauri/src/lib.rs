@@ -2442,6 +2442,8 @@ mod tauri_app {
                 message_queue_commands::message_queue_capabilities,
                 message_queue_commands::message_queue_state,
                 message_queue_commands::message_queue_continue,
+                message_queue_commands::message_queue_release_hold,
+                message_queue_commands::message_queue_send_now,
                 message_queue_commands::message_queue_retry,
                 message_queue_commands::message_queue_save,
                 message_queue_commands::message_queue_enqueue,

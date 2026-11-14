@@ -127,6 +127,12 @@ interface ConversationShellProps {
   queue?: QueuedMessage[]
   queueControl?: import("@/lib/types").MessageQueueState | null
   onQueueContinue?: () => Promise<void> | void
+  /** Lift the user-stop hold so the queue drains again (see
+   *  `ChatInputProps.onQueueReleaseHold`). */
+  onQueueReleaseHold?: () => Promise<void> | void
+  /** Send ONE queued row immediately at the user's request (see
+   *  `ChatInputProps.onQueueSendNow`). */
+  onQueueSendNow?: (id: string) => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   /** One-off scheduled send (see `ChatInputProps.onEnqueueScheduled`). */
   onEnqueueScheduled?: (
@@ -232,6 +238,8 @@ export function ConversationShell({
   queue,
   queueControl,
   onQueueContinue,
+  onQueueReleaseHold,
+  onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
   onQueueSchedule,
@@ -369,6 +377,8 @@ export function ConversationShell({
               queue={queue}
               queueControl={queueControl}
               onQueueContinue={onQueueContinue}
+              onQueueReleaseHold={onQueueReleaseHold}
+              onQueueSendNow={onQueueSendNow}
               onEnqueue={onEnqueue}
               onEnqueueScheduled={onEnqueueScheduled}
               onQueueSchedule={onQueueSchedule}

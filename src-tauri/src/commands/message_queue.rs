@@ -37,6 +37,36 @@ pub async fn message_queue_continue(
     Ok(())
 }
 
+/// Lift the user-stop hold (`hold = 'manual_stop'`) so the queue drains again.
+/// The drainer wakes on the notify; a held owner simply stops returning
+/// `Waiting` once `can_drain` sees `hold IS NULL`.
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_release_hold(
+    db: tauri::State<'_, AppDatabase>, app: tauri::AppHandle, drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+) -> Result<(), DbError> {
+    let state = crate::db::service::message_queue_control_service::release_hold(&db.conn, &owner_id).await?;
+    emit_event(&EventEmitter::Tauri(app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
+    drain.notify(owner_id);
+    Ok(())
+}
+
+/// Send ONE queued item immediately at the user's explicit request — the
+/// manual override for a queue held by a user stop. Fire-and-forget like
+/// `message_queue_retry`: the drain worker owns the connection setup and
+/// broadcasts the row's delivery state, so a failure surfaces on the row.
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_send_now(
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item_id: String,
+) -> Result<(), DbError> {
+    drain.send_now(owner_id, item_id);
+    Ok(())
+}
+
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub async fn message_queue_retry(

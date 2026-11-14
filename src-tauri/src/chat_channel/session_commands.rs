@@ -589,7 +589,7 @@ pub async fn handle_task(
         )
         .await
         {
-            let _ = conn_mgr.cancel(db, &connection_id).await;
+            let _ = conn_mgr.cancel(db, &connection_id, true).await;
             let _ = conversation_service::update_status(
                 db,
                 conv.id,
@@ -704,7 +704,7 @@ pub async fn handle_post_action(
                 } else {
                     let _ = sender_context_service::clear_session(db, channel_id, &sender_id).await;
                 }
-                let _ = conn_mgr.cancel(db, &connection_id).await;
+                let _ = conn_mgr.cancel(db, &connection_id, true).await;
                 let _ = conversation_service::update_status(
                     db,
                     conversation_id,
@@ -939,7 +939,7 @@ pub async fn handle_resume(
         )
         .await
         {
-            let _ = conn_mgr.cancel(db, &connection_id).await;
+            let _ = conn_mgr.cancel(db, &connection_id, true).await;
             bridge.lock().await.remove(&connection_id);
             return RichMessage::error(format!("Failed to bind topic: {e}"));
         }
@@ -993,7 +993,7 @@ pub async fn handle_cancel(
 
     // Cancel the ACP connection (also CAS-updates the row to Cancelled and
     // emits ConversationStatusChanged when the row is still InProgress).
-    let _ = conn_mgr.cancel(db, &session_ref.connection_id).await;
+    let _ = conn_mgr.cancel(db, &session_ref.connection_id, true).await;
 
     // Remove from bridge
     bridge.lock().await.remove(&session_ref.connection_id);
@@ -1334,7 +1334,7 @@ async fn resume_topic_binding_and_send_followup(
     )
     .await
     {
-        let _ = req.conn_mgr.cancel(req.db, &connection_id).await;
+        let _ = req.conn_mgr.cancel(req.db, &connection_id, true).await;
         req.bridge.lock().await.remove(&connection_id);
         return RichMessage::error(format!("Failed to bind topic: {e}"));
     }
@@ -1359,7 +1359,7 @@ async fn resume_topic_binding_and_send_followup(
     {
         req.bridge.lock().await.remove(&connection_id);
         let _ = thread_binding_service::clear_connection(req.db, binding.id).await;
-        let _ = req.conn_mgr.cancel(req.db, &connection_id).await;
+        let _ = req.conn_mgr.cancel(req.db, &connection_id, true).await;
         return RichMessage::error(format!(
             "{}{}",
             i18n::failed_to_send_message_label(req.lang),

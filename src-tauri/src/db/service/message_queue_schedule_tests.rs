@@ -51,7 +51,7 @@ async fn arrived_schedule_still_obeys_the_conversation_pause_gate() {
     enqueue(&db.conn,"42",input("future"),Some(Utc::now()+Duration::minutes(30))).await.unwrap();
     use crate::db::service::message_queue_control_service as control;
     let attempt=control::begin_attempt(&db.conn,"42","c","A","{}",None).await.unwrap();
-    control::complete_attempt(&db.conn,&control::QueueTurnCompletion{attempt_id:attempt.id,owner_id:"42".into(),success:false,cancelled:false,error:Some("task error".into())}).await.unwrap();
+    control::complete_attempt(&db.conn,&control::QueueTurnCompletion{attempt_id:attempt.id,owner_id:"42".into(),success:false,cancelled:false,user_cancelled:false,error:Some("task error".into())}).await.unwrap();
     message_queue_item::Entity::update_many().col_expr(message_queue_item::Column::ScheduledAt,sea_orm::sea_query::Expr::value(Utc::now()-Duration::seconds(1))).filter(message_queue_item::Column::OwnerId.eq("42")).exec(&db.conn).await.unwrap();
     assert!(claim_next(&db.conn,"42","due-but-paused").await.unwrap().is_none());
 }

@@ -8,6 +8,7 @@ import {
   GripVertical,
   Pencil,
   RotateCcw,
+  Send,
   X,
   Zap,
 } from "lucide-react"
@@ -35,6 +36,18 @@ interface MessageQueueDisplayProps {
   queue: QueuedMessage[]
   queueControl?: MessageQueueState | null
   onContinue?: () => Promise<void> | void
+  /** Lift the user-stop hold (`queueControl.hold`) so the queue drains again.
+   *  Present only on hosts with the hold command; the banner renders when it
+   *  can be acted on. */
+  onReleaseHold?: () => Promise<void> | void
+  /**
+   * Send ONE queued row immediately at the user's explicit request — the
+   * manual override for a queue held by a user stop. Only passed while the
+   * hold is set; the backend skips the hold (and only the hold), still
+   * refusing a paused queue or a running turn, and a failure surfaces on the
+   * row's delivery state.
+   */
+  onSendNow?: (id: string) => Promise<void> | void
   onReorder: (items: QueuedMessage[]) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -78,6 +91,12 @@ interface QueueItemProps {
   steering: boolean
   onSteerStart: (id: string) => Promise<void>
   onScheduleOpen: (id: string) => void
+  /** Manual send for a held queue; absent when no hold is set. */
+  onSendNow?: (id: string) => Promise<void> | void
+  /** The row whose manual send is in flight — every row's button is disabled
+   *  for the duration, mirroring the insert's single-flight. */
+  sendNowId: string | null
+  onSendNowStart: (id: string) => Promise<void>
 }
 
 function QueueItem({
@@ -93,6 +112,9 @@ function QueueItem({
   steering,
   onSteerStart,
   onScheduleOpen,
+  onSendNow,
+  sendNowId,
+  onSendNowStart,
 }: QueueItemProps) {
   const t = useTranslations("Folder.chat.messageQueue")
   const dragControls = useDragControls()
@@ -114,6 +136,15 @@ function QueueItem({
     Boolean(onSteerItem) &&
     !isEditing &&
     (steerChannel === "native" || !draftRidesBlocks(item.draft))
+  // The held-queue manual send targets PENDING rows only — a pending row is
+  // one with NO delivery state (the field is absent, never "pending") — while
+  // failed/uncertain rows belong to the retry flow and claimed/sending rows
+  // are already going.
+  const canSendNow =
+    Boolean(onSendNow) &&
+    !claimed &&
+    !isEditing &&
+    item.deliveryState == null
 
   const startDrag = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
@@ -210,6 +241,17 @@ function QueueItem({
           )}
         </button>
       )}
+      {canSendNow && (
+        <button
+          type="button"
+          onClick={() => void onSendNowStart(item.id)}
+          disabled={sendNowId !== null}
+          className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground disabled:opacity-50"
+          title={t("sendNow")}
+        >
+          <Send className="h-2.5 w-2.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onEdit(item.id)}
@@ -236,6 +278,8 @@ export function MessageQueueDisplay({
   queue,
   queueControl,
   onContinue,
+  onReleaseHold,
+  onSendNow,
   onReorder,
   onEdit,
   onDelete,
@@ -265,6 +309,9 @@ export function MessageQueueDisplay({
     queueControl &&
     queueControl.status !== "open" &&
     queueControl.status !== "resuming"
+  // A user-stop hold: the queue is "open" but parked. The banner is neutral
+  // (nothing failed) and the rows gain a manual send.
+  const held = queueControl?.status === "open" && queueControl.hold != null
   const resumeRunning =
     continuing || queueControl?.status === "resume_requested"
   const continueTask = async () => {
@@ -309,6 +356,43 @@ export function MessageQueueDisplay({
     [onSteerItem]
   )
 
+  // Release the user-stop hold. Same lock shape as the continue click: the
+  // ref refuses a second click that lands before React commits the disabled
+  // button.
+  const [releasing, setReleasing] = useState(false)
+  const releasingRef = useRef(false)
+  const handleReleaseHold = useCallback(async () => {
+    if (!onReleaseHold || releasingRef.current) return
+    releasingRef.current = true
+    setReleasing(true)
+    try {
+      await onReleaseHold()
+    } finally {
+      releasingRef.current = false
+      setReleasing(false)
+    }
+  }, [onReleaseHold])
+
+  // The manual send of one held-queue row. One shared in-flight id, same
+  // single-flight rationale as the insert: the queue admits one turn at a
+  // time, so a second concurrent click could only fail.
+  const [sendNowId, setSendNowId] = useState<string | null>(null)
+  const sendNowIdRef = useRef<string | null>(null)
+  const handleSendNowStart = useCallback(
+    async (id: string) => {
+      if (!onSendNow || sendNowIdRef.current !== null) return
+      sendNowIdRef.current = id
+      setSendNowId(id)
+      try {
+        await onSendNow(id)
+      } finally {
+        sendNowIdRef.current = null
+        setSendNowId(null)
+      }
+    },
+    [onSendNow]
+  )
+
   const confirmSchedule = useCallback(
     async (iso: string) => {
       if (!scheduleTarget || !onScheduleItem) return
@@ -340,10 +424,25 @@ export function MessageQueueDisplay({
     }
   }, [scheduleTarget, onScheduleItem])
 
-  if (queue.length === 0 && !paused) return null
+  if (queue.length === 0 && !paused && !held) return null
 
   return (
     <div className="max-h-40 overflow-y-auto pb-1">
+      {held && (
+        <div className="mb-1 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
+          <p>{t("heldNotice")}</p>
+          {onReleaseHold && (
+            <button
+              type="button"
+              className="mt-2 rounded-md bg-primary px-2 py-1 text-primary-foreground disabled:opacity-50"
+              disabled={releasing}
+              onClick={() => void handleReleaseHold()}
+            >
+              {t("resumeQueue")}
+            </button>
+          )}
+        </div>
+      )}
       {paused && (
         <div className="mb-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
           <p>{t("unfinishedTitle")}</p>
@@ -390,6 +489,9 @@ export function MessageQueueDisplay({
             steerChannel={steerChannel}
             steering={steeringId !== null}
             onSteerStart={handleSteerStart}
+            onSendNow={held ? onSendNow : undefined}
+            sendNowId={sendNowId}
+            onSendNowStart={handleSendNowStart}
           />
         ))}
       </Reorder.Group>

@@ -30,9 +30,19 @@ const BACKOFF_MAX_MS: u64 = 60_000;
 const MAX_WORKERS: usize = 8;
 const DRAIN_SPAWN_OWNER: &str = "message-queue-drain";
 
+/// Work handed to the drain loop. [`DrainJob::Drain`] is the ordinary wake —
+/// the worker re-reads persisted state and claims the FIFO head.
+/// [`DrainJob::SendNow`] is a user-initiated send of ONE specific item, which
+/// must bypass the user-stop hold; it rides the same channel so the drainer's
+/// own db/manager/emitter/data_dir serve it without re-plumbing commands.
+enum DrainJob {
+    Drain { owner_id: String },
+    SendNow { owner_id: String, item_id: String },
+}
+
 #[derive(Clone)]
 pub struct DrainHandle {
-    tx: mpsc::Sender<String>,
+    tx: mpsc::Sender<DrainJob>,
 }
 
 impl DrainHandle {
@@ -43,7 +53,17 @@ impl DrainHandle {
 
     pub fn notify(&self, owner_id: impl Into<String>) {
         // Overflow is healed by scanning persisted pending owners.
-        let _ = self.tx.try_send(owner_id.into());
+        let _ = self.tx.try_send(DrainJob::Drain { owner_id: owner_id.into() });
+    }
+
+    /// Queue a user-requested send of one item (`message_queue_send_now`).
+    /// Fire-and-forget like `notify`: the worker broadcasts the row's
+    /// delivery state, so a failure surfaces on the row, not the caller.
+    pub fn send_now(&self, owner_id: impl Into<String>, item_id: impl Into<String>) {
+        let _ = self.tx.try_send(DrainJob::SendNow {
+            owner_id: owner_id.into(),
+            item_id: item_id.into(),
+        });
     }
 }
 
@@ -97,7 +117,7 @@ async fn run(
     manager: ConnectionManager,
     emitter: EventEmitter,
     data_dir: Arc<Path>,
-    mut rx: mpsc::Receiver<String>,
+    mut rx: mpsc::Receiver<DrainJob>,
     mut bus_rx: tokio::sync::broadcast::Receiver<Arc<EventEnvelope>>,
 ) {
     let mut tick = tokio::time::interval(Duration::from_secs(SWEEP_INTERVAL_SECS));
@@ -145,9 +165,22 @@ async fn run(
             _ = tokio::time::sleep_until(
                 schedule_wake.unwrap_or_else(|| Instant::now() + Duration::from_secs(SWEEP_INTERVAL_SECS)),
             ), if schedule_wake.is_some() => scan = true,
-            owner = rx.recv() => {
-                let Some(owner) = owner else { return; };
-                pending.insert(owner);
+            job = rx.recv() => {
+                let Some(job) = job else { return; };
+                match job {
+                    DrainJob::Drain { owner_id } => {
+                        pending.insert(owner_id);
+                    }
+                    DrainJob::SendNow { owner_id, item_id } => {
+                        spawn_send_now_job(
+                            &mut tasks,
+                            &mut active,
+                            DrainContext { db: &db, manager: &manager, emitter: &emitter, data_dir: &data_dir },
+                            owner_id,
+                            item_id,
+                        );
+                    }
+                }
             }
             event = bus_rx.recv(), if bus_open => {
                 match event {
@@ -181,8 +214,21 @@ async fn run(
                 }
             }
         }
-        while let Ok(owner) = rx.try_recv() {
-            pending.insert(owner);
+        while let Ok(job) = rx.try_recv() {
+            match job {
+                DrainJob::Drain { owner_id } => {
+                    pending.insert(owner_id);
+                }
+                DrainJob::SendNow { owner_id, item_id } => {
+                    spawn_send_now_job(
+                        &mut tasks,
+                        &mut active,
+                        DrainContext { db: &db, manager: &manager, emitter: &emitter, data_dir: &data_dir },
+                        owner_id,
+                        item_id,
+                    );
+                }
+            }
         }
         if election.is_none() {
             match elect(&data_dir) {
@@ -250,6 +296,52 @@ fn backoff_delay_ms(failures: u32) -> u64 {
     BACKOFF_INITIAL_MS
         .saturating_mul(1u64 << failures.saturating_sub(1).min(16))
         .min(BACKOFF_MAX_MS)
+}
+
+/// What a spawned worker needs, cloned out of the run loop once. Bundled so
+/// the spawner stays under the argument-count lint.
+struct DrainContext<'a> {
+    db: &'a DatabaseConnection,
+    manager: &'a ConnectionManager,
+    emitter: &'a EventEmitter,
+    data_dir: &'a Arc<Path>,
+}
+
+/// Run a user-initiated `send_item_now` as a drain worker. Tracked in
+/// `active` like an ordinary owner worker so the join arm's bookkeeping
+/// stays single-sourced; a failure deliberately takes NO backoff — the user
+/// sees the row's error and can click again.
+fn spawn_send_now_job(
+    tasks: &mut JoinSet<(String, DrainOutcome)>,
+    active: &mut HashSet<String>,
+    ctx: DrainContext<'_>,
+    owner_id: String,
+    item_id: String,
+) {
+    active.insert(owner_id.clone());
+    let worker_db = ctx.db.clone();
+    let worker_manager = ctx.manager.clone_ref();
+    let worker_emitter = ctx.emitter.clone();
+    let worker_data = ctx.data_dir.clone();
+    tasks.spawn(async move {
+        let outcome = match send_item_now(
+            &worker_db,
+            &worker_manager,
+            &worker_emitter,
+            &worker_data,
+            &owner_id,
+            &item_id,
+        )
+        .await
+        {
+            Ok(()) => DrainOutcome::Sent,
+            Err(error) => {
+                tracing::warn!(%error, owner_id, "[message-queue] send-now failed");
+                DrainOutcome::Waiting
+            }
+        };
+        (owner_id, outcome)
+    });
 }
 
 enum DrainOutcome {
@@ -411,7 +503,114 @@ async fn try_continue_owner(
     if let Ok(state) = state { emit_event(emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state); }
     match result {
         Ok(_) => DrainOutcome::Sent,
-        Err(error) => { tracing::warn!(%error, "[message-queue] continuation submit failed"); DrainOutcome::Retry { transient: matches!(error, AcpError::TurnInProgress) } },
+        Err(error) => { tracing::warn!(%error, "[message-queue] continuation submit failed"); DrainOutcome::Retry { transient: matches!(error, AcpError::TurnInProgress) } }
+    }
+}
+
+/// Send ONE queued item right now at the user's explicit request
+/// (`message_queue_send_now`). The whole point of this path is to bypass the
+/// user-stop hold — the user is choosing what goes out — so unlike
+/// [`try_drain_owner`] it never consults `can_drain`; it still respects the
+/// queue barrier itself (`open`, no active attempt, one claim at a time), so
+/// it cannot interleave with a paused recovery or a running turn. Mirrors the
+/// drain's admission sequence: claim → parse → live/spawn connection →
+/// send → acknowledge/release.
+pub async fn send_item_now(
+    db: &DatabaseConnection,
+    manager: &ConnectionManager,
+    emitter: &EventEmitter,
+    data_dir: &Path,
+    owner_id: &str,
+    item_id: &str,
+) -> Result<(), AcpError> {
+    let control = crate::db::service::message_queue_control_service::get_state(db, owner_id)
+        .await
+        .map_err(|error| AcpError::protocol(error.to_string()))?;
+    if control.status != "open" || control.active_attempt_id.is_some() {
+        return Err(AcpError::protocol(
+            "queue is paused or a previous turn is not settled",
+        ));
+    }
+    let claim = message_queue_service::claim_item(db, owner_id, item_id, &uuid::Uuid::new_v4().to_string())
+        .await
+        .map_err(|error| AcpError::protocol(error.to_string()))?
+        .ok_or_else(|| AcpError::protocol("queue item is not sendable right now"))?;
+    broadcast_queue(db, emitter, owner_id).await;
+    let send = async {
+        let blocks = parse_draft_json(&claim.item.draft_json)
+            .map_err(AcpError::protocol)?;
+        let cid = claim
+            .owner_id
+            .parse::<i32>()
+            .ok()
+            .filter(|cid| *cid > 0)
+            .ok_or_else(|| AcpError::protocol("invalid conversation id"))?;
+        let conversation = crate::db::service::conversation_service::get_by_id(db, cid)
+            .await
+            .map_err(|error| AcpError::protocol(error.to_string()))?;
+        let connection_id = match live_connection(manager, &conversation).await {
+            Some(id) => id,
+            None => {
+                spawn_connection_for_conversation(manager, db, emitter, data_dir, &conversation)
+                    .await?
+            }
+        };
+        let state = manager
+            .get_state(&connection_id)
+            .await
+            .ok_or(AcpError::ProcessExited)?;
+        {
+            let state = state.read().await;
+            if state.turn_in_flight
+                || state.agent_initiated_turn
+                || state.status != ConnectionStatus::Connected
+            {
+                return Err(AcpError::TurnInProgress);
+            }
+        }
+        message_queue_service::mark_sending(db, &claim)
+            .await
+            .map_err(|error| AcpError::protocol(error.to_string()))?;
+        // Same send-time mode rule as the drain: an item queued before its tab
+        // knew the modes adopts the mode in effect now; `mode_id: None` from
+        // the answer / plan-notes retry paths means "leave the agent's mode".
+        let mode_id = if claim.item.adopt_send_time_mode {
+            None
+        } else {
+            claim.item.mode_id.clone()
+        };
+        manager
+            .send_queued_prompt(
+                &AppDatabase { conn: db.clone() },
+                &connection_id,
+                blocks,
+                conversation.folder_id,
+                cid,
+                mode_id,
+                format!("queue-{}", claim.item.id),
+            )
+            .await
+    }
+    .await;
+    match send {
+        Ok(_) => {
+            // Failure to acknowledge leaves the sending row protected. Never
+            // auto-retry a prompt already admitted by the manager.
+            if let Err(error) = message_queue_service::acknowledge(db, &claim).await {
+                tracing::error!(%error, owner_id, "[message-queue] send-now admitted but acknowledgement failed");
+            }
+            broadcast_queue(db, emitter, owner_id).await;
+            Ok(())
+        }
+        Err(error) => {
+            if let Err(release_error) =
+                message_queue_service::release(db, &claim, Some(&error.to_string())).await
+            {
+                tracing::error!(%release_error, owner_id, "[message-queue] send-now could not release claim");
+            }
+            broadcast_queue(db, emitter, owner_id).await;
+            Err(error)
+        }
     }
 }
 

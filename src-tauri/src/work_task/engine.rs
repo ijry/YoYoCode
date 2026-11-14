@@ -970,7 +970,7 @@ impl TaskEngine {
                 .map(|(c, _)| c.clone())
         };
         if let Some(conn_id) = conn_id {
-            let _ = self.manager.cancel(&self.db.conn, &conn_id).await;
+            let _ = self.manager.cancel(&self.db.conn, &conn_id, false).await;
             self.forget_connection(&conn_id).await;
             self.forget_delegation_children_of(&conn_id).await;
             let _ = self.manager.disconnect(&conn_id).await;
@@ -2587,7 +2587,7 @@ impl TaskEngine {
                 _ => return,
             }
         };
-        let _ = self.manager.cancel(&self.db.conn, &conn_id).await;
+        let _ = self.manager.cancel(&self.db.conn, &conn_id, false).await;
     }
 
     /// Drop this generation's compaction slot. Generation-checked so a slow

@@ -4819,6 +4819,14 @@ export interface MessageQueueState {
   active_attempt_id: string | null
   failed_attempt_id: string | null
   error: string | null
+  /**
+   * Why the queue is holding back from auto-draining despite being `"open"`.
+   * `"manual_stop"` = the user stopped the running turn with items still
+   * queued: rows wait for an explicit send (or the release button), and a
+   * composer send goes straight to the session instead of joining the tail.
+   * The next turn that completes successfully clears it. `null` = normal.
+   */
+  hold: string | null
   revision: number
 }
 

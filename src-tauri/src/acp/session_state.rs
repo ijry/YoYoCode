@@ -828,6 +828,13 @@ pub struct SessionState {
     /// Lifecycle may run after a new event, so its result is keyed by event seq.
     pub queue_attempt: Option<crate::db::service::message_queue_control_service::QueueTurnAttempt>,
     pub queue_completions: BTreeMap<u64, crate::db::service::message_queue_control_service::QueueTurnCompletion>,
+
+    /// Whether the in-flight cancel was requested by a person (Stop button /
+    /// chat stop command) rather than an internal subsystem (automation, work
+    /// task, CLI run). Stamped by the mid-turn `Cancel` arm and consumed by
+    /// [`Self::capture_queue_completion`] when it captures the cancelled
+    /// completion — the queue only holds for a USER stop.
+    pub cancel_by_user: bool,
 }
 
 /// The two writers of a `TurnComplete`'s conversation status.
@@ -856,7 +863,15 @@ impl SessionState {
                 (false, false, Some("connection ended before the task completed".into())),
             _ => return,
         };
-        let completion = QueueTurnCompletion { attempt_id: attempt.id.clone(), owner_id: attempt.owner_id.clone(), success, cancelled, error };
+        // A user's Stop is attributed to whichever terminal event actually
+        // captures the completion, then dropped: capture runs on EVERY emitted
+        // event, so the flag must survive the non-terminal ones (the eager
+        // `ConversationStatusChanged{Cancelled}` from `manager.cancel` lands
+        // here before the command is even processed) and a stale one (cancel
+        // with no queue attempt live) is cleared where the next attempt begins.
+        let user_cancelled = cancelled && self.cancel_by_user;
+        let completion = QueueTurnCompletion { attempt_id: attempt.id.clone(), owner_id: attempt.owner_id.clone(), success, cancelled, user_cancelled, error };
+        self.cancel_by_user = false;
         self.queue_attempt = None;
         self.queue_completions.insert(seq, completion);
     }
@@ -989,6 +1004,7 @@ impl SessionState {
             turn_status_claim: None,
             queue_attempt: None,
             queue_completions: BTreeMap::new(),
+            cancel_by_user: false,
         }
     }
 

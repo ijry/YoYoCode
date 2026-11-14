@@ -9,6 +9,8 @@ const wire = vi.hoisted(() => ({
   retry: vi.fn(),
   state: vi.fn(),
   continue: vi.fn(),
+  releaseHold: vi.fn(),
+  sendNow: vi.fn(),
   stateListener: null as null | ((payload: unknown) => void),
   listener: null as null | ((payload: unknown) => void),
   ready: null as null | (() => void),
@@ -22,6 +24,8 @@ vi.mock("@/lib/api", () => ({
   messageQueueRetry: wire.retry,
   messageQueueState: wire.state,
   messageQueueContinue: wire.continue,
+  messageQueueReleaseHold: wire.releaseHold,
+  messageQueueSendNow: wire.sendNow,
 }))
 vi.mock("@/lib/platform", () => ({
   subscribe: async (channel: string, callback: (payload: unknown) => void) => {
@@ -71,9 +75,12 @@ beforeEach(() => {
       active_attempt_id: null,
       failed_attempt_id: null,
       error: null,
+      hold: null,
       revision: 0,
     })
   wire.continue.mockReset().mockResolvedValue(undefined)
+  wire.releaseHold.mockReset().mockResolvedValue(undefined)
+  wire.sendNow.mockReset().mockResolvedValue(undefined)
   wire.stateListener = null
   wire.listener = null
   wire.ready = null
@@ -120,6 +127,79 @@ describe("owned queues never race the host drainer", () => {
       })
     )
     expect(result.current.control?.status).toBe("resuming")
+  })
+
+  it("releases a user-stop hold and adopts the newer barrier state", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+    })
+    let revision = 0
+    wire.state.mockImplementation(async () => ({
+      owner_id: "42",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      hold: revision === 0 ? "manual_stop" : null,
+      revision,
+    }))
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() => expect(result.current.control?.hold).toBe("manual_stop"))
+
+    // The release command bumps the revision; the hook re-reads and adopts it
+    // (a stale read must not clobber a newer broadcast).
+    wire.state.mockImplementation(async () => {
+      revision = 5
+      return {
+        owner_id: "42",
+        status: "open",
+        active_attempt_id: null,
+        failed_attempt_id: null,
+        error: null,
+        hold: null,
+        revision,
+      }
+    })
+    await act(async () => result.current.releaseHold())
+    expect(wire.releaseHold).toHaveBeenCalledWith("42")
+    expect(result.current.control?.hold).toBeNull()
+    expect(result.current.control?.revision).toBe(5)
+  })
+
+  it("sends one held row now and refreshes the queue and barrier", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+    })
+    wire.list.mockResolvedValue([
+      {
+        id: "row-B",
+        draft_json: JSON.stringify({
+          blocks: [{ type: "text", text: "B" }],
+          displayText: "B",
+        }),
+        mode_id: null,
+        adopt_send_time_mode: false,
+      },
+    ])
+    wire.state.mockResolvedValue({
+      owner_id: "42",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      hold: "manual_stop",
+      revision: 4,
+    })
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() => expect(result.current.control?.hold).toBe("manual_stop"))
+
+    await act(async () => result.current.sendNow("row-B"))
+    expect(wire.sendNow).toHaveBeenCalledWith("42", "row-B")
+    await waitFor(() =>
+      expect(result.current.queue.map((entry) => entry.id)).toEqual(["row-B"])
+    )
   })
 
   it("retains a current paused broadcast when the capability probe finishes later", async () => {

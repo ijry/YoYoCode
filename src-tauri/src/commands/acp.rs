@@ -12248,7 +12248,7 @@ pub async fn acp_cancel(
     db: State<'_, AppDatabase>,
     manager: State<'_, ConnectionManager>,
 ) -> Result<(), AcpError> {
-    manager.cancel(&db.conn, &connection_id).await
+    manager.cancel(&db.conn, &connection_id, true).await
 }
 
 #[cfg(feature = "tauri-runtime")]

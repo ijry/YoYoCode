@@ -15,6 +15,8 @@ import {
   messageQueueRetry,
   messageQueueState,
   messageQueueContinue,
+  messageQueueReleaseHold,
+  messageQueueSendNow,
   messageQueueEnqueue,
   messageQueueSetSchedule,
   messageQueueRemove,
@@ -67,6 +69,10 @@ export interface UseMessageQueueReturn {
   scheduledSend: boolean
   control: MessageQueueState | null
   continueTask: () => Promise<void>
+  /** Lift the user-stop hold so the queue drains again. */
+  releaseHold: () => Promise<void>
+  /** Send ONE queued row immediately at the user's request (held-queue override). */
+  sendNow: (id: string) => Promise<void>
   enqueue: (
     draft: PromptDraft,
     modeId: string | null,
@@ -601,6 +607,39 @@ export function useMessageQueue(
     }
   }, [])
 
+  // Both held-queue overrides follow the same shape as `continueTask`: fire
+  // the backend action, then re-read the barrier state once so the banner and
+  // the send buttons reflect the new revision without waiting for a sweep.
+  const releaseHold = useCallback(async () => {
+    const owner = ownerIdRef.current
+    if (!owner || controlRef.current?.hold == null) return
+    await messageQueueReleaseHold(owner)
+    const next = await messageQueueState(owner)
+    if (
+      ownerIdRef.current === owner &&
+      next.revision >= (controlRef.current?.revision ?? -1)
+    ) {
+      controlRef.current = next
+      setControl(next)
+    }
+  }, [])
+
+  const sendNow = useCallback(async (id: string) => {
+    const owner = ownerIdRef.current
+    if (!owner) return
+    await messageQueueSendNow(owner, id)
+    const [items, next] = await Promise.all([
+      messageQueueList(owner),
+      messageQueueState(owner),
+    ])
+    if (ownerIdRef.current !== owner) return
+    adoptServerItems(items)
+    if (next.revision >= (controlRef.current?.revision ?? -1)) {
+      controlRef.current = next
+      setControl(next)
+    }
+  }, [adoptServerItems])
+
   const requireScheduleCapability = useCallback(() => {
     const owner = ownerIdRef.current
     if (!owner || !scheduledSendRef.current) {
@@ -672,6 +711,8 @@ export function useMessageQueue(
     queue,
     control,
     continueTask,
+    releaseHold,
+    sendNow,
     backendDrain,
     scheduledSend,
     enqueue,

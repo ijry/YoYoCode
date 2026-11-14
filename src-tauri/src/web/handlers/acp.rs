@@ -464,7 +464,7 @@ pub async fn acp_cancel(
 ) -> Result<Json<()>, AppCommandError> {
     let manager = &state.connection_manager;
     manager
-        .cancel(&state.db.conn, &params.connection_id)
+        .cancel(&state.db.conn, &params.connection_id, true)
         .await
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
     Ok(Json(()))

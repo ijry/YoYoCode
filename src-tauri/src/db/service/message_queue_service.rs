@@ -244,6 +244,52 @@ pub async fn claim_next(
     }))
 }
 
+/// Claim ONE specific item for a user-initiated send (`message_queue_send_now`).
+/// Unlike [`claim_next`] it targets an id instead of the FIFO head and
+/// deliberately ignores the control layer's hold — the user is overriding it —
+/// but it still honors the one-claim-at-a-time invariant and only takes a
+/// pending row. A scheduled row may be sent ahead of its time: the schedule is
+/// a "not before", and the user clicking send now is explicitly "now".
+pub async fn claim_item(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item_id: &str,
+    token: &str,
+) -> Result<Option<QueueClaim>, DbError> {
+    let txn = write_transaction(conn).await?;
+    let active = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::DeliveryState.is_in([CLAIMED, SENDING]))
+        .one(&txn)
+        .await?;
+    if active.is_some() {
+        txn.commit().await?;
+        return Ok(None);
+    }
+    let row = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(item_id))
+        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
+        .one(&txn)
+        .await?;
+    let Some(row) = row else {
+        txn.commit().await?;
+        return Ok(None);
+    };
+    let mut active: message_queue_item::ActiveModel = row.into();
+    active.delivery_state = Set(CLAIMED.into());
+    active.claim_token = Set(Some(token.into()));
+    active.last_error = Set(None);
+    active.updated_at = Set(Utc::now());
+    let claimed = active.update(&txn).await?;
+    txn.commit().await?;
+    Ok(Some(QueueClaim {
+        owner_id: owner_id.into(),
+        token: token.into(),
+        item: to_item(claimed),
+    }))
+}
+
 async fn settle_claim(
     conn: &DatabaseConnection,
     claim: &QueueClaim,

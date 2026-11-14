@@ -62,6 +62,7 @@ mod m20261106_000001_message_queue_delivery;
 mod m20261106_000002_message_queue_pause;
 mod m20261107_000001_message_queue_schedule;
 mod m20261109_000001_model_switch;
+mod m20261114_000001_message_queue_hold;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -130,6 +131,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261106_000002_message_queue_pause::Migration),
             Box::new(m20261107_000001_message_queue_schedule::Migration),
             Box::new(m20261109_000001_model_switch::Migration),
+            Box::new(m20261114_000001_message_queue_hold::Migration),
         ]
     }
 }

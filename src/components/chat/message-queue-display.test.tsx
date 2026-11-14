@@ -77,6 +77,7 @@ describe("MessageQueueDisplay click-to-insert", () => {
         failed_attempt_id: "a",
         active_attempt_id: null,
         error: "quota error",
+        hold: null,
         revision: 1,
       },
       onContinue,
@@ -99,6 +100,7 @@ describe("MessageQueueDisplay click-to-insert", () => {
         failed_attempt_id: "a",
         active_attempt_id: "r",
         error: "quota error",
+        hold: null,
         revision: 2,
       },
       onContinue: vi.fn(),
@@ -118,6 +120,7 @@ describe("MessageQueueDisplay click-to-insert", () => {
         failed_attempt_id: "a",
         active_attempt_id: null,
         error: "quota error",
+        hold: null,
         revision: 2,
       },
       onContinue: vi.fn(),
@@ -125,6 +128,79 @@ describe("MessageQueueDisplay click-to-insert", () => {
     expect(
       screen.getByRole("button", { name: "Continuing unfinished task…" })
     ).toBeDisabled()
+  })
+
+  it("shows the held notice with a release button and per-row send buttons", async () => {
+    const onReleaseHold = vi.fn(async () => {})
+    const onSendNow = vi.fn(async () => {})
+    renderDisplay({
+      queueControl: {
+        owner_id: "42",
+        status: "open",
+        failed_attempt_id: null,
+        active_attempt_id: null,
+        error: null,
+        hold: "manual_stop",
+        revision: 3,
+      },
+      onReleaseHold,
+      onSendNow,
+    })
+    expect(
+      screen.getByText(
+        "Turn stopped manually — the queue is holding. Send rows one by one or resume auto-send."
+      )
+    ).toBeInTheDocument()
+    // Rows gain the manual send; releasing is offered too.
+    await userEvent.click(screen.getAllByTitle("Send now")[0])
+    expect(onSendNow).toHaveBeenCalledWith("q1")
+    await userEvent.click(
+      screen.getByRole("button", { name: "Resume auto-send" })
+    )
+    expect(onReleaseHold).toHaveBeenCalledTimes(1)
+  })
+
+  it("offers no held banner or send buttons while the queue drains normally", () => {
+    renderDisplay({
+      queueControl: {
+        owner_id: "42",
+        status: "open",
+        failed_attempt_id: null,
+        active_attempt_id: null,
+        error: null,
+        hold: null,
+        revision: 1,
+      },
+      onReleaseHold: vi.fn(async () => {}),
+      onSendNow: vi.fn(async () => {}),
+    })
+    expect(
+      screen.queryByRole("button", { name: "Resume auto-send" })
+    ).toBeNull()
+    expect(screen.queryByTitle("Send now")).toBeNull()
+  })
+
+  it("withholds the manual send from failed rows and the row under edit", () => {
+    renderDisplay({
+      queue: [
+        item("q1", "pending A"),
+        { ...item("q2", "failed B"), deliveryState: "failed" },
+      ],
+      queueControl: {
+        owner_id: "42",
+        status: "open",
+        failed_attempt_id: null,
+        active_attempt_id: null,
+        error: null,
+        hold: "manual_stop",
+        revision: 3,
+      },
+      onSendNow: vi.fn(async () => {}),
+      editingItemId: "q1",
+    })
+    // q1 is under edit (its content lives in the composer), q2 is a retry case
+    // — only rows that are neither offer the manual send.
+    expect(screen.queryByTitle("Send now")).toBeNull()
   })
 
   it("does not offer edit, delete or steering for a backend-owned claim", () => {

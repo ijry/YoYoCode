@@ -53,6 +53,36 @@ pub async fn message_queue_continue(
     Ok(Json(()))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseHoldParams {
+    pub owner_id: String,
+}
+
+/// Lift the user-stop hold so the queue drains again (mirrors the Tauri
+/// command: CAS the hold away, broadcast the new barrier state, wake the
+/// drainer).
+pub async fn message_queue_release_hold(
+    Extension(state): Extension<Arc<AppState>>, Json(params): Json<ReleaseHoldParams>,
+) -> Result<Json<()>, AppCommandError> {
+    let control = crate::db::service::message_queue_control_service::release_hold(&state.db.conn, &params.owner_id).await.map_err(AppCommandError::from)?;
+    emit_event(&state.emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, control);
+    state.message_queue_drain.notify(params.owner_id);
+    Ok(Json(()))
+}
+
+/// Send ONE queued item immediately at the user's explicit request. The
+/// drainer owns the connection setup and broadcasts the row's delivery state,
+/// so a failure surfaces on the row rather than this response.
+pub async fn message_queue_send_now(
+    Extension(state): Extension<Arc<AppState>>, Json(params): Json<RetryMessageQueueParams>,
+) -> Result<Json<()>, AppCommandError> {
+    state
+        .message_queue_drain
+        .send_now(&params.owner_id, &params.item_id);
+    Ok(Json(()))
+}
+
 pub async fn message_queue_retry(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<RetryMessageQueueParams>,

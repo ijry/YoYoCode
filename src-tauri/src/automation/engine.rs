@@ -982,7 +982,7 @@ impl AutomationEngine {
                 .map(|(c, _)| c.clone())
         };
         if let Some(conn_id) = conn_id {
-            let _ = self.manager.cancel(&self.db.conn, &conn_id).await;
+            let _ = self.manager.cancel(&self.db.conn, &conn_id, false).await;
             self.index.lock().await.remove(&conn_id);
             let _ = self.manager.disconnect(&conn_id).await;
         }

@@ -1364,7 +1364,14 @@ pub enum ConnectionCommand {
         /// agent rejected. `None` = fire-and-forget, nobody is listening.
         reply: Option<tokio::sync::oneshot::Sender<bool>>,
     },
-    Cancel,
+    Cancel {
+        /// True when a person pressed Stop (`acp_cancel` / its HTTP twin);
+        /// false for internal cancels (automation, work tasks, CLI runs).
+        /// Rides to the mid-turn arm, which stamps it on the session so the
+        /// captured queue completion can attribute the cancellation — the
+        /// queue only holds for a USER stop, not an automated one.
+        by_user: bool,
+    },
     RespondPermission {
         request_id: String,
         option_id: String,
@@ -15737,12 +15744,17 @@ async fn run_conversation_loop(
                                         send_stop_async_task_request(&cx, &sid, &task_id).await,
                                     );
                                 }
-                                Some(ConnectionCommand::Cancel) => {
+                                Some(ConnectionCommand::Cancel { by_user }) => {
                                     // Send CancelNotification to agent to stop the current turn
                                     let _ = cx.send_notification_to(
                                         Agent,
                                         CancelNotification::new(sid.clone()),
                                     );
+                                    // Stamp who asked for the stop BEFORE the
+                                    // synthesized TurnComplete below captures it
+                                    // (`capture_queue_completion` consumes the
+                                    // flag when it records the completion).
+                                    state.write().await.cancel_by_user = by_user;
                                     let cancelled_at = tokio::time::Instant::now();
                                     // Also terminate any command runtimes created for this
                                     // session so cancellation does not hang on long-running
@@ -16031,7 +16043,7 @@ async fn run_conversation_loop(
                 let sid = session.session_id().clone();
                 let _ = reply.send(send_stop_async_task_request(&cx, &sid, &task_id).await);
             }
-            Some(ConnectionCommand::Cancel) => {
+            Some(ConnectionCommand::Cancel { .. }) => {
                 let cx = session.connection();
                 let sid = session.session_id().clone();
                 let _ = cx.send_notification_to(Agent, CancelNotification::new(sid.clone()));
@@ -45993,7 +46005,7 @@ mod tests {
         grok.until_barrier().await;
         assert_eq!(prompting_edges(&grok.seen).len(), 1, "the follow-up opened");
 
-        grok.send(ConnectionCommand::Cancel).await;
+        grok.send(ConnectionCommand::Cancel { by_user: false }).await;
         grok.until_barrier().await;
         let completes = turn_completes(&grok.seen);
         assert_eq!(completes.len(), 1, "ended once: {completes:?}");
@@ -48532,7 +48544,7 @@ mod tests {
                     matches!(e, AcpEvent::PermissionRequest { .. })
                 })
                 .await;
-                lp.cmd_tx.send(ConnectionCommand::Cancel).await.unwrap();
+                lp.cmd_tx.send(ConnectionCommand::Cancel { by_user: false }).await.unwrap();
                 let end = lp
                     .until("the stopped turn's end", |e| {
                         matches!(e, AcpEvent::TurnComplete { stop_reason, .. } if stop_reason == "cancelled")
@@ -48599,7 +48611,7 @@ mod tests {
             .await;
             lp.run_turn("one", "first").await;
             lp.open_turn("two", "working, ").await;
-            lp.cmd_tx.send(ConnectionCommand::Cancel).await.unwrap();
+            lp.cmd_tx.send(ConnectionCommand::Cancel { by_user: false }).await.unwrap();
             lp.until("cancelled", |e| {
                 matches!(e, AcpEvent::TurnComplete { stop_reason, .. } if stop_reason == "cancelled")
             })
@@ -48670,8 +48682,8 @@ mod tests {
         });
         // Other commands go through and leave the Stop pending.
         assert!(matches!(
-            hold_for_codebuddy_cancel(Some(ConnectionCommand::Cancel), &mut pending),
-            Admitted::Run(Some(ConnectionCommand::Cancel))
+            hold_for_codebuddy_cancel(Some(ConnectionCommand::Cancel { by_user: false }), &mut pending),
+            Admitted::Run(Some(ConnectionCommand::Cancel { by_user: false }))
         ));
         assert!(matches!(
             hold_for_codebuddy_cancel(None, &mut pending),
@@ -48806,7 +48818,7 @@ mod tests {
             )
             .await;
             lp.open_turn("one", "working, ").await;
-            lp.cmd_tx.send(ConnectionCommand::Cancel).await.unwrap();
+            lp.cmd_tx.send(ConnectionCommand::Cancel { by_user: false }).await.unwrap();
             let stopped = lp
                 .until("cancelled", |e| {
                     matches!(e, AcpEvent::TurnComplete { stop_reason, .. } if stop_reason == "cancelled")
@@ -48865,14 +48877,14 @@ mod tests {
             )
             .await;
             lp.open_turn("one", "working, ").await;
-            lp.cmd_tx.send(ConnectionCommand::Cancel).await.unwrap();
+            lp.cmd_tx.send(ConnectionCommand::Cancel { by_user: false }).await.unwrap();
             lp.until("the first stop", |e| {
                 matches!(e, AcpEvent::TurnComplete { stop_reason, .. } if stop_reason == "cancelled")
             })
             .await;
             lp.state.write().await.turn_in_flight = true;
             lp.cmd_tx.send(prompt_command("two")).await.unwrap();
-            lp.cmd_tx.send(ConnectionCommand::Cancel).await.unwrap();
+            lp.cmd_tx.send(ConnectionCommand::Cancel { by_user: false }).await.unwrap();
             lp.respond.notify_one();
             let prompting = lp
                 .until("the held prompt", |e| {

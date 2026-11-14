@@ -16,8 +16,16 @@ pub struct MessageQueueState {
     pub active_attempt_id: Option<String>,
     pub failed_attempt_id: Option<String>,
     pub error: Option<String>,
+    /// Why the queue is holding back from auto-draining despite being
+    /// `"open"`. `"manual_stop"` = the user stopped the running turn; the
+    /// drain skips the owner until a later turn completes successfully or the
+    /// user releases the hold explicitly. `None` = normal draining.
+    pub hold: Option<String>,
     pub revision: i64,
 }
+
+/// The hold value written on a user stop.
+pub const HOLD_MANUAL_STOP: &str = "manual_stop";
 
 #[derive(Debug, Clone)]
 pub struct QueueTurnAttempt {
@@ -32,6 +40,9 @@ pub struct QueueTurnCompletion {
     pub owner_id: String,
     pub success: bool,
     pub cancelled: bool,
+    /// The cancelled turn was stopped by a person (Stop button / chat stop
+    /// command), not an internal subsystem — this is what earns the hold.
+    pub user_cancelled: bool,
     pub error: Option<String>,
 }
 
@@ -51,16 +62,18 @@ async fn write_transaction(conn: &DatabaseConnection) -> Result<DatabaseTransact
 
 async fn state_on<C: ConnectionTrait>(conn: &C, owner: &str) -> Result<MessageQueueState, DbError> {
     match conn.query_one(statement(
-        "SELECT owner_id,status,active_attempt_id,failed_attempt_id,error,revision FROM message_queue_state WHERE owner_id=?",
+        "SELECT owner_id,status,active_attempt_id,failed_attempt_id,error,hold,revision FROM message_queue_state WHERE owner_id=?",
         vec![owner.into()],
     )).await? {
         Some(row) => Ok(MessageQueueState {
             owner_id: row.try_get("", "owner_id")?, status: row.try_get("", "status")?,
             active_attempt_id: row.try_get("", "active_attempt_id")?,
             failed_attempt_id: row.try_get("", "failed_attempt_id")?,
-            error: row.try_get("", "error")?, revision: row.try_get("", "revision")?,
+            error: row.try_get("", "error")?,
+            hold: row.try_get("", "hold")?,
+            revision: row.try_get("", "revision")?,
         }),
-        None => Ok(MessageQueueState { owner_id: owner.into(), status: "open".into(), active_attempt_id: None, failed_attempt_id: None, error: None, revision: 0 }),
+        None => Ok(MessageQueueState { owner_id: owner.into(), status: "open".into(), active_attempt_id: None, failed_attempt_id: None, error: None, hold: None, revision: 0 }),
     }
 }
 
@@ -73,7 +86,7 @@ pub async fn get_state(
 
 pub async fn can_drain<C: ConnectionTrait>(conn: &C, owner: &str) -> Result<bool, DbError> {
     let state = state_on(conn, owner).await?;
-    Ok(state.status == "open" && state.active_attempt_id.is_none())
+    Ok(state.status == "open" && state.active_attempt_id.is_none() && state.hold.is_none())
 }
 
 pub async fn begin_attempt(
@@ -156,11 +169,36 @@ pub async fn complete_attempt(
         ],
     ))
     .await?;
+    // Hold bookkeeping: a USER stop (not an automated cancel, not a recovery)
+    // on a still-non-empty queue parks the drain on `"open"` until the next
+    // successful turn or an explicit release; any successful turn lifts it.
+    // Every other outcome leaves the previous hold untouched (paused blocks
+    // the drain on its own).
+    let hold = if completion.success {
+        None
+    } else if completion.user_cancelled && recovery_of.is_none() {
+        let pending = txn
+            .query_one(statement(
+                "SELECT COUNT(*) AS n FROM message_queue_item WHERE owner_id=? AND delivery_state='pending'",
+                vec![completion.owner_id.clone().into()],
+            ))
+            .await?
+            .ok_or_else(|| DbError::NotFound("message_queue_state row".into()))?;
+        let pending: i64 = pending.try_get("", "n")?;
+        if pending > 0 {
+            Some(HOLD_MANUAL_STOP.to_string())
+        } else {
+            None
+        }
+    } else {
+        state.hold.clone()
+    };
     txn.execute(statement(
-        "UPDATE message_queue_state SET status=?,active_attempt_id=NULL,failed_attempt_id=?,error=?,revision=revision+1,updated_at=? WHERE owner_id=? AND active_attempt_id=?",
+        "UPDATE message_queue_state SET status=?,active_attempt_id=NULL,failed_attempt_id=?,error=?,hold=?,revision=revision+1,updated_at=? WHERE owner_id=? AND active_attempt_id=?",
         vec![(if open { "open" } else { "paused" }).into(),
             (if open { None } else { recovery_of.or(Some(completion.attempt_id.clone())) }).into(),
             (if open { None } else { completion.error.clone().or(Some("previous task did not finish".into())) }).into(),
+            hold.into(),
             Utc::now().to_rfc3339().into(), completion.owner_id.clone().into(), completion.attempt_id.clone().into()],
     )).await?;
     let result = state_on(&txn, &completion.owner_id).await?;
@@ -195,6 +233,23 @@ pub async fn request_continue(
         return Err(DbError::Conflict(
             "recovery already requested or failure has changed".into(),
         ));
+    }
+    get_state(conn, owner).await
+}
+
+/// Lift a user-stop hold back to normal draining. CAS on `hold IS NOT NULL`
+/// so a double click (or a racing client) conflicts instead of double-bumping
+/// the revision; the caller wakes the drain on success.
+pub async fn release_hold(
+    conn: &DatabaseConnection,
+    owner: &str,
+) -> Result<MessageQueueState, DbError> {
+    let updated = conn.execute(statement(
+        "UPDATE message_queue_state SET hold=NULL,revision=revision+1,updated_at=? WHERE owner_id=? AND hold IS NOT NULL",
+        vec![Utc::now().to_rfc3339().into(), owner.into()],
+    )).await?;
+    if updated.rows_affected() != 1 {
+        return Err(DbError::Conflict("queue is not holding".into()));
     }
     get_state(conn, owner).await
 }

@@ -926,6 +926,9 @@ const ConversationTabView = memo(function ConversationTabView({
     // A row being inserted into the (just-ended) turn is still queued; sending
     // it now would deliver it twice. See `queueSteerInFlight`.
     if (queueSteerInFlight) return
+    // A user-stop hold parks the queue on purpose: nothing auto-flushes while
+    // the hold is set — the user sends rows by hand (or releases the hold).
+    if (messageQueue.control?.hold != null) return
     if (msgQueue.length === 0) return
     // setTimeout (not microtask) so a COMPLETE_TURN commit settles first AND so
     // a just-bounced retry waits out the backoff window before re-sending.
@@ -955,6 +958,7 @@ const ConversationTabView = memo(function ConversationTabView({
   }, [
     conn.messageQueueBackendDrain,
     messageQueue.backendDrain,
+    messageQueue.control,
     dbConversationId,
     connectionReady,
     runtimeSyncState,
@@ -1154,7 +1158,14 @@ const ConversationTabView = memo(function ConversationTabView({
       // Preserve FIFO: a direct send issued while the queue is non-empty joins
       // the tail rather than racing ahead of the queued items. Read the
       // queue length synchronously (it reflects a same-tick bounce requeue).
-      if (shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength())) {
+      // A user-stop hold lifts that rule on purpose: the rows were frozen by
+      // a Stop click, and the user's fresh input ("continue the task") must
+      // reach the session NOW, not line up behind what they parked.
+      const queueHeld = messageQueue.control?.hold != null
+      if (
+        !queueHeld &&
+        shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength())
+      ) {
         mqEnqueue(draft, selectedModeIdArg ?? null)
         return
       }
@@ -2390,6 +2401,8 @@ const ConversationTabView = memo(function ConversationTabView({
       queue={msgQueue}
       queueControl={messageQueue.control}
       onQueueContinue={async () => { try { await messageQueue.continueTask() } catch (error) { toast.error(toErrorMessage(error)) } }}
+      onQueueReleaseHold={async () => { try { await messageQueue.releaseHold() } catch (error) { toast.error(toErrorMessage(error)) } }}
+      onQueueSendNow={async (id) => { try { await messageQueue.sendNow(id) } catch (error) { toast.error(toErrorMessage(error)) } }}
       onEnqueue={mqEnqueue}
       onEnqueueScheduled={
         // The composer owns the failure UX (toast + keep draft); passing the

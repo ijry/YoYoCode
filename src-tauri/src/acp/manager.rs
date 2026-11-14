@@ -1894,7 +1894,13 @@ impl ConnectionManager {
             let attempt = crate::db::service::message_queue_control_service::begin_attempt(
                 &db.conn, &cid.to_string(), conn_id, &message_id, &draft_json, recovery_of.as_deref(),
             ).await.map_err(|error| AcpError::protocol(error.to_string()))?;
-            state_arc.write().await.queue_attempt = Some(attempt.clone());
+            {
+                let mut state = state_arc.write().await;
+                // A cancel whose flag never got consumed (no queue attempt was
+                // live at the time) must not bleed into this new turn.
+                state.cancel_by_user = false;
+                state.queue_attempt = Some(attempt.clone());
+            }
             Some(attempt)
         } else { None };
 
@@ -2176,7 +2182,7 @@ impl ConnectionManager {
             action,
             conn_id
         );
-        self.cancel(db, conn_id).await
+        self.cancel(db, conn_id, false).await
     }
 
     /// Stop one AIR async task (`_session/async_task/stop`).
@@ -2215,7 +2221,15 @@ impl ConnectionManager {
             .map_err(|_| AcpError::protocol("Async task stop reply channel closed".to_string()))?
     }
 
-    pub async fn cancel(&self, db: &DatabaseConnection, conn_id: &str) -> Result<(), AcpError> {
+    /// Stop the running turn. `by_user` marks a person pressing Stop — the
+    /// queue-control layer only holds the queue for a user stop, so internal
+    /// cancels (automation, work tasks, CLI runs) must not claim it.
+    pub async fn cancel(
+        &self,
+        db: &DatabaseConnection,
+        conn_id: &str,
+        by_user: bool,
+    ) -> Result<(), AcpError> {
         let (cmd_tx, state_arc, emitter) = {
             let connections = self.connections.lock().await;
             let conn = connections
@@ -2228,7 +2242,7 @@ impl ConnectionManager {
             )
         };
         cmd_tx
-            .send(ConnectionCommand::Cancel)
+            .send(ConnectionCommand::Cancel { by_user })
             .await
             .map_err(|_| AcpError::ProcessExited)?;
 
@@ -4546,7 +4560,7 @@ impl crate::acp::delegation::spawner::ConnectionSpawner for ConnectionManagerSpa
         conn_id: &str,
     ) -> Result<(), crate::acp::delegation::spawner::SpawnerError> {
         self.manager
-            .cancel(&self.db.conn, conn_id)
+            .cancel(&self.db.conn, conn_id, false)
             .await
             .map_err(|e| crate::acp::delegation::spawner::SpawnerError::Cancel(e.to_string()))
     }
@@ -6097,7 +6111,7 @@ mod tests {
             .unwrap();
 
         let mut rx = loop_stub.await.unwrap();
-        assert!(matches!(rx.try_recv(), Ok(ConnectionCommand::Cancel)));
+        assert!(matches!(rx.try_recv(), Ok(ConnectionCommand::Cancel { by_user: false })));
         assert!(rx.try_recv().is_err(), "nothing else is enqueued");
     }
 
@@ -6145,7 +6159,7 @@ mod tests {
             .unwrap();
 
         let mut rx = loop_stub.await.unwrap();
-        assert!(matches!(rx.try_recv(), Ok(ConnectionCommand::Cancel)));
+        assert!(matches!(rx.try_recv(), Ok(ConnectionCommand::Cancel { by_user: false })));
         assert!(rx.try_recv().is_err(), "nothing else is enqueued");
     }
 

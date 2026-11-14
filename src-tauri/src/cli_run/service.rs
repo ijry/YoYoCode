@@ -2468,7 +2468,7 @@ impl CliRunService {
             (inner.connection_id.clone(), inner.conversation_id)
         };
         if let Some(conn) = &conn {
-            let _ = self.manager.cancel(&self.db.conn, conn).await;
+            let _ = self.manager.cancel(&self.db.conn, conn, false).await;
         }
         if let Some(cid) = conversation_id {
             self.converge_cancelled(cid).await;
@@ -3181,7 +3181,7 @@ mod tests {
                 ..
             } => format!("set:{config_id}={value_id}"),
             ConnectionCommand::SetMode { mode_id, .. } => format!("mode:{mode_id}"),
-            ConnectionCommand::Cancel => "cancel".into(),
+            ConnectionCommand::Cancel { .. } => "cancel".into(),
             ConnectionCommand::Disconnect => "disconnect".into(),
             _ => "other".into(),
         }

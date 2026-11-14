@@ -4004,6 +4004,18 @@ export async function messageQueueContinue(ownerId: string, failedAttemptId: str
   return getTransport().call("message_queue_continue", { ownerId, failedAttemptId })
 }
 
+// Lift the user-stop hold so the queue drains again (`hold = "manual_stop"`).
+export async function messageQueueReleaseHold(ownerId: string): Promise<void> {
+  return getTransport().call("message_queue_release_hold", { ownerId })
+}
+
+// Send ONE queued item right now at the user's explicit request — the manual
+// override for a held queue. Fire-and-forget like retry: the worker owns the
+// delivery and broadcasts the row's state, so a failure lands on the row.
+export async function messageQueueSendNow(ownerId: string, itemId: string): Promise<void> {
+  return getTransport().call("message_queue_send_now", { ownerId, itemId })
+}
+
 export async function messageQueueRetry(ownerId: string, itemId: string): Promise<void> {
   return getTransport().call("message_queue_retry", { ownerId, itemId })
 }
