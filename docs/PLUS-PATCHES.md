@@ -43,6 +43,15 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
 | （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10 | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；上游动这些文件时需手动合并 |
 
+### 队列扣留、端口迁移与品牌图标（v0.44.0-plus.1）
+
+- `f0645f2cc`：手动停止回合时扣住消息队列。取消来源按 `by_user` 归因（自动化 / 工作任务 / CLI 运行不触发）；`message_queue_state` 新增 `hold` 列承载扣留状态，`can_drain` 增加 `hold IS NULL`；新增 `message_queue_release_hold` 与 `message_queue_send_now` 两个命令（Tauri + HTTP + router）；扣留期间输入框直发绕过队列尾随，下一回合成功完成后自动解除。冲突面：`db/migration/mod.rs`、`db/service/message_queue_control_service.rs`、`acp/{manager,connection,session_state,message_queue_drain}.rs`、`commands/message_queue.rs`、`web/{router,handlers/message_queue}.rs`、`chat/message-queue-display.tsx`、`conversation-detail-panel.tsx`、i18n×10。
+- `fbec51004`：Web 服务默认端口 3080/18080 → **18989**；MCode 连接配置码携带宿主机主机名。冲突面：`Dockerfile*`、`docker-compose.yml`、`install.{sh,ps1}`、`bin/codeg_server.rs`、`cli/args.rs`、`web/mod.rs`（上游同期新增绑定地址选择器，需与其 `bind_host` 字段缝合）、`web-service-settings.tsx`、`mcode-config-code.ts`、README×10、docs。
+- `e371b4874`：`feedback.enabled` 默认改为开启，与 `question.enabled` 一致。
+- `297863f12`：续跑回合被受理（`resuming`）后隐藏中断横幅；`resume_requested` 期间保留，因为此时禁用按钮是点击的唯一反馈。
+- `79a600219`：定时发送并入发送按钮右侧下拉，空闲时右侧分体默认隐藏、悬停浮现（触屏常显）；无 steer 通道的回合补上排队发送按钮。冲突面：`message-input.tsx`。
+- `be3004562`：章鱼图标替换悠悠球标记，覆盖全部平台资源；轮廓由源图追踪生成（轮廓 IoU 0.993，颜色平均误差 <1/255）。删除无引用的 `app-icon.tsx`。定时发送弹窗改用轻遮罩，`DialogContent` 新增可选 `overlayClassName`，其余弹窗不受影响。冲突面：`src-tauri/icons/`（上游改动时整体冲突，重跑追踪脚本重新生成即可）、`public/icon*`、`ui/dialog.tsx`。
+
 ### Web 公网访问与 MCode 配置（v0.42.0-plus.4）
 
 - `5f70cc35c`：设置 → Web 服务集成 Tailscale Funnel。主机 CLI 检测、登录/授权、配置确认、启停恢复及自有映射清理；成功后公网 HTTPS 地址优先显示。
