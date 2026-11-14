@@ -1955,18 +1955,18 @@ export function MessageInput({
     [handleModeSelect, onConfigOptionChange]
   )
 
-  const scheduleButton = onEnqueueScheduled ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="h-8 w-8"
-      disabled={disabled || !hasSendableContent || scheduling}
-      onClick={() => setScheduleDialogOpen(true)}
-      title={tQueue("scheduledSend")}
+  // The send-later entry shared by every split dropdown (busy steer menu,
+  // idle split, channel-less busy split). The calendar-clock is the
+  // send-later promise — distinct from the plain Clock that means "waits
+  // for this turn".
+  const scheduleMenuItem = onEnqueueScheduled ? (
+    <DropdownMenuItem
+      onSelect={() => setScheduleDialogOpen(true)}
+      disabled={scheduling}
     >
-      <CalendarClock className="size-4" />
-    </Button>
+      <CalendarClock className="h-4 w-4" />
+      {tQueue("scheduledSend")}
+    </DropdownMenuItem>
   ) : null
 
   const actionButtons = isEditingQueueItem ? (
@@ -1998,8 +1998,8 @@ export function MessageInput({
       // done here), the dropdown sends it over the channel — a native push
       // inserts into the RUNNING turn, a pull-tool session records a waiting
       // note for the agent's next check (label keyed on `steerChannel`).
-      // Without `onSteer` this branch stays pixel-identical to the
-      // historical Stop-only form below.
+      // Without `onSteer` the branch below keeps the same split but its
+      // dropdown only carries the send-later entry.
       <div className="flex items-center gap-1">
         <Button
           onClick={onCancel}
@@ -2048,24 +2048,17 @@ export function MessageInput({
                 )}
                 {t(steerChannel === "pull" ? "steerAsNote" : "steerIntoTurn")}
               </DropdownMenuItem>
-              {onEnqueueScheduled && (
-                <DropdownMenuItem
-                  onSelect={() => setScheduleDialogOpen(true)}
-                  disabled={steering}
-                >
-                  {/* The calendar-clock is the send-later promise — distinct
-                      from the plain Clock that means "waits for this turn". */}
-                  <CalendarClock className="h-4 w-4" />
-                  {tQueue("scheduledSend")}
-                </DropdownMenuItem>
-              )}
+              {scheduleMenuItem}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
     ) : (
+      // No live-feedback channel: Send cannot interrupt the running turn, so
+      // it does what Enter does — queues the draft — and the send-later entry
+      // rides its dropdown instead of a standalone clock icon. Hosts without
+      // `scheduled_send` keep a plain queueing Send.
       <div className="flex items-center gap-1">
-        {scheduleButton}
         <Button
           onClick={onCancel}
           variant="destructive"
@@ -2075,11 +2068,91 @@ export function MessageInput({
         >
           <Square className="size-4" />
         </Button>
+        {onEnqueueScheduled ? (
+          <div className="flex items-center">
+            <Button
+              onClick={handleSend}
+              disabled={!hasSendableContent}
+              size="icon"
+              className="h-8 w-8 rounded-r-none"
+              title={t("queueMessage")}
+            >
+              <Send className="size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  disabled={scheduling}
+                  size="icon"
+                  className="h-8 w-5 rounded-l-none border-l border-primary-foreground/20"
+                  aria-label={tQueue("scheduledSend")}
+                  title={tQueue("scheduledSend")}
+                >
+                  <ChevronUp className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top">
+                {scheduleMenuItem}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          <Button
+            onClick={handleSend}
+            disabled={!hasSendableContent}
+            size="icon"
+            className="h-8 w-8"
+            title={t("queueMessage")}
+          >
+            <Send className="size-4" />
+          </Button>
+        )}
       </div>
     )
+  ) : onEnqueueScheduled ? (
+    // The send-later entry lives in a dropdown on the send button's right —
+    // the same split shape the busy composer uses for its steer actions —
+    // instead of a standalone clock icon beside Send. Same condition as the
+    // old icon: hosts without `scheduled_send` keep the plain send button.
+    // At rest the split half is hidden (Send reads as one button) and fades
+    // in as the cursor reaches the cluster — or on focus / while the menu is
+    // open; touch devices have no hover and keep it always visible.
+    <div className="group flex items-center">
+      <Button
+        onClick={handleSend}
+        disabled={disabled || !hasSendableContent}
+        size="icon"
+        className="h-8 w-8 rounded-md group-hover:rounded-r-none group-has-[[data-state=open]]:rounded-r-none"
+        title={t("send")}
+      >
+        <Send className="size-4" />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            disabled={disabled || !hasSendableContent || scheduling}
+            size="icon"
+            className={cn(
+              "h-8 w-5 rounded-l-none border-l border-primary-foreground/20 transition-opacity",
+              "pointer-events-none opacity-0",
+              "group-hover:pointer-events-auto group-hover:opacity-100",
+              "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+              "data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
+              "[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+            )}
+            aria-label={tQueue("scheduledSend")}
+            title={tQueue("scheduledSend")}
+          >
+            <ChevronUp className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top">
+          {scheduleMenuItem}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   ) : (
     <div className="flex items-center gap-1">
-      {scheduleButton}
       <Button
         onClick={handleSend}
         disabled={disabled || !hasSendableContent}
