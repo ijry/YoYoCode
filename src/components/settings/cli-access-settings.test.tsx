@@ -107,10 +107,10 @@ describe("CliAccessSettings", () => {
 })
 
 describe("CliToolInstall", () => {
-  const LINK = "/usr/local/bin/codeg-cli"
+  const LINK = "/usr/local/bin/yoyo-cli"
   const linkStatus = (over: Partial<CliToolStatus> = {}): CliToolStatus => ({
     method: "link",
-    command: "codeg-cli",
+    command: "yoyo-cli",
     installed: false,
     location: LINK,
     ...over,
@@ -141,18 +141,18 @@ describe("CliToolInstall", () => {
     await waitFor(() => expect(installTool).toHaveBeenCalledTimes(1))
     expect(await screen.findByText(LINK)).toBeInTheDocument()
     expect(toastSuccess).toHaveBeenCalledWith(
-      "codeg-cli is on your PATH. Open a new terminal to use it."
+      "yoyo-cli is on your PATH. Open a new terminal to use it."
     )
   })
 
-  it("leaves another codeg-cli alone and says why", async () => {
+  it("leaves another yoyo-cli alone and says why", async () => {
     getTool.mockResolvedValue(
-      linkStatus({ conflict: "/usr/local/bin/codeg-cli is not the app's" })
+      linkStatus({ conflict: "/usr/local/bin/yoyo-cli is not the app's" })
     )
     renderTool()
     expect(
       await screen.findByText(
-        "Left as it is: /usr/local/bin/codeg-cli is not the app's"
+        "Left as it is: /usr/local/bin/yoyo-cli is not the app's"
       )
     ).toBeInTheDocument()
     expect(
@@ -163,18 +163,18 @@ describe("CliToolInstall", () => {
   it("has nothing to offer a package that brought it, or a build without one", async () => {
     getTool.mockResolvedValue({
       method: "package",
-      command: "codeg-cli",
+      command: "yoyo-cli",
       installed: true,
-      location: "/usr/bin/codeg-cli",
+      location: "/usr/bin/yoyo-cli",
     })
     const packaged = renderTool()
-    expect(await screen.findByText("/usr/bin/codeg-cli")).toBeInTheDocument()
+    expect(await screen.findByText("/usr/bin/yoyo-cli")).toBeInTheDocument()
     expect(screen.queryByRole("button")).toBeNull()
     packaged.unmount()
 
     getTool.mockResolvedValue({
       method: "none",
-      command: "codeg-cli",
+      command: "yoyo-cli",
       installed: false,
     })
     const { container } = renderTool()

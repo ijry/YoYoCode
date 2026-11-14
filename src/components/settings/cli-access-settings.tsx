@@ -20,11 +20,11 @@ import type { CliAccessStatus, CliToolStatus } from "@/lib/types"
 
 /** A command to copy as it stands (see `docs/cli.md`). */
 export const CLI_ACCESS_EXAMPLE =
-  'codeg-cli -a claude_code -p "Review the latest commit"'
+  'yoyo-cli -a claude_code -p "Review the latest commit"'
 
 /**
  * "Allow command-line access": whether this runtime listens for the
- * `codeg-cli` command of its own machine. On by default; switching it off
+ * `yoyo-cli` command of its own machine. On by default; switching it off
  * unpublishes the endpoint file and stops listening at once.
  */
 export function CliAccessSettings() {
@@ -104,9 +104,9 @@ export function CliAccessSettings() {
 }
 
 /**
- * "Install command-line tool": this app's `codeg-cli` on the user's PATH —
+ * "Install command-line tool": this app's `yoyo-cli` on the user's PATH —
  * a link on macOS (and for an AppImage), the installer's `bin` folder on the
- * user's PATH on Windows; nothing to do for a Linux package. A `codeg-cli`
+ * user's PATH on Windows; nothing to do for a Linux package. A `yoyo-cli`
  * already there that is not the app's is left alone.
  */
 export function CliToolInstall() {

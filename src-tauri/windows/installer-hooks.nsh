@@ -1,13 +1,13 @@
 ; Tauri NSIS installer hooks.
 ;
-; codeg-mcp.exe is the MCP stdio companion spawned by each agent CLI
+; yoyocode-mcp.exe is the MCP stdio companion spawned by each agent CLI
 ; (claude / codex / opencode / ...), which is itself a grandchild of
 ; codeg.exe. Windows does not propagate parent death to descendants the
-; way Unix does, so stale codeg-mcp.exe processes from a previous session
+; way Unix does, so stale yoyocode-mcp.exe processes from a previous session
 ; can keep the binary file locked. The installer then fails to overwrite
 ; it with:
 ;
-;     Error opening file for writing: ...\codeg\codeg-mcp.exe
+;     Error opening file for writing: ...\codeg\yoyocode-mcp.exe
 ;
 ; codeg-computer-helper.exe, the computer-use helper, is codeg's own child
 ; and exits when codeg does — but not necessarily before the updater starts
@@ -66,18 +66,18 @@
 ; without asking. An install stopped later on, at some other file, leaves a
 ; moved file where it is; the next install deletes it and writes the new one.
 ;
-; codeg-cli.exe, the command-line client, is never stopped: a codeg-cli that
+; yoyo-cli.exe, the command-line client, is never stopped: a yoyo-cli that
 ; runs is the user's own command, a review a CI job is waiting for, say. One
 ; in use is moved aside the same way. Its copy in bin\ is the one that goes on
-; PATH (docs/cli.md): $INSTDIR itself would put codeg-mcp.exe and the rest
-; there too. The copy is made after the install, from the codeg-cli.exe just
+; PATH (docs/cli.md): $INSTDIR itself would put yoyocode-mcp.exe and the rest
+; there too. The copy is made after the install, from the yoyo-cli.exe just
 ; written, and moved aside first if it is running — the copy a terminal runs.
-; A copy that fails puts the moved one back: an older codeg-cli beats none.
+; A copy that fails puts the moved one back: an older yoyo-cli beats none.
 ; The uninstaller removes it after Tauri's own files, and then $INSTDIR, which
 ; Tauri's uninstaller could not remove with bin\ still in it. Not before
 ; them: the uninstaller stops when the user will not close a running codeg,
 ; and that codeg would be left without its command. One still running is
-; renamed out of the way instead, so PATH stops finding a codeg-cli of an app
+; renamed out of the way instead, so PATH stops finding a yoyo-cli of an app
 ; that is gone; the next install, or the user once it ends, deletes it.
 
 !define CODEG_TH32CS_SNAPPROCESS 0x2
@@ -135,10 +135,10 @@
   ${EndIf}
 !macroend
 
-; Ends the codeg-mcp and codeg-computer-helper processes running from
+; Ends the yoyocode-mcp and codeg-computer-helper processes running from
 ; $INSTDIR, and the processes they started.
 !macro CODEG_STOP_SIDECARS
-  DetailPrint "Stopping codeg-mcp and codeg-computer-helper processes running from $INSTDIR..."
+  DetailPrint "Stopping yoyocode-mcp and codeg-computer-helper processes running from $INSTDIR..."
   System::Call 'kernel32::GetCurrentProcessId() i .r4'
   System::Call 'kernel32::CreateToolhelp32Snapshot(i ${CODEG_TH32CS_SNAPPROCESS}, i 0) p .r0'
   ${If} $0 P<> -1
@@ -147,7 +147,7 @@
       System::Call 'kernel32::Process32FirstW(p r0, p r1) i .r2'
       ${DoWhile} $2 <> 0
         System::Call '*$1(i, i, i .r3, p, i, i, i, i, i, &w260 .r5)'
-        ${If} $5 == "codeg-mcp.exe"
+        ${If} $5 == "yoyocode-mcp.exe"
         ${OrIf} $5 == "codeg-computer-helper.exe"
           System::Call 'kernel32::OpenProcess(i ${CODEG_PROCESS_STOP_ACCESS}, i 0, i r3) p .r6'
           ${If} $6 P<> 0
@@ -204,10 +204,10 @@
   ${If} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
     Delete "$INSTDIR\${MAINBINARYNAME}.exe.*.old"
   ${EndIf}
-  Delete "$INSTDIR\codeg-mcp.exe.*.old"
+  Delete "$INSTDIR\yoyocode-mcp.exe.*.old"
   Delete "$INSTDIR\codeg-computer-helper.exe.*.old"
-  Delete "$INSTDIR\codeg-cli.exe.*.old"
-  Delete "$INSTDIR\bin\codeg-cli.exe.*.old"
+  Delete "$INSTDIR\yoyo-cli.exe.*.old"
+  Delete "$INSTDIR\bin\yoyo-cli.exe.*.old"
 !macroend
 
 ; In an update: waits for each process running $INSTDIR\codeg.exe in this
@@ -354,9 +354,9 @@ FunctionEnd
     !insertmacro CODEG_CAN_WRITE "$INSTDIR\${MAINBINARYNAME}.exe"
   ${EndIf}
   ${If} $R9 = 1
-    !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "codeg-mcp.exe"
+    !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "yoyocode-mcp.exe"
     !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "codeg-computer-helper.exe"
-    !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "codeg-cli.exe"
+    !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "yoyo-cli.exe"
   ${EndIf}
   ${If} $UpdateMode = 1
     !insertmacro CODEG_CLEAR_APP_FOR_CHECK
@@ -367,15 +367,15 @@ FunctionEnd
   ; codeg.exe's own write can fail and be skipped.
   !insertmacro CODEG_RESTORE_APP
   CreateDirectory "$INSTDIR\bin"
-  !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "bin\codeg-cli.exe"
+  !insertmacro CODEG_MOVE_ASIDE_IF_IN_USE "bin\yoyo-cli.exe"
   ClearErrors
-  CopyFiles /SILENT "$INSTDIR\codeg-cli.exe" "$INSTDIR\bin\codeg-cli.exe"
+  CopyFiles /SILENT "$INSTDIR\yoyo-cli.exe" "$INSTDIR\bin\yoyo-cli.exe"
   ${If} ${Errors}
-    DetailPrint "Could not copy codeg-cli.exe into $INSTDIR\bin"
+    DetailPrint "Could not copy yoyo-cli.exe into $INSTDIR\bin"
     ; $R9 = 0 and $R8: CODEG_MOVE_ASIDE_IF_IN_USE moved it to .$R8.old.
     ${If} $R9 = 0
-    ${AndIfNot} ${FileExists} "$INSTDIR\bin\codeg-cli.exe"
-      Rename "$INSTDIR\bin\codeg-cli.exe.$R8.old" "$INSTDIR\bin\codeg-cli.exe"
+    ${AndIfNot} ${FileExists} "$INSTDIR\bin\yoyo-cli.exe"
+      Rename "$INSTDIR\bin\yoyo-cli.exe.$R8.old" "$INSTDIR\bin\yoyo-cli.exe"
     ${EndIf}
   ${EndIf}
   !insertmacro CODEG_DELETE_ASIDE
@@ -387,15 +387,15 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
-  ${If} ${FileExists} "$INSTDIR\bin\codeg-cli.exe"
+  ${If} ${FileExists} "$INSTDIR\bin\yoyo-cli.exe"
     ClearErrors
-    Delete "$INSTDIR\bin\codeg-cli.exe"
+    Delete "$INSTDIR\bin\yoyo-cli.exe"
     ${If} ${Errors}
       System::Call 'kernel32::GetTickCount() i .R8'
-      Rename "$INSTDIR\bin\codeg-cli.exe" "$INSTDIR\bin\codeg-cli.exe.$R8.old"
+      Rename "$INSTDIR\bin\yoyo-cli.exe" "$INSTDIR\bin\yoyo-cli.exe.$R8.old"
     ${EndIf}
   ${EndIf}
-  Delete "$INSTDIR\bin\codeg-cli.exe.*.old"
+  Delete "$INSTDIR\bin\yoyo-cli.exe.*.old"
   RMDir "$INSTDIR\bin"
   RMDir "$INSTDIR"
 !macroend
