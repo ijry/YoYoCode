@@ -5381,6 +5381,8 @@ export interface WebServerInfo {
   port: number
   token: string
   addresses: string[]
+  /** OS hostname of the serving machine; absent on older backends. */
+  hostName?: string | null
 }
 
 export async function startWebServer(params?: {

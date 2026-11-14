@@ -15,9 +15,11 @@ describe("MCode connection configuration", () => {
   ])(
     "encodes the selected endpoint %s using the v2 direct protocol",
     (address) => {
-      expect(decode(buildMcodeConfigCode(address, "example-token"))).toEqual({
+      expect(
+        decode(buildMcodeConfigCode(address, "example-token", "Workstation-01"))
+      ).toEqual({
         version: 2,
-        name: "Codeg",
+        name: "Workstation-01",
         targetAgent: "codeg",
         routeMode: "direct",
         directBaseUrl: address,
@@ -26,10 +28,52 @@ describe("MCode connection configuration", () => {
     }
   )
 
+  it("prefers and trims the machine name over the endpoint hostname", () => {
+    expect(
+      decode(
+        buildMcodeConfigCode(
+          "https://node.example.ts.net",
+          "token",
+          "  My-PC  "
+        )
+      ).name
+    ).toBe("My-PC")
+  })
+
+  it.each([
+    ["http://192.168.1.8:3080", "192.168.1.8"],
+    ["https://workstation.example.ts.net", "workstation.example.ts.net"],
+    ["http://[2001:db8::8]:3080", "2001:db8::8"],
+  ])(
+    "falls back to the endpoint hostname %s without a machine name",
+    (address, expectedName) => {
+      expect(decode(buildMcodeConfigCode(address, "token")).name).toBe(
+        expectedName
+      )
+    }
+  )
+
+  it.each([null, "   ", "bad\nname", "x".repeat(300)])(
+    "ignores an unusable machine name %s",
+    (hostName) => {
+      expect(
+        decode(buildMcodeConfigCode("https://fallback.test", "token", hostName))
+          .name
+      ).toBe("fallback.test")
+    }
+  )
+
   it("uses UTF-8 and normalizes whitespace and trailing slashes like MCode", () => {
     expect(
-      decode(buildMcodeConfigCode(" https://example.test/codeg/ ", " 令牌-🔑 "))
+      decode(
+        buildMcodeConfigCode(
+          " https://example.test/codeg/ ",
+          " 令牌-🔑 ",
+          " 主机🔑 "
+        )
+      )
     ).toMatchObject({
+      name: "主机🔑",
       directBaseUrl: "https://example.test/codeg",
       directToken: "令牌-🔑",
     })

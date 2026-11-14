@@ -269,10 +269,10 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — الخادم نفسه، داخل حاوية واحدة:
 
 ```bash
-docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-في الحالتين، افتح `http://<host>:18080` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
+في الحالتين، افتح `http://<host>:18989` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
 
 **الهاتف واللوحي** — احصل على تطبيق الجوّال من [getmcode.lingyun.net](https://getmcode.lingyun.net) ثم وجّهه نحو **خدمة الويب** لتطبيق سطح المكتب أو `codeg-server` الخاص بك: الرابط والرمز، وانتهى الأمر. خطوات الاقتران في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
 

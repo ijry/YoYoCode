@@ -269,10 +269,10 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — 같은 서버를, 컨테이너 하나로:
 
 ```bash
-docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-어느 쪽이든 브라우저에서 `http://<host>:18080`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
+어느 쪽이든 브라우저에서 `http://<host>:18989`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
 
 **모바일** — 모바일 앱은 [getmcode.lingyun.net](https://getmcode.lingyun.net)에서 받고, 데스크톱 앱의 **웹 서비스**나 자신의 `codeg-server`를 지정하세요: URL과 토큰이면 끝입니다. 페어링 단계는 [모바일 앱](https://docs.codeg.app/getting-started/installation#mobile-apps)을 참고하세요.
 

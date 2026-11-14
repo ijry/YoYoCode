@@ -269,10 +269,10 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — o mesmo servidor, em um contêiner:
 
 ```bash
-docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-Nos dois casos, abra `http://<host>:18080` no navegador e informe o token de acesso que o servidor exibe ao iniciar (no contêiner, veja com `docker logs`), ou defina `CODEG_TOKEN` para escolher o seu.
+Nos dois casos, abra `http://<host>:18989` no navegador e informe o token de acesso que o servidor exibe ao iniciar (no contêiner, veja com `docker logs`), ou defina `CODEG_TOKEN` para escolher o seu.
 
 **Celular e tablet** — obtenha o app móvel em [getmcode.lingyun.net](https://getmcode.lingyun.net) e aponte para o **serviço Web** do seu app desktop ou do seu `codeg-server`: URL, token, pronto. Passos de pareamento em [Apps móveis](https://docs.codeg.app/getting-started/installation#mobile-apps).
 

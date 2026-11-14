@@ -37,6 +37,7 @@ import { WebServiceSettings } from "./web-service-settings"
 
 const PUBLIC_URL = "https://workstation.example.ts.net"
 const LOCAL_URL = "http://127.0.0.1:3080"
+const MACHINE_NAME = "DESKTOP-TEST"
 const enabled = {
   state: "enabled",
   installed: true,
@@ -71,6 +72,7 @@ beforeEach(() => {
     port: 3080,
     token: "private-token-never-in-url",
     addresses: [LOCAL_URL, "http://192.168.1.2:3080"],
+    hostName: MACHINE_NAME,
   })
   api.getWebServiceConfig.mockResolvedValue({
     port: 3080,
@@ -98,11 +100,15 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function expectedConfigCode(address: string, token: string) {
+function expectedConfigCode(
+  address: string,
+  token: string,
+  name = MACHINE_NAME
+) {
   return Buffer.from(
     JSON.stringify({
       version: 2,
-      name: "Codeg",
+      name,
       targetAgent: "codeg",
       routeMode: "direct",
       directBaseUrl: address,
@@ -112,12 +118,12 @@ function expectedConfigCode(address: string, token: string) {
   ).toString("base64url")
 }
 
-function expectMobileQr(address: string, token: string) {
+function expectMobileQr(address: string, token: string, name = MACHINE_NAME) {
   const image = screen.getByRole("img", { name: "MCode connection QR code" })
   const expected = document.createElement("div")
   expected.innerHTML = renderToStaticMarkup(
     <QRCodeSVG
-      value={expectedConfigCode(address, token)}
+      value={expectedConfigCode(address, token, name)}
       size={200}
       marginSize={4}
     />
@@ -148,6 +154,29 @@ describe("MCode mobile connection", () => {
         "private-token-never-in-url"
       )
     )
+  })
+
+  it("names the connection after the machine reported by the backend", async () => {
+    api.getWebServerStatus.mockResolvedValue({
+      port: 3080,
+      token: "private-token-never-in-url",
+      addresses: [LOCAL_URL],
+      hostName: "  Studio-Mac  ",
+    })
+    renderSettings()
+    await screen.findByRole("img", { name: "MCode connection QR code" })
+    expectMobileQr(LOCAL_URL, "private-token-never-in-url", "Studio-Mac")
+  })
+
+  it("falls back to the endpoint hostname without a machine name", async () => {
+    api.getWebServerStatus.mockResolvedValue({
+      port: 3080,
+      token: "private-token-never-in-url",
+      addresses: [LOCAL_URL],
+    })
+    renderSettings()
+    await screen.findByRole("img", { name: "MCode connection QR code" })
+    expectMobileQr(LOCAL_URL, "private-token-never-in-url", "127.0.0.1")
   })
 
   it("updates the configuration QR when Funnel becomes the selected address", async () => {
@@ -232,6 +261,7 @@ describe("one-click public access setup", () => {
       port: number
       token: string
       addresses: string[]
+      hostName: string
     }>()
     api.getWebServerStatus.mockResolvedValue(null)
     api.getWebServiceConfig.mockResolvedValue({
@@ -260,6 +290,7 @@ describe("one-click public access setup", () => {
         port: 4567,
         token: "active-token",
         addresses: ["http://127.0.0.1:4567"],
+        hostName: MACHINE_NAME,
       })
     )
     expect(api.enableTailscaleFunnel).toHaveBeenCalledTimes(1)
@@ -823,6 +854,7 @@ describe("Web service Funnel addresses", () => {
       port: 3080,
       token: "private-token",
       addresses: [LOCAL_URL],
+      hostName: MACHINE_NAME,
     })
     api.getTailscaleFunnelStatus
       .mockResolvedValueOnce({ ...disabled, state: "stopped" })

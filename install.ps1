@@ -640,6 +640,6 @@ Write-Host "Quick start:"
 Write-Host "  `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
 Write-Host ""
 Write-Host "Or with custom settings:"
-Write-Host "  `$env:CODEG_PORT=`"3080`"; `$env:CODEG_TOKEN=`"your-secret`"; `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
+Write-Host "  `$env:CODEG_PORT=`"18989`"; `$env:CODEG_TOKEN=`"your-secret`"; `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
 
 exit $ExitStatus

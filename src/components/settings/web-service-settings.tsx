@@ -40,7 +40,7 @@ import {
   type WebServicePortProbe,
 } from "@/lib/api"
 
-const DEFAULT_PORT = 3080
+const DEFAULT_PORT = 18989
 import { openUrl } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
@@ -566,7 +566,7 @@ export function WebServiceSettings() {
       ? selectedAddress
       : (addresses[0] ?? null)
   const mobileConfigCode = status
-    ? buildMcodeConfigCode(currentAddress, status.token)
+    ? buildMcodeConfigCode(currentAddress, status.token, status.hostName)
     : null
   const hasMultipleAddresses = addresses.length > 1
   const showStaleBanner =

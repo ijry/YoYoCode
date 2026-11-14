@@ -236,7 +236,7 @@ async fn async_main(
     let port: u16 = std::env::var("CODEG_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(18080);
+        .unwrap_or(18989);
     let host = std::env::var("CODEG_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     // CODEG_DATA_DIR was already resolved and absolutized in `main()` so
     // all path resolvers across the process see the same root. Read it

@@ -51,7 +51,7 @@ COPY --from=frontend /app/out /app/web
 
 ENV CODEG_STATIC_DIR=/app/web
 ENV CODEG_DATA_DIR=/data
-ENV CODEG_PORT=3080
+ENV CODEG_PORT=18989
 ENV CODEG_HOST=0.0.0.0
 ENV SHELL=/bin/bash
 # In-place self-update markers: tells the running server it is a container
@@ -60,11 +60,11 @@ ENV SHELL=/bin/bash
 ENV CODEG_RUNTIME=docker
 ENV CODEG_RESTART_DELAY_MS=2000
 
-EXPOSE 3080
+EXPOSE 18989
 # Port bridge for dev servers (CODEG_BRIDGE_PORTS; default CODEG_PORT+1..+10).
 # Not needed when CODEG_BRIDGE_HOST_PATTERN names the dev servers by hostname
-# instead: those answer on 3080, and no range has to be guessed in advance.
-EXPOSE 3081-3090
+# instead: those answer on 18989, and no range has to be guessed in advance.
+EXPOSE 18990-18999
 VOLUME /data
 
 # Run under the built-in supervisor (PID 1) so an in-place upgrade can swap

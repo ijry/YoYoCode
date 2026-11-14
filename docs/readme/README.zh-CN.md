@@ -269,10 +269,10 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — 同一个服务器，装进一个容器：
 
 ```bash
-docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-无论哪种方式，都在浏览器里打开 `http://<host>:18080`，输入服务器启动时打印的访问令牌（容器用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自己指定。
+无论哪种方式，都在浏览器里打开 `http://<host>:18989`，输入服务器启动时打印的访问令牌（容器用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自己指定。
 
 **移动端** — 从 [getmcode.lingyun.net](https://getmcode.lingyun.net) 获取移动端应用，然后指向桌面应用的**Web 服务**或你自己的 `codeg-server`：填 URL 和 token 即可。配对步骤见[移动应用](https://docs.codeg.app/getting-started/installation#mobile-apps)。
 

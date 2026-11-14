@@ -18,7 +18,7 @@ pub use port_probe::{PortState, WebServicePortProbe};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU16, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use shutdown::ShutdownSignal;
 
@@ -32,7 +32,7 @@ use crate::db::service::app_metadata_service;
 const WEB_SERVICE_TOKEN_KEY: &str = "web_service_token";
 const WEB_SERVICE_PORT_KEY: &str = "web_service_port";
 const WEB_SERVICE_AUTO_START_KEY: &str = "web_service_auto_start";
-pub const DEFAULT_WEB_SERVICE_PORT: u16 = 3080;
+pub const DEFAULT_WEB_SERVICE_PORT: u16 = 18989;
 
 #[derive(Clone)]
 pub struct WebServerState {
@@ -111,6 +111,57 @@ pub struct WebServerInfo {
     pub port: u16,
     pub token: String,
     pub addresses: Vec<String>,
+    /// Name of the machine hosting the service. The settings page uses it to
+    /// label the MCode connection, so several machines are distinguishable in
+    /// the mobile app. `None` when the OS cannot report a usable name.
+    pub host_name: Option<String>,
+}
+
+/// The host's own name as the OS reports it (e.g. `DESKTOP-4K9A1B`). Cached:
+/// the name cannot change without a reboot, while status polls are frequent.
+pub fn machine_host_name() -> Option<String> {
+    static HOST_NAME: OnceLock<Option<String>> = OnceLock::new();
+    HOST_NAME
+        .get_or_init(|| usable_host_name(platform_host_name()))
+        .clone()
+}
+
+/// A hostname is only a display label. Reject anything that would break a
+/// configuration code: empty, absurdly long, or containing control characters.
+fn usable_host_name(raw: Option<String>) -> Option<String> {
+    let name = raw?.trim().to_string();
+    if name.is_empty() || name.len() > 128 || name.chars().any(char::is_control) {
+        return None;
+    }
+    Some(name)
+}
+
+#[cfg(windows)]
+fn platform_host_name() -> Option<String> {
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .ok()
+}
+
+#[cfg(unix)]
+fn platform_host_name() -> Option<String> {
+    let mut buffer = [0u8; 256];
+    // SAFETY: `buffer` is writable and `gethostname` writes at most its length.
+    // Only bytes before the first NUL (or the whole filled buffer) are read.
+    let rc = unsafe { libc::gethostname(buffer.as_mut_ptr().cast::<libc::c_char>(), buffer.len()) };
+    if rc != 0 {
+        return None;
+    }
+    let len = buffer
+        .iter()
+        .position(|&byte| byte == 0)
+        .unwrap_or(buffer.len());
+    String::from_utf8(buffer[..len].to_vec()).ok()
+}
+
+#[cfg(not(any(windows, unix)))]
+fn platform_host_name() -> Option<String> {
+    None
 }
 
 pub fn generate_random_token() -> String {
@@ -638,6 +689,7 @@ pub(crate) async fn do_start_web_server_with_state(
         port: actual_port,
         token,
         addresses,
+        host_name: machine_host_name(),
     })
 }
 
@@ -746,6 +798,7 @@ pub(crate) fn do_get_web_server_status(state: &WebServerState) -> Option<WebServ
         port,
         token,
         addresses,
+        host_name: machine_host_name(),
     })
 }
 
@@ -1005,6 +1058,7 @@ pub(crate) async fn do_start_web_server_tauri(
         port: actual_port,
         token,
         addresses,
+        host_name: machine_host_name(),
     })
 }
 
@@ -1125,6 +1179,32 @@ mod local_address_tests {
         assert!(http_state.is_externally_managed());
         super::do_stop_web_server(&state).await.unwrap();
         assert!(super::do_get_web_server_status(&http_state).is_none());
+    }
+
+    #[test]
+    fn machine_host_name_is_a_usable_display_label() {
+        assert_eq!(
+            super::usable_host_name(Some("  Workstation-01  ".into())),
+            Some("Workstation-01".to_string())
+        );
+        assert_eq!(super::usable_host_name(Some("   ".into())), None);
+        assert_eq!(super::usable_host_name(None), None);
+        assert_eq!(super::usable_host_name(Some("bad\nname".into())), None);
+        assert_eq!(super::usable_host_name(Some("x".repeat(200))), None);
+    }
+
+    #[test]
+    fn web_server_status_reports_the_machine_name() {
+        let state = super::WebServerState::new();
+        state.mark_externally_running("127.0.0.1".into(), 3080, "token".into());
+        let info = super::do_get_web_server_status(&state).unwrap();
+        // Either the OS reported a usable name or the client falls back; never
+        // an unusable one in a configuration code.
+        if let Some(name) = info.host_name {
+            assert!(!name.trim().is_empty());
+            assert!(name.len() <= 128);
+            assert!(!name.chars().any(char::is_control));
+        }
     }
 
     #[test]

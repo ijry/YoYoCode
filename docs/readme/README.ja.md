@@ -269,10 +269,10 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
 **Docker** — 同じサーバーを、ひとつのコンテナで：
 
 ```bash
-docker run -d -p 18080:18080 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
+docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 ```
 
-どちらの場合も、ブラウザで `http://<host>:18080` を開き、サーバーが起動時に出力するアクセストークンを入力します（コンテナでは `docker logs` で確認できます）。`CODEG_TOKEN` で自分で決めることもできます。
+どちらの場合も、ブラウザで `http://<host>:18989` を開き、サーバーが起動時に出力するアクセストークンを入力します（コンテナでは `docker logs` で確認できます）。`CODEG_TOKEN` で自分で決めることもできます。
 
 **モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `codeg-server` を指定します：URL とトークンで完了。ペアリング手順は[モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)を参照。
 

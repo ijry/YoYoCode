@@ -4,28 +4,28 @@ services:
     # Or use a pre-built image:
     # image: xintaofei/codeg:latest
     ports:
-      - "3080:3080"
+      - "18989:18989"
       # Port bridge for dev servers started by agents inside the container:
       # the workbench shows `http://localhost:3000` from the container through
       # one of these ports (one per dev server). Publish the same range you set
       # in CODEG_BRIDGE_PORTS (default: the ten ports after CODEG_PORT).
       # Drop this line if you set CODEG_BRIDGE_HOST_PATTERN below.
-      - "3081-3090:3081-3090"
+      - "18990-18999:18990-18999"
     volumes:
       - codeg-data:/data
       # Mount your project directories (optional):
       # - /path/to/projects:/projects
     environment:
       - CODEG_TOKEN=${CODEG_TOKEN:-}
-      - CODEG_PORT=3080
+      - CODEG_PORT=18989
       - CODEG_HOST=0.0.0.0
-      # - CODEG_BRIDGE_PORTS=3081-3090   # or `off` to disable the port bridge
+      # - CODEG_BRIDGE_PORTS=18990-18999   # or `off` to disable the port bridge
       # Name the dev servers by hostname instead of giving each one a port:
       # `3000.codeg.example.com` reaches the container's port 3000 over the
-      # published 3080, so nothing above has to be published and no range has
+      # published 18989, so nothing above has to be published and no range has
       # to be guessed. Needs a wildcard DNS record for the name and, behind a
       # reverse proxy, a wildcard vhost pointing at this service and passing
-      # `Host` through (Caddy: `*.codeg.example.com { reverse_proxy codeg:3080 }`).
+      # `Host` through (Caddy: `*.codeg.example.com { reverse_proxy codeg:18989 }`).
       # `auto` puts the port one label in front of whatever host the workbench
       # itself was opened at.
       # - CODEG_BRIDGE_HOST_PATTERN=auto

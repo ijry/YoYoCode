@@ -204,7 +204,7 @@ fn run_options_given(matches: &clap::ArgMatches) -> bool {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct GlobalArgs {
-    /// A codeg reachable over HTTP(S), e.g. a codeg-server: https://host:18080.
+    /// A codeg reachable over HTTP(S), e.g. a codeg-server: https://host:18989.
     #[arg(long, global = true, value_name = "URL")]
     pub url: Option<String>,
 

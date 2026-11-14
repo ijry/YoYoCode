@@ -769,7 +769,7 @@ echo "Quick start:"
 echo "  CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
 echo ""
 echo "Or with custom settings:"
-echo "  CODEG_PORT=18080 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
+echo "  CODEG_PORT=18989 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
 echo ""
 echo "The auth token is printed to stderr on startup if not set via CODEG_TOKEN."
 

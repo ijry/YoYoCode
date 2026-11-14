@@ -6,7 +6,7 @@ Tailscale Funnel 给运行中的 Codeg Web 服务提供稳定的公网 HTTPS 地
 
 ## 首次开启
 
-1. 打开 **设置 → Web 服务**，按需设置本地端口和访问令牌。缺省本地端口为 **3080**，无需先手动启动服务。
+1. 打开 **设置 → Web 服务**，按需设置本地端口和访问令牌。缺省本地端口为 **18989**，无需先手动启动服务。
 2. 在 **Tailscale 公网访问** 区域检查状态。若未安装，使用安装入口前往 [Tailscale 下载页](https://tailscale.com/download)，只需在运行 Codeg 的主机安装；回到窗口会刷新状态，也可手动刷新。
 3. 安装就绪后，点击一次 **开启公网访问**。Codeg 会先启动本地 Web 服务（如有需要），再连接或登录 Tailscale，最后开启 Funnel。已安装但显示停止的 Tailscale 也可以从此按钮继续。页面会显示当前步骤；Web 服务启动失败时会显示原有错误并停止后续步骤。
 4. 需要授权时，在 Tailscale 页面完成账号登录或 HTTPS/Funnel 授权。桌面端仅在本次点击发起的流程中自动打开已校验的授权链接，同一链接只自动打开一次；浏览器端请点击“打开授权页面”或复制链接。打开失败时仍可手动打开或复制。授权完成后会自动继续，无需再次点击开启。Codeg 连接当前账号配置，不主动切换到新 profile。
@@ -60,7 +60,7 @@ tailscale funnel status --json
 本次使用的配置目标示例：
 
 ```bash
-tailscale funnel --bg --https=443 --yes http://127.0.0.1:3080
+tailscale funnel --bg --https=443 --yes http://127.0.0.1:18989
 ```
 
 不要仅根据退出码判断配置成功。状态中必须同时包含公网 443 的 HTTPS listener、代理到当前 Codeg 本地端口的 handler 和对应的 `AllowFunnel`。
