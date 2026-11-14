@@ -1,7 +1,7 @@
 //! Live user-feedback settings persistence + the submit command surface.
 //!
 //! One knob survives across restarts:
-//!   * `feedback.enabled` — feature kill switch (default false). When on,
+//!   * `feedback.enabled` — feature kill switch (default true). When on,
 //!     `yoyocode-mcp` exposes the `check_user_feedback` tool so an agent can pull
 //!     mid-turn user notes; the conversation UI shows the "send a note" bar.
 //!
@@ -26,11 +26,19 @@ use crate::web::event_bridge::{emit_event, EventEmitter, FEEDBACK_SETTINGS_CHANG
 
 pub const KEY_FEEDBACK_ENABLED: &str = "feedback.enabled";
 
-/// Off by default (`enabled: false`): enabling injects a new tool into every
-/// agent and changes agent behavior, so it is opt-in (matching delegation).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+/// On by default (`enabled: true`) — ships enabled like `question.enabled`,
+/// diverging from delegation's opt-in stance (see the module docs there). The
+/// pull channel only surfaces a note when the agent checks for it, and a user
+/// who never wants it can turn the switch off in settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FeedbackSettings {
     pub enabled: bool,
+}
+
+impl Default for FeedbackSettings {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
 }
 
 impl FeedbackSettings {
@@ -158,7 +166,7 @@ mod tests {
     async fn load_returns_default_when_unset() {
         let db = crate::db::test_helpers::fresh_in_memory_db().await;
         let settings = load_feedback_settings(&db.conn).await;
-        assert!(!settings.enabled);
+        assert!(settings.enabled);
     }
 
     #[tokio::test]

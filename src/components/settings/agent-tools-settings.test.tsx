@@ -186,14 +186,16 @@ beforeEach(() => {
 
 describe("AgentToolsSettingsSection", () => {
   it("shows one switch per tool, each reflecting its own endpoint", async () => {
-    primeBackend({ feedback: true, sessionInfo: false, workTasks: true })
+    // `feedback: false` differs from the panel default (on), so its unchecked
+    // state proves the load landed rather than the default showing.
+    primeBackend({ feedback: false, sessionInfo: false, workTasks: true })
 
     renderWithIntl()
     await loaded()
 
     expect(screen.getByLabelText(LABELS.feedback)).toHaveAttribute(
       "data-state",
-      "checked"
+      "unchecked"
     )
     expect(screen.getByLabelText(LABELS.question)).toHaveAttribute(
       "data-state",
@@ -339,10 +341,12 @@ describe("AgentToolsSettingsSection", () => {
    * open across such a write must adopt the new value for the switch the user
    * never touched — otherwise saving the other one reverts it. */
   it("adopts a remote create-from-chat write instead of reverting it on save", async () => {
-    primeBackend({ feedback: true })
+    // `feedback: false` differs from the panel default (on), so its unchecked
+    // state is the signal that the initial load has settled.
+    primeBackend({ feedback: false })
     renderWithIntl()
     await waitFor(() =>
-      expect(screen.getByLabelText(LABELS.feedback)).toBeChecked()
+      expect(screen.getByLabelText(LABELS.feedback)).not.toBeChecked()
     )
 
     // Elsewhere (the popover), automations is switched on.
@@ -371,12 +375,12 @@ describe("AgentToolsSettingsSection", () => {
   /** A switch the user already moved must not be yanked out from under them by
    * a remote write; their pending edit still wins on save. */
   it("keeps a pending local edit when a remote write lands", async () => {
-    // `feedback: true` differs from the render-time default, so its switch
-    // flipping on is the signal that the initial load has settled.
-    primeBackend({ feedback: true })
+    // `feedback: false` differs from the render-time default (on), so its
+    // switch flipping off is the signal that the initial load has settled.
+    primeBackend({ feedback: false })
     renderWithIntl()
     await waitFor(() =>
-      expect(screen.getByLabelText(LABELS.feedback)).toBeChecked()
+      expect(screen.getByLabelText(LABELS.feedback)).not.toBeChecked()
     )
 
     fireEvent.click(screen.getByLabelText(LABELS.automations))
@@ -493,14 +497,16 @@ describe("AgentToolsSettingsSection", () => {
   })
 
   it("reports a failed group without blanking the rest, and won't write it back", async () => {
-    primeBackend({ feedback: true })
+    // `workTasks: true` differs from the panel default (off), so its checked
+    // state proves the group loaded rather than the default showing.
+    primeBackend({ workTasks: true })
     mockGetQuestion.mockRejectedValue(new Error("boom"))
 
     renderWithIntl()
 
     expect(await screen.findByRole("alert")).toHaveTextContent("boom")
     // Loaded groups still show what is stored…
-    expect(screen.getByLabelText(LABELS.feedback)).toHaveAttribute(
+    expect(screen.getByLabelText(LABELS.workTasks)).toHaveAttribute(
       "data-state",
       "checked"
     )
