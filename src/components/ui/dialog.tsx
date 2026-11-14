@@ -52,6 +52,7 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   closeButtonClassName,
   showCloseButton = true,
@@ -61,6 +62,12 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   closeButtonClassName?: string
   showCloseButton?: boolean
+  /**
+   * Overrides for the backdrop. A dialog that should read as a light,
+   * dismissable panel rather than a modal takeover (e.g. the schedule picker)
+   * passes a thinner scrim here instead of every dialog losing its weight.
+   */
+  overlayClassName?: string
 }) {
   // Without this, closing a nested Select/DropdownMenu by clicking elsewhere in
   // the dialog closes the dialog too.
@@ -85,7 +92,7 @@ function DialogContent({
   )
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center p-4">
         <DialogPrimitive.Content
           data-slot="dialog-content"

@@ -125,7 +125,13 @@ export function MessageScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[28rem]">
+      {/* A light scrim: this picker is a small, non-destructive companion to the
+          composer, so the conversation stays readable behind it instead of
+          dropping to near-black. */}
+      <DialogContent
+        className="sm:max-w-[28rem]"
+        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-[2px]"
+      >
         <DialogHeader>
           <DialogTitle>{t("scheduleTitle")}</DialogTitle>
           <DialogDescription>{t("scheduleDescription")}</DialogDescription>
