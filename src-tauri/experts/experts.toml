@@ -1,5 +1,5 @@
-# Expert skills metadata for bundled skills, including obra/superpowers v7.0.1.
-# Bundled alongside skills/ and loaded at runtime; see NOTICE.md for upstream provenance.
+# Expert skills metadata for the bundled obra/superpowers v7.0.2 skills.
+# Bundled alongside skills/ and loaded at runtime; see NOTICE.md for provenance.
 # comic-production is Codeg's built-in comic workflow and has no external dependencies.
 # Category values must match ExpertCategory enum in commands/experts.rs.
 # Icons are lucide-react icon names referenced by the frontend.

@@ -59,9 +59,11 @@ mod m20261022_000001_work_task_delivery;
 mod m20261030_000001_message_queue;
 mod m20261103_000001_comic;
 mod m20261106_000001_message_queue_delivery;
+mod m20261106_000001_work_task_source_key;
 mod m20261106_000002_message_queue_pause;
 mod m20261107_000001_message_queue_schedule;
 mod m20261109_000001_model_switch;
+mod m20261112_000001_work_task_writeback_drafts;
 mod m20261114_000001_message_queue_hold;
 pub struct Migrator;
 
@@ -128,9 +130,11 @@ impl MigratorTrait for Migrator {
             Box::new(m20261030_000001_message_queue::Migration),
             Box::new(m20261103_000001_comic::Migration),
             Box::new(m20261106_000001_message_queue_delivery::Migration),
+            Box::new(m20261106_000001_work_task_source_key::Migration),
             Box::new(m20261106_000002_message_queue_pause::Migration),
             Box::new(m20261107_000001_message_queue_schedule::Migration),
             Box::new(m20261109_000001_model_switch::Migration),
+            Box::new(m20261112_000001_work_task_writeback_drafts::Migration),
             Box::new(m20261114_000001_message_queue_hold::Migration),
         ]
     }

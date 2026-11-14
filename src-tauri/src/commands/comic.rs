@@ -983,6 +983,7 @@ pub async fn comic_present_candidates_core(
         question: format!("选择镜头 {episode}/{shot} 的定稿图"),
         header: "选图".to_string(),
         multi_select: false,
+        allow_other: true,
         options: candidates
             .iter()
             .map(|rel| QuestionOption {
@@ -1870,6 +1871,7 @@ impl ComicAccess for McpComicTools {
                         question: format!("Generate {count} images for {}/{}? This exceeds the project limit and may incur additional provider charges.", params.episode, params.shot),
                         header: "Generation".into(),
                         multi_select: false,
+                        allow_other: true,
                         options: vec![
                             QuestionOption { label: "Approve batch".into(), description: format!("Generate {count} candidate images"), image: None },
                             QuestionOption { label: "Cancel".into(), description: "Do not submit or charge for this batch".into(), image: None },

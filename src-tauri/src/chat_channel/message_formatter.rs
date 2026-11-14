@@ -228,6 +228,7 @@ mod question_request_tests {
                 })
                 .collect(),
             is_secret: false,
+            allow_other: true,
         }
     }
 

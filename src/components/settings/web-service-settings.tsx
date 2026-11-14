@@ -36,15 +36,23 @@ import {
   getWebServiceConfig,
   updateWebServiceConfig,
   probeWebServicePort,
+  DEFAULT_WEB_SERVICE_HOST,
+  WEB_SERVICE_STATUS_CHANGED_EVENT,
   type WebServerInfo,
+  type WebServiceHost,
   type WebServicePortProbe,
 } from "@/lib/api"
 
 const DEFAULT_PORT = 18989
-import { openUrl } from "@/lib/platform"
+import { openUrl, subscribe } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
 import { buildMcodeConfigCode } from "@/lib/mcode-config-code"
+import {
+  useWebServerStartErrorMessage,
+  webServerErrorCode,
+} from "@/lib/web-service/start-error"
+import { asWebServiceHost } from "@/lib/web-service/hosts"
 import { TailscaleFunnelSettings } from "./tailscale-funnel-settings"
 
 // Remembers which reachable address the user last chose to display/open.
@@ -317,6 +325,7 @@ export function WebServiceSettings() {
   const t = useTranslations("WebServiceSettings")
   const [status, setStatus] = useState<WebServerInfo | null>(null)
   const [port, setPort] = useState(String(DEFAULT_PORT))
+  const [host, setHost] = useState<WebServiceHost>(DEFAULT_WEB_SERVICE_HOST)
   const [token, setToken] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -353,6 +362,12 @@ export function WebServiceSettings() {
     },
     []
   )
+  const startErrorMessage = useWebServerStartErrorMessage()
+  const fetchSeqRef = useRef(0)
+  const editSeqRef = useRef(0)
+  const markEdited = () => {
+    editSeqRef.current += 1
+  }
 
   const probePort = useCallback(async (portNum: number) => {
     try {
@@ -364,11 +379,14 @@ export function WebServiceSettings() {
   }, [])
 
   const fetchStatus = useCallback(async () => {
+    const seq = ++fetchSeqRef.current
+    const editsAtStart = editSeqRef.current
     try {
       const fallbackConfig = {
         token: null,
         port: null,
         autoStart: false,
+        host: null,
       }
       const [info, configResult] = await Promise.all([
         getWebServerStatus(),
@@ -376,16 +394,20 @@ export function WebServiceSettings() {
           .then((config) => ({ ok: true as const, config }))
           .catch(() => ({ ok: false as const, config: fallbackConfig })),
       ])
+      if (seq !== fetchSeqRef.current) return
       const savedConfig = configResult.config
+      const edited = editSeqRef.current !== editsAtStart
       setStatus(info)
-      setAutoStart(savedConfig.autoStart ?? false)
+      if (!edited) setAutoStart(savedConfig.autoStart ?? false)
       if (info) {
         setPort(String(info.port))
+        setHost(asWebServiceHost(info.bindHost))
         setToken(info.token)
         setPortProbe(null)
-      } else {
+      } else if (!edited) {
         const resolvedPort = savedConfig.port ?? DEFAULT_PORT
         setPort(String(resolvedPort))
+        setHost(asWebServiceHost(savedConfig.host))
         if (savedConfig.token) {
           setToken(savedConfig.token)
         }
@@ -407,6 +429,32 @@ export function WebServiceSettings() {
 
   // Ordinary refreshes preserve a valid user choice. The Funnel component
   // explicitly selects a confirmed public URL on mount and after enabling.
+  // Follow starts and stops made elsewhere - the status-bar toggle in a
+  // workspace window, or auto-start - so this page never shows a stale
+  // Running / Stopped. Our own start/stop is announced too; re-reading then
+  // just confirms what the call already returned.
+  useEffect(() => {
+    let disposed = false
+    let unsubscribe: (() => void) | undefined
+    subscribe<{ running: boolean }>(WEB_SERVICE_STATUS_CHANGED_EVENT, () => {
+      void fetchStatus()
+    })
+      .then((fn) => {
+        if (disposed) fn()
+        else unsubscribe = fn
+      })
+      .catch(() => {})
+    return () => {
+      disposed = true
+      unsubscribe?.()
+    }
+  }, [fetchStatus])
+
+  // Pick which reachable address to display/open. Keep a still-valid prior
+  // choice; otherwise honor the remembered host, falling back to the first
+  // entry (loopback). Selection is display-only - a wildcard bind reaches
+  // every listed address regardless of choice, and a loopback bind lists
+  // only its own.
   useEffect(() => {
     if (addresses.length === 0) {
       setSelectedAddress(null)
@@ -448,12 +496,13 @@ export function WebServiceSettings() {
           port: portNum,
           token: token.trim() || null,
           autoStart: nextAutoStart,
+          host,
         })
       } catch {
         setError(t("saveConfigFailed"))
       }
     },
-    [autoStart, port, t, token]
+    [autoStart, host, port, t, token]
   )
 
   useEffect(() => {
@@ -470,15 +519,6 @@ export function WebServiceSettings() {
     return () => window.clearTimeout(timeout)
   }, [configLoaded, persistWebServiceConfig, port])
 
-  const startErrorKeys: Record<string, string> = {
-    "web_server.already_running": "errors.alreadyRunning",
-    "web_server.invalid_address": "errors.invalidAddress",
-    "web_server.port_in_use": "errors.portInUse",
-    "web_server.permission_denied": "errors.permissionDenied",
-    "web_server.address_unavailable": "errors.addressUnavailable",
-    "web_server.bind_failed": "errors.bindFailed",
-  }
-
   async function handleStart(): Promise<boolean> {
     if (serviceOperation.current || !statusLoaded) return false
     if (status) return true
@@ -489,28 +529,18 @@ export function WebServiceSettings() {
       const portNum = parseInt(port, 10) || DEFAULT_PORT
       const info = await startWebServer({
         port: portNum,
+        host,
         token: token.trim() || null,
       })
       setStatus(info)
       setToken(info.token)
       setPort(String(info.port))
+      setHost(asWebServiceHost(info.bindHost))
       setPortProbe(null)
       return true
     } catch (e: unknown) {
-      const rawMsg =
-        e && typeof e === "object" && "message" in e
-          ? String((e as { message: string }).message)
-          : ""
-      const localKey = startErrorKeys[rawMsg]
-      if (localKey) {
-        setError(
-          t(localKey as Parameters<typeof t>[0], {
-            port: parseInt(port, 10) || DEFAULT_PORT,
-          })
-        )
-      } else {
-        setError(rawMsg || t("startFailed"))
-      }
+      const rawMsg = webServerErrorCode(e)
+      setError(startErrorMessage(e, parseInt(port, 10) || DEFAULT_PORT))
       // Refresh probe after a port_in_use failure so the banner reflects
       // current reality (e.g. confirms port really is held by another
       // process, not just a stale flag).
@@ -536,6 +566,8 @@ export function WebServiceSettings() {
     try {
       await stopWebServer()
       setStatus(null)
+      // Supersede any read asked before the stop (it would say Running).
+      void fetchStatus()
       // After stop, re-probe so the user can see whether the port was
       // released cleanly or is being held by an orphan child process.
       probePort(parseInt(port, 10) || DEFAULT_PORT)
@@ -610,6 +642,7 @@ export function WebServiceSettings() {
               type="number"
               value={port}
               onChange={(e) => {
+                markEdited()
                 setPort(e.target.value)
                 setPortProbe(null)
               }}
@@ -620,12 +653,49 @@ export function WebServiceSettings() {
             />
           </div>
 
+          {/* Bind host: every interface (the local network can reach it) or
+              this computer only (e.g. behind a reverse proxy or Tailscale
+              Serve). Fixed while running, like the port. */}
+          <div className="flex items-start gap-4">
+            <label className="w-20 pt-2 text-sm font-medium">
+              {t("bindHost")}
+            </label>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Select
+                value={host}
+                onValueChange={(next) => {
+                  markEdited()
+                  setHost(asWebServiceHost(next))
+                }}
+                disabled={isRunning}
+              >
+                <SelectTrigger className="w-full max-w-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectItem value="0.0.0.0">{t("bindHostAll")}</SelectItem>
+                  <SelectItem value="127.0.0.1">
+                    {t("bindHostLocal")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {host === "127.0.0.1"
+                  ? t("bindHostLocalHint")
+                  : t("bindHostAllHint")}
+              </p>
+            </div>
+          </div>
+
           {/* Token config */}
           <TokenEditor
             label={t("tokenLabel")}
             value={token}
-            onChange={setToken}
-            disabled={isRunning || loading}
+            onChange={(next) => {
+              markEdited()
+              setToken(next)
+            }}
+            disabled={isRunning}
             placeholder={t("tokenPlaceholder")}
           />
           <p className="text-xs text-muted-foreground">{t("tokenHint")}</p>
@@ -637,6 +707,7 @@ export function WebServiceSettings() {
               <Switch
                 checked={autoStart}
                 onCheckedChange={(checked) => {
+                  markEdited()
                   setAutoStart(checked)
                   void persistWebServiceConfig(checked)
                 }}

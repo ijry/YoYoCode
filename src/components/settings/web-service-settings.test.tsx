@@ -22,6 +22,9 @@ const api = vi.hoisted(() => ({
   startWebServer: vi.fn(),
   stopWebServer: vi.fn(),
   probeWebServicePort: vi.fn(),
+  WEB_SERVICE_HOSTS: ["0.0.0.0", "127.0.0.1"],
+  WEB_SERVICE_STATUS_CHANGED_EVENT: "web-service://status-changed",
+  DEFAULT_WEB_SERVICE_HOST: "0.0.0.0",
   getTailscaleFunnelStatus: vi.fn(),
   enableTailscaleFunnel: vi.fn(),
   disableTailscaleFunnel: vi.fn(),
@@ -31,7 +34,8 @@ const api = vi.hoisted(() => ({
 const openUrl = vi.hoisted(() => vi.fn())
 const isDesktop = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/api", () => api)
-vi.mock("@/lib/platform", () => ({ openUrl, isDesktop }))
+const subscribe = vi.hoisted(() => vi.fn(() => Promise.resolve(() => {})))
+vi.mock("@/lib/platform", () => ({ openUrl, isDesktop, subscribe }))
 
 import { WebServiceSettings } from "./web-service-settings"
 
@@ -55,6 +59,13 @@ const disabled = {
   desiredEnabled: false,
   owned: false,
   url: null,
+}
+
+/** The address selector: the LAST combobox on the page (the bind-host
+ *  selector above it is the first). */
+function lastAddressCombobox() {
+  const elements = screen.getAllByRole("combobox")
+  return elements[elements.length - 1]
 }
 
 function renderSettings() {
@@ -140,7 +151,7 @@ describe("MCode mobile connection", () => {
     renderSettings()
     await screen.findByRole("img", { name: "MCode connection QR code" })
     expectMobileQr(LOCAL_URL, "private-token-never-in-url")
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     await user.click(
       screen.getByRole("option", { name: "http://192.168.1.2:3080" })
     )
@@ -186,7 +197,7 @@ describe("MCode mobile connection", () => {
       await screen.findByRole("button", { name: "Enable public access" })
     )
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     )
     expectMobileQr(PUBLIC_URL, "private-token-never-in-url")
   })
@@ -196,8 +207,8 @@ describe("MCode mobile connection", () => {
     renderSettings()
     await screen.findByRole("img", { name: "MCode connection QR code" })
     api.getWebServerStatus.mockResolvedValue(null)
-    await user.click(screen.getByRole("button", { name: "Stop", exact: true }))
-    await screen.findByRole("button", { name: "Start", exact: true })
+    await user.click(screen.getByRole("button", { name: "Stop" }))
+    await screen.findByRole("button", { name: "Start" })
     expect(
       screen.queryByRole("img", { name: "MCode connection QR code" })
     ).not.toBeInTheDocument()
@@ -215,7 +226,7 @@ describe("MCode mobile connection", () => {
     })
     api.getTailscaleFunnelStatus.mockResolvedValue(enabled)
     renderSettings()
-    await screen.findByRole("button", { name: "Start", exact: true })
+    await screen.findByRole("button", { name: "Start" })
     expect(
       await screen.findByText(
         "Start the Web service to show its connection code."
@@ -252,7 +263,7 @@ describe("one-click public access setup", () => {
     api.getTailscaleFunnelStatus.mockResolvedValue(disabled)
     await act(async () => vi.advanceTimersByTimeAsync(2000))
     expect(api.enableTailscaleFunnel).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     expectMobileQr(PUBLIC_URL, "private-token-never-in-url")
   })
 
@@ -277,12 +288,13 @@ describe("one-click public access setup", () => {
     api.startWebServer.mockReturnValue(start.promise)
     await enableWithTimers()
     expect(api.startWebServer).toHaveBeenCalledWith({
+      host: "0.0.0.0",
       port: 4567,
       token: "saved-token",
     })
     expect(api.enableTailscaleFunnel).not.toHaveBeenCalled()
     expect(
-      screen.getByRole("button", { name: "Processing...", exact: true })
+      screen.getByRole("button", { name: "Processing..." })
     ).toBeDisabled()
     api.getTailscaleFunnelStatus.mockResolvedValue(disabled)
     await act(async () =>
@@ -322,7 +334,7 @@ describe("one-click public access setup", () => {
       await enableWithTimers()
       expect(api.startTailscaleLogin).toHaveBeenCalledTimes(1)
       expect(api.enableTailscaleFunnel).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     }
   )
 
@@ -349,7 +361,7 @@ describe("one-click public access setup", () => {
     expect(openUrl).toHaveBeenCalledTimes(2)
     api.getTailscaleFunnelStatus.mockResolvedValue(enabled)
     await act(async () => vi.advanceTimersByTimeAsync(2000))
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
   })
 
   it("keeps browser authorization manual with open and copy controls", async () => {
@@ -443,14 +455,13 @@ describe("one-click public access setup", () => {
         fireEvent.click(
           screen.getByRole("button", {
             name: intent === "stop" ? "Stop" : "Cancel operation",
-            exact: true,
           })
         )
       await act(async () => login.resolve(disabled))
       expect(api.enableTailscaleFunnel).not.toHaveBeenCalled()
       expect(openUrl).not.toHaveBeenCalled()
       if (intent !== "unmount")
-        expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+        expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
       api.getWebServerStatus.mockResolvedValue(null)
       await act(async () => stop.resolve())
     }
@@ -554,11 +565,11 @@ describe("Web service Funnel addresses", () => {
     const user = userEvent.setup()
     renderSettings()
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     )
-    await user.click(screen.getByRole("button", { name: "Open", exact: true }))
+    await user.click(screen.getByRole("button", { name: "Open" }))
     expect(openUrl).toHaveBeenCalledWith(PUBLIC_URL)
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     expect(screen.getAllByRole("option")[0]).toHaveTextContent(PUBLIC_URL)
   })
 
@@ -572,9 +583,9 @@ describe("Web service Funnel addresses", () => {
         .mockResolvedValue(enabled)
       renderSettings()
       await act(async () => {})
-      expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
       await act(async () => vi.advanceTimersByTimeAsync(10000))
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     }
   )
 
@@ -587,7 +598,7 @@ describe("Web service Funnel addresses", () => {
     const user = userEvent.setup()
     renderSettings()
     await screen.findByRole("button", { name: "Cancel operation" })
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     await user.click(
       screen.getByRole("option", { name: "http://192.168.1.2:3080" })
     )
@@ -595,10 +606,10 @@ describe("Web service Funnel addresses", () => {
     await user.click(
       screen.getByRole("button", { name: "Refresh Tailscale status" })
     )
-    expect(screen.getByRole("combobox")).toHaveTextContent(
+    expect(lastAddressCombobox()).toHaveTextContent(
       "http://192.168.1.2:3080"
     )
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     expect(screen.getAllByRole("option")[0]).toHaveTextContent(PUBLIC_URL)
   })
 
@@ -607,12 +618,17 @@ describe("Web service Funnel addresses", () => {
     api.getTailscaleFunnelStatus.mockReturnValue(pending.promise)
     const user = userEvent.setup()
     renderSettings()
-    await user.click(await screen.findByRole("combobox"))
+    // The bind-host selector is also a combobox; wait until the address bar
+    // has mounted (second combobox) before picking the one to drive.
+    await waitFor(() =>
+      expect(screen.getAllByRole("combobox").length).toBeGreaterThan(1)
+    )
+    await user.click(lastAddressCombobox())
     await user.click(
       screen.getByRole("option", { name: "http://192.168.1.2:3080" })
     )
     await act(async () => pending.resolve(enabled))
-    expect(screen.getByRole("combobox")).toHaveTextContent(
+    expect(lastAddressCombobox()).toHaveTextContent(
       "http://192.168.1.2:3080"
     )
   })
@@ -624,13 +640,13 @@ describe("Web service Funnel addresses", () => {
       await screen.findByRole("button", { name: "Enable public access" })
     )
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     )
     await user.click(
       screen.getByRole("button", { name: "Disable public access" })
     )
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
     )
     expect(screen.queryByText(PUBLIC_URL)).not.toBeInTheDocument()
   })
@@ -639,7 +655,7 @@ describe("Web service Funnel addresses", () => {
     api.getTailscaleFunnelStatus.mockRejectedValue(new Error("Unknown command"))
     renderSettings()
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
     )
     expect(
       await screen.findByText(/Unable to read Tailscale status/)
@@ -657,7 +673,7 @@ describe("Web service Funnel addresses", () => {
     expect(
       await screen.findByRole("button", { name: "Open authorization page" })
     ).toBeEnabled()
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
   })
 
   it("keeps a manually selected local address after an ordinary refresh", async () => {
@@ -665,16 +681,16 @@ describe("Web service Funnel addresses", () => {
     const user = userEvent.setup()
     renderSettings()
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     )
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     await user.click(
       screen.getByRole("option", { name: "http://192.168.1.2:3080" })
     )
     await user.click(
       screen.getByRole("button", { name: "Refresh Tailscale status" })
     )
-    expect(screen.getByRole("combobox")).toHaveTextContent(
+    expect(lastAddressCombobox()).toHaveTextContent(
       "http://192.168.1.2:3080"
     )
   })
@@ -684,9 +700,9 @@ describe("Web service Funnel addresses", () => {
     api.getTailscaleFunnelStatus.mockReturnValue(pending.promise)
     renderSettings()
     expect(await screen.findByRole("button", { name: "Stop" })).toBeEnabled()
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
     await act(async () => pending.resolve(enabled))
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
   })
 
   it("keeps a failed disable visible and retains the confirmed public address", async () => {
@@ -703,7 +719,7 @@ describe("Web service Funnel addresses", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not remove public access"
     )
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
   })
 
   it("opens and copies login authorization, then cancels the pending operation", async () => {
@@ -732,7 +748,7 @@ describe("Web service Funnel addresses", () => {
       screen.getByRole("button", { name: "Copy authorization URL" })
     )
     expect(writeText).toHaveBeenCalledWith(authUrl)
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
     await user.click(screen.getByRole("button", { name: "Cancel operation" }))
     expect(
       await screen.findByRole("button", { name: "Enable public access" })
@@ -761,7 +777,7 @@ describe("Web service Funnel addresses", () => {
       screen.getByRole("button", { name: "Disable public access" })
     ).toBeEnabled()
     // Ordinary refresh adds the option without changing the current choice.
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
   })
 
   it("polls pending enable until confirmed and selects the new public URL", async () => {
@@ -782,7 +798,7 @@ describe("Web service Funnel addresses", () => {
     ).toBeEnabled()
     api.getTailscaleFunnelStatus.mockResolvedValue(enabled)
     await act(async () => vi.advanceTimersByTimeAsync(2500))
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     expect(
       screen.getByRole("button", { name: "Disable public access" })
     ).toBeEnabled()
@@ -795,9 +811,9 @@ describe("Web service Funnel addresses", () => {
       .mockResolvedValue(disabled)
     renderSettings()
     await act(async () => {})
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     await act(async () => vi.advanceTimersByTimeAsync(10000))
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
     expect(screen.queryByText(PUBLIC_URL)).not.toBeInTheDocument()
   })
 
@@ -815,7 +831,7 @@ describe("Web service Funnel addresses", () => {
     expect(
       screen.getByRole("button", { name: "Enable public access" })
     ).toBeEnabled()
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
   })
 
   it("does not update an unmounted settings page from a late response", async () => {
@@ -826,7 +842,7 @@ describe("Web service Funnel addresses", () => {
     renderSettings()
     await screen.findByRole("button", { name: "Enable public access" })
     await act(async () => pending.resolve(enabled))
-    expect(screen.getByRole("combobox")).toHaveTextContent(LOCAL_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(LOCAL_URL)
   })
 
   it("reconciles local and Funnel status when stopping returns cleanupFailed", async () => {
@@ -840,7 +856,7 @@ describe("Web service Funnel addresses", () => {
     api.getWebServerStatus.mockResolvedValue(null)
     await user.click(screen.getByRole("button", { name: "Stop" }))
     expect(
-      await screen.findByRole("button", { name: "Start", exact: true })
+      await screen.findByRole("button", { name: "Start" })
     ).toBeEnabled()
     expect(
       await screen.findByText(/Could not remove public access/)
@@ -862,11 +878,11 @@ describe("Web service Funnel addresses", () => {
     const user = userEvent.setup()
     renderSettings()
     await screen.findByText("Start Tailscale and the Web service to continue")
-    await user.click(screen.getByRole("button", { name: "Start", exact: true }))
+    await user.click(screen.getByRole("button", { name: "Start" }))
     expect(
       await screen.findByRole("button", { name: "Disable public access" })
     ).toBeEnabled()
-    await user.click(screen.getByRole("combobox"))
+    await user.click(lastAddressCombobox())
     expect(screen.getAllByRole("option")[0]).toHaveTextContent(PUBLIC_URL)
   })
 
@@ -882,7 +898,7 @@ describe("Web service Funnel addresses", () => {
         "This public access is managed outside Codeg. Manage it in Tailscale."
       )
     ).toBeInTheDocument()
-    expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+    expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     expect(
       screen.queryByRole("button", { name: "Disable public access" })
     ).not.toBeInTheDocument()
@@ -938,10 +954,10 @@ describe("Web service Funnel addresses", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText")
     renderSettings()
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent(PUBLIC_URL)
+      expect(lastAddressCombobox()).toHaveTextContent(PUBLIC_URL)
     )
     await user.click(
-      within(screen.getByRole("combobox").parentElement!).getByRole("button", {
+      within(lastAddressCombobox().parentElement!).getByRole("button", {
         name: "Copy",
       })
     )
