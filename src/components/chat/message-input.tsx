@@ -1990,6 +1990,18 @@ export function MessageInput({
         <Check className="size-4" />
       </Button>
     </div>
+  ) : isPrompting && !hasSendableContent ? (
+    onCancel ? (
+      <Button
+        onClick={onCancel}
+        variant="destructive"
+        size="icon"
+        className="h-8 w-8"
+        title={t("cancel")}
+      >
+        <Square className="size-4" />
+      </Button>
+    ) : null
   ) : isPrompting && onCancel ? (
     onSteer && onEnqueue && hasSendableContent ? (
       // Sessions with a working live-feedback channel surface the mid-turn

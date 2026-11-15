@@ -2603,6 +2603,51 @@ describe("MessageInput mid-turn send (live-feedback channel)", () => {
     })
   }
 
+  it.each([
+    ["none", false],
+    ["none", true],
+    ["native", false],
+    ["native", true],
+    ["pull", false],
+    ["pull", true],
+  ] as const)(
+    "only shows mid-turn send actions with content (%s, scheduled: %s)",
+    async (channel, scheduled) => {
+      const scheduleLabel = enMessages.Folder.chat.messageQueue.scheduledSend
+      const dropdownLabel =
+        channel === "none"
+          ? scheduleLabel
+          : channel === "pull"
+            ? MI.steerAsNote
+            : MI.steerIntoTurn
+      const editor = await mountPrompting({
+        onSteer: channel === "none" ? undefined : vi.fn(async () => {}),
+        steerChannel: channel === "pull" ? "pull" : "native",
+        onEnqueueScheduled: scheduled ? vi.fn(async () => {}) : undefined,
+      })
+      expect(screen.getByTitle(MI.cancel)).toBeInTheDocument()
+      expect(screen.queryByTitle(MI.queueMessage)).toBeNull()
+      expect(screen.queryByLabelText(dropdownLabel)).toBeNull()
+
+      typeDraft(editor, "draft text")
+      await waitFor(() =>
+        expect(screen.getByTitle(MI.queueMessage)).toBeEnabled()
+      )
+      if (channel !== "none" || scheduled) {
+        expect(screen.getByLabelText(dropdownLabel)).toBeInTheDocument()
+      } else {
+        expect(screen.queryByLabelText(dropdownLabel)).toBeNull()
+      }
+
+      act(() => editor.commands.clearContent(true))
+      await waitFor(() =>
+        expect(screen.queryByTitle(MI.queueMessage)).toBeNull()
+      )
+      expect(screen.queryByLabelText(dropdownLabel)).toBeNull()
+      expect(screen.getByTitle(MI.cancel)).toBeInTheDocument()
+    }
+  )
+
   it("queues the draft with a Send beside Stop when onSteer is absent", async () => {
     const editor = await mountPrompting()
     typeDraft(editor, "draft text")
@@ -2614,12 +2659,14 @@ describe("MessageInput mid-turn send (live-feedback channel)", () => {
 
   it("shows the queue/steer split next to Stop once there is content", async () => {
     const editor = await mountPrompting({ onSteer: vi.fn() })
-    // Empty draft: the queueing Send is present but disabled — nothing to
-    // queue or steer yet.
-    expect(screen.getByTitle(MI.queueMessage)).toBeDisabled()
+    // Empty draft: only Stop is visible; queue and steer need content.
+    expect(screen.queryByTitle(MI.queueMessage)).toBeNull()
+    expect(screen.queryByLabelText(MI.steerIntoTurn)).toBeNull()
 
     typeDraft(editor, "go left")
-    await waitFor(() => expect(screen.getByTitle(MI.queueMessage)).toBeEnabled())
+    await waitFor(() =>
+      expect(screen.getByTitle(MI.queueMessage)).toBeEnabled()
+    )
     expect(screen.getByLabelText(MI.steerIntoTurn)).toBeInTheDocument()
     expect(screen.getByTitle(MI.cancel)).toBeInTheDocument()
   })
@@ -2654,15 +2701,13 @@ describe("MessageInput mid-turn send (live-feedback channel)", () => {
     await act(async () => {
       resolveSteer()
     })
-    // Confirmed: the composer clears (the steer split collapses back to the
-    // channel-less form — the queueing Send stays, disabled while empty).
+    // Confirmed: clearing the composer hides the send actions, leaving Stop.
     await waitFor(() =>
       expect(serializeDocToText(editor.state.doc)).not.toContain("go left")
     )
-    await waitFor(() =>
-      expect(screen.getByTitle(MI.queueMessage)).toBeDisabled()
-    )
+    await waitFor(() => expect(screen.queryByTitle(MI.queueMessage)).toBeNull())
     expect(screen.queryByLabelText(MI.steerIntoTurn)).toBeNull()
+    expect(screen.getByTitle(MI.cancel)).toBeInTheDocument()
   })
 
   it.each([
