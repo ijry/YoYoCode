@@ -50,7 +50,8 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 - `e371b4874`：`feedback.enabled` 默认改为开启，与 `question.enabled` 一致。
 - `297863f12`：续跑回合被受理（`resuming`）后隐藏中断横幅；`resume_requested` 期间保留，因为此时禁用按钮是点击的唯一反馈。
 - `79a600219`：定时发送并入发送按钮右侧下拉，空闲时右侧分体默认隐藏、悬停浮现（触屏常显）；无 steer 通道的回合补上排队发送按钮。冲突面：`message-input.tsx`。
-- `be3004562`：章鱼图标替换悠悠球标记，覆盖全部平台资源；轮廓由源图追踪生成（轮廓 IoU 0.993，颜色平均误差 <1/255）。删除无引用的 `app-icon.tsx`。定时发送弹窗改用轻遮罩，`DialogContent` 新增可选 `overlayClassName`，其余弹窗不受影响。冲突面：`src-tauri/icons/`（上游改动时整体冲突，重跑追踪脚本重新生成即可）、`public/icon*`、`ui/dialog.tsx`。
+- `be3004562`：水母图标替换悠悠球标记，覆盖全部平台资源；轮廓由源图追踪生成（轮廓 IoU 0.993，颜色平均误差 <1/255）。删除无引用的 `app-icon.tsx`。定时发送弹窗改用轻遮罩，`DialogContent` 新增可选 `overlayClassName`，其余弹窗不受影响。冲突面：`src-tauri/icons/`（上游改动时整体冲突，重跑追踪脚本重新生成即可）、`public/icon*`、`ui/dialog.tsx`。 2026-11-15 补漏：该 commit 漏了 `src-tauri/icons/tray-icon-template.png`，macOS 菜单栏一直显示上游的括号/圆点 mark；现改由 `tray-icon-template.gen.py` 从 `icon.svg` 的水母轮廓派生单色 template（黑色 RGB + alpha，系统按菜单栏明暗自动染色，深色下即白色），不再保留独立的旧图形常量。改 `icon.svg` 后必须重跑该脚本，否则 Dock / favicon 与菜单栏会再次分叉。
+- 2026-11-15 复核「升级后 macOS Dock 图标没变」：`icon.icns`（119194 B，sha256 `33e92720…`）在工作区、`be3004562`、`v0.44.0-plus.1` 三处逐字节一致；解包 `ic10` 确认是水母 + 白色高光 + 824/1024 安全区。`tauri.conf.json` 的 `bundle.icon` 含 `icons/icon.icns`，`apply-plus-identity.mjs` 不改写图标，macOS 更新走 `download_and_install` 整包替换，`relaunch.rs` 只负责重启、不设运行时 Dock 图标。结论：资源侧没有漏改，是 macOS IconServices / Dock 缓存，或 Dock 仍固定着改名前 `codeg.app`（构建期注入 `productName = YoYoCode`，产物是 `YoYoCode.app`）；用户侧处理见 `docs/releasing/v0.44.0-plus.1.md` 使用说明。为防以后真出现漏带，`.github/workflows/release.yml` 的 macOS ad-hoc 校验新增：把成品 `Contents/Resources/*.icns` 与 `src-tauri/icons/icon.icns` 做 `cmp`，不一致即失败，并打印 `CFBundleIconFile`。
 
 ### Web 公网访问与 MCode 配置（v0.42.0-plus.4）
 

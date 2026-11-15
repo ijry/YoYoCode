@@ -736,6 +736,23 @@ jobs:
             echo "FATAL: $app not found"
             exit 1
           fi
+          # The updater replaces YoYoCode.app in place and macOS IconServices
+          # caches the Dock tile by path. A stale Resources/*.icns is invisible
+          # to every other check here — it only shows up as "the logo did not
+          # change after upgrading" on the user's Mac. Compare the real bundle
+          # payload with the committed brand art so it cannot leave CI.
+          icon="$(/usr/bin/find "$app/Contents/Resources" -maxdepth 1 -name '*.icns' -print -quit)"
+          if [ -z "$icon" ]; then
+            echo "FATAL: no .icns in $app/Contents/Resources"
+            exit 1
+          fi
+          if ! cmp -s "$icon" src-tauri/icons/icon.icns; then
+            echo "FATAL: bundled icon $icon differs from src-tauri/icons/icon.icns"
+            /usr/bin/shasum -a 256 "$icon" src-tauri/icons/icon.icns
+            exit 1
+          fi
+          icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist" 2>/dev/null || true)"
+          echo "Dock icon OK: $icon matches src-tauri/icons/icon.icns (CFBundleIconFile=${icon_name:-<unset>})"
           codesign --verify --strict --deep "$app"
           helper_app="$app/Contents/Helpers/codeg-computer-helper.app"
           if [ -e "$app/Contents/MacOS/codeg-computer-helper" ]; then
