@@ -570,6 +570,36 @@ pub(crate) mod http {
         GenerationError::new(kind, format!("HTTP {status}: {snippet}"))
     }
 
+    /// Remove the secret from `text` (case-tolerant best effort, like
+    /// `provider_models::scrub`).
+    pub fn scrub(text: &str, secret: &str) -> String {
+        if secret.is_empty() {
+            return text.to_string();
+        }
+        text.replace(secret, "***")
+    }
+
+    /// An absolute HTTP(S) URL without credentials, a query, or a fragment —
+    /// the only remote shape any comic adapter will fetch.
+    pub(crate) fn http_url(value: &str, error_kind: &str) -> Result<reqwest::Url, GenerationError> {
+        let invalid = || {
+            GenerationError::new(
+                error_kind,
+                "URL must be absolute HTTP(S), without credentials, a query, or a fragment",
+            )
+        };
+        let url = reqwest::Url::parse(value).map_err(|_| invalid())?;
+        if !matches!(url.scheme(), "http" | "https")
+            || url.host_str().is_none()
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(invalid());
+        }
+        Ok(url)
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -605,35 +635,5 @@ pub(crate) mod http {
             );
             assert!(result.unwrap().is_err());
         }
-    }
-
-    /// Remove the secret from `text` (case-tolerant best effort, like
-    /// `provider_models::scrub`).
-    pub fn scrub(text: &str, secret: &str) -> String {
-        if secret.is_empty() {
-            return text.to_string();
-        }
-        text.replace(secret, "***")
-    }
-
-    /// An absolute HTTP(S) URL without credentials, a query, or a fragment —
-    /// the only remote shape any comic adapter will fetch.
-    pub(crate) fn http_url(value: &str, error_kind: &str) -> Result<reqwest::Url, GenerationError> {
-        let invalid = || {
-            GenerationError::new(
-                error_kind,
-                "URL must be absolute HTTP(S), without credentials, a query, or a fragment",
-            )
-        };
-        let url = reqwest::Url::parse(value).map_err(|_| invalid())?;
-        if !matches!(url.scheme(), "http" | "https")
-            || url.host_str().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(invalid());
-        }
-        Ok(url)
     }
 }

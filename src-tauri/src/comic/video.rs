@@ -317,7 +317,7 @@ pub async fn request(
 /// the confirmation carries the binding observed when it opened; a stale
 /// expectation refuses with `conflict` instead of silently clearing.
 pub async fn unbind(
-    conn: &sea_orm::DatabaseConnection,
+    _conn: &sea_orm::DatabaseConnection,
     emitter: &EventEmitter,
     folder_id: i32,
     folder_path: &Path,

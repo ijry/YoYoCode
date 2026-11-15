@@ -85,7 +85,7 @@ async fn seed_succeeded_video_task(
         "episodes/ep001/shots/shot-0001/video/task-{}.mp4",
         inserted.id
     );
-    store.write_artifact(&artifact, &vec![b'A'; 64]).unwrap();
+    store.write_artifact(&artifact, &[b'A'; 64]).unwrap();
     let mut updated: comic_generation_task::ActiveModel = inserted.into();
     updated.artifact_path = Set(Some(artifact));
     updated.update(conn).await.unwrap().id

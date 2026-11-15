@@ -14,7 +14,6 @@ use serde_json::{json, Value};
 
 use super::{
     capabilities, http, GenerationError, GenerationRequest, MediaKind, MediaProvider, PollState,
-    ReferenceImage,
 };
 
 pub struct ArkVideoProvider {
@@ -166,6 +165,7 @@ impl MediaProvider for ArkVideoProvider {
 
 #[cfg(test)]
 mod tests {
+    use super::super::ReferenceImage;
     use super::*;
     use serde_json::json;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -26,7 +26,7 @@ use crate::db::entities::comic_generation_task;
 use crate::db::service::media_provider_service;
 use crate::web::event_bridge::{emit_event, ComicChange, EventEmitter, COMIC_CHANGED_EVENT};
 
-use super::model::{GenerationRecord, ShotState, Storyboard};
+use super::model::{GenerationRecord, Storyboard};
 use super::provider::{
     self, GenerationError, GenerationRequest, MediaKind, MediaProvider, PollState,
 };
@@ -512,7 +512,7 @@ fn load_first_frame(
         .map_err(|e| GenerationError::new("bad_request", e.message()))?;
     let mut bytes = Vec::new();
     std::fs::File::open(&absolute)
-        .and_then(|mut file| {
+        .and_then(|file| {
             file.take(MAX_FIRST_FRAME_BYTES as u64 + 1)
                 .read_to_end(&mut bytes)
         })
@@ -1123,7 +1123,7 @@ pub async fn bind_candidate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::comic::model::{EpisodeMeta, StoryShot};
+    use crate::comic::model::{EpisodeMeta, ShotState, StoryShot};
     use crate::db::test_helpers::{fresh_in_memory_db, seed_folder};
 
     const TARGET: &str = "episodes/ep001/shots/shot-0001";

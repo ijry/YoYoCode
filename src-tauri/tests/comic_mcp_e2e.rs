@@ -154,6 +154,7 @@ impl codeg_lib::acp::work_task_tools::WorkTaskToolAccess for NoAuxTools {
         _: &str,
         _: &str,
         _: Option<&str>,
+        _: &[codeg_lib::acp::delegation::transport::ThreadReply],
     ) -> codeg_lib::acp::work_task_tools::TaskReportAck {
         codeg_lib::acp::work_task_tools::TaskReportAck::rejected("no task engine")
     }
@@ -271,6 +272,7 @@ async fn comic_mcp_stdio_resource_round_trip_and_scope() {
             TokenEntry {
                 parent_connection_id: "comic-parent".into(),
                 working_dir: project.path().into(),
+                agent_hosts_tools: false,
                 comic_enabled: true,
             },
         )

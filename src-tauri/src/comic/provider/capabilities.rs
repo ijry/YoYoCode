@@ -249,12 +249,12 @@ impl MediaCapabilities {
         // The shot's bound frame rides a dedicated first-frame field, not the
         // reference list, so text-only vendors and reference-less configs are
         // unaffected.
-        if request.first_frame.is_some() || request.first_frame_path.is_some() {
-            if self.kind != MediaKind::Video || !self.available {
-                return Err(invalid(
-                    "a first-frame image is only supported by video providers",
-                ));
-            }
+        if (request.first_frame.is_some() || request.first_frame_path.is_some())
+            && (self.kind != MediaKind::Video || !self.available)
+        {
+            return Err(invalid(
+                "a first-frame image is only supported by video providers",
+            ));
         }
         if self.kind == MediaKind::Video {
             // A job-based video vendor consumes a small closed set of per-call

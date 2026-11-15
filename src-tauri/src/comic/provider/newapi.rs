@@ -20,7 +20,6 @@ use serde_json::{json, Value};
 
 use super::{
     capabilities, http, GenerationError, GenerationRequest, MediaKind, MediaProvider, PollState,
-    ReferenceImage,
 };
 
 pub struct NewApiVideoProvider {
@@ -218,7 +217,7 @@ impl MediaProvider for NewApiVideoProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::super::build_provider;
+    use super::super::{build_provider, ReferenceImage};
     use super::*;
     use serde_json::json;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};

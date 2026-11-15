@@ -954,7 +954,7 @@ mod tests {
             .write_artifact(audio_rel, &super::super::audio::wav(0.75))
             .unwrap();
         let mut board = serde_json::to_value(store.read_storyboard("ep001").unwrap()).unwrap();
-        assert_eq!(selected.is_some(), true);
+        assert!(selected.is_some());
         board["shots"][0]["audio"] =
             serde_json::json!({"path":audio_rel,"duration_secs":0.75,"task_id":7});
         let shot_id = board["shots"][0]["id"].as_str().unwrap().to_string();

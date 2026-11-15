@@ -1333,6 +1333,34 @@ impl StoryStore {
     }
 }
 
+// ---------------------------------------------------------------------------
+// atomic write helpers
+// ---------------------------------------------------------------------------
+
+pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), std::io::Error> {
+    let bytes = serde_json::to_vec_pretty(value)?;
+    write_bytes_atomic(path, &bytes)
+}
+
+pub fn write_bytes_atomic(path: &Path, bytes: &[u8]) -> Result<(), std::io::Error> {
+    let tmp = sibling_tmp_path(path);
+    std::fs::write(&tmp, bytes)?;
+    // Windows: std::fs::rename replaces an existing destination.
+    std::fs::rename(&tmp, path)
+}
+
+fn sibling_tmp_path(path: &Path) -> PathBuf {
+    let file = path
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "document".to_string());
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    path.with_file_name(format!(".{file}.{nanos}.tmp"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2384,32 +2412,4 @@ mod tests {
             43
         );
     }
-}
-
-// ---------------------------------------------------------------------------
-// atomic write helpers
-// ---------------------------------------------------------------------------
-
-pub fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), std::io::Error> {
-    let bytes = serde_json::to_vec_pretty(value)?;
-    write_bytes_atomic(path, &bytes)
-}
-
-pub fn write_bytes_atomic(path: &Path, bytes: &[u8]) -> Result<(), std::io::Error> {
-    let tmp = sibling_tmp_path(path);
-    std::fs::write(&tmp, bytes)?;
-    // Windows: std::fs::rename replaces an existing destination.
-    std::fs::rename(&tmp, path)
-}
-
-fn sibling_tmp_path(path: &Path) -> PathBuf {
-    let file = path
-        .file_name()
-        .map(|f| f.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "document".to_string());
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    path.with_file_name(format!(".{file}.{nanos}.tmp"))
 }
