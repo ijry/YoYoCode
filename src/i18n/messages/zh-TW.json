@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "已停止。啟動後將監聽 {address}，區域網路可存取。",
         "hintStoppedLocal": "已停止。啟動後將監聽 {address}，僅本機可存取。",
         "copyAddress": "複製位址",
-        "openSettings": "開啟 Web 服務設定"
+        "openSettings": "開啟 Web 服務設定",
+        "remoteTitle": "遠端存取",
+        "tailscaleTitle": "Tailscale 公用存取",
+        "tailscaleOn": "已開啟",
+        "tailscaleOff": "未開啟",
+        "tailscalePending": "設定中",
+        "tailscaleSetup": "需要設定",
+        "tailscaleUnavailable": "無法使用",
+        "tailscaleHint": "在設定中開啟後，手機可從任何網路連線。",
+        "tailscaleConfigure": "設定公用存取",
+        "copyPublicAddress": "複製公用位址",
+        "mobileTitle": "手機版 MCode",
+        "mobileHint": "掃描代碼即可配對此工作區。",
+        "mobileStoppedHint": "啟動 Web 服務後可配對手機。",
+        "showMobileQr": "顯示連線 QR 碼",
+        "mobileQrTitle": "從手機連線"
       }
     },
     "auxPanel": {

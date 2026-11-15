@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "Parado. Ao iniciar, vai escutar em {address}, acessível pela sua rede.",
         "hintStoppedLocal": "Parado. Ao iniciar, vai escutar em {address}, apenas este computador.",
         "copyAddress": "Copiar endereço",
-        "openSettings": "Abrir configurações do serviço web"
+        "openSettings": "Abrir configurações do serviço web",
+        "remoteTitle": "Acesso remoto",
+        "tailscaleTitle": "Acesso público via Tailscale",
+        "tailscaleOn": "Ativado",
+        "tailscaleOff": "Desativado",
+        "tailscalePending": "Configurando",
+        "tailscaleSetup": "Configuração necessária",
+        "tailscaleUnavailable": "Indisponível",
+        "tailscaleHint": "Ative nas configurações para acessar de qualquer rede.",
+        "tailscaleConfigure": "Configurar acesso público",
+        "copyPublicAddress": "Copiar endereço público",
+        "mobileTitle": "MCode no celular",
+        "mobileHint": "Escaneie o código para parear este espaço de trabalho.",
+        "mobileStoppedHint": "Inicie o serviço web para parear um celular.",
+        "showMobileQr": "Mostrar QR code de conexão",
+        "mobileQrTitle": "Conectar pelo celular"
       }
     },
     "auxPanel": {

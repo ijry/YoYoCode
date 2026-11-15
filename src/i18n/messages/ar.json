@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "متوقفة. عند التشغيل ستستمع على \u2066{address}\u2069، ويمكن الوصول إليها من شبكتك.",
         "hintStoppedLocal": "متوقفة. عند التشغيل ستستمع على \u2066{address}\u2069، لهذا الحاسوب فقط.",
         "copyAddress": "نسخ العنوان",
-        "openSettings": "فتح إعدادات خدمة الويب"
+        "openSettings": "فتح إعدادات خدمة الويب",
+        "remoteTitle": "الوصول عن بُعد",
+        "tailscaleTitle": "الوصول العام عبر Tailscale",
+        "tailscaleOn": "مفعّل",
+        "tailscaleOff": "غير مفعّل",
+        "tailscalePending": "جارٍ الإعداد",
+        "tailscaleSetup": "يلزم الإعداد",
+        "tailscaleUnavailable": "غير متاح",
+        "tailscaleHint": "فعّله في الإعدادات للوصول من أي شبكة.",
+        "tailscaleConfigure": "إعداد الوصول العام",
+        "copyPublicAddress": "نسخ العنوان العام",
+        "mobileTitle": "MCode على هاتفك",
+        "mobileHint": "امسح الرمز لربط مساحة العمل هذه.",
+        "mobileStoppedHint": "شغّل خدمة الويب لربط الهاتف.",
+        "showMobileQr": "إظهار رمز الاتصال",
+        "mobileQrTitle": "الاتصال من هاتفك"
       }
     },
     "auxPanel": {

@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "Beendet. Nach dem Start lauscht er auf {address}, aus deinem Netzwerk erreichbar.",
         "hintStoppedLocal": "Beendet. Nach dem Start lauscht er auf {address}, nur dieser Computer.",
         "copyAddress": "Adresse kopieren",
-        "openSettings": "Webdienst-Einstellungen öffnen"
+        "openSettings": "Webdienst-Einstellungen öffnen",
+        "remoteTitle": "Fernzugriff",
+        "tailscaleTitle": "Öffentlicher Zugriff via Tailscale",
+        "tailscaleOn": "Aktiv",
+        "tailscaleOff": "Aus",
+        "tailscalePending": "Einrichtung",
+        "tailscaleSetup": "Einrichtung nötig",
+        "tailscaleUnavailable": "Nicht verfügbar",
+        "tailscaleHint": "In den Einstellungen aktivieren, um von überall zuzugreifen.",
+        "tailscaleConfigure": "Öffentlichen Zugriff konfigurieren",
+        "copyPublicAddress": "Öffentliche Adresse kopieren",
+        "mobileTitle": "MCode auf dem Handy",
+        "mobileHint": "Code scannen, um diesen Arbeitsbereich zu verbinden.",
+        "mobileStoppedHint": "Webdienst starten, um ein Handy zu koppeln.",
+        "showMobileQr": "Verbindungs-QR-Code anzeigen",
+        "mobileQrTitle": "Vom Handy verbinden"
       }
     },
     "auxPanel": {

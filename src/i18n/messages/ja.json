@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "停止中。開始すると {address} で待ち受け、ネットワークからアクセスできます。",
         "hintStoppedLocal": "停止中。開始すると {address} で待ち受け、このコンピューターからのみアクセスできます。",
         "copyAddress": "アドレスをコピー",
-        "openSettings": "Web サービス設定を開く"
+        "openSettings": "Web サービス設定を開く",
+        "remoteTitle": "リモートアクセス",
+        "tailscaleTitle": "Tailscale 公開アクセス",
+        "tailscaleOn": "有効",
+        "tailscaleOff": "無効",
+        "tailscalePending": "設定中",
+        "tailscaleSetup": "設定が必要",
+        "tailscaleUnavailable": "利用不可",
+        "tailscaleHint": "設定で有効にすると、どのネットワークからもアクセスできます。",
+        "tailscaleConfigure": "公開アクセスを設定",
+        "copyPublicAddress": "公開アドレスをコピー",
+        "mobileTitle": "スマートフォンの MCode",
+        "mobileHint": "コードを読み取ってこのワークスペースに接続します。",
+        "mobileStoppedHint": "Web サービスを起動するとスマートフォンをペアリングできます。",
+        "showMobileQr": "接続用 QR コードを表示",
+        "mobileQrTitle": "スマートフォンから接続"
       }
     },
     "auxPanel": {

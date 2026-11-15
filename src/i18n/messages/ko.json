@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "중지됨. 시작하면 {address}에서 수신 대기하며 네트워크에서 접근할 수 있습니다.",
         "hintStoppedLocal": "중지됨. 시작하면 {address}에서 수신 대기하며 이 컴퓨터에서만 접근할 수 있습니다.",
         "copyAddress": "주소 복사",
-        "openSettings": "웹 서비스 설정 열기"
+        "openSettings": "웹 서비스 설정 열기",
+        "remoteTitle": "원격 액세스",
+        "tailscaleTitle": "Tailscale 공개 액세스",
+        "tailscaleOn": "켜짐",
+        "tailscaleOff": "꺼짐",
+        "tailscalePending": "설정 중",
+        "tailscaleSetup": "설정 필요",
+        "tailscaleUnavailable": "사용 불가",
+        "tailscaleHint": "설정에서 켜면 어느 네트워크에서나 연결할 수 있습니다.",
+        "tailscaleConfigure": "공개 액세스 설정",
+        "copyPublicAddress": "공개 주소 복사",
+        "mobileTitle": "휴대폰의 MCode",
+        "mobileHint": "코드를 스캔하여 이 워크스페이스에 연결하세요.",
+        "mobileStoppedHint": "웹 서비스를 시작하면 휴대폰을 연결할 수 있습니다.",
+        "showMobileQr": "연결 QR 코드 보기",
+        "mobileQrTitle": "휴대폰에서 연결"
       }
     },
     "auxPanel": {

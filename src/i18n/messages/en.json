@@ -2616,7 +2616,22 @@
         "hintStoppedNetwork": "Stopped. Starting will listen on {address}, reachable from your network.",
         "hintStoppedLocal": "Stopped. Starting will listen on {address}, this computer only.",
         "copyAddress": "Copy address",
-        "openSettings": "Open Web service settings"
+        "openSettings": "Open Web service settings",
+        "remoteTitle": "Remote access",
+        "tailscaleTitle": "Tailscale public access",
+        "tailscaleOn": "On",
+        "tailscaleOff": "Off",
+        "tailscalePending": "Setting up",
+        "tailscaleSetup": "Setup needed",
+        "tailscaleUnavailable": "Unavailable",
+        "tailscaleHint": "Enable it in settings to reach Codeg from any network.",
+        "tailscaleConfigure": "Configure public access",
+        "copyPublicAddress": "Copy public address",
+        "mobileTitle": "MCode on your phone",
+        "mobileHint": "Scan the code to pair this workspace.",
+        "mobileStoppedHint": "Start the web service to pair a phone.",
+        "showMobileQr": "Show connection QR code",
+        "mobileQrTitle": "Connect from your phone"
       }
     },
     "auxPanel": {

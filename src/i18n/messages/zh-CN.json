@@ -2616,7 +2616,22 @@
         "hintStoppedNetwork": "已停止。启动后将监听 {address}，局域网可访问。",
         "hintStoppedLocal": "已停止。启动后将监听 {address}，仅本机可访问。",
         "copyAddress": "复制地址",
-        "openSettings": "打开 Web 服务设置"
+        "openSettings": "打开 Web 服务设置",
+        "remoteTitle": "远程接入",
+        "tailscaleTitle": "Tailscale 公网访问",
+        "tailscaleOn": "已开启",
+        "tailscaleOff": "未开启",
+        "tailscalePending": "配置中",
+        "tailscaleSetup": "需要配置",
+        "tailscaleUnavailable": "不可用",
+        "tailscaleHint": "在设置中开启后，手机可从任意网络接入。",
+        "tailscaleConfigure": "配置公网访问",
+        "copyPublicAddress": "复制公网地址",
+        "mobileTitle": "手机端 MCode",
+        "mobileHint": "扫码即可连接此工作区。",
+        "mobileStoppedHint": "启动 Web 服务后可配对手机。",
+        "showMobileQr": "显示连接二维码",
+        "mobileQrTitle": "从手机连接"
       }
     },
     "auxPanel": {

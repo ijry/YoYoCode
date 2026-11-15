@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "Detenido. Al iniciarse escuchará en {address}, accesible desde tu red.",
         "hintStoppedLocal": "Detenido. Al iniciarse escuchará en {address}, solo este equipo.",
         "copyAddress": "Copiar dirección",
-        "openSettings": "Abrir ajustes del servicio web"
+        "openSettings": "Abrir ajustes del servicio web",
+        "remoteTitle": "Acceso remoto",
+        "tailscaleTitle": "Acceso público con Tailscale",
+        "tailscaleOn": "Activado",
+        "tailscaleOff": "Desactivado",
+        "tailscalePending": "Configurando",
+        "tailscaleSetup": "Falta configurar",
+        "tailscaleUnavailable": "No disponible",
+        "tailscaleHint": "Actívalo en ajustes para acceder desde cualquier red.",
+        "tailscaleConfigure": "Configurar acceso público",
+        "copyPublicAddress": "Copiar dirección pública",
+        "mobileTitle": "MCode en tu móvil",
+        "mobileHint": "Escanea el código para vincular este espacio de trabajo.",
+        "mobileStoppedHint": "Inicia el servicio web para vincular un móvil.",
+        "showMobileQr": "Mostrar código QR de conexión",
+        "mobileQrTitle": "Conectar desde tu móvil"
       }
     },
     "auxPanel": {

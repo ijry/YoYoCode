@@ -2577,7 +2577,22 @@
         "hintStoppedNetwork": "Arrêté. Au démarrage, il écoutera sur {address}, accessible depuis votre réseau.",
         "hintStoppedLocal": "Arrêté. Au démarrage, il écoutera sur {address}, cet ordinateur uniquement.",
         "copyAddress": "Copier l’adresse",
-        "openSettings": "Ouvrir les réglages du service web"
+        "openSettings": "Ouvrir les réglages du service web",
+        "remoteTitle": "Accès à distance",
+        "tailscaleTitle": "Accès public Tailscale",
+        "tailscaleOn": "Activé",
+        "tailscaleOff": "Désactivé",
+        "tailscalePending": "Configuration",
+        "tailscaleSetup": "Configuration requise",
+        "tailscaleUnavailable": "Indisponible",
+        "tailscaleHint": "Activez-le dans les paramètres pour un accès depuis n'importe où.",
+        "tailscaleConfigure": "Configurer l'accès public",
+        "copyPublicAddress": "Copier l'adresse publique",
+        "mobileTitle": "MCode sur votre téléphone",
+        "mobileHint": "Scannez le code pour associer cet espace de travail.",
+        "mobileStoppedHint": "Démarrez le service web pour associer un téléphone.",
+        "showMobileQr": "Afficher le QR code de connexion",
+        "mobileQrTitle": "Se connecter depuis votre téléphone"
       }
     },
     "auxPanel": {
