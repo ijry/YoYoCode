@@ -41,7 +41,7 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | （品牌 commit） | 品牌 → YoYoCode：logo / 显示名 / README | `public/icon*.svg`、`src-tauri/icons/`、`src/app/favicon.ico`、`README.md`、`docs/readme/`×9 | 永不 —— fork 品牌就是需要 | 赞助段已删；显示名与仓库 slug 统一为 YoYoCode（原 Go 项目让出名字后改名 GoCode）；上游动这些文件时需手动合并 |
 | （CLI/端口 commit） | 命令行改 `yoyo-cli` + Web 端口默认 18080 | `Cargo.toml`、`src/bin/yoyo_cli.rs`、`cli_run/`（shim/command_tool/hello 等）、`bin/codeg_server.rs`、`tauri.conf.json`、`prepare-sidecars.mjs`、`release.yml`、install 脚本、`Dockerfile`、`src-tauri/windows/installer-hooks.nsh`、`src/components/settings/cli-access-settings.tsx`（示例命令 + 测试）、`src/i18n/messages/`×10（cliAccess* 文案）、`docs/cli.md`、README×10 | 永不 —— fork 品牌就是需要 | 握手域串 `codeg-cli-hello` 保留（CLI↔运行时协议，两端同版才可改）；DB `source=cli` 与 `CODEG_CLI` env 名不变；2026-11-15 补漏：前端硬编码文案/示例命令、Dockerfile 的 `--bin`/`COPY`、NSIS 的 exe 名曾仍写 `codeg-cli` / `codeg-mcp.exe`，已统一为 `yoyo-cli` / `yoyocode-mcp`；上游动这些文件时需手动合并 |
 | （MCP commit） | `codeg-mcp` → `yoyocode-mcp`：二进制/注入的 MCP server 名/工具名匹配/前端解析 | `src-tauri/`（companion、注入、mention 解析、测试夹具）、`src/` 前端 65 文件（normalization 表、卡片、settings、i18n×10） | 永不 —— fork 品牌就是需要 | 前端 normalizeToolName 的后缀规则 server 名无关，旧会话的 `mcp__codeg-mcp__*` 天然兼容；上游动这些文件时需手动合并 |
-| （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10 | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；上游动这些文件时需手动合并 |
+| （体验 commit） | 「关于」设置页 + Web 服务移动端区块 | `settings-shell.tsx`（导航）、`about-settings.tsx`、`about-logo-animation.tsx`、`app/settings/about/`、`web-service-settings.tsx`、i18n×10、README×11、`public/logo/animation/` | 永不 —— fork 品牌就是需要 | 关于页含对上游 Codeg 的致谢与仓库/文档链接；Web 服务页新增移动端远程管理入口（getmcode.lingyun.net）；2026-11-15 补：关于页把「本仓库 / App 端连接 / 上游 Codeg」拆成三组链接，顶部换成动态 Lottie 水母徽标，README×11 里仍指向上游文档的 2 处移动端链接统一为 `getmcode.lingyun.net` 并在顶部加 App 入口；上游动这些文件时需手动合并 |
 
 ### 队列扣留、端口迁移与品牌图标（v0.44.0-plus.1）
 
@@ -57,8 +57,16 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 
 - `.github/workflows/release.yml`：macOS ad-hoc 校验新增成品 `.app` 内 `Contents/Resources/*.icns` 与 `src-tauri/icons/icon.icns` 的逐字节比对，防止「升级后 Dock 仍是旧图标」这类漏带在 CI 里静默通过。
 - `src-tauri/icons/tray-icon-template.{gen.py,png}`：菜单栏 template 改由 `icon.svg` 派生水母单色蒙版，补齐 `be3004562` 漏掉的资源；改 `icon.svg` 后需重跑该脚本。
-- `public/logo/`、`scripts/jellyfish-*.gen.py`、`scripts/lottie-web-5.12.2.min.js`：高清静态 logo、两套透明呼吸动画与可复现生成脚本入库，均为 fork 自有资产，上游同步时不产生冲突面。
+- `public/logo/`、`scripts/jellyfish-*.gen.py`、`public/logo/animation/lottie-web-5.12.2.min.js`：高清静态 logo、两套透明呼吸动画与可复现生成脚本入库，均为 fork 自有资产，上游同步时不产生冲突面。2026-11-15 起 Lottie runtime 从 `scripts/` 移到 `public/logo/animation/`，由「关于」页按需加载（不进应用 bundle），生成自包含预览页与页面运行时共用同一份文件；`jellyfish-lottie.gen.py` 的 `LOTTIE_JS` 已同步改路径，重跑产物逐字节一致。
 - 命令行改名残留（`yoyo-cli` / `yoyocode-mcp`）已收尾，但协议兼容项 `codeg-cli-hello`、`CODEG_CLI` 与历史会话中的旧 MCP server 名必须保留，属于上游同步时的固定冲突面。
+
+### 自有文档站与上游文档链接替换（2026-11-15）
+
+- 上游 `docs.codeg.app` 的源码不在 `spacering-net/official-website`（那是 spacering.net 公司官网，Astro + Cloudflare Worker + D1），而在 `xintaofei/codeg-docs`（VitePress，Pages CNAME 到 `xintaofei.github.io`）。已 fork 为 `ijry/yoyocode-docs`，品牌化为 YoYoCode 并发布到 `https://ijry.github.io/yoyocode-docs/`；该仓库为 fork 自有资产，不与上游同步产生冲突面。
+- 本仓库内全部 `https://docs.codeg.app` 链接（14 文件 / 415 处匹配，含 10 个 README 徽章）统一替换为 `https://ijry.github.io/yoyocode-docs`，路径与锚点原样保留。冲突面：README×11、`src-tauri/src/acp/registry.rs`、`src-tauri/src/web/handlers/files.rs`、`about-settings.tsx`、`acp-agent-settings.test.tsx`；上游动这些文件时需手动合并。
+- 「关于」页把「文档」按钮从上游分组移回本仓库分组（`UPSTREAM_DOCUMENTATION` → `DOCUMENTATION`），上游分组只留 `spacering-net/codeg` 仓库链接与致谢；10 语言 `openDocumentation` 恢复中性文案。
+- 页面部署在 Pages 子路径，VitePress 需要 `base: '/yoyocode-docs/'`：`sitemap.hostname` 必须含 base（VitePress 不会二次补），raw HTML 里的根路径 **链接** 要手工加前缀、**public 图片** 必须保留 `/images/` 交给 Vite 补前缀（手写前缀会被当模块导入而构建失败）。
+- 品牌替换会让英文自动标题 slug 从 `codeg` 变 `yoyocode`，中文文档用 `{#slug}` 固定旧名 → 必须同步 8 个 slug 及全部站内锚点，否则 `check-anchors.py` / `check-parity.py` 会失败。`codeg-server`、`CODEG_*`、`.codeg`、`codeg://`、`codeg-computer-helper` 等技术标识保留。
 
 ### Web 公网访问与 MCode 配置（v0.42.0-plus.4）
 
