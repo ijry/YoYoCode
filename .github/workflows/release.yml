@@ -741,7 +741,15 @@ jobs:
           # to every other check here — it only shows up as "the logo did not
           # change after upgrading" on the user's Mac. Compare the real bundle
           # payload with the committed brand art so it cannot leave CI.
-          icon="$(/usr/bin/find "$app/Contents/Resources" -maxdepth 1 -name '*.icns' -print -quit)"
+          # Plain shell glob: no find primaries beyond POSIX, so this behaves
+          # the same under macOS's BSD find as it would on Linux runners.
+          icon=""
+          for candidate in "$app/Contents/Resources/"*.icns; do
+            if [ -f "$candidate" ]; then
+              icon="$candidate"
+              break
+            fi
+          done
           if [ -z "$icon" ]; then
             echo "FATAL: no .icns in $app/Contents/Resources"
             exit 1
