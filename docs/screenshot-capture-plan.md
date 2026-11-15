@@ -39,7 +39,7 @@
 **Files:**
 - Modify: `src-tauri/Cargo.toml`（dependencies + features）
 - Create: `src-tauri/src/commands/screenshot.rs`
-- Modify: `src-tauri/src/commands/mod.rs`（若有 `pub mod` 列表）、`src-tauri/src/app_state.rs`、AppState 构造点（`src-tauri/src/lib.rs` 与 `src-tauri/src/bin/codeg_server.rs`）
+- Modify: `src-tauri/src/commands/mod.rs`（若有 `pub mod` 列表）、`src-tauri/src/app_state.rs`、AppState 构造点（`src-tauri/src/lib.rs` 与 `src-tauri/src/bin/yoyocode_server.rs`）
 - Test: `src-tauri/src/commands/screenshot.rs` 内 `#[cfg(test)]`
 
 **Interfaces:**
@@ -91,7 +91,7 @@ pub fn crop_png(png_base64: &str, rect: &NormalizedRect) -> Result<CroppedPayloa
   - store：`begin_capture` 两次 → 第一次的 capture_id 取不到帧（旧条目被清）；`store_cropped` 后 `cancel` 返回 false 且 `take_cropped` 仍能取出；未 `store_cropped` 时 `cancel` 返回 true
 - [ ] **Step 2: 运行确认失败**：`cd src-tauri && cargo test screenshot`，期望编译错误（模块不存在）
 - [ ] **Step 3: 实现**：Cargo.toml 加 `xcap = { version = "0.9", optional = true }`（`[dependencies]`），`tauri-runtime = [...]` 列表追加 `"dep:xcap"`；实现上述全部类型与函数（`crop_png` 用 `base64::engine::general_purpose::STANDARD` + `image::load_from_memory` + `crop_imm` + `write_to(Cursor, ImageFormat::Png)`；store 用 `std::sync::Mutex`，锁 poisoning 映射为 `AppCommandError`）；`mod.rs` 导出模块，`app_state.rs` 加字段，两个构造点补 `Default::default()`
-- [ ] **Step 4: 运行确认通过**：`cargo test screenshot` PASS；再跑 `cargo check --no-default-features --features server-bin --bin codeg-server` 确认 server 模式未引入 xcap
+- [ ] **Step 4: 运行确认通过**：`cargo test screenshot` PASS；再跑 `cargo check --no-default-features --features server-bin --bin yoyocode-server` 确认 server 模式未引入 xcap
 - [ ] **Step 5: Commit**：`git add -A src-tauri && git commit -m "feat(screenshot): 帧仓库与选区裁剪纯函数（xcap 依赖）"`
 
 ### Task 2: Rust 命令、覆盖窗创建、注册与 ACL
@@ -136,7 +136,7 @@ pub struct ScreenshotMonitorInfo { pub index: u32, pub name: String, pub width: 
   - take_cropped：一次性取出，缺失报 not_found
   - cancel：`cancel()` 返回 true 才关覆盖窗 + 恢复主窗；false（已完成）时直接返回 Ok
 - [ ] **Step 4: 注册与 ACL**：`lib.rs` `generate_handler![…]` 追加 5 个命令（跟随现有 tauri-runtime 块，无需额外 cfg，若该列表本身在 cfg 内）；`capabilities/default.json` 的 `windows` 数组追加 `"screenshot-overlay-*"`
-- [ ] **Step 5: 验证**：`cargo check` 与 `cargo check --no-default-features --features server-bin --bin codeg-server` 均通过；`cargo clippy --all-targets --features test-utils -- -D warnings` 无警告
+- [ ] **Step 5: 验证**：`cargo check` 与 `cargo check --no-default-features --features server-bin --bin yoyocode-server` 均通过；`cargo clippy --all-targets --features test-utils -- -D warnings` 无警告
 - [ ] **Step 6: Commit**：`git add -A && git commit -m "feat(screenshot): 截图/选区/取图命令与覆盖窗管理"`
 
 ### Task 3: 前端类型、invoke 封装、标注纯函数库
@@ -333,7 +333,7 @@ export function ScreenshotEditorDialog(props: {
 - [ ] **Step 2: 写 `docs/screenshot-capture.md`**（含 macOS 屏幕录制授权与 Linux Wayland 限制说明）
 - [ ] **Step 3: 全量校验**：
   - `pnpm lint . && pnpm test && pnpm build`
-  - `cd src-tauri && cargo test --features test-utils && cargo clippy --all-targets --features test-utils -- -D warnings && cargo check --no-default-features --features server-bin --bin codeg-server && cargo clippy --no-default-features --features server-bin --bin codeg-server --lib -- -D warnings && cargo check --no-default-features --features mcp-bin --bin codeg-mcp`
+  - `cd src-tauri && cargo test --features test-utils && cargo clippy --all-targets --features test-utils -- -D warnings && cargo check --no-default-features --features server-bin --bin yoyocode-server && cargo clippy --no-default-features --features server-bin --bin yoyocode-server --lib -- -D warnings && cargo check --no-default-features --features mcp-bin --bin codeg-mcp`
 - [ ] **Step 4: 手工验收清单**（桌面跑 `pnpm tauri dev`，记录到 PR 描述）：
   - Windows 缩放 125% 与 150%：选区与成图像素对齐（Review Focus #1）
   - 双显示器含负坐标屏（主屏左侧的屏）：覆盖窗各就各位、任一屏确认生效（Review Focus #5）

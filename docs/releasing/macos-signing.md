@@ -108,8 +108,8 @@ desktop's macOS entries use the notarization secrets.
 
 ## Standalone Server
 
-The standalone server's macOS archives (`codeg-server-darwin-arm64` and
-`codeg-server-darwin-x64`) are signed with the same Developer ID but are not
+The standalone server's macOS archives (`yoyocode-server-darwin-arm64` and
+`yoyocode-server-darwin-x64`) are signed with the same Developer ID but are not
 notarized. macOS keeps the privacy permissions a person grants the server, Full
 Disk Access among them, against the executable's designated requirement. An
 ad-hoc (linker-signed) build's requirement is its own cdhash, so every update
@@ -117,11 +117,11 @@ would take the grant back. Signed with the Developer ID under a fixed
 identifier, the requirement stays the same from release to release:
 
 ```text
-identifier "codeg-server" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = "TEAMID1234"
+identifier "yoyocode-server" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = "TEAMID1234"
 ```
 
 Once everything is built, the server job's macOS entries import the certificate
-into a temporary keychain and sign `codeg-server`, `yoyocode-mcp` and `yoyo-cli`.
+into a temporary keychain and sign `yoyocode-server`, `yoyocode-mcp` and `yoyo-cli`.
 Each is signed under its file name as its identifier, with the hardened runtime,
 a secure timestamp and no entitlements, then checked against that requirement.
 The keychain is deleted before the bundle is archived and the archive is signed

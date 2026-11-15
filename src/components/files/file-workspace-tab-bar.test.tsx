@@ -295,7 +295,7 @@ describe("FileWorkspaceTabBar — the add-tab '+'", () => {
   })
 
   // Those servers were started by THIS computer's terminals; a window bound
-  // to a remote codeg-server runs its terminals on that host.
+  // to a remote yoyocode-server runs its terminals on that host.
   it("does not offer this computer's servers in a remote workspace window", async () => {
     remoteDesktop = true
     mocks.browserListServices.mockResolvedValue([

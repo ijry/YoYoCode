@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "لا يستطيع المضيف البعيد الوصول إلى هذا العنوان",
       "errorRemoteUnreachableHint": "من جهة {host}، لا يمكن تحليل الاسم أو لا يوجد مسار إليه.",
       "errorRemoteNotAllowed": "لا يفتح الخادم البعيد هذا العنوان للمتصفح",
-      "errorRemoteNotAllowedHint": "يسمح codeg-server على {host} لنفق المتصفح بالوصول إلى العناوين الخاصة فقط (CODEG_BROWSER_TUNNEL=private).",
+      "errorRemoteNotAllowedHint": "يسمح yoyocode-server على {host} لنفق المتصفح بالوصول إلى العناوين الخاصة فقط (CODEG_BROWSER_TUNNEL=private).",
       "errorRemoteTimeout": "استغرق المضيف البعيد وقتًا طويلًا للاتصال",
       "errorRemoteTimeoutHint": "لم يتلقَّ {host} ردًا من هذا العنوان في الوقت المحدد. قد يكون الخادم هناك مشغولًا أو خلف جدار حماية.",
       "errorTunnelDown": "الاتصال بالمضيف البعيد مقطوع",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "يتطلب فتح عناوين المضيف البعيد في المتصفح المدمج نظام macOS 14 أو أحدث.",
-        "unsupported": "خادم codeg-server البعيد قديم جدًا ولا يمكنه نقل حركة المتصفح. حدّثه لفتح عناوينه هنا.",
-        "disabled": "نفق المتصفح معطّل على خادم codeg-server البعيد (CODEG_BROWSER_TUNNEL).",
-        "unreachable": "تعذّر الوصول إلى نفق المتصفح في خادم codeg-server البعيد ({reason}).",
+        "unsupported": "خادم yoyocode-server البعيد قديم جدًا ولا يمكنه نقل حركة المتصفح. حدّثه لفتح عناوينه هنا.",
+        "disabled": "نفق المتصفح معطّل على خادم yoyocode-server البعيد (CODEG_BROWSER_TUNNEL).",
+        "unreachable": "تعذّر الوصول إلى نفق المتصفح في خادم yoyocode-server البعيد ({reason}).",
         "bypassed": "يرسل محرك المتصفح في هذا الكمبيوتر بعض العناوين خارج النفق، لذا تبقى صفحات المضيف البعيد مغلقة بدل تحميلها من هذا الكمبيوتر.",
         "probeFailed": "تعذّر على المتصفح المدمج التأكد من أنه يصل إلى المضيف البعيد عبر النفق. حاول مرة أخرى بعد قليل."
       }

@@ -11,7 +11,7 @@ export function isLocalCommand(command: FolderCommand): boolean {
   return command.run_local === true
 }
 
-/** Host name of the remote codeg-server this window is bound to, if any. */
+/** Host name of the remote yoyocode-server this window is bound to, if any. */
 export function getRemoteHostName(): string | null {
   if (!isRemoteDesktopMode()) return null
   try {

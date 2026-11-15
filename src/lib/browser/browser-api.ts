@@ -4,7 +4,7 @@
 // value instead of on the runtime.
 //
 // Always this app's own shell, never `getTransport()`: in a window bound to a
-// remote codeg-server that one talks to the remote host, which has no browser
+// remote yoyocode-server that one talks to the remote host, which has no browser
 // at all — the built-in browser is a webview of THIS computer, whichever
 // server the window's workspace lives on.
 

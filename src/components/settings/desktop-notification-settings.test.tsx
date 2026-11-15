@@ -253,7 +253,7 @@ describe("the permission card", () => {
   })
 
   it("hides the test button where notifications cannot exist at all", () => {
-    // A `codeg-server` over plain http:// on a LAN address — no secure
+    // A `yoyocode-server` over plain http:// on a LAN address — no secure
     // context, so there is nothing to test.
     permission.mockReturnValue("unsupported")
     renderSection()

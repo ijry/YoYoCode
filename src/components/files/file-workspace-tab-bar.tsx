@@ -270,7 +270,7 @@ function FileTabAddMenu() {
   const handleOpenChange = useCallback(
     (open: boolean) => {
       // The servers this computer's terminals started. A window bound to a
-      // remote codeg-server runs its terminals there, so none of these is
+      // remote yoyocode-server runs its terminals there, so none of these is
       // one of its own — and `localhost` in its list would be ambiguous.
       if (!open || !canOpenBrowser || isRemoteDesktopMode()) return
       void browserListServices()

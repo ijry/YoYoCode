@@ -25,7 +25,7 @@ export interface WorkspaceRestoreFailure {
  * once, so a nudge that arrived before the window was listening loses nothing.
  *
  * Only the local workspace window asks: a remote workspace window's transport
- * targets a `codeg-server`, which reopens no windows, and the web build has
+ * targets a `yoyocode-server`, which reopens no windows, and the web build has
  * none. Returns `[]` for everything else, including failures.
  */
 export async function takeWorkspaceRestoreFailures(): Promise<

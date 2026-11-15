@@ -252,7 +252,7 @@ export function BrowserToolbar({
     }
     setEditing(false)
     inputRef.current?.blur()
-    // Seen from a window bound to a remote codeg-server, a loopback or
+    // Seen from a window bound to a remote yoyocode-server, a loopback or
     // private address is that host's — and a tab of THIS computer reaches
     // this machine at the same address instead. It opens as a tab of the
     // remote host beside this one, the way a link to it does; with nowhere to

@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "L'hôte distant ne peut pas joindre cette adresse",
       "errorRemoteUnreachableHint": "Vu depuis {host}, le nom ne se résout pas ou aucune route n'y mène.",
       "errorRemoteNotAllowed": "Le serveur distant n'ouvre pas cette adresse au navigateur",
-      "errorRemoteNotAllowedHint": "Le codeg-server de {host} ne laisse son tunnel du navigateur joindre que des adresses privées (CODEG_BROWSER_TUNNEL=private).",
+      "errorRemoteNotAllowedHint": "Le yoyocode-server de {host} ne laisse son tunnel du navigateur joindre que des adresses privées (CODEG_BROWSER_TUNNEL=private).",
       "errorRemoteTimeout": "L'hôte distant a mis trop de temps à se connecter",
       "errorRemoteTimeoutHint": "{host} n'a pas obtenu de réponse de cette adresse à temps. Le serveur est peut-être occupé ou derrière un pare-feu.",
       "errorTunnelDown": "La connexion à l'hôte distant est coupée",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "Ouvrir les adresses de l'hôte distant dans le navigateur intégré nécessite macOS 14 ou une version ultérieure.",
-        "unsupported": "Le codeg-server distant est trop ancien pour relayer le trafic du navigateur. Mettez-le à jour pour ouvrir ses adresses ici.",
-        "disabled": "Le tunnel du navigateur est désactivé sur le codeg-server distant (CODEG_BROWSER_TUNNEL).",
-        "unreachable": "Impossible de joindre le tunnel du navigateur du codeg-server distant ({reason}).",
+        "unsupported": "Le yoyocode-server distant est trop ancien pour relayer le trafic du navigateur. Mettez-le à jour pour ouvrir ses adresses ici.",
+        "disabled": "Le tunnel du navigateur est désactivé sur le yoyocode-server distant (CODEG_BROWSER_TUNNEL).",
+        "unreachable": "Impossible de joindre le tunnel du navigateur du yoyocode-server distant ({reason}).",
         "bypassed": "Le moteur du navigateur de cet ordinateur envoie certaines adresses en dehors du tunnel ; les pages de l'hôte distant restent donc fermées plutôt que d'être chargées depuis cet ordinateur.",
         "probeFailed": "Le navigateur intégré n'a pas pu confirmer qu'il atteint l'hôte distant par le tunnel. Réessayez dans un instant."
       }

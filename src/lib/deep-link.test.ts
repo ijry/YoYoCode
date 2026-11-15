@@ -46,7 +46,7 @@ describe("takePendingDeepLink", () => {
   })
 
   // Browser-only mode has no OS scheme, and a remote-workspace window's
-  // transport targets a codeg-server that never registered this command —
+  // transport targets a yoyocode-server that never registered this command —
   // both must stay off the wire, not fail an invoke on every workspace mount.
   it("does not call the backend outside a local desktop window", async () => {
     mocks.isDesktop.mockReturnValue(false)

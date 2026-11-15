@@ -250,7 +250,7 @@ describe("BrowserTabView", () => {
     expect(screen.getByText("This address is on dev.example.com")).toBeVisible()
     expect(
       screen.getByText(
-        "The remote codeg-server has its browser tunnel switched off (CODEG_BROWSER_TUNNEL)."
+        "The remote yoyocode-server has its browser tunnel switched off (CODEG_BROWSER_TUNNEL)."
       )
     ).toBeVisible()
     expect(screen.queryByText("RAW BACKEND MESSAGE")).toBeNull()

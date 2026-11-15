@@ -256,14 +256,14 @@ YoYoCode はすべてのエージェントと [Agent Client Protocol](https://ag
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 Windows（PowerShell）の場合：
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — 同じサーバーを、ひとつのコンテナで：
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 どちらの場合も、ブラウザで `http://<host>:18989` を開き、サーバーが起動時に出力するアクセストークンを入力します（コンテナでは `docker logs` で確認できます）。`CODEG_TOKEN` で自分で決めることもできます。
 
-**モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `codeg-server` を指定します：URL とトークンで完了。ペアリング手順は[getmcode.lingyun.net](https://getmcode.lingyun.net)を参照。
+**モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `yoyocode-server` を指定します：URL とトークンで完了。ペアリング手順は[getmcode.lingyun.net](https://getmcode.lingyun.net)を参照。
 
 Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://ijry.github.io/yoyocode-docs/getting-started/deployment) に、環境変数は [設定](https://ijry.github.io/yoyocode-docs/getting-started/configuration) にあります。
 

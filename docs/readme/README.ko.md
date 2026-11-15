@@ -256,14 +256,14 @@ YoYoCode는 모든 에이전트와 [Agent Client Protocol](https://agentclientpr
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 Windows(PowerShell):
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — 같은 서버를, 컨테이너 하나로:
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 어느 쪽이든 브라우저에서 `http://<host>:18989`을 열고, 서버가 시작할 때 출력하는 액세스 토큰을 입력하세요(컨테이너는 `docker logs`로 확인합니다). `CODEG_TOKEN`으로 직접 정할 수도 있습니다.
 
-**모바일** — 모바일 앱은 [getmcode.lingyun.net](https://getmcode.lingyun.net)에서 받고, 데스크톱 앱의 **웹 서비스**나 자신의 `codeg-server`를 지정하세요: URL과 토큰이면 끝입니다. 페어링 단계는 [getmcode.lingyun.net](https://getmcode.lingyun.net)을 참고하세요.
+**모바일** — 모바일 앱은 [getmcode.lingyun.net](https://getmcode.lingyun.net)에서 받고, 데스크톱 앱의 **웹 서비스**나 자신의 `yoyocode-server`를 지정하세요: URL과 토큰이면 끝입니다. 페어링 단계는 [getmcode.lingyun.net](https://getmcode.lingyun.net)을 참고하세요.
 
 Compose, 사전 빌드 바이너리, 소스 빌드, 제자리 업데이트는 [배포](https://ijry.github.io/yoyocode-docs/getting-started/deployment)에서, 환경 변수는 [설정](https://ijry.github.io/yoyocode-docs/getting-started/configuration)에서 다룹니다.
 

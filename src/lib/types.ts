@@ -2546,7 +2546,7 @@ export interface ForgeRemote {
   /** The instance's web root — scheme, host, port and mount path — as the
    *  account the backend reads this host with spells it (`https://{host}`
    *  when there is none). What an SSH remote's repository link is built on.
-   *  Absent from a server that predates the field — a remote codeg-server can
+   *  Absent from a server that predates the field — a remote yoyocode-server can
    *  be older than the app connected to it. */
   web_origin?: string
   /** Which forge this host is — decided by the backend from the configured

@@ -97,7 +97,7 @@ export function HtmlPreview({
   const capabilities = useBrowserCapabilities()
   const override = useEngineOverride(tab.id)
   // The document viewer reads the file straight off THIS computer's disk. A
-  // window bound to a remote codeg-server shows that host's files, which only
+  // window bound to a remote yoyocode-server shows that host's files, which only
   // the inline preview reads, through the server — on this disk the same
   // path is some other file or none at all.
   const guestAvailable =

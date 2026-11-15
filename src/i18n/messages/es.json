@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "El host remoto no puede llegar a esta dirección",
       "errorRemoteUnreachableHint": "Desde {host}, el nombre no se resuelve o no hay ruta hasta él.",
       "errorRemoteNotAllowed": "El servidor remoto no abre esta dirección para el navegador",
-      "errorRemoteNotAllowedHint": "El codeg-server de {host} solo deja que su túnel del navegador llegue a direcciones privadas (CODEG_BROWSER_TUNNEL=private).",
+      "errorRemoteNotAllowedHint": "El yoyocode-server de {host} solo deja que su túnel del navegador llegue a direcciones privadas (CODEG_BROWSER_TUNNEL=private).",
       "errorRemoteTimeout": "El host remoto tardó demasiado en conectar",
       "errorRemoteTimeoutHint": "{host} no obtuvo respuesta de esta dirección a tiempo. Puede que el servidor esté ocupado o detrás de un cortafuegos.",
       "errorTunnelDown": "La conexión con el host remoto está caída",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "Para abrir las direcciones del host remoto en el navegador integrado se necesita macOS 14 o posterior.",
-        "unsupported": "El codeg-server remoto es demasiado antiguo para transportar el tráfico del navegador. Actualízalo para abrir sus direcciones aquí.",
-        "disabled": "El codeg-server remoto tiene desactivado su túnel del navegador (CODEG_BROWSER_TUNNEL).",
-        "unreachable": "No se pudo conectar con el túnel del navegador del codeg-server remoto ({reason}).",
+        "unsupported": "El yoyocode-server remoto es demasiado antiguo para transportar el tráfico del navegador. Actualízalo para abrir sus direcciones aquí.",
+        "disabled": "El yoyocode-server remoto tiene desactivado su túnel del navegador (CODEG_BROWSER_TUNNEL).",
+        "unreachable": "No se pudo conectar con el túnel del navegador del yoyocode-server remoto ({reason}).",
         "bypassed": "El motor del navegador de este equipo envía algunas direcciones por fuera del túnel, así que las páginas del host remoto no se abren para no cargarlas desde este equipo.",
         "probeFailed": "El navegador integrado no pudo confirmar que llega al host remoto a través del túnel. Vuelve a intentarlo en un momento."
       }

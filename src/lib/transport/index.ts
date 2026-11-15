@@ -66,7 +66,7 @@ export function isDesktop(): boolean {
 }
 
 /// True when the current window is a Tauri client bound to a remote
-/// codeg-server (a remote-desktop window). Distinct from `isDesktop()`,
+/// yoyocode-server (a remote-desktop window). Distinct from `isDesktop()`,
 /// which is purely a runtime check — a remote-desktop window IS a Tauri
 /// runtime but its API calls and file ops must target the remote host,
 /// not the local filesystem.

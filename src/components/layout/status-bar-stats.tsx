@@ -24,7 +24,7 @@ export function StatusBarStats() {
   const t = useTranslations("Folder.statusBar.stats")
   const stats = useAppWorkspaceStore((s) => s.stats)
   // Non-null only in a remote-desktop window (a Tauri client bound to a remote
-  // codeg-server); local windows have no RemoteConnection in context.
+  // yoyocode-server); local windows have no RemoteConnection in context.
   const remoteConnection = useRemoteConnection()?.connection ?? null
   const { routeId, setRoute } = useWorkbenchRoute()
 

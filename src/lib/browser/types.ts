@@ -351,7 +351,7 @@ export interface BrowserCapabilities {
    *  shim also drives the owned-window fallback (Linux). */
   ownedWindowControls: boolean
   /** A remote-workspace window's tabs can reach the remote host through its
-   *  codeg-server: a profile of their own to proxy (macOS 14+), and on macOS
+   *  yoyocode-server: a profile of their own to proxy (macOS 14+), and on macOS
    *  the embedded surface. Whether a given remote server carries the traffic
    *  is only known when a tab asks. */
   remoteEgress: boolean

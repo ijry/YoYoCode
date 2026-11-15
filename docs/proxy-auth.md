@@ -1,6 +1,6 @@
 # Signing in through an identity-aware proxy
 
-`codeg-server` normally asks every browser for its access token. When the
+`yoyocode-server` normally asks every browser for its access token. When the
 server sits behind an identity-aware proxy that already signs users in — such
 as [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
 — the token is a second login on top of the proxy's. With
@@ -116,5 +116,5 @@ expired session with 401 rather than a redirect the browser cannot follow.
 
 ## Scope
 
-This is a setting of the standalone `codeg-server`. The desktop app's web
+This is a setting of the standalone `yoyocode-server`. The desktop app's web
 service stays token-only.

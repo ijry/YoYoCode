@@ -17,7 +17,7 @@ export interface PendingDeepLink {
  * the resolved target; this takes it (once) when `PetFocusBridge` is ready.
  *
  * Desktop-only, and never on a remote-workspace window: that window's
- * transport targets a `codeg-server`, which has no such command (nor a local
+ * transport targets a `yoyocode-server`, which has no such command (nor a local
  * OS scheme). Returns `null` for everything else, including failures — a
  * missing deep link is the overwhelmingly common case, not an error.
  */

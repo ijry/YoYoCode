@@ -19,7 +19,7 @@
 - 定向前端：`pnpm exec vitest run src/components/settings/web-service-settings.test.tsx src/i18n/messages.test.ts src/components/i18n-provider.test.tsx --reporter=dot`：**48/48**（24 个组件测试、24 个国际化/provider 测试）。
 - 修改组件的 ESLint：`web-service-settings.tsx`、`tailscale-funnel-settings.tsx`、`web-service-settings.test.tsx` 通过；十种语言 key/ICU 校验通过。
 - Rust：`cargo test --no-default-features --features server-bin --lib web:: --quiet`：**174/174**，包括 15 个 Funnel/CLI/管理器测试及共享状态测试。审查修复后通过。
-- Rust 编译：desktop 默认 feature、server-bin/codeg-server、mcp-bin/yoyocode-mcp 均通过，审查修复后重新检查通过。
+- Rust 编译：desktop 默认 feature、server-bin/yoyocode-server、mcp-bin/yoyocode-mcp 均通过，审查修复后重新检查通过。
 - `git diff --check` 通过。
 - 本地模拟浏览器检查：设置中入口位置正确，点击启用后选中公网 URL，下拉列表公网 URL 为第一项，本地/LAN 地址仍保留。使用的是实际组件和模拟 API，没有发布真实服务。最后追加 GUI 操作遇到浏览器定位超时，未将其记为成功；完整交互由组件测试覆盖。
 
@@ -41,7 +41,7 @@
 
 ### Rust 全库
 
-`cargo test --no-default-features --features server-bin --bin codeg-server --lib --quiet`：lib **6,195 通过、7 失败、5 忽略**。lib 失败后独立 binary 测试未继续，不记为通过。
+`cargo test --no-default-features --features server-bin --bin yoyocode-server --lib --quiet`：lib **6,195 通过、7 失败、5 忽略**。lib 失败后独立 binary 测试未继续，不记为通过。
 
 失败名称：
 

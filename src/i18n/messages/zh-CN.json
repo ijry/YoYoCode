@@ -7752,7 +7752,7 @@
       "errorRemoteUnreachable": "远端主机无法访问这个地址",
       "errorRemoteUnreachableHint": "从 {host} 看，这个名字无法解析，或者没有到达它的路由。",
       "errorRemoteNotAllowed": "远端服务器不允许浏览器访问这个地址",
-      "errorRemoteNotAllowedHint": "{host} 上的 codeg-server 只允许浏览器隧道访问私网地址（CODEG_BROWSER_TUNNEL=private）。",
+      "errorRemoteNotAllowedHint": "{host} 上的 yoyocode-server 只允许浏览器隧道访问私网地址（CODEG_BROWSER_TUNNEL=private）。",
       "errorRemoteTimeout": "远端主机连接超时",
       "errorRemoteTimeoutHint": "{host} 没有在限定时间内得到这个地址的响应。那边的服务可能很忙，或被防火墙挡住了。",
       "errorTunnelDown": "与远端主机的连接已断开",
@@ -7983,9 +7983,9 @@
     "remote": {
       "error": {
         "unavailable": "在内置浏览器中打开远端主机的地址需要 macOS 14 或更高版本。",
-        "unsupported": "远端的 codeg-server 版本过旧，无法转发浏览器流量。更新它之后才能在这里打开它的地址。",
-        "disabled": "远端的 codeg-server 关闭了浏览器隧道（CODEG_BROWSER_TUNNEL）。",
-        "unreachable": "无法连接远端 codeg-server 的浏览器隧道（{reason}）。",
+        "unsupported": "远端的 yoyocode-server 版本过旧，无法转发浏览器流量。更新它之后才能在这里打开它的地址。",
+        "disabled": "远端的 yoyocode-server 关闭了浏览器隧道（CODEG_BROWSER_TUNNEL）。",
+        "unreachable": "无法连接远端 yoyocode-server 的浏览器隧道（{reason}）。",
         "bypassed": "这台电脑的浏览器引擎会让部分地址绕过隧道，为避免从这台电脑加载，远端主机的页面不会打开。",
         "probeFailed": "内置浏览器无法确认它能通过隧道访问远端主机。请稍后重试。"
       }

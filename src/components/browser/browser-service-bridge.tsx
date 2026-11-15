@@ -35,7 +35,7 @@ const NOTICE_MS = 10_000
  *
  * Mounted beside `BrowserEventsBridge` rather than inside it: that one
  * returns early where no built-in browser exists, and this is useful in web
- * mode too, where a loopback address reaches the codeg-server's port bridge.
+ * mode too, where a loopback address reaches the yoyocode-server's port bridge.
  *
  * Three things it deliberately does NOT do:
  *

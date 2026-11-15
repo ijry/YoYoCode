@@ -256,14 +256,14 @@ Pas dans la liste ? Choisissez n'importe quel agent dans le registre public ACP 
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 Sous Windows, dans PowerShell :
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — le même serveur, dans un conteneur :
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 Dans les deux cas, ouvrez `http://<host>:18989` dans un navigateur et saisissez le jeton d'accès que le serveur affiche au démarrage (pour le conteneur, `docker logs` le montre), ou définissez `CODEG_TOKEN` pour choisir le vôtre.
 
-**Mobile** — récupérez l'app mobile sur [getmcode.lingyun.net](https://getmcode.lingyun.net) puis pointez-la vers le **service Web** de votre app de bureau ou votre propre `codeg-server` : URL, token, c'est tout. Étapes d'appairage dans [getmcode.lingyun.net](https://getmcode.lingyun.net).
+**Mobile** — récupérez l'app mobile sur [getmcode.lingyun.net](https://getmcode.lingyun.net) puis pointez-la vers le **service Web** de votre app de bureau ou votre propre `yoyocode-server` : URL, token, c'est tout. Étapes d'appairage dans [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
 Compose, binaires précompilés, compilation depuis les sources et mises à jour sur place sont traités dans [Déploiement](https://ijry.github.io/yoyocode-docs/getting-started/deployment) ; les variables d'environnement dans [Configuration](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 

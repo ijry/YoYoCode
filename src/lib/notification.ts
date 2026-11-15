@@ -29,7 +29,7 @@ import { getShellTransport, isDesktop } from "./transport"
  * So the desktop UI states who owns the decision and offers a test send.
  *
  * `unsupported` covers the browser case that bites real deployments: a
- * `codeg-server` reached over plain `http://` on a LAN address is not a secure
+ * `yoyocode-server` reached over plain `http://` on a LAN address is not a secure
  * context, so `Notification` is simply absent.
  */
 export type NotificationPermissionState =
@@ -103,7 +103,7 @@ export async function deliverSystemNotification(
     // Deliberately the SHELL transport, not `getTransport()`. In a
     // remote-desktop window `getTransport()` is the remote HTTP transport, and
     // `send_notification` is a `tauri-runtime`-only command that the
-    // `codeg-server` binary never registers — so every notification in those
+    // `yoyocode-server` binary never registers — so every notification in those
     // windows was being posted to a machine the user isn't sitting at, failed,
     // and got swallowed by the caller's `.catch()`. A notification belongs to
     // the screen in front of the user, which is always the local shell.

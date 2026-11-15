@@ -80,7 +80,7 @@ describe("getNotificationPermission", () => {
   })
 
   it("reports `unsupported` when the browser has no Notification API", () => {
-    // The shape of a `codeg-server` reached over plain http:// on a LAN
+    // The shape of a `yoyocode-server` reached over plain http:// on a LAN
     // address: not a secure context, so the constructor is simply absent.
     desktop.mockReturnValue(false)
     expect(getNotificationPermission()).toBe("unsupported")
@@ -126,7 +126,7 @@ describe("deliverSystemNotification", () => {
   it("posts through the LOCAL shell transport, never the remote one", async () => {
     // Regression: this used `getTransport()`, which in a remote-desktop window
     // is the remote HTTP transport — and `send_notification` is a
-    // `tauri-runtime`-only command the `codeg-server` binary never registers.
+    // `tauri-runtime`-only command the `yoyocode-server` binary never registers.
     // Every notification in those windows failed on the far end and was
     // swallowed by the caller's `.catch()`.
     await deliverSystemNotification("t", "b")

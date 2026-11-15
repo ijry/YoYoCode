@@ -153,7 +153,7 @@ describe("ConfigSyncSettings — availability", () => {
   /// Regression: the panel used to `return null` for anything but a local
   /// desktop window, because the commands were registered on the Tauri
   /// runtime only. They exist on the HTTP API now, and a browser pointed at a
-  /// codeg-server has exactly the same configuration worth syncing.
+  /// yoyocode-server has exactly the same configuration worth syncing.
   it("renders in a browser, where the commands now exist too", async () => {
     env.desktop = false
     renderPanel()

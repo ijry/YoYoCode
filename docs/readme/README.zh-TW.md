@@ -256,14 +256,14 @@ YoYoCode 透過 [Agent Client Protocol](https://agentclientprotocol.com) 與每�
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 Windows（PowerShell）：
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — 同一個伺服器，裝進一個容器：
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 無論哪種方式，都在瀏覽器中開啟 `http://<host>:18989`，輸入伺服器啟動時印出的存取權杖（容器可用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自行指定。
 
-**行動裝置** — 從 [getmcode.lingyun.net](https://getmcode.lingyun.net) 取得行動裝置應用程式，然後指向桌面應用的**Web 服務**或你自己的 `codeg-server`：填 URL 和 token 即可。配對步驟見[getmcode.lingyun.net](https://getmcode.lingyun.net)。
+**行動裝置** — 從 [getmcode.lingyun.net](https://getmcode.lingyun.net) 取得行動裝置應用程式，然後指向桌面應用的**Web 服務**或你自己的 `yoyocode-server`：填 URL 和 token 即可。配對步驟見[getmcode.lingyun.net](https://getmcode.lingyun.net)。
 
 Compose、預編譯二進位檔、原始碼建置與就地升級見 [部署](https://ijry.github.io/yoyocode-docs/zh/getting-started/deployment)；環境變數見 [設定](https://ijry.github.io/yoyocode-docs/zh/getting-started/configuration)。
 

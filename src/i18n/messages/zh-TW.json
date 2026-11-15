@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "遠端主機無法連到這個位址",
       "errorRemoteUnreachableHint": "從 {host} 看，這個名稱無法解析，或者沒有到達它的路由。",
       "errorRemoteNotAllowed": "遠端伺服器不允許瀏覽器連到這個位址",
-      "errorRemoteNotAllowedHint": "{host} 上的 codeg-server 只允許瀏覽器通道連到私人網路位址（CODEG_BROWSER_TUNNEL=private）。",
+      "errorRemoteNotAllowedHint": "{host} 上的 yoyocode-server 只允許瀏覽器通道連到私人網路位址（CODEG_BROWSER_TUNNEL=private）。",
       "errorRemoteTimeout": "遠端主機連線逾時",
       "errorRemoteTimeoutHint": "{host} 沒有在時限內得到這個位址的回應。那邊的服務可能很忙，或被防火牆擋住了。",
       "errorTunnelDown": "與遠端主機的連線已中斷",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "在內建瀏覽器中開啟遠端主機的位址需要 macOS 14 或更新版本。",
-        "unsupported": "遠端的 codeg-server 版本過舊，無法轉送瀏覽器流量。更新它之後才能在這裡開啟它的位址。",
-        "disabled": "遠端的 codeg-server 關閉了瀏覽器通道（CODEG_BROWSER_TUNNEL）。",
-        "unreachable": "無法連線到遠端 codeg-server 的瀏覽器通道（{reason}）。",
+        "unsupported": "遠端的 yoyocode-server 版本過舊，無法轉送瀏覽器流量。更新它之後才能在這裡開啟它的位址。",
+        "disabled": "遠端的 yoyocode-server 關閉了瀏覽器通道（CODEG_BROWSER_TUNNEL）。",
+        "unreachable": "無法連線到遠端 yoyocode-server 的瀏覽器通道（{reason}）。",
         "bypassed": "這台電腦的瀏覽器引擎會讓部分位址繞過通道，為避免從這台電腦載入，遠端主機的頁面不會開啟。",
         "probeFailed": "內建瀏覽器無法確認它能透過通道連到遠端主機。請稍後再試。"
       }

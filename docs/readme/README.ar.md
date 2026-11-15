@@ -256,14 +256,14 @@ git diff | yoyo-cli -a codex \
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 على Windows، في PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — الخادم نفسه، داخل حاوية واحدة:
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 في الحالتين، افتح `http://<host>:18989` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
 
-**الهاتف واللوحي** — احصل على تطبيق الجوّال من [getmcode.lingyun.net](https://getmcode.lingyun.net) ثم وجّهه نحو **خدمة الويب** لتطبيق سطح المكتب أو `codeg-server` الخاص بك: الرابط والرمز، وانتهى الأمر. خطوات الاقتران في [getmcode.lingyun.net](https://getmcode.lingyun.net).
+**الهاتف واللوحي** — احصل على تطبيق الجوّال من [getmcode.lingyun.net](https://getmcode.lingyun.net) ثم وجّهه نحو **خدمة الويب** لتطبيق سطح المكتب أو `yoyocode-server` الخاص بك: الرابط والرمز، وانتهى الأمر. خطوات الاقتران في [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
 يغطي [النشر](https://ijry.github.io/yoyocode-docs/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 

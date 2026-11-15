@@ -3,7 +3,7 @@
 // Two kinds: the settings record, which every runtime serves (it is one
 // setting in one database), and everything about the screen itself — status,
 // permissions, the window list, sharing — which exists where computer use is
-// served: the desktop app, for the machine it runs on, and a codeg-server its
+// served: the desktop app, for the machine it runs on, and a yoyocode-server its
 // operator has let share the screen it runs on (`CODEG_COMPUTER_USE`), for
 // its web clients. Whether this window has it is `computerAvailable`.
 

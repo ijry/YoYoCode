@@ -256,14 +256,14 @@ Not on the list? Pick any agent from the public ACP registry or paste its distri
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — the same server, in one container:
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 Either way, open `http://<host>:18989` in a browser and enter the access token the server prints when it starts (`docker logs` shows it for the container), or set `CODEG_TOKEN` to choose your own.
 
-**Mobile** — get the mobile app from [getmcode.lingyun.net](https://getmcode.lingyun.net), then point it at the **Web Service** of your desktop app or at your own `codeg-server`: URL, token, done. Pairing steps: open **Settings → Web Service** on the desktop (or the status-bar popover) and scan the connection QR code with the app. Remote access over a Tailscale Funnel HTTPS address is supported too. Pairing reference: [getmcode.lingyun.net](https://getmcode.lingyun.net).
+**Mobile** — get the mobile app from [getmcode.lingyun.net](https://getmcode.lingyun.net), then point it at the **Web Service** of your desktop app or at your own `yoyocode-server`: URL, token, done. Pairing steps: open **Settings → Web Service** on the desktop (or the status-bar popover) and scan the connection QR code with the app. Remote access over a Tailscale Funnel HTTPS address is supported too. Pairing reference: [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
 Compose, prebuilt binaries, source builds, and in-place updates are covered in [Deployment](https://ijry.github.io/yoyocode-docs/getting-started/deployment); environment variables in [Configuration](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 

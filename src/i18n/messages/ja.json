@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "リモートホストからこのアドレスに到達できません",
       "errorRemoteUnreachableHint": "{host} から見て、この名前は解決できないか、そこへの経路がありません。",
       "errorRemoteNotAllowed": "リモートサーバーはこのアドレスをブラウザーに開放していません",
-      "errorRemoteNotAllowedHint": "{host} の codeg-server は、ブラウザートンネルからプライベートアドレスへの接続だけを許可しています（CODEG_BROWSER_TUNNEL=private）。",
+      "errorRemoteNotAllowedHint": "{host} の yoyocode-server は、ブラウザートンネルからプライベートアドレスへの接続だけを許可しています（CODEG_BROWSER_TUNNEL=private）。",
       "errorRemoteTimeout": "リモートホストの接続がタイムアウトしました",
       "errorRemoteTimeoutHint": "{host} はこのアドレスから時間内に応答を得られませんでした。そちらのサーバーが混んでいるか、ファイアウォールの内側にある可能性があります。",
       "errorTunnelDown": "リモートホストとの接続が切れています",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "リモートホストのアドレスを内蔵ブラウザで開くには macOS 14 以降が必要です。",
-        "unsupported": "リモートの codeg-server が古く、ブラウザーの通信を中継できません。ここでアドレスを開くには更新してください。",
-        "disabled": "リモートの codeg-server でブラウザートンネルがオフになっています（CODEG_BROWSER_TUNNEL）。",
-        "unreachable": "リモートの codeg-server のブラウザートンネルに接続できませんでした（{reason}）。",
+        "unsupported": "リモートの yoyocode-server が古く、ブラウザーの通信を中継できません。ここでアドレスを開くには更新してください。",
+        "disabled": "リモートの yoyocode-server でブラウザートンネルがオフになっています（CODEG_BROWSER_TUNNEL）。",
+        "unreachable": "リモートの yoyocode-server のブラウザートンネルに接続できませんでした（{reason}）。",
         "bypassed": "このコンピューターのブラウザーエンジンは一部のアドレスをトンネルを通さずに送るため、このコンピューターから読み込まないよう、リモートホストのページは開きません。",
         "probeFailed": "内蔵ブラウザーがトンネル経由でリモートホストに届くことを確認できませんでした。しばらくしてからもう一度お試しください。"
       }

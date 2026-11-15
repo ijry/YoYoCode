@@ -1,7 +1,7 @@
 # Command line: `yoyo-cli`
 
 `yoyo-cli` runs one prompt through a Codeg that is already running — the
-desktop app or `codeg-server` — and prints the agent's reply. No window opens.
+desktop app or `yoyocode-server` — and prints the agent's reply. No window opens.
 The run is an ordinary conversation: it is listed in Codeg with the others,
 where you can read it, answer what the agent asks, and carry it on. A terminal
 mark sets it apart, and the Recent section's filter can show only those.
@@ -27,7 +27,7 @@ yoyo-cli --assistant code-reviewer "Review the latest commit"
 
 ## Install
 
-`yoyo-cli` comes with every package: the desktop app, `codeg-server`, and the
+`yoyo-cli` comes with every package: the desktop app, `yoyocode-server`, and the
 Docker image.
 
 | Package | `yoyo-cli` | On PATH |
@@ -36,7 +36,7 @@ Docker image.
 | macOS app | `codeg.app/Contents/MacOS/yoyo-cli` | Install command-line tool, below |
 | Windows installer | `%LOCALAPPDATA%\codeg\bin\yoyo-cli.exe` | Install command-line tool, below |
 | AppImage | Inside the image, copied out at every start | Install command-line tool, below |
-| `install.sh` / `install.ps1` | Next to `codeg-server` | Yes |
+| `install.sh` / `install.ps1` | Next to `yoyocode-server` | Yes |
 | Docker image | `/usr/local/bin/yoyo-cli` | Yes |
 
 **Install command-line tool.** In the desktop app, Settings → System →
@@ -44,7 +44,7 @@ Command-line access has a button that puts `yoyo-cli` on your PATH: on macOS
 a link in `/usr/local/bin` (macOS asks for an administrator's password when
 the folder needs one), on Windows the installer's `bin` folder on your PATH,
 for an AppImage a link in `~/.local/bin`. A `yoyo-cli` already there that is
-not the app's — the one `install.sh` puts there with `codeg-server`, say — is
+not the app's — the one `install.sh` puts there with `yoyocode-server`, say — is
 left alone: the two are the same program. The steps below do the same by
 hand.
 
@@ -62,7 +62,7 @@ sudo ln -s /Applications/codeg.app/Contents/MacOS/yoyo-cli /usr/local/bin/yoyo-c
 ```
 
 Without `-f`, `ln` does not replace a `yoyo-cli` that is already there — one
-`install.sh` put there with `codeg-server`, say. The two are the same program:
+`install.sh` put there with `yoyocode-server`, say. The two are the same program:
 keep either.
 
 **Windows.** The installer puts a copy of `yoyo-cli.exe` in a `bin` folder of
@@ -94,14 +94,14 @@ mkdir -p ~/.local/bin
 mv squashfs-root/usr/bin/yoyo-cli ~/.local/bin/
 ```
 
-**`install.sh` and `install.ps1`** put `yoyo-cli` next to `codeg-server` when
+**`install.sh` and `install.ps1`** put `yoyo-cli` next to `yoyocode-server` when
 the release has it, and leave alone a desktop app's `yoyo-cli` they find there
 — in its install, or the ones it keeps in its data directory for its own
 terminals.
 From 0.38.0 on, the server's in-place update brings the matching `yoyo-cli`
 with it. The update from 0.37.0 does not, as 0.37.0 knows nothing of
 `yoyo-cli`: take it from the server package on the release page and put it
-next to `codeg-server`. Replacing `yoyo-cli` never stops one that is running,
+next to `yoyocode-server`. Replacing `yoyo-cli` never stops one that is running,
 but a run it waits on in that server ends when the upgrade stops the server.
 
 **Docker.** Run it in the container: it finds the server there by itself. The
@@ -126,7 +126,7 @@ for `yoyo-cli`, and says where in a private file,
 `<data dir>/cli/endpoint-<pid>.json`. `yoyo-cli` looks, in this order:
 
 1. `--url` with `--token` or `--token-file`: a Codeg over HTTP(S), usually a
-   `codeg-server` on another machine.
+   `yoyocode-server` on another machine.
 2. `--data-dir DIR`: the Codeg that keeps its data in `DIR`.
 3. `CODEG_CLI_ENDPOINT_FILE`: set by Codeg in its own terminals and for its
    agents, so that `yoyo-cli` typed there reaches the Codeg it runs in —
@@ -134,7 +134,7 @@ for `yoyo-cli`, and says where in a private file,
 4. `CODEG_URL` with `CODEG_TOKEN`.
 5. `CODEG_DATA_DIR`.
 6. The default data directories of the desktop app (`app.codeg`) and of
-   `codeg-server` (`codeg`), in the platform's data directory:
+   `yoyocode-server` (`codeg`), in the platform's data directory:
    `~/Library/Application Support` on macOS, `~/.local/share` on Linux,
    `%APPDATA%` on Windows.
 
@@ -208,7 +208,7 @@ Global options:
 | `--url URL` | A Codeg over HTTP(S), e.g. `https://host:3080` |
 | `--token TOKEN`, `--token-file FILE` | The token for `--url`: the server's `CODEG_TOKEN`. Without either, `CODEG_TOKEN` from the environment |
 | `--data-dir DIR` | The Codeg that keeps its data in `DIR`. With `--standalone`, the data directory of the command's own server |
-| `--standalone` | Start a `codeg-server` for this command alone, and stop it when the command ends. See [In CI](#in-ci) |
+| `--standalone` | Start a `yoyocode-server` for this command alone, and stop it when the command ends. See [In CI](#in-ci) |
 | `--runtime desktop\|server` | The kind to use when several answer |
 | `-q`, `--quiet` | Errors only: no progress, no heartbeat |
 | `-v`, `--verbose` | Progress on stderr even when it is not a terminal, and diagnostics |
@@ -601,7 +601,7 @@ change. `next_steps` are commands or actions to try, when there are any.
 | `runtime_lost` | `error_runtime_unavailable` | Codeg stopped answering during the run. The run may still be going |
 | `run_not_found`, `result_missing`, `install_not_found` | `error_runtime_unavailable` | That Codeg has no such run or install, or no result for it |
 | `open_failed`, `open_timeout` | `error_runtime_unavailable` | `open` could not start the desktop app, or it did not answer in time |
-| `no_server`, `standalone_failed` | `error_runtime_unavailable` | `--standalone` found no `codeg-server` to start, or the one it started did not come up |
+| `no_server`, `standalone_failed` | `error_runtime_unavailable` | `--standalone` found no `yoyocode-server` to start, or the one it started did not come up |
 | `data_dir_in_use` | `error_runtime_unavailable` | `--standalone`: another Codeg is alive on that data directory |
 | `runtime_access_denied` | `error_runtime_access_denied` | The operating system refused the connection |
 | `runtime_incompatible`, `api_version`, `bad_response`, `run_not_reserved` | `error_runtime_incompatible` | That Codeg and this `yoyo-cli` do not understand each other |
@@ -710,7 +710,7 @@ git show HEAD | yoyo-cli --standalone -a claude_code -w "$PWD" --timeout 30m \
   -p "Review this commit for bugs" -o review.md
 ```
 
-`--standalone` starts the `codeg-server` installed next to `yoyo-cli` (or on
+`--standalone` starts the `yoyocode-server` installed next to `yoyo-cli` (or on
 PATH) on a fresh temporary data directory, listening on this machine only;
 runs the command there; and stops the server and removes the directory when
 the command ends. Killed outright (`kill -9`), the command still takes its
@@ -723,24 +723,24 @@ Codeg it says so, and nothing else happens.
 
 A data directory is never shared with a `--standalone` server. One that finds
 another Codeg alive on its `--data-dir` — even one that cannot be reached —
-stops before touching anything, with `data_dir_in_use`. A `codeg-server`
+stops before touching anything, with `data_dir_in_use`. A `yoyocode-server`
 started on a directory a `--standalone` server holds waits for it; the
 desktop app says so and quits. Only a Codeg that ships `yoyo-cli` is seen
-this way: an older desktop app or `codeg-server` on the same directory is
+this way: an older desktop app or `yoyocode-server` on the same directory is
 not, and does not see a `--standalone` server either — keep `--data-dir`
 away from a directory one of them uses. `--standalone` does not go with
 `--url`, `--detach`, `result`, `cancel` or `open`: its server is gone when the
 command is. For the same reason `automations run` waits for its run to end,
 and `agents install` for the install, so `--wait` does not go with it either.
 
-A CI job can also use a `codeg-server` that runs elsewhere, with `--url` and
+A CI job can also use a `yoyocode-server` that runs elsewhere, with `--url` and
 its token, or start one of its own that several commands share. A fresh
 runner:
 
 ```bash
 set -e
 
-# 1. codeg-server and yoyo-cli
+# 1. yoyocode-server and yoyo-cli
 curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 
 # 2. A server for this job alone: its own data directory, loopback only. The
@@ -749,7 +749,7 @@ export CODEG_DATA_DIR="$(mktemp -d)"
 export CODEG_HOST=127.0.0.1 CODEG_PORT=3080
 export CODEG_TOKEN="$(openssl rand -hex 32)"
 export ANTHROPIC_API_KEY="..."   # from the CI system's secrets
-codeg-server > "$CODEG_DATA_DIR/server.log" 2>&1 &
+yoyocode-server > "$CODEG_DATA_DIR/server.log" 2>&1 &
 export CODEG_URL="http://127.0.0.1:$CODEG_PORT"
 for _ in $(seq 60); do yoyo-cli status > /dev/null 2>&1 && break; sleep 1; done
 yoyo-cli status   # fails the job, saying why, if the server did not come up
@@ -781,7 +781,7 @@ In GitHub Actions:
   run: |
     curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
     export CODEG_TOKEN="$(openssl rand -hex 32)"
-    codeg-server > "$RUNNER_TEMP/codeg-server.log" 2>&1 &
+    yoyocode-server > "$RUNNER_TEMP/yoyocode-server.log" 2>&1 &
     export CODEG_URL="http://127.0.0.1:$CODEG_PORT"
     for _ in $(seq 60); do yoyo-cli status > /dev/null 2>&1 && break; sleep 1; done
     yoyo-cli status

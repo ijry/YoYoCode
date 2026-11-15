@@ -109,7 +109,7 @@ export function isLoopbackOrPrivateHost(hostname: string): boolean {
 }
 
 /**
- * Whether `hostname`, seen from a window bound to a remote codeg-server whose
+ * Whether `hostname`, seen from a window bound to a remote yoyocode-server whose
  * own host is `serverHost`, names a place on that remote host: a loopback or
  * private address — except the server's own name when it is not a loopback
  * one, which this computer reaches directly (it is how the window talks to

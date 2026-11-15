@@ -114,7 +114,7 @@ const foldersMock = vi.hoisted(() => {
   }
 })
 
-// A window bound to a remote codeg-server, when a test says so.
+// A window bound to a remote yoyocode-server, when a test says so.
 const remoteMock = vi.hoisted(() => ({
   remote: false,
   serverBaseUrl: "https://dev.example.com",

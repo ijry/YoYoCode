@@ -8,7 +8,7 @@ import { openUrl } from "@/lib/platform"
  * True when `window.open` actually opens something — i.e. a real browser.
  *
  * NOT the same question as `isWebOpenerEnvironment` below. A Tauri window bound
- * to a remote codeg-server is still a TAURI WEBVIEW, and a webview that
+ * to a remote yoyocode-server is still a TAURI WEBVIEW, and a webview that
  * registers no new-window handler opens nothing at all for `window.open` (wry
  * answers with nil on macOS, `SetHandled(true)` on Windows). Lumping remote
  * windows in with web mode here left every http(s) link in a remote workspace
@@ -22,7 +22,7 @@ export function windowOpenReachesABrowser(): boolean {
 /**
  * True when a `mailto:`/`tel:` URL should be handed to the OS through a
  * synthetic anchor rather than the Tauri opener plugin — pure web, or a Tauri
- * window bound to a remote codeg-server.
+ * window bound to a remote yoyocode-server.
  *
  * The remote arm stays deliberately: unlike `window.open`, a synthetic anchor
  * DOES reach the OS handler from inside a webview, and it sidesteps the

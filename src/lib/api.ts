@@ -4708,7 +4708,7 @@ export async function uploadAttachment(
 }
 
 // Upload a file picked from the desktop machine's filesystem to the remote
-// codeg-server bound to the current window. The Tauri-native drag-drop event
+// yoyocode-server bound to the current window. The Tauri-native drag-drop event
 // hands us OS paths (not `File` objects), so we read the bytes via Rust,
 // then reuse the same `remote_upload_attachment` channel. Only callable from
 // a window that has a remote workspace attached; non-remote callers should

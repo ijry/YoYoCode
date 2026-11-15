@@ -31,7 +31,7 @@ export function isLocalDesktop(): boolean {
  * Gate on this for actions the backend performs by opening a window on the
  * workspace host (launching an external editor, say): they'd succeed on the
  * far end and appear to do nothing here. Plain web mode is deliberately NOT
- * covered — a browser pointed at a `codeg-server` running on the user's own
+ * covered — a browser pointed at a `yoyocode-server` running on the user's own
  * machine is a first-class setup, and the loopback hostname can't tell that
  * apart from a port-forwarded remote.
  */

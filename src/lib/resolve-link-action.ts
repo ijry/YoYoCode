@@ -12,8 +12,8 @@
 //      rather than handed to the OS.
 //   2. terminal rules — a `block` site rule (the administrator's table is
 //      consulted before the user's), or a loopback/private address seen from a
-//      window bound to a REMOTE codeg-server, or a loopback http address seen
-//      from a browser whose codeg-server bridges its ports. These cannot be
+//      window bound to a REMOTE yoyocode-server, or a loopback http address seen
+//      from a browser whose yoyocode-server bridges its ports. These cannot be
 //      inverted by the modifier key: flipping a remote `localhost:3000` to
 //      the system browser would only ever hit the local machine's loopback.
 //   3. base target — an explicit menu choice, else a site rule, else the
@@ -41,13 +41,13 @@ export interface LinkSurface {
   fileColumnVisible: boolean
   /** A session viewer host can render the file/browser drawer instead. */
   viewerHostAvailable: boolean
-  /** The window is bound to a remote codeg-server (`isRemoteDesktopMode()`). */
+  /** The window is bound to a remote yoyocode-server (`isRemoteDesktopMode()`). */
   remoteDesktop: boolean
   /** That server's own host name — reached directly by this computer, so an
    *  address on it is not one of the remote host's private ones (see
    *  `isRemoteHostName`). */
   remoteServerHost?: string | null
-  /** Web mode, and the codeg-server bridges its loopback ports so a dev
+  /** Web mode, and the yoyocode-server bridges its loopback ports so a dev
    *  server there can be shown in a tab (`bridgeStatus().enabled`). */
   bridgeAvailable?: boolean
 }

@@ -7713,7 +7713,7 @@
       "errorRemoteUnreachable": "O host remoto não consegue alcançar este endereço",
       "errorRemoteUnreachableHint": "Visto de {host}, o nome não é resolvido ou não há rota até ele.",
       "errorRemoteNotAllowed": "O servidor remoto não libera este endereço para o navegador",
-      "errorRemoteNotAllowedHint": "O codeg-server em {host} só permite que o túnel do navegador alcance endereços privados (CODEG_BROWSER_TUNNEL=private).",
+      "errorRemoteNotAllowedHint": "O yoyocode-server em {host} só permite que o túnel do navegador alcance endereços privados (CODEG_BROWSER_TUNNEL=private).",
       "errorRemoteTimeout": "O host remoto demorou demais para conectar",
       "errorRemoteTimeoutHint": "{host} não recebeu resposta deste endereço a tempo. O servidor pode estar ocupado ou atrás de um firewall.",
       "errorTunnelDown": "A conexão com o host remoto caiu",
@@ -7944,9 +7944,9 @@
     "remote": {
       "error": {
         "unavailable": "Abrir os endereços do host remoto no navegador integrado requer o macOS 14 ou posterior.",
-        "unsupported": "O codeg-server remoto é antigo demais para transportar o tráfego do navegador. Atualize-o para abrir os endereços dele aqui.",
-        "disabled": "O codeg-server remoto está com o túnel do navegador desativado (CODEG_BROWSER_TUNNEL).",
-        "unreachable": "Não foi possível alcançar o túnel do navegador do codeg-server remoto ({reason}).",
+        "unsupported": "O yoyocode-server remoto é antigo demais para transportar o tráfego do navegador. Atualize-o para abrir os endereços dele aqui.",
+        "disabled": "O yoyocode-server remoto está com o túnel do navegador desativado (CODEG_BROWSER_TUNNEL).",
+        "unreachable": "Não foi possível alcançar o túnel do navegador do yoyocode-server remoto ({reason}).",
         "bypassed": "O mecanismo do navegador deste computador envia alguns endereços por fora do túnel, então as páginas do host remoto não abrem para não serem carregadas deste computador.",
         "probeFailed": "O navegador integrado não conseguiu confirmar que alcança o host remoto pelo túnel. Tente novamente em instantes."
       }

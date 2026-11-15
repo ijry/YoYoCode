@@ -7,7 +7,7 @@
 
 const TOKEN_KEY = "codeg_token"
 // Set when the server admitted this browser without a token: a proxy in front
-// of it vouched for the user (`CODEG_AUTH=proxy-jwt` on codeg-server).
+// of it vouched for the user (`CODEG_AUTH=proxy-jwt` on yoyocode-server).
 const PROXY_AUTH_KEY = "codeg_proxy_auth"
 // As long as the transport's own health probe waits (`web-transport.ts`).
 const PROBE_TIMEOUT_MS = 8_000

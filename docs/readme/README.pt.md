@@ -256,14 +256,14 @@ Não está na lista? Escolha qualquer agente no registro público do ACP ou cole
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ijry/YoYoCode/main/install.sh | bash
-CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
+CODEG_STATIC_DIR=/usr/local/share/codeg/web yoyocode-server
 ```
 
 No Windows, no PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/ijry/YoYoCode/main/install.ps1 | iex
-$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg-server\web"; codeg-server
+$env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\yoyocode-server\web"; yoyocode-server
 ```
 
 **Docker** — o mesmo servidor, em um contêiner:
@@ -274,7 +274,7 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 Nos dois casos, abra `http://<host>:18989` no navegador e informe o token de acesso que o servidor exibe ao iniciar (no contêiner, veja com `docker logs`), ou defina `CODEG_TOKEN` para escolher o seu.
 
-**Celular e tablet** — obtenha o app móvel em [getmcode.lingyun.net](https://getmcode.lingyun.net) e aponte para o **serviço Web** do seu app desktop ou do seu `codeg-server`: URL, token, pronto. Passos de pareamento em [getmcode.lingyun.net](https://getmcode.lingyun.net).
+**Celular e tablet** — obtenha o app móvel em [getmcode.lingyun.net](https://getmcode.lingyun.net) e aponte para o **serviço Web** do seu app desktop ou do seu `yoyocode-server`: URL, token, pronto. Passos de pareamento em [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
 Compose, binários pré-compilados, builds a partir do código e atualizações no lugar estão em [Implantação](https://ijry.github.io/yoyocode-docs/getting-started/deployment); variáveis de ambiente, em [Configuração](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 

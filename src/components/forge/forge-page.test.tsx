@@ -523,7 +523,7 @@ describe("repoWebUrl", () => {
   })
 
   it("falls back to the https page when the server sent no origin", () => {
-    // A remote codeg-server older than the field: the coordinates are all
+    // A remote yoyocode-server older than the field: the coordinates are all
     // there is.
     for (const url of ["git@github.com:o/r.git", "ssh://git@github.com/o/r"]) {
       expect(

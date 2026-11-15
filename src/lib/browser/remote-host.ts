@@ -11,13 +11,13 @@ import { getServerBaseUrl, isRemoteDesktopMode } from "@/lib/transport"
 
 import { hostnameOf, isLoopbackHost, isRemoteHostName } from "./browser-url"
 
-/** The remote codeg-server's own host name, in a remote-workspace window;
+/** The remote yoyocode-server's own host name, in a remote-workspace window;
  *  null anywhere else. */
 export function remoteServerHost(): string | null {
   return isRemoteDesktopMode() ? hostnameOf(getServerBaseUrl()) : null
 }
 
-/** The remote codeg-server's host as a person recognises it — null when it
+/** The remote yoyocode-server's host as a person recognises it — null when it
  *  is reached through this machine's own loopback (an SSH tunnel), which
  *  names this computer, not the remote host. */
 export function remoteHostDisplayName(): string | null {
