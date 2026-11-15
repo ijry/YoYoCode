@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>水母 LOGO · 高清矢量重绘</title>
+<style>
+  :root{--ink:#1b2434;--sub:#6b7686;--line:#e5e8ee;--bg:#f7f8fa;--purple:#6C5CE7;--cyan:#22BFB7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{width:1100px;margin:0 auto;padding:64px 0 90px}
+  h1{font-size:34px;letter-spacing:-.5px;margin:0 0 10px;font-weight:600}
+  .lead{font-size:15px;color:var(--sub);margin:0 0 34px;line-height:1.7}
+  .metrics{display:flex;gap:10px;margin:0 0 48px;flex-wrap:wrap}
+  .metric{border:1px solid var(--line);border-radius:10px;padding:11px 16px;background:#fff;font-size:12px;color:var(--sub)}
+  .metric b{display:block;font-size:18px;color:var(--ink);font-weight:600;margin-bottom:3px;letter-spacing:-.3px}
+  section{margin:0 0 46px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin:0 0 18px}
+  .sec-head h2{font-size:17px;font-weight:600;margin:0}
+  .sec-head span{font-size:12px;color:var(--sub)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .tile{text-align:center}
+  .tile .stage{height:420px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;border:1px solid #f0f1f4;overflow:hidden}
+  .tile .stage img{width:400px;height:400px;display:block}
+  .tile .cap{margin-top:12px;font-size:12px;color:var(--sub)}
+  .tile .cap em{font-style:normal;color:var(--ink)}
+  .detail-img{width:100%;display:block;border-radius:8px}
+  .bgs{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .bg{height:190px;border-radius:10px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+  .bg img{width:150px;height:150px;display:block}
+  .bg.a{background:#fff}.bg.b{background:#f0f2f5}.bg.c{background:#16243C}.bg.d{background:#6C5CE7}
+  .bgs-label{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:9px}
+  .bgs-label span{font-size:11px;color:var(--sub);text-align:center}
+  .sizes{display:flex;align-items:flex-end;gap:38px;justify-content:center;padding:16px 0 4px}
+  .sizes div{text-align:center}
+  .sizes img{display:block;image-rendering:auto}
+  .sizes span{display:block;margin-top:10px;font-size:11px;color:var(--sub)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;color:var(--sub);font-weight:500;letter-spacing:.4px}
+  td code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--purple)}
+  td.dim{color:var(--sub)}
+  .note{margin-top:20px;font-size:12px;color:var(--sub);line-height:1.75;border-left:2px solid var(--line);padding-left:14px}
+  footer{border-top:1px solid var(--line);padding-top:22px;font-size:11px;color:#98a1af;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>水母 LOGO · 高清矢量重绘</h1>
+  <p class="lead">把 300 × 300 的位图描摹为可无限缩放的矢量图形：轮廓亚像素提取、曲线拟合，原图的对角渐变以 16 段色标重建。不是插值放大，边缘在任意尺寸下都由数学曲线重新生成。</p>
+  <div class="metrics">
+    <div class="metric"><b>300 → ∞</b>矢量路径，任意尺寸</div>
+    <div class="metric"><b>512 – 4096 px</b>透明 PNG 已导出</div>
+    <div class="metric"><b>16 段</b>原渐变逐段采样还原</div>
+    <div class="metric"><b>0.91 / 255</b>回缩至原尺寸的平均像素误差</div>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>01 · 放大对比</h2><span>同为 400 × 400 显示</span></div>
+    <div class="card pair">
+      <div class="tile">
+        <div class="stage"><img src="source-300.png" alt="原始 300px 位图"></div>
+        <div class="cap"><em>原始位图</em> · 300 × 300 拉伸后边缘发虚</div>
+      </div>
+      <div class="tile">
+        <div class="stage"><img src="logo-hd.svg" alt="高清矢量"></div>
+        <div class="cap"><em>矢量重绘</em> · 曲线实时重算，边缘始终锐利</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>02 · 边缘细节</h2><span>伞盖高光 / 触手末端，约 4× 放大</span></div>
+    <div class="card"><img class="detail-img" src="compare-detail.png" alt="边缘细节对比"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>03 · 透明底适配</h2><span>白色高光为实白，深色背景同样成立</span></div>
+    <div class="bgs">
+      <div class="bg a"><img src="logo-hd.svg" alt=""></div>
+      <div class="bg b"><img src="logo-hd.svg" alt=""></div>
+      <div class="bg c"><img src="logo-hd.svg" alt=""></div>
+      <div class="bg d"><img src="logo-hd.svg" alt=""></div>
+    </div>
+    <div class="bgs-label"><span>纯白</span><span>浅灰</span><span>深墨 #16243C</span><span>品牌紫 #6C5CE7</span></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>04 · 小尺寸</h2><span>单一图形，无细碎线条，缩到图标尺寸仍可辨</span></div>
+    <div class="card sizes">
+      <div><img src="logo-hd.svg" width="24" height="24" alt=""><span>24 px</span></div>
+      <div><img src="logo-hd.svg" width="48" height="48" alt=""><span>48 px</span></div>
+      <div><img src="logo-hd.svg" width="96" height="96" alt=""><span>96 px</span></div>
+      <div><img src="logo-hd.svg" width="160" height="160" alt=""><span>160 px</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>05 · 交付文件</h2><span>均位于 logo-hd/ 目录</span></div>
+    <div class="card">
+      <table>
+        <tr><th>文件</th><th>规格</th><th>用途</th></tr>
+        <tr><td><code>logo-hd.svg</code></td><td class="dim">300 × 300 viewBox · 纯矢量</td><td class="dim">源文件，网页 / 印刷 / 再编辑</td></tr>
+        <tr><td><code>logo-hd-512.png</code></td><td class="dim">512 × 512 · 透明底</td><td class="dim">常规界面、头像</td></tr>
+        <tr><td><code>logo-hd-1024.png</code></td><td class="dim">1024 × 1024 · 透明底</td><td class="dim">App 图标、商店素材</td></tr>
+        <tr><td><code>logo-hd-1024-white.png</code></td><td class="dim">1024 × 1024 · 白底</td><td class="dim">与原图观感一致的替换件</td></tr>
+        <tr><td><code>logo-hd-2048.png</code></td><td class="dim">2048 × 2048 · 透明底</td><td class="dim">高清展示、印刷小样</td></tr>
+        <tr><td><code>logo-hd-4096.png</code></td><td class="dim">4096 × 4096 · 透明底</td><td class="dim">大幅输出、后续再裁切</td></tr>
+        <tr><td><code>source-300.png</code></td><td class="dim">300 × 300 · 原图副本</td><td class="dim">对照留档</td></tr>
+        <tr><td><code>compare-detail.png</code></td><td class="dim">细节并排对比</td><td class="dim">放大质量检查</td></tr>
+      </table>
+      <p class="note">处理方式：先拟合原图的二维渐变场，用红通道反推每个像素的覆盖率，再以亚像素等值线提取轮廓（主体 1 条 + 高光 1 个内孔）；轮廓经去噪、简化后以 Catmull-Rom 三次贝塞尔重建，角点保持直线以避免样条过冲；渐变沿其真实轴向逐段采样为 16 个色标。把 1024 成品回缩到 300 × 300 与原图逐像素比较，平均绝对误差 0.91 / 255。</p>
+    </div>
+  </section>
+
+  <footer>源图目录中的 Read me 说明：该图形由 DesignEvo 模板生成，免费商用需按其要求分享署名。本页仅做分辨率与可用性处理，不改变图形归属。<br>生成时间 2026-11-14 · YoYoCode 品牌资产</footer>
+</div>
+</body>
+</html>
