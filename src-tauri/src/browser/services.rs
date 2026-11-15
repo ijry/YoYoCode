@@ -62,12 +62,19 @@ struct ProbeSlot;
 
 impl ProbeSlot {
     fn take() -> Option<Self> {
-        IN_FLIGHT_PROBES
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |held| {
-                (held < MAX_IN_FLIGHT_PROBES).then_some(held + 1)
-            })
-            .ok()
-            .map(|_| ProbeSlot)
+        let mut held = IN_FLIGHT_PROBES.load(Ordering::Acquire);
+        while held < MAX_IN_FLIGHT_PROBES {
+            match IN_FLIGHT_PROBES.compare_exchange_weak(
+                held,
+                held + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Some(Self),
+                Err(current) => held = current,
+            }
+        }
+        None
     }
 }
 

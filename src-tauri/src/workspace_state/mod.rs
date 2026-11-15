@@ -1547,11 +1547,18 @@ pub async fn stop_workspace_state_stream_core(
         // between start and stop bookkeeping) must not underflow and wedge
         // the stream in permanent full-scan mode.
         if wants_tree_git {
-            let _ = entry.full_subscribers.fetch_update(
-                Ordering::AcqRel,
-                Ordering::Acquire,
-                |count| count.checked_sub(1),
-            );
+            let mut count = entry.full_subscribers.load(Ordering::Acquire);
+            while let Some(next) = count.checked_sub(1) {
+                match entry.full_subscribers.compare_exchange_weak(
+                    count,
+                    next,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => break,
+                    Err(current) => count = current,
+                }
+            }
         }
         if entry.ref_count > 1 {
             entry.ref_count -= 1;

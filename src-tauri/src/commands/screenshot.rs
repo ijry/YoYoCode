@@ -373,7 +373,6 @@ use tauri::{
 
 #[cfg(feature = "tauri-runtime")]
 use crate::app_error::AppErrorCode;
-#[cfg(feature = "tauri-runtime")]
 
 /// One monitor a capture covers, as `screenshot_begin_selection` reports it:
 /// its physical size, never frame data.
@@ -982,6 +981,7 @@ fn write_pin_file(dir: &Path, png_base64: &str) -> Result<(String, PathBuf), App
 /// pin adds a floating copy; finishing releases the capture frames.
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
+#[allow(clippy::too_many_arguments)]
 pub async fn screenshot_pin(
     app: AppHandle,
     _state: State<'_, ScreenshotFrameStore>,
@@ -1039,21 +1039,21 @@ pub async fn screenshot_pin(
     // Positioning, sizing or showing a built window failing is no reason
     // to abandon the pin — it is up, just perhaps misplaced. The same
     // tolerance the selection overlays get.
+    let physical_placement = (
+        Position::Physical(PhysicalPosition::new(x, y)),
+        Size::Physical(PhysicalSize::new(width, height)),
+    );
     #[cfg(target_os = "macos")]
-    let placement = logical_rect.map(|rect| {
-        (
-            Position::Logical(tauri::LogicalPosition::new(rect.x, rect.y)),
-            Size::Logical(tauri::LogicalSize::new(rect.width, rect.height)),
-        )
-    });
+    let (position, size) = logical_rect
+        .map(|rect| {
+            (
+                Position::Logical(tauri::LogicalPosition::new(rect.x, rect.y)),
+                Size::Logical(tauri::LogicalSize::new(rect.width, rect.height)),
+            )
+        })
+        .unwrap_or(physical_placement);
     #[cfg(not(target_os = "macos"))]
-    let placement: Option<(Position, Size)> = None;
-    let (position, size) = placement.unwrap_or_else(|| {
-        (
-            Position::Physical(PhysicalPosition::new(x, y)),
-            Size::Physical(PhysicalSize::new(width, height)),
-        )
-    });
+    let (position, size) = physical_placement;
     let _ = window.set_position(position);
     let _ = window.set_size(size);
     let _ = window.show();
@@ -1128,7 +1128,7 @@ pub fn annotated_png(
 
 #[cfg(test)]
 mod tests {
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use base64::engine::general_purpose::STANDARD;
     use image::{DynamicImage, ImageFormat, RgbImage};
 
     use super::*;

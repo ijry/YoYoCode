@@ -2035,7 +2035,9 @@ pub async fn cleanup_released(home: &Path) -> Result<(), CatalogError> {
     // Most homes have nothing to clean up: leave their lock (and, for someone
     // who never used Codex, the directory itself) uncreated.
     let unlocked = Published::read(home)?;
-    if !interrupted(home) && !(unlocked.catalog.is_some() && !unlocked.references_codeg_catalog()) {
+    if !interrupted(home)
+        && (unlocked.catalog.is_none() || unlocked.references_codeg_catalog())
+    {
         return Ok(());
     }
     let locked = lock_home(home).await?;

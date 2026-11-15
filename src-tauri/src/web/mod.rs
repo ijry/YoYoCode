@@ -1179,12 +1179,12 @@ pub async fn stop_web_server(
     app: tauri::AppHandle,
     state: tauri::State<'_, WebServerState>,
 ) -> Result<(), AppCommandError> {
-    do_stop_web_server(&state).await;
+    let result = do_stop_web_server(&state).await;
     // After the listener is released, so a window reacting to this already
     // finds the service gone. (The app-exit stop does not announce: nothing
     // is left to listen.)
     emit_web_service_status_changed(&app, false);
-    Ok(())
+    result
 }
 
 #[cfg(feature = "tauri-runtime")]

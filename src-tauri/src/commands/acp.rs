@@ -3745,10 +3745,10 @@ fn persist_cline_models_catalog_at(
         .and_then(|v| v.as_object())
         .cloned()
         .unwrap_or_default();
-    if !meta
+    if meta
         .get("name")
         .and_then(|v| v.as_str())
-        .is_some_and(|name| !name.trim().is_empty())
+        .is_none_or(|name| name.trim().is_empty())
     {
         meta.insert("name".to_string(), serde_json::json!("OpenAI Compatible"));
     }

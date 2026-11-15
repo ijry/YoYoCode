@@ -2337,6 +2337,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: dir.path().into(),
+                    agent_hosts_tools: false,
                     comic_enabled: false,
                 },
             )
@@ -2412,6 +2413,7 @@ mod tests {
                 TokenEntry {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: dir.path().into(),
+                    agent_hosts_tools: false,
                     comic_enabled: true,
                 },
             )
@@ -3559,6 +3561,7 @@ mod tests {
                     parent_connection_id: "parent-conn".into(),
                     working_dir: PathBuf::from("/repo/app"),
                     agent_hosts_tools: true,
+                    comic_enabled: false,
                 },
             )
             .await;
