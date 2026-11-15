@@ -7954,10 +7954,20 @@
   },
   "AboutSettings": {
     "tagline": "マルチエージェントコーディングワークスペース — すべての AI コーディングエージェントを一つの場所で実行させ、協調させます。",
-    "basedOnTitle": "Codeg をベースに構築",
+    "basedOnTitle": "上游プロジェクト：Codeg",
     "basedOnText": "YoYoCode はオープンソースプロジェクト Codeg のフォークです。spacering-net/codeg とすべての貢献者に心から感謝します。",
-    "openRepository": "リポジトリを開く",
-    "openDocumentation": "ドキュメント"
+    "openRepository": "上流リポジトリ",
+    "openDocumentation": "ドキュメント",
+    "logoAnimationLabel": "YoYoCode のアニメーション水母ロゴ",
+    "forkTitle": "本リポジトリ",
+    "forkText": "YoYoCode のソースコード、リリース、問題報告は本リポジトリで管理しています。上流プロジェクトは下に分けて記載しています。",
+    "openForkRepository": "本リポジトリを開く",
+    "openReleases": "リリース",
+    "openIssues": "問題を報告",
+    "appTitle": "モバイルアプリから接続",
+    "appText": "MCode モバイルアプリをデスクトップの Web サービスに接続します。ステータスバーのポップオーバーで接続用 QR コードを読み取るか、外出先では Tailscale Funnel の HTTPS アドレスを使ってペアリングします。",
+    "downloadApp": "アプリを入手",
+    "openWebServiceSettings": "Web サービス設定"
   },
   "Comic": {
     "qaSpeech": "このエピソードの音声を生成",

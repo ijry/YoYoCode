@@ -7954,10 +7954,20 @@
   },
   "AboutSettings": {
     "tagline": "多智慧型編碼工作台——把所有 AI 編碼代理聚在一處，讓它們協同工作。",
-    "basedOnTitle": "基於 Codeg 構建",
+    "basedOnTitle": "上游專案：Codeg",
     "basedOnText": "YoYoCode 是開源專案 Codeg 的分支。衷心感謝 spacering-net/codeg 以及所有貢獻者——本應用的一切都建立在他們的工作之上。",
-    "openRepository": "開啟儲存庫",
-    "openDocumentation": "文件"
+    "openRepository": "上游儲存庫",
+    "openDocumentation": "文件",
+    "logoAnimationLabel": "YoYoCode 水母動態徽標",
+    "forkTitle": "本儲存庫",
+    "forkText": "YoYoCode 的原始碼、安裝包與問題回饋都在本儲存庫維護；上游專案另列於下方。",
+    "openForkRepository": "開啟本儲存庫",
+    "openReleases": "版本發布",
+    "openIssues": "問題回饋",
+    "appTitle": "App 端連線",
+    "appText": "用 MCode 手機端連線桌面端的 Web 服務：在狀態列小窗掃描連線 QR code 即可；不在同一網路時，可透過 Tailscale Funnel 的 HTTPS 位址遠端接入。",
+    "downloadApp": "下載 App",
+    "openWebServiceSettings": "Web 服務設定"
   },
   "Comic": {
     "qaSpeech": "生成本集配音",

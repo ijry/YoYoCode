@@ -7954,10 +7954,20 @@
   },
   "AboutSettings": {
     "tagline": "L'espace de travail de codage multi-agents — exécutez tous les agents de codage IA au même endroit et laissez-les travailler ensemble.",
-    "basedOnTitle": "Construit sur Codeg",
+    "basedOnTitle": "Projet amont : Codeg",
     "basedOnText": "YoYoCode est un fork du projet open source Codeg. Nos sincères remerciements à spacering-net/codeg et à tous les contributeurs.",
-    "openRepository": "Ouvrir le dépôt",
-    "openDocumentation": "Documentation"
+    "openRepository": "Dépôt amont",
+    "openDocumentation": "Documentation",
+    "logoAnimationLabel": "Logo animé méduse YoYoCode",
+    "forkTitle": "Ce fork",
+    "forkText": "Le code source, les versions et les rapports de bug de YoYoCode se trouvent dans ce dépôt. Le projet amont est présenté séparément ci-dessous.",
+    "openForkRepository": "Ce dépôt",
+    "openReleases": "Versions",
+    "openIssues": "Signaler un problème",
+    "appTitle": "Connexion depuis le mobile",
+    "appText": "Utilisez l'app mobile MCode avec le service Web du bureau : scannez le QR code de connexion depuis la barre d'état, ou passez par une adresse HTTPS Tailscale Funnel hors du réseau local.",
+    "downloadApp": "Télécharger l'app",
+    "openWebServiceSettings": "Paramètres du service Web"
   },
   "Comic": {
     "qaSpeech": "Générer les voix de cet épisode",

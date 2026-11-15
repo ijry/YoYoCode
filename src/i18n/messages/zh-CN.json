@@ -7993,10 +7993,20 @@
   },
   "AboutSettings": {
     "tagline": "多智能体编码工作台——把所有 AI 编码智能体聚在一处，让它们协同工作。",
-    "basedOnTitle": "基于 Codeg 构建",
+    "basedOnTitle": "上游项目：Codeg",
     "basedOnText": "YoYoCode 是开源项目 Codeg 的分支。衷心感谢 spacering-net/codeg 以及所有贡献者——本应用的一切都建立在他们的工作之上。",
-    "openRepository": "打开仓库",
-    "openDocumentation": "文档"
+    "openRepository": "上游仓库",
+    "openDocumentation": "文档",
+    "logoAnimationLabel": "YoYoCode 水母动态徽标",
+    "forkTitle": "本仓库",
+    "forkText": "YoYoCode 的源码、安装包与问题反馈都在本仓库维护；上游项目单独列在下方。",
+    "openForkRepository": "打开本仓库",
+    "openReleases": "版本发布",
+    "openIssues": "问题反馈",
+    "appTitle": "App 端连接",
+    "appText": "用 MCode 手机端连接桌面端的 Web 服务：在状态栏小窗扫描连接二维码即可；不在同一网络时，可通过 Tailscale Funnel 的 HTTPS 地址远程接入。",
+    "downloadApp": "下载 App",
+    "openWebServiceSettings": "Web 服务设置"
   },
   "Comic": {
     "resources": "资源",

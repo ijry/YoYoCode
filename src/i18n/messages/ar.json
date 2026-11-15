@@ -7954,10 +7954,20 @@
   },
   "AboutSettings": {
     "tagline": "مساحة عمل البرمجة متعددة الوكلاء — شغّل جميع وكلاء البرمجة بالذكاء الاصطناعي في مكان واحد ودعهم يعملون معًا.",
-    "basedOnTitle": "مبني على Codeg",
+    "basedOnTitle": "المشروع الأصلي: Codeg",
     "basedOnText": "YoYoCode هو تفرّع لمشروع Codeg مفتوح المصدر. الشكر الجزيل لـ spacering-net/codeg وجميع المساهمين.",
-    "openRepository": "افتح المستودع",
-    "openDocumentation": "الوثائق"
+    "openRepository": "مستودع المشروع الأصلي",
+    "openDocumentation": "الوثائق",
+    "logoAnimationLabel": "شعار YoYoCode المتحرك لقنديل البحر",
+    "forkTitle": "هذا المستودع",
+    "forkText": "الشفرة المصدرية والإصدارات وبلاغات المشاكل الخاصة بـ YoYoCode موجودة في هذا المستودع. المشروع الأصلي مُدرج أدناه بشكل منفصل.",
+    "openForkRepository": "افتح هذا المستودع",
+    "openReleases": "الإصدارات",
+    "openIssues": "الإبلاغ عن مشكلة",
+    "appTitle": "الاتصال من الهاتف",
+    "appText": "استخدم تطبيق MCode للهاتف مع خدمة الويب في تطبيق سطح المكتب: امسح رمز الاستجابة السريعة من شريط الحالة، أو استخدم عنوان HTTPS عبر Tailscale Funnel عندما تكون خارج الشبكة المحلية.",
+    "downloadApp": "تنزيل التطبيق",
+    "openWebServiceSettings": "إعدادات خدمة الويب"
   },
   "Comic": {
     "qaSpeech": "توليد صوت هذه الحلقة",

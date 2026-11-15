@@ -24,9 +24,9 @@ spec.loader.exec_module(jelly)
 
 OUT_JSON = ASSETS / "jellyfish-breathe.json"
 OUT_HTML = ASSETS / "jellyfish-breathe-lottie.html"
-# Offline preview runtime, vendored so the self-contained HTML can be
-# regenerated without adding lottie-web to the app's dependencies.
-LOTTIE_JS = SCRIPT_DIR / "lottie-web-5.12.2.min.js"
+# Offline preview runtime, vendored under public/ so the About page can load
+# it at runtime too, without adding lottie-web to the app's dependencies.
+LOTTIE_JS = ASSETS / "lottie-web-5.12.2.min.js"
 
 SIZE = jelly.SIZE
 FPS = 25

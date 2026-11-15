@@ -7954,10 +7954,20 @@
   },
   "AboutSettings": {
     "tagline": "Der Multi-Agent-Coding-Workspace — führe alle KI-Coding-Agents an einem Ort aus und lass sie zusammenarbeiten.",
-    "basedOnTitle": "Baut auf Codeg auf",
+    "basedOnTitle": "Upstream: Codeg",
     "basedOnText": "YoYoCode ist ein Fork des Open-Source-Projekts Codeg. Herzlichen Dank an spacering-net/codeg und alle Beitragenden.",
-    "openRepository": "Repository öffnen",
-    "openDocumentation": "Dokumentation"
+    "openRepository": "Upstream-Repository",
+    "openDocumentation": "Dokumentation",
+    "logoAnimationLabel": "Animiertes YoYoCode-Qualle-Logo",
+    "forkTitle": "Dieser Fork",
+    "forkText": "Quellcode, Releases und Fehlermeldungen von YoYoCode liegen in diesem Repository. Das Upstream-Projekt ist unten separat aufgeführt.",
+    "openForkRepository": "Dieses Repository",
+    "openReleases": "Releases",
+    "openIssues": "Problem melden",
+    "appTitle": "Vom Handy verbinden",
+    "appText": "Verbinde die MCode-App mit dem Webdienst der Desktop-App: QR-Code in der Statusleiste scannen oder unterwegs eine Tailscale-Funnel-HTTPS-Adresse verwenden.",
+    "downloadApp": "Mobile App laden",
+    "openWebServiceSettings": "Webdienst-Einstellungen"
   },
   "Comic": {
     "qaSpeech": "Sprache für diese Folge erzeugen",
