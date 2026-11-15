@@ -225,3 +225,11 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 - **保留**：`CODEG_*` 环境变量、`CODEG_STATIC_DIR`、`.codeg` 数据目录、`codeg://` URL scheme、桌面端安装包文件名前缀等协议与兼容标识；`.workbuddy/memory/`、`.zcode/plans/`、`docs/releasing/v*.md`、`docs/model-switch-history.md` 等历史归档保留原文，避免篡改历史记录。
 - **升级风险**：plus.1 / plus.2 已发布的内置更新器会在新包内查找旧名 `codeg-server`，从这些版本直接走「软件更新」到下一版会失败，需手动重装或由发版时额外提供兼容副本。旧 Release 中已存在的 `codeg-server-*` 资产是否删除、是否发 plus.3 另行决定。
 - 上游同步冲突面进一步扩大：Cargo.toml、release.yml、两份 install 脚本、Dockerfile*、AGENTS.md / CLAUDE.md、README×11、docs/cli.md 等均属 fork 自有改动，上游动这些文件时需手动合并。
+
+### 发版 v0.44.0-plus.3（2026-11-15）
+
+- 第三个 PLUS 迭代，覆盖自 `v0.44.0-plus.2` 以来的 10 个提交。Release 说明见 `docs/releasing/v0.44.0-plus.3.md`；`create-draft-release` 直接取 tag 指向 commit 的 message 当 Release body，所以 `chore(release)` 提交正文必须承载完整说明。
+- 本版把前面几节的改动正式交付：关于页三分组与动态 Lottie 水母徽标、自有文档站与 415 处链接替换、文档站 MCode 自有化，以及 `codeg-server` → `yoyocode-server` 全量改名与单套 Release 资产。
+- **升级断裂（已知限制，已写入 Release 说明）**：plus.1 / plus.2 的内置更新器会在下载包内查找旧名 `codeg-server`，本版包内只有新名，从旧版直接走应用内更新会失败，需手动重装；本版之后恢复正常。
+- 已发布 Release 里的旧 `codeg-server-*` 资产本版未删除，保留历史安装兼容；是否清理另行决定。
+- 版本仍为 safe 模式：`tauri.conf.json` / `package.json` 保持 `0.44.0`，迭代号由 tag 与 Release 标题承载，server Cargo 版本由 `--iteration 3` 注入为 `0.44.0-plus.3`。
