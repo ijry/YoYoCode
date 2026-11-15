@@ -924,7 +924,7 @@ impl ComputerToolsRuntimeConfig {
     }
 
     /// Note that this process serves computer use — a computer service has
-    /// started: always in the desktop app, and in codeg-server where the
+    /// started: always in the desktop app, and in yoyocode-server where the
     /// person who runs it lets it share the screen it runs on. Until then
     /// the tools are offered to no agent, whatever the switch says.
     pub fn mark_served(&self) {

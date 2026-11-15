@@ -23,7 +23,7 @@ fn main() -> ExitCode {
     }
 
     // `--supervise`: run as the process supervisor that owns the worker's
-    // lifecycle (PID 1 in Docker). It spawns `codeg-server` without this
+    // lifecycle (PID 1 in Docker). It spawns `yoyocode-server` without this
     // flag and relaunches it after an in-place upgrade. Never returns.
     if args.iter().any(|a| a == "--supervise") {
         // This mode never reaches init_server(); install a stderr-only
@@ -276,7 +276,7 @@ async fn async_main(
         let _ = codeg_lib::update::install::take_upgrade_staged();
     }
 
-    tracing::info!("[SERVER] codeg-server v{}", app_version);
+    tracing::info!("[SERVER] yoyocode-server v{}", app_version);
     tracing::info!("[SERVER] Data directory: {}", data_dir.display());
     tracing::info!("[SERVER] Static directory: {}", static_dir.display());
 
@@ -507,9 +507,9 @@ async fn async_main(
     #[cfg(windows)]
     if std::env::current_exe().is_ok_and(|exe| beside_the_desktop_app(&exe)) {
         eprintln!(
-            "[SERVER] This codeg-server is in the codeg desktop app's folder, where each \
+            "[SERVER] This yoyocode-server is in the codeg desktop app's folder, where each \
              replaces the other's yoyocode-mcp.exe, codeg-computer-helper.exe and web\\. Re-run \
-             install.ps1 to move it to %LOCALAPPDATA%\\codeg-server."
+             install.ps1 to move it to %LOCALAPPDATA%\\yoyocode-server."
         );
     }
     // Before accepting connections: keep ACP model terminal fallbacks aligned
@@ -998,7 +998,7 @@ mod tests {
     #[test]
     fn a_server_beside_the_desktop_app_is_told_apart() {
         let dir = tempfile::tempdir().unwrap();
-        let exe = dir.path().join("codeg-server.exe");
+        let exe = dir.path().join("yoyocode-server.exe");
         std::fs::write(&exe, b"").unwrap();
         assert!(!beside_the_desktop_app(&exe));
         std::fs::write(dir.path().join("yoyocode-mcp.exe"), b"").unwrap();

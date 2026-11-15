@@ -17,7 +17,7 @@
 ;
 ; Stop the companion and helper processes running from $INSTDIR before the
 ; installer writes new binaries (or removes the existing ones on uninstall)
-; — only those: a codeg-server installed in a folder of its own runs copies
+; — only those: a yoyocode-server installed in a folder of its own runs copies
 ; under the same names, and they are not this installer's to stop.
 ; The installer finds them itself, through the Windows API: it lists the
 ; processes, asks each one of those names which file it runs (the answer

@@ -566,7 +566,7 @@ mod tauri_app {
         };
 
         // The data directory next, for the same reason, and before the logging
-        // init resolves the log directory from it — the order `codeg-server`
+        // init resolves the log directory from it — the order `yoyocode-server`
         // keeps. When `setup` exported it, the logs of a launch from the Start
         // menu or the Dock went to `~/.codeg/logs`, while an instance codeg
         // restarted inherited the variable and wrote beside the database (see
@@ -788,7 +788,7 @@ mod tauri_app {
                 });
             })
             // Remote-workspace IPC proxy. Routes HTTP / WS for windows
-            // opened against a remote codeg-server through Rust so we
+            // opened against a remote yoyocode-server through Rust so we
             // bypass webview mixed-content blocking and can centrally
             // manage per-window subscriptions.
             .manage(std::sync::Arc::new(
@@ -1118,7 +1118,7 @@ mod tauri_app {
                 // Keeps the Codex model list codeg published current (a provider
                 // list past its age, a codex upgraded outside codeg) and clears
                 // what a release left behind. One per process; mirrored in
-                // `bin/codeg_server.rs`.
+                // `bin/yoyocode_server.rs`.
                 if let Some(scheduler) = crate::acp::codex_catalog_refresh::build(
                     web::event_bridge::EventEmitter::Tauri(app.handle().clone()),
                 ) {
@@ -1580,7 +1580,7 @@ mod tauri_app {
 
                 // Automation engine: drives manual + scheduled fires, settles
                 // runs off the event bus, reconciles, and recovers on boot. One
-                // per process; mirrored in `bin/codeg_server.rs`.
+                // per process; mirrored in `bin/yoyocode_server.rs`.
                 if let Some(engine) = crate::automation::build_engine(
                     crate::db::AppDatabase {
                         conn: app.state::<crate::db::AppDatabase>().conn.clone(),
@@ -1597,7 +1597,7 @@ mod tauri_app {
 
                 // Work-task engine: drives the todo→…→done pipeline, settles
                 // runs off the event bus, recovers merges from git truth on
-                // boot. One per process; mirrored in `bin/codeg_server.rs`.
+                // boot. One per process; mirrored in `bin/yoyocode_server.rs`.
                 if let Some(engine) = crate::work_task::build_task_engine(
                     crate::db::AppDatabase {
                         conn: app.state::<crate::db::AppDatabase>().conn.clone(),

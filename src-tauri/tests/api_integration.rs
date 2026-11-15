@@ -599,7 +599,7 @@ async fn deepseek_model_catalog_requires_a_token() {
 // ────────────────────────────────────────────────────────────────────────────
 // Computer use
 //
-// Served only by a codeg-server its operator let share the screen it runs on
+// Served only by a yoyocode-server its operator let share the screen it runs on
 // (`CODEG_COMPUTER_USE`): everywhere else every call is refused, and
 // `computer_available` says so up front. Nothing here reaches a helper — no
 // screen is read in a test.

@@ -436,7 +436,7 @@ struct Admitted {
 }
 
 /// The computer-use service: one per process — the desktop app's, managed as
-/// Tauri state, or codeg-server's where it is let share the screen it runs
+/// Tauri state, or yoyocode-server's where it is let share the screen it runs
 /// on (`CODEG_COMPUTER_USE`).
 pub struct ComputerService {
     /// Where what changes is told (see `computer::events`).
@@ -444,7 +444,7 @@ pub struct ComputerService {
     /// Where a settings change the service makes itself is told — removing
     /// the driver switches computer use off.
     settings_events: EventEmitter,
-    /// What only the desktop app has; `None` in codeg-server.
+    /// What only the desktop app has; `None` in yoyocode-server.
     #[cfg(feature = "tauri-runtime")]
     desktop: Option<DesktopUi>,
     backend: Arc<LocalBackend>,
@@ -486,7 +486,7 @@ pub struct ComputerService {
 /// What the desktop app adds to computer use: the stop shortcut, held with
 /// the OS while computer use is on; the strip above every window while
 /// anything is shared; and the mark an action leaves where it landed.
-/// codeg-server has none of them — its Stop is in its web clients' panel.
+/// yoyocode-server has none of them — its Stop is in its web clients' panel.
 #[cfg(feature = "tauri-runtime")]
 struct DesktopUi {
     app: AppHandle,
@@ -501,7 +501,7 @@ pub enum ComputerHost {
     /// marker and the stop shortcut.
     #[cfg(feature = "tauri-runtime")]
     Desktop(AppHandle),
-    /// codeg-server, let share the screen it runs on: its web clients are
+    /// yoyocode-server, let share the screen it runs on: its web clients are
     /// told, through `broadcaster`; `emitter` is where it tells of settings.
     Server {
         broadcaster: Arc<WebEventBroadcaster>,
@@ -511,7 +511,7 @@ pub enum ComputerHost {
 
 /// Run `task` on the runtime codeg runs on: Tauri's in the desktop app,
 /// which starts the service before any task of its own runs; the process's
-/// own in codeg-server.
+/// own in yoyocode-server.
 fn spawn_task(task: impl std::future::Future<Output = ()> + Send + 'static) {
     #[cfg(feature = "tauri-runtime")]
     tauri::async_runtime::spawn(task);
@@ -2083,7 +2083,7 @@ impl ComputerService {
             if let (Some(desktop), Some(at)) = (&self.desktop, press.aim.landing(&press.raw)) {
                 desktop.marker.mark(at, action);
             }
-            // No marker in codeg-server: nothing on its screen of codeg's.
+            // No marker in yoyocode-server: nothing on its screen of codeg's.
             #[cfg(not(feature = "tauri-runtime"))]
             let _ = (press.aim, action);
         };
@@ -2378,7 +2378,7 @@ fn backend_error(e: BackendError) -> AppCommandError {
 }
 
 // The panel's commands. Each is a `_core` function the desktop app's Tauri
-// command and codeg-server's HTTP handler (`web::handlers::computer`) both
+// command and yoyocode-server's HTTP handler (`web::handlers::computer`) both
 // call; what only one of them can do — open System Settings, show a file in
 // the Finder, size the strip — is the command's own.
 
@@ -2781,7 +2781,7 @@ pub async fn computer_stop(app: AppHandle) -> Result<(), AppCommandError> {
 
 /// Whether the stop shortcut is in force — the same status
 /// `computer://stop-key` carries when it changes. Empty where there is none
-/// (codeg-server).
+/// (yoyocode-server).
 pub fn computer_stop_key_status_core(service: &ComputerService) -> StopKeyStatus {
     service.stop_key_status()
 }

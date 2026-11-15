@@ -1,5 +1,5 @@
 //! `yoyo-cli`: run a prompt through a running codeg — the desktop app or a
-//! `codeg-server` — from a script or a CI job, without opening its window
+//! `yoyocode-server` — from a script or a CI job, without opening its window
 //! (issue #694).
 //!
 //! A thin HTTP client: the run is owned by the runtime (`cli_run`), which

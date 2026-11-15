@@ -228,7 +228,7 @@ pub const PENDING_EVENT: &str = "workspace://deep-link-pending";
 /// the frontend gets to, which is all a focus operation can mean anyway.
 static PENDING_FOCUS: std::sync::Mutex<Option<FocusTarget>> = std::sync::Mutex::new(None);
 
-/// Only the desktop URL handler parks targets; `codeg-server` compiles the
+/// Only the desktop URL handler parks targets; `yoyocode-server` compiles the
 /// parser and the lookup but has no OS scheme to feed them.
 #[cfg(any(feature = "tauri-runtime", test))]
 fn set_pending_focus(target: FocusTarget) {

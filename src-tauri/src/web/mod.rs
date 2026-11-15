@@ -40,7 +40,7 @@ pub const DEFAULT_WEB_SERVICE_HOST: &str = "0.0.0.0";
 /// set rather than free text: the settings page offers exactly these, and a
 /// loopback-only bind (`127.0.0.1`, e.g. behind a reverse proxy or Tailscale
 /// Serve) is the one alternative to the LAN-wide default worth naming. The
-/// standalone `codeg-server` keeps taking any host from `CODEG_HOST`.
+/// standalone `yoyocode-server` keeps taking any host from `CODEG_HOST`.
 pub const WEB_SERVICE_HOST_CANDIDATES: &[&str] = &[DEFAULT_WEB_SERVICE_HOST, "127.0.0.1"];
 
 /// One of [`WEB_SERVICE_HOST_CANDIDATES`], or `None` for anything else.
@@ -96,13 +96,13 @@ impl WebServerState {
     }
 
     /// Handle to the shutdown coordinator. Exposed so binaries / external
-    /// callers (e.g. `codeg-server`) can pass it to `build_router`.
+    /// callers (e.g. `yoyocode-server`) can pass it to `build_router`.
     pub fn shutdown_signal(&self) -> Arc<ShutdownSignal> {
         self.shutdown_signal.clone()
     }
 
     /// Mark the server as running from outside the Tauri command path.
-    /// `codeg-server` calls `axum::serve` directly without going through
+    /// `yoyocode-server` calls `axum::serve` directly without going through
     /// `start_web_server`, so without this the `running` flag stays
     /// `false` and `get_web_server_status` lies to web-mode browsers.
     /// Note: handle/shutdown_tx are intentionally left `None` — the bin
@@ -115,7 +115,7 @@ impl WebServerState {
         self.running.store(true, Ordering::Release);
     }
 
-    /// True when the serve task is owned externally (e.g. by `codeg-server`
+    /// True when the serve task is owned externally (e.g. by `yoyocode-server`
     /// `axum::serve` in standalone mode), in which case stop/start through
     /// this state must be a no-op.
     pub fn is_externally_managed(&self) -> bool {
@@ -277,7 +277,7 @@ async fn resolve_web_service_port(
 /// [`WEB_SERVICE_HOST_CANDIDATES`]), else the saved choice, else the wildcard
 /// default. A saved value outside the set (hand-edited database) falls back to
 /// the default instead of failing every start, auto-start included.
-/// Desktop only: `codeg-server` binds whatever `CODEG_HOST` names.
+/// Desktop only: `yoyocode-server` binds whatever `CODEG_HOST` names.
 #[cfg(any(feature = "tauri-runtime", test))]
 async fn resolve_web_service_host(
     conn: &DatabaseConnection,
@@ -615,7 +615,7 @@ pub fn get_local_addresses(port: u16) -> Vec<String> {
 /// Normalize the host to advertise / store for a freshly bound listener.
 ///
 /// Depending on the runtime, the configured host may not be a bare IP
-/// literal: the standalone `codeg-server` binds via `ToSocketAddrs`, so it
+/// literal: the standalone `yoyocode-server` binds via `ToSocketAddrs`, so it
 /// also accepts `localhost` (DNS-resolved) and bracketed IPv6 (`[::1]`),
 /// whereas the desktop/web cores parse a `SocketAddr` and accept only IP
 /// literals (bare or bracketed IPv6, never a hostname). [`addresses_for_bind`]

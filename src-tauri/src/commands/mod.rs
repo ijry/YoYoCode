@@ -26,7 +26,7 @@ pub mod codex_catalog;
 /// The ✨ commit message generator (both runtimes).
 pub mod commit_message;
 /// Computer use: sharing windows, the helper, the agent reads — the desktop
-/// app's, and codeg-server's where it is let share the screen it runs on.
+/// app's, and yoyocode-server's where it is let share the screen it runs on.
 pub mod computer;
 /// The computer-use switches. Like `browser_tools`, compiled in both runtimes:
 /// the shared yoyocode-mcp plumbing reads them.

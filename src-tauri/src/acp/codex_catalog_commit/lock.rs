@@ -7,7 +7,7 @@
 //!   contends with itself.
 //! - **Across processes**: `CODEX_HOME/codeg-codex.lock`, held with std's
 //!   `File::try_lock` (the same call the task engine elects with). The desktop
-//!   app, a debug build and a local codeg-server all write the same
+//!   app, a debug build and a local yoyocode-server all write the same
 //!   `~/.codex`, each with a database of its own.
 //!
 //! A file system without `try_lock` (some network mounts) gets a fallback:

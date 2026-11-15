@@ -88,7 +88,7 @@ pub struct AppState {
     /// when the group is switched off. Carried in both runtimes for the same
     /// reason as `browser_tools_config`: one setting, one popover.
     pub computer_tools_config: crate::acp::computer_tools::ComputerToolsRuntimeConfig,
-    /// codeg-server's computer service, where the person who runs it has let
+    /// yoyocode-server's computer service, where the person who runs it has let
     /// it share the screen it runs on (`CODEG_COMPUTER_USE`) — set once,
     /// after the persisted settings are applied. Never set in the desktop
     /// app's web service: its screen is shared from the desktop window.
@@ -132,7 +132,7 @@ pub fn default_chat_channel_manager() -> ChatChannelManager {
 }
 
 /// Build the delegation broker + token registry + per-process UDS socket
-/// path. Shared between codeg-server bootstrap and the Tauri `setup` block
+/// path. Shared between yoyocode-server bootstrap and the Tauri `setup` block
 /// so both modes apply identical depth limit + timeout defaults.
 ///
 /// The listener task is _not_ spawned here — callers spawn it after they

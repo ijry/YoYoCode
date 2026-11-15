@@ -1,5 +1,5 @@
 //! Download → verify → extract → atomic swap of the server bundle
-//! (`codeg-server` + `yoyocode-mcp` + `web/`, and `codeg-computer-helper` and
+//! (`yoyocode-server` + `yoyocode-mcp` + `web/`, and `codeg-computer-helper` and
 //! `yoyo-cli` where the release ships them).
 //!
 //! The running worker performs the swap, keeping a `.bak` of each artifact,
@@ -69,9 +69,9 @@ fn archive_ext() -> &'static str {
 
 fn server_bin_filename() -> &'static str {
     if cfg!(windows) {
-        "codeg-server.exe"
+        "yoyocode-server.exe"
     } else {
-        "codeg-server"
+        "yoyocode-server"
     }
 }
 
@@ -396,7 +396,7 @@ pub async fn perform_update(
     if !new_server.is_file() || !new_mcp.is_file() || !new_web.is_dir() {
         return Err(AppCommandError::new(
             crate::app_error::AppErrorCode::TaskExecutionFailed,
-            "Downloaded update is incomplete (expected codeg-server, yoyocode-mcp and a web/ directory)",
+            "Downloaded update is incomplete (expected yoyocode-server, yoyocode-mcp and a web/ directory)",
         ));
     }
 
@@ -645,7 +645,7 @@ fn extract_tar_gz(bytes: &[u8], dest: &Path, max: u64) -> Result<(), AppCommandE
                 ));
             }
             extracted += written;
-            // Preserve unix mode so +x on codeg-server / yoyocode-mcp survives.
+            // Preserve unix mode so +x on yoyocode-server / yoyocode-mcp survives.
             #[cfg(unix)]
             if let Some(mode) = mode {
                 use std::os::unix::fs::PermissionsExt;
@@ -1772,8 +1772,8 @@ mod tests {
 
     #[test]
     fn sanitize_keeps_normal_paths() {
-        let p = sanitize_entry_path(Path::new("codeg-server-linux-x64/web/index.html")).unwrap();
-        assert_eq!(p, PathBuf::from("codeg-server-linux-x64/web/index.html"));
+        let p = sanitize_entry_path(Path::new("yoyocode-server-linux-x64/web/index.html")).unwrap();
+        assert_eq!(p, PathBuf::from("yoyocode-server-linux-x64/web/index.html"));
     }
 
     /// Build a gzip'd tar with the given (path, bytes) regular-file entries.
@@ -1818,7 +1818,7 @@ mod tests {
     #[test]
     fn replace_file_keeps_backup_and_swaps() {
         let dir = tempfile::tempdir().unwrap();
-        let target = dir.path().join("codeg-server");
+        let target = dir.path().join("yoyocode-server");
         std::fs::write(&target, b"old").unwrap();
         let src = dir.path().join("new-bin");
         std::fs::write(&src, b"new").unwrap();
@@ -2015,7 +2015,7 @@ mod tests {
         std::fs::create_dir_all(&bindir).unwrap();
         std::fs::create_dir_all(bak_path(&web_dir)).unwrap();
         std::fs::create_dir_all(&web_dir).unwrap();
-        let server_bin = bindir.join("codeg-server");
+        let server_bin = bindir.join("yoyocode-server");
         std::fs::write(&server_bin, b"new").unwrap();
         std::fs::write(bak_path(&server_bin), b"old").unwrap();
         std::fs::write(web_dir.join("index.html"), b"new").unwrap();
@@ -2185,7 +2185,7 @@ mod tests {
         let bundle = dir.join("bundle");
         std::fs::create_dir_all(bundle.join("web")).unwrap();
         std::fs::write(bundle.join("web").join("index.html"), b"C").unwrap();
-        for name in ["codeg-server", "yoyocode-mcp", "yoyo-cli"] {
+        for name in ["yoyocode-server", "yoyocode-mcp", "yoyo-cli"] {
             std::fs::write(bundle.join(name), b"C").unwrap();
         }
         (targets, bundle)
@@ -2193,7 +2193,7 @@ mod tests {
 
     fn bundle_of(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf, PathBuf) {
         (
-            dir.join("codeg-server"),
+            dir.join("yoyocode-server"),
             dir.join("yoyocode-mcp"),
             dir.join("codeg-computer-helper"),
             dir.join("yoyo-cli"),
@@ -2245,7 +2245,7 @@ mod tests {
     fn a_failure_before_the_server_keeps_the_previous_release_whole() {
         let dir = tempfile::tempdir().unwrap();
         let (targets, bundle) = second_update(dir.path());
-        std::fs::remove_file(bundle.join("codeg-server")).unwrap();
+        std::fs::remove_file(bundle.join("yoyocode-server")).unwrap();
         assert!(swap(&targets, &bundle).is_err());
         assert_eq!(read(&targets.cli_bin), b"B");
         assert_eq!(read(&bak_path(&targets.cli_bin)), b"A");
@@ -2375,7 +2375,7 @@ mod tests {
         }
         let server = &targets.server_bin;
         let record = SwapRecord {
-            server_sha256: file_sha256(&bundle.join("codeg-server")).unwrap(),
+            server_sha256: file_sha256(&bundle.join("yoyocode-server")).unwrap(),
             cli: change,
         };
         write_swap_record(&swap_record_path(server), &record).unwrap();
@@ -2530,7 +2530,7 @@ mod tests {
         assert_eq!(read(&bak_path(&targets.server_bin)), b"old");
         assert_eq!(read(&bak_path(&targets.cli_bin)), b"A");
         assert_left_nothing(&targets);
-        let staged = targets.server_bin.with_file_name(".codeg-server.new");
+        let staged = targets.server_bin.with_file_name(".yoyocode-server.new");
         assert!(!staged.exists());
     }
 
@@ -2542,7 +2542,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (targets, bundle) = second_update(dir.path());
         let server = &targets.server_bin;
-        let staged = stage_file(server, &bundle.join("codeg-server")).unwrap();
+        let staged = stage_file(server, &bundle.join("yoyocode-server")).unwrap();
         let pending = next_path(&bak_path(server));
         std::fs::create_dir_all(pending.join("in-the-way")).unwrap();
 
@@ -2890,7 +2890,7 @@ mod tests {
             .trim_end_matches("; do")
             .split_whitespace()
             .collect();
-        assert_eq!(signed, ["codeg-server", "yoyocode-mcp", "yoyo-cli"]);
+        assert_eq!(signed, ["yoyocode-server", "yoyocode-mcp", "yoyo-cli"]);
         assert!(
             !script.contains("codeg-computer-helper"),
             "the helper refuses to start with a Team ID and no peer requirement"

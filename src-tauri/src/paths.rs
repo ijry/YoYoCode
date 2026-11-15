@@ -8,7 +8,7 @@
 //! The `codeg_*_root` data directories resolve `$CODEG_HOME`, then
 //! `$CODEG_DATA_DIR`, then `~/.codeg`. Both binaries export `CODEG_DATA_DIR`
 //! before anything reads it — the desktop app from [`desktop_data_dir`] at the
-//! top of `run()`, `codeg-server` in `main` — so the data directory is what
+//! top of `run()`, `yoyocode-server` in `main` — so the data directory is what
 //! they resolve to, and `~/.codeg` only serves a process started without
 //! either variable.
 
@@ -89,8 +89,8 @@ pub fn codeg_browser_profiles_root() -> PathBuf {
 ///
 /// **Concurrency contract:** the quota check uses a process-local
 /// in-flight reservation counter to make `CODEG_UPLOAD_MAX_TOTAL_BYTES`
-/// a hard ceiling within one `codeg-server` process. Multiple
-/// `codeg-server` processes sharing the same uploads root (e.g.
+/// a hard ceiling within one `yoyocode-server` process. Multiple
+/// `yoyocode-server` processes sharing the same uploads root (e.g.
 /// horizontally-scaled containers mounted on the same volume) will
 /// each enforce the cap independently and can collectively exceed it.
 /// codeg is designed for single-process deployments; horizontal
@@ -142,7 +142,7 @@ pub fn codeg_backgrounds_root() -> PathBuf {
 /// 3. `~/.codeg/logs` (neither set)
 ///
 /// Pure env + `dirs::home_dir()`, so it is callable at the very start of a
-/// process — before the database (or, in `codeg-server`, the tokio runtime)
+/// process — before the database (or, in `yoyocode-server`, the tokio runtime)
 /// exists — which is exactly when the subscriber must be installed. Both
 /// binaries export the data directory before that point, so the logs sit
 /// beside the database however the process was started.
@@ -263,7 +263,7 @@ pub fn desktop_data_dir(
 /// Always returns an absolute path (`absolutize` re-bases against the
 /// process CWD if needed). Callers should treat the result as
 /// authoritative and not re-read `CODEG_DATA_DIR` themselves; the
-/// startup code in `lib.rs` / `bin/codeg_server.rs` writes the
+/// startup code in `lib.rs` / `bin/yoyocode_server.rs` writes the
 /// resolved value back to the env so subprocess inheritance works,
 /// but the in-process source of truth is this function.
 ///

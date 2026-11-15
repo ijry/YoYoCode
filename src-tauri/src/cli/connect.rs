@@ -619,7 +619,7 @@ fn no_runtime(level: &Level, candidates: &[Candidate]) -> Failure {
     } else {
         vec![
             "yoyo-cli open   (starts the desktop app)".to_string(),
-            "or start codeg-server, or point --url at one".to_string(),
+            "or start yoyocode-server, or point --url at one".to_string(),
         ]
     };
     Failure::new(

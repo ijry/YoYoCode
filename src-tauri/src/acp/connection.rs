@@ -8096,8 +8096,8 @@ pub struct DelegationInjection {
 ///    shipping target. Tauri sidecar (`Contents/MacOS/yoyocode-mcp` on macOS,
 ///    next to `codeg.exe` on Windows, next to the unix binary on Linux
 ///    deb/rpm), `install.sh`/`install.ps1` (drops `yoyocode-mcp` next to
-///    `codeg-server`), Docker image (`/usr/local/bin/yoyocode-mcp` next to
-///    `codeg-server`), and `cargo build` dev output
+///    `yoyocode-server`), Docker image (`/usr/local/bin/yoyocode-mcp` next to
+///    `yoyocode-server`), and `cargo build` dev output
 ///    (`target/<profile>/yoyocode-mcp`).
 /// 3. `PATH` lookup — last-resort for atypical layouts where ops moved the
 ///    two binaries apart but kept both reachable on `PATH`.
@@ -8378,7 +8378,7 @@ where
         browser: cfg!(feature = "tauri-runtime") && injection.browser.is_enabled().await,
         browser_eval: cfg!(feature = "tauri-runtime") && injection.browser.is_eval_enabled().await,
         // Only where this process serves computer use: the desktop app, and
-        // codeg-server where the person who runs it has let it share the
+        // yoyocode-server where the person who runs it has let it share the
         // screen it runs on (`CODEG_COMPUTER_USE`). Elsewhere there are no
         // windows to offer.
         computer: injection.computer.is_served() && injection.computer.is_enabled().await,

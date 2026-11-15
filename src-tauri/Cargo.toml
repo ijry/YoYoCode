@@ -58,7 +58,7 @@ test-utils = ["computer-helper", "server-bin", "mcp-bin", "cli-bin"]
 # `prepare-sidecars` builds with this feature — a sidecar, and on macOS an app
 # of its own (see `tauri.macos.conf.json`).
 computer-helper = ["dep:x11rb"]
-# The `codeg-server` binary. Off unless asked for, for the same reason: the
+# The `yoyocode-server` binary. Off unless asked for, for the same reason: the
 # desktop app serves its web interface from its own process and has no use
 # for a second server, so it must not ship one (70–90 MB) in its bundle.
 server-bin = ["tokio/signal"]
@@ -92,10 +92,10 @@ required-features = ["tauri-runtime"]
 
 # The standalone server. Built only with `server-bin` (and, for the real
 # thing, without the default features): `cargo build --release --bin
-# codeg-server --no-default-features --features server-bin`.
+# yoyocode-server --no-default-features --features server-bin`.
 [[bin]]
-name = "codeg-server"
-path = "src/bin/codeg_server.rs"
+name = "yoyocode-server"
+path = "src/bin/yoyocode_server.rs"
 required-features = ["server-bin"]
 
 # The MCP companion each agent session runs. Built only with `mcp-bin` (and,
@@ -106,7 +106,7 @@ path = "src/bin/yoyocode_mcp.rs"
 required-features = ["mcp-bin"]
 
 # The command-line client: a thin HTTP client of a running desktop app or
-# codeg-server. Built only with `cli-bin` (and, for the real thing, without the
+# yoyocode-server. Built only with `cli-bin` (and, for the real thing, without the
 # default features).
 [[bin]]
 name = "yoyo-cli"
@@ -121,7 +121,7 @@ name = "codeg-computer-helper"
 path = "src/bin/codeg_computer_helper.rs"
 required-features = ["computer-helper"]
 
-# Runs the `codeg-server` binary, so only where that is built.
+# Runs the `yoyocode-server` binary, so only where that is built.
 [[test]]
 name = "credential_helper_subprocess"
 path = "tests/credential_helper_subprocess.rs"
@@ -361,7 +361,7 @@ xcap = { version = "0.9", optional = true }
 # gated on that feature: a plain target dependency is unconditional on
 # features, so `--no-default-features` would still run the gtk-sys / gdk-sys /
 # atk-sys pkg-config probes while compiling none of the code that needs them.
-# Neither the codeg-server CI cell nor the Docker backend stage installs GTK.
+# Neither the yoyocode-server CI cell nor the Docker backend stage installs GTK.
 #
 # `v2_40` is not an independent floor we are choosing: tauri-runtime-wry turns
 # on wry's `linux-body`, which enables it already. Declaring it states the API

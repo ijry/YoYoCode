@@ -793,7 +793,7 @@ mod tests {
     fn test_helper_script_embeds_data_dir() {
         let tmp = std::env::temp_dir().join(format!("codeg-cred-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&tmp).expect("create tmp dir");
-        let binary = std::path::PathBuf::from("/usr/local/bin/codeg-server");
+        let binary = std::path::PathBuf::from("/usr/local/bin/yoyocode-server");
 
         let script_path = create_credential_helper_script(&tmp, &binary)
             .expect("script generation should succeed");
@@ -802,7 +802,7 @@ mod tests {
         // Must invoke the embedded binary with both flags so server-mode
         // deployments don't fall back to the hardcoded `app.codeg` path.
         // Paths are sh-single-quoted so spaces / `$` / backticks survive.
-        assert!(content.contains("/usr/local/bin/codeg-server"));
+        assert!(content.contains("/usr/local/bin/yoyocode-server"));
         assert!(content.contains("--credential-helper"));
         assert!(
             content.contains(&format!("--data-dir '{}'", tmp.display())),
@@ -885,7 +885,7 @@ mod tests {
 
         let rel = std::path::PathBuf::from("data");
         std::fs::create_dir_all(&rel).expect("create rel dir");
-        let binary = std::path::PathBuf::from("./codeg-server");
+        let binary = std::path::PathBuf::from("./yoyocode-server");
 
         let script_path = create_credential_helper_script(&rel, &binary)
             .expect("script generation should succeed");
@@ -905,7 +905,7 @@ mod tests {
             "relative data-dir leaked into script:\n{content}"
         );
         assert!(
-            !content.contains("'./codeg-server'"),
+            !content.contains("'./yoyocode-server'"),
             "relative binary path leaked into script:\n{content}"
         );
         // Positive check: an absolute path segment for the data dir must be

@@ -25,7 +25,7 @@ use crate::cli_run::PermissionPolicy;
     // docs do whatever the file is called (`yoyo-cli.exe`, a symlink, …).
     bin_name = "yoyo-cli",
     version,
-    about = "Run one prompt through a running codeg — the desktop app or codeg-server — \
+    about = "Run one prompt through a running codeg — the desktop app or yoyocode-server — \
              without opening its window.",
     disable_help_subcommand = true
 )]
@@ -204,7 +204,7 @@ fn run_options_given(matches: &clap::ArgMatches) -> bool {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct GlobalArgs {
-    /// A codeg reachable over HTTP(S), e.g. a codeg-server: https://host:18989.
+    /// A codeg reachable over HTTP(S), e.g. a yoyocode-server: https://host:18989.
     #[arg(long, global = true, value_name = "URL")]
     pub url: Option<String>,
 
@@ -226,7 +226,7 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "DIR", conflicts_with = "url")]
     pub data_dir: Option<PathBuf>,
 
-    /// Start a codeg-server for this command alone, on a temporary data
+    /// Start a yoyocode-server for this command alone, on a temporary data
     /// directory (or --data-dir), and stop it when the command ends.
     #[arg(long, global = true, conflicts_with = "url")]
     pub standalone: bool,

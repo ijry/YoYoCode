@@ -590,10 +590,10 @@ pub fn init_desktop() -> LogGuard {
     init_with_file("codeg")
 }
 
-/// Phase 1 for `codeg-server`: stderr + file (`codeg-server.<date>.log`) +
+/// Phase 1 for `yoyocode-server`: stderr + file (`yoyocode-server.<date>.log`) +
 /// buffer.
 pub fn init_server() -> LogGuard {
-    init_with_file("codeg-server")
+    init_with_file("yoyocode-server")
 }
 
 fn init_with_file(prefix: &str) -> LogGuard {

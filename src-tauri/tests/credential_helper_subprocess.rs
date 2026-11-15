@@ -2,7 +2,7 @@
 //!
 //! The lib-level `test_credential_helper_e2e_server_mode` exercises the
 //! lookup function directly. This test goes one layer deeper: it spawns
-//! the actual `codeg-server` binary with `--credential-helper`, pipes the
+//! the actual `yoyocode-server` binary with `--credential-helper`, pipes the
 //! git credential protocol through stdin, and asserts on stdout. That
 //! covers the parts the lib test can't reach — the binary's main()
 //! short-circuit, real argv parsing, real stdin reading, and the exact
@@ -79,7 +79,7 @@ async fn helper_subprocess_emits_username_and_password_for_seeded_host() {
     )
     .expect("write tokens.json");
 
-    let binary = env!("CARGO_BIN_EXE_codeg-server");
+    let binary = env!("CARGO_BIN_EXE_yoyocode-server");
     let mut child = Command::new(binary)
         .arg("--credential-helper")
         .arg("--data-dir")
@@ -93,7 +93,7 @@ async fn helper_subprocess_emits_username_and_password_for_seeded_host() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn codeg-server --credential-helper");
+        .expect("spawn yoyocode-server --credential-helper");
 
     // git's credential protocol: lines of `key=value`, terminated by a
     // blank line. We only need `host=` for the lookup.
@@ -145,7 +145,7 @@ async fn helper_subprocess_outputs_nothing_for_unconfigured_host() {
             .expect("init db");
     }
 
-    let binary = env!("CARGO_BIN_EXE_codeg-server");
+    let binary = env!("CARGO_BIN_EXE_yoyocode-server");
     let mut child = Command::new(binary)
         .arg("--credential-helper")
         .arg("--data-dir")
@@ -157,7 +157,7 @@ async fn helper_subprocess_outputs_nothing_for_unconfigured_host() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn codeg-server --credential-helper");
+        .expect("spawn yoyocode-server --credential-helper");
 
     {
         let mut stdin = child.stdin.take().expect("subprocess stdin");

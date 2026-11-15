@@ -695,7 +695,7 @@ fn open_refusal(
          --url"
             .to_string()
     } else if runtime != crate::cli_run::wire::RuntimeKind::Desktop {
-        format!("--open needs the desktop app; {source} is a codeg-server")
+        format!("--open needs the desktop app; {source} is a yoyocode-server")
     } else {
         return None;
     };

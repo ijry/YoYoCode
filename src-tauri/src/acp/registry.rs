@@ -2726,7 +2726,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // version only. No harness scenario runs a Monitor, so (mmmm) was
             // measured live against the local fake Anthropic API (no model
             // call), 0.97.0 and 0.98.0 side by side, and both through
-            // codeg-server in a browser.
+            // yoyocode-server in a browser.
             //
             // (mmmm) **Monitor tasks are published again, as monitors**
             // (#1452), undoing what (eee) recorded. The task of a `Monitor`

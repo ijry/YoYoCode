@@ -30,7 +30,7 @@ use crate::web::browser_tunnel::frame::TUNNEL_PATH;
 /// The name the tabs of a remote profile give the remote host's loopback on
 /// macOS. WebKit sends `localhost` and loopback addresses around any proxy
 /// (see `shim::macos`), but a `*.localhost` name goes through it, is still a
-/// secure context, and is loopback to the remote codeg-server (RFC 6761),
+/// secure context, and is loopback to the remote yoyocode-server (RFC 6761),
 /// which connects it to that host's own `localhost`. Dev servers take
 /// `*.localhost` for local too, so their host checks let it in.
 pub const ALIAS_HOST: &str = "remote.localhost";
@@ -41,9 +41,9 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 /// This build or this machine cannot give remote tabs an egress (macOS before
 /// 14 has no data store of a profile's own to proxy).
 pub const BROWSER_I18N_KEY_REMOTE_UNAVAILABLE: &str = "browser.remote.error.unavailable";
-/// The remote codeg-server predates the tunnel.
+/// The remote yoyocode-server predates the tunnel.
 pub const BROWSER_I18N_KEY_REMOTE_UNSUPPORTED: &str = "browser.remote.error.unsupported";
-/// The remote codeg-server has its tunnel switched off.
+/// The remote yoyocode-server has its tunnel switched off.
 pub const BROWSER_I18N_KEY_REMOTE_DISABLED: &str = "browser.remote.error.disabled";
 /// The tunnel could not be opened; `{reason}` says why.
 pub const BROWSER_I18N_KEY_REMOTE_UNREACHABLE: &str = "browser.remote.error.unreachable";
@@ -183,15 +183,15 @@ fn display_host(base_url: &str) -> String {
 fn tunnel_refusal(status: EgressStatus) -> AppCommandError {
     match status {
         EgressStatus::Unsupported => AppCommandError::dependency_missing(
-            "the remote codeg-server cannot carry browser traffic; update it to open its addresses here",
+            "the remote yoyocode-server cannot carry browser traffic; update it to open its addresses here",
         )
         .with_i18n(BROWSER_I18N_KEY_REMOTE_UNSUPPORTED, BTreeMap::new()),
         EgressStatus::Disabled => AppCommandError::permission_denied(
-            "the remote codeg-server has its browser tunnel switched off",
+            "the remote yoyocode-server has its browser tunnel switched off",
         )
         .with_i18n(BROWSER_I18N_KEY_REMOTE_DISABLED, BTreeMap::new()),
         EgressStatus::Down { reason } => AppCommandError::network(format!(
-            "cannot reach the remote codeg-server's browser tunnel: {reason}"
+            "cannot reach the remote yoyocode-server's browser tunnel: {reason}"
         ))
         .with_i18n(
             BROWSER_I18N_KEY_REMOTE_UNREACHABLE,

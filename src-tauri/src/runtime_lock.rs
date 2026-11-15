@@ -1,7 +1,7 @@
 //! Who may use a data directory's database: one lock that says only "a
 //! runtime is alive here".
 //!
-//! Every runtime — the desktop app, `codeg-server` — holds a SHARED lock on
+//! Every runtime — the desktop app, `yoyocode-server` — holds a SHARED lock on
 //! `<data dir>/<database file>.runtime.lock` from before it opens the
 //! database until it exits. The private server `yoyo-cli --standalone`
 //! starts (with [`EXCLUSIVE_ENV`]) takes it EXCLUSIVE instead, and only when

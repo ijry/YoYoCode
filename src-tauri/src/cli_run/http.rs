@@ -1,7 +1,7 @@
 //! `/api/cli_*`: the routes `yoyo-cli` talks to.
 //!
 //! Mounted twice, on the same handlers: under the main `/api` router (main
-//! token; how CI reaches a remote `codeg-server`), and on the loopback-only
+//! token; how CI reaches a remote `yoyocode-server`), and on the loopback-only
 //! listener a runtime opens for the CLIs of its own machine (per-launch CLI
 //! token; see `listener.rs`).
 

@@ -49,7 +49,7 @@ struct Args {
     parent_connection_id: String,
     socket_path: String,
     token: String,
-    /// Optional PID of the codeg / codeg-server process that owns this
+    /// Optional PID of the codeg / yoyocode-server process that owns this
     /// session. When set, yoyocode-mcp exits as soon as the parent is gone so
     /// orphaned companions don't keep the binary file locked (Windows
     /// upgrade failure) or hold open a UDS / pipe nobody will ever read

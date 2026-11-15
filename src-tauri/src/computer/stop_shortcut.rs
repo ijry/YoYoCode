@@ -24,7 +24,7 @@ use serde::Serialize;
 use crate::computer::keys::Platform;
 
 /// Where the stop shortcut stands. Held with the OS by the desktop app
-/// alone: codeg-server has none, and says so with this left empty.
+/// alone: yoyocode-server has none, and says so with this left empty.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StopKeyStatus {

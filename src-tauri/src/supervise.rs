@@ -1,4 +1,4 @@
-//! `codeg-server --supervise` — a minimal process supervisor that owns the
+//! `yoyocode-server --supervise` — a minimal process supervisor that owns the
 //! lifecycle of the real worker so an in-place upgrade can swap the binary
 //! and have the *new* version relaunched deterministically.
 //!

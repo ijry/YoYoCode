@@ -165,11 +165,11 @@ mod tests {
     const PAYLOAD: &[u8] = b"codeg release payload";
     const SIGNED_FOR_1_2_3: &str = "untrusted comment: signature from tauri secret key\n\
         RUT6tXESjPWap9e0BMiOsY2EtpW0O59HcNiDZ1LR1PT/T28QTZFOL25XM3JTHRifgZxesxUmVgD5AoXc+QPOTKiVllA1HDmiwQc=\n\
-        trusted comment: timestamp:1792063972\tfile:codeg-server-x86_64-unknown-linux-gnu.tar.gz\tversion:1.2.3\n\
+        trusted comment: timestamp:1792063972\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\tversion:1.2.3\n\
         z3vufMYf/CuVl47mBcYK/Q9g4B7YdXxoDSronvaM0/sVycxIhy3xYja5ZpEfx4IKUo8IyGzlMUpYuS8BY0NDBg==\n";
     const SIGNED_FOR_NO_VERSION: &str = "untrusted comment: signature from tauri secret key\n\
         RUT6tXESjPWapxohXyYsHgc5hjgoHYZAnpt+HWB8vOWwEeU/RZJvg8nzTt3At6MQPIdAC2/B3ZKlDvymtXcdoK/v+HZw3zYxgA4=\n\
-        trusted comment: timestamp:1792063972\tfile:codeg-server-x86_64-unknown-linux-gnu.tar.gz\n\
+        trusted comment: timestamp:1792063972\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\n\
         MfCKBGgrJEzgiR5HKWQdatdyrplwU57s+UJWo/1rxlJRyTzxqd7fpVLAsdfesEj0kICi2Hx1cgNNjgPIlUAACQ==\n";
 
     fn test_key() -> PublicKey {

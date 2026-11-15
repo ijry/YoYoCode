@@ -1,7 +1,7 @@
 //! The browser tunnel: how a remote-workspace window's built-in browser
 //! reaches this host.
 //!
-//! A desktop app connected to this codeg-server renders pages locally, but the
+//! A desktop app connected to this yoyocode-server renders pages locally, but the
 //! addresses those pages come from — `localhost:3000` printed by an agent
 //! here, a container at `172.17.0.2` — only exist from this host's side. The
 //! desktop runs a SOCKS5 listener for a browser profile of its own and carries

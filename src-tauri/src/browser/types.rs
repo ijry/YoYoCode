@@ -181,7 +181,7 @@ pub struct BrowserCapabilities {
     /// the host does not hold that window's webview.
     pub owned_window_controls: bool,
     /// A remote-workspace window's tabs can reach the remote host through
-    /// its codeg-server (`browser::remote`): a profile of their own to proxy
+    /// its yoyocode-server (`browser::remote`): a profile of their own to proxy
     /// (macOS 14+), and on macOS the embedded surface. Whether a given remote
     /// server carries the traffic is only known when a tab asks.
     pub remote_egress: bool,

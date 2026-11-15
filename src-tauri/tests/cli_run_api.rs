@@ -1,5 +1,5 @@
 //! `/api/cli_*` on the main router: what `codeg-cli --url … --token …` talks
-//! to on a remote `codeg-server`.
+//! to on a remote `yoyocode-server`.
 //!
 //! The loopback listener (CLI token, `Host` check, discovery file) is tested
 //! next to it, in `cli_run::listener`. Runs that reach an agent are tested

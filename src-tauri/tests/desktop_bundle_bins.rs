@@ -81,7 +81,7 @@ fn only_codeg_is_a_binary_target_tauri_build_bundles() {
     }
     assert!(
         others >= 4,
-        "codeg-server, codeg-mcp, the helper and yoyo-cli"
+        "yoyocode-server, codeg-mcp, the helper and yoyo-cli"
     );
 }
 

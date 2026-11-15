@@ -1,4 +1,4 @@
-//! `yoyo-cli --standalone`: a codeg-server of the command's own, for a job
+//! `yoyo-cli --standalone`: a yoyocode-server of the command's own, for a job
 //! with no codeg running — started on a data directory of its own (a fresh
 //! temporary one, or `--data-dir`), used for this one command, stopped when
 //! the command ends.
@@ -57,7 +57,7 @@ impl Standalone {
             Failure::new(
                 Subtype::ErrorRuntimeUnavailable,
                 "no_server",
-                "--standalone starts a codeg-server, and there is none next to yoyo-cli or on \
+                "--standalone starts a yoyocode-server, and there is none next to yoyo-cli or on \
                  PATH",
             )
             .with_next_steps([
@@ -194,7 +194,7 @@ impl Standalone {
                         Subtype::ErrorRuntimeUnavailable,
                         "standalone_failed",
                         format!(
-                            "the --standalone codeg-server ended at startup ({status}){}",
+                            "the --standalone yoyocode-server ended at startup ({status}){}",
                             last_lines(stderr_tail)
                         ),
                     ),
@@ -211,14 +211,14 @@ impl Standalone {
                     Some(d) if d <= give_up => Failure::new(
                         Subtype::ErrorTimeout,
                         "timeout",
-                        "--timeout ran out while the --standalone codeg-server started; nothing \
+                        "--timeout ran out while the --standalone yoyocode-server started; nothing \
                          was sent",
                     ),
                     _ => Failure::new(
                         Subtype::ErrorRuntimeUnavailable,
                         "standalone_failed",
                         format!(
-                            "the --standalone codeg-server did not come up within {} s{}",
+                            "the --standalone yoyocode-server did not come up within {} s{}",
                             START_TIMEOUT.as_secs(),
                             last_lines(stderr_tail)
                         ),
@@ -253,19 +253,19 @@ impl Standalone {
     }
 }
 
-/// `codeg-server` next to this program — as the server package installs the
+/// `yoyocode-server` next to this program — as the server package installs the
 /// two — or else on PATH.
 fn locate_server() -> Option<PathBuf> {
     let name = if cfg!(windows) {
-        "codeg-server.exe"
+        "yoyocode-server.exe"
     } else {
-        "codeg-server"
+        "yoyocode-server"
     };
     let beside = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join(name)))
         .filter(|p| p.metadata().is_ok_and(|m| m.is_file() && m.len() > 0));
-    beside.or_else(|| which::which("codeg-server").ok())
+    beside.or_else(|| which::which("yoyocode-server").ok())
 }
 
 fn last_lines(tail: &Arc<Mutex<VecDeque<String>>>) -> String {

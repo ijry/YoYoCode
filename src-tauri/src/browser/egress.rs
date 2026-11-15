@@ -7,7 +7,7 @@
 //! network leaves from there. Each remote connection gets a browser profile
 //! of its own whose proxy is a SOCKS5 listener on this computer's loopback;
 //! every connection that profile makes is carried as one stream over a single
-//! WebSocket to the remote codeg-server's tunnel (`web/browser_tunnel`), which
+//! WebSocket to the remote yoyocode-server's tunnel (`web/browser_tunnel`), which
 //! connects to the destination from its side. Nothing is rewritten on the
 //! way: the tunnel moves bytes, so TLS, WebSockets and HTTP/2 are exactly what
 //! they would be on the remote host.
@@ -252,9 +252,9 @@ pub enum EgressStatus {
     /// The WebSocket dropped or could not be opened; the next connection a
     /// tab makes tries again.
     Down { reason: String },
-    /// The remote codeg-server has no tunnel (an older version).
+    /// The remote yoyocode-server has no tunnel (an older version).
     Unsupported,
-    /// The remote codeg-server's tunnel is switched off.
+    /// The remote yoyocode-server's tunnel is switched off.
     Disabled,
 }
 

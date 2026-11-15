@@ -29,7 +29,7 @@ pub fn build_router(
 }
 
 /// `proxy_auth` turns on the opt-in proxy-JWT authentication beside the
-/// token (`CODEG_AUTH=proxy-jwt`, standalone `codeg-server` only); `None` is
+/// token (`CODEG_AUTH=proxy-jwt`, standalone `yoyocode-server` only); `None` is
 /// the same as `build_router`.
 pub fn build_router_with_proxy_auth(
     state: Arc<AppState>,
@@ -148,7 +148,7 @@ pub fn build_router_with_proxy_auth(
             "/set_computer_tools_preferences",
             post(handlers::computer_tools::set_computer_tools_preferences),
         )
-        // Computer use itself: answered only by a codeg-server let share the
+        // Computer use itself: answered only by a yoyocode-server let share the
         // screen it runs on (see `handlers::computer`).
         .route(
             "/computer_available",

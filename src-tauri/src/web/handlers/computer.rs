@@ -1,7 +1,7 @@
 //! HTTP handlers for codeg's Computer use panel — the web-mode mirror of the
 //! Tauri commands in `commands::computer`.
 //!
-//! Only codeg-server answers them, and only where the person who runs it has
+//! Only yoyocode-server answers them, and only where the person who runs it has
 //! let it share the screen it runs on (`CODEG_COMPUTER_USE`): its web
 //! clients — each holding the server's token, as every route here requires —
 //! are then the only panel there is, from which windows are shared and Stop
@@ -36,7 +36,7 @@ use crate::computer::targets::SharedWindow;
 fn served(state: &AppState) -> Result<&Arc<ComputerService>, AppCommandError> {
     state.computer_service.get().ok_or_else(|| {
         AppCommandError::configuration_invalid(
-            "computer use is not available here: codeg-server offers it only when started with \
+            "computer use is not available here: yoyocode-server offers it only when started with \
              CODEG_COMPUTER_USE=1 in a desktop session, and the desktop app only in its own \
              window",
         )

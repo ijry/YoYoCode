@@ -749,8 +749,8 @@ mod tests {
             .with_timezone(&chrono::Utc);
         assert_eq!(daily_file_name("codeg", "log", day), "codeg.2026-09-09.log");
         assert_eq!(
-            daily_file_name("codeg-server", "log", day),
-            "codeg-server.2026-09-09.log"
+            daily_file_name("yoyocode-server", "log", day),
+            "yoyocode-server.2026-09-09.log"
         );
     }
 
@@ -763,14 +763,14 @@ mod tests {
         std::fs::write(dir.path().join(format!("codeg.{today}.log")), vec![b'x'; 77]).unwrap();
         // A different day's file, and an unrelated file, must not be counted.
         std::fs::write(dir.path().join("codeg.1999-01-01.log"), vec![b'x'; 5000]).unwrap();
-        std::fs::write(dir.path().join("codeg-server.log"), vec![b'x'; 5000]).unwrap();
+        std::fs::write(dir.path().join("yoyocode-server.log"), vec![b'x'; 5000]).unwrap();
 
         let (day, existing) = resume_point(dir.path(), "codeg", "log");
         assert_eq!(existing, 77);
         assert_eq!(day, unix_day_from_secs(now.timestamp()));
 
         // A prefix with no file today reads as a clean slate, not an error.
-        let (_, none) = resume_point(dir.path(), "codeg-server", "log");
+        let (_, none) = resume_point(dir.path(), "yoyocode-server", "log");
         assert_eq!(none, 0);
     }
 

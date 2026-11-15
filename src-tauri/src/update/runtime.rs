@@ -125,9 +125,9 @@ pub fn self_exe() -> PathBuf {
             std::env::current_exe().unwrap_or_else(|_| {
                 // Last-resort fallback: resolve via PATH at exec time.
                 PathBuf::from(if cfg!(windows) {
-                    "codeg-server.exe"
+                    "yoyocode-server.exe"
                 } else {
-                    "codeg-server"
+                    "yoyocode-server"
                 })
             })
         })

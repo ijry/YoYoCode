@@ -286,7 +286,7 @@ pub async fn open(global: &GlobalArgs, args: &OpenArgs, env: &Env) -> i32 {
                     "open_timeout",
                     format!(
                         "no desktop answered within {}s. On Linux this machine may have no \
-                         codeg:// handler registered (only codeg-server installed, or an \
+                         codeg:// handler registered (only yoyocode-server installed, or an \
                          AppImage that was never started): open the desktop app once by hand.",
                         args.wait.as_secs()
                     ),

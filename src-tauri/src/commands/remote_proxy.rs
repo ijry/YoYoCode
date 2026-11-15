@@ -1,6 +1,6 @@
 //! Remote-workspace IPC proxy.
 //!
-//! When a desktop window is opened against a remote codeg-server, every API
+//! When a desktop window is opened against a remote yoyocode-server, every API
 //! call and WebSocket event for that connection is funnelled through Rust
 //! commands defined here. The webview never opens an HTTP/WS connection to
 //! the remote host directly — that path is blocked by the Tauri webview's
@@ -358,7 +358,7 @@ impl Default for RemoteProxyState {
 
 // ─── HTTP proxy command ────────────────────────────────────────────────
 
-/// Forward an HTTP API call to the remote codeg-server identified by
+/// Forward an HTTP API call to the remote yoyocode-server identified by
 /// `connection_id`. The frontend's `RemoteDesktopTransport.call(cmd, args)`
 /// delegates to this; it never opens a fetch from the webview.
 ///
@@ -426,7 +426,7 @@ pub async fn remote_http_call(
 
     if !status.is_success() {
         let raw_body = response.text().await.unwrap_or_default();
-        // The remote codeg-server always returns `Json(AppCommandError)`
+        // The remote yoyocode-server always returns `Json(AppCommandError)`
         // on errors (see `web/handlers/error.rs::IntoResponse`). Try to
         // deserialize so the caller sees the original code + i18n hint.
         if let Ok(structured) = serde_json::from_str::<AppCommandError>(&raw_body) {
@@ -467,7 +467,7 @@ pub async fn remote_cache_forge_image(
         .ok_or_else(|| AppCommandError::not_found("Remote connection not found"))?;
     let endpoint = format!("{}{}", conn.base_url.trim_end_matches('/'), url);
     let key = image_cache::cache_key(&[
-        "codeg-server", &connection_id.to_string(), &conn.base_url, &conn.token, &url,
+        "yoyocode-server", &connection_id.to_string(), &conn.base_url, &conn.token, &url,
     ]);
     let client = crate::forge::http_client()?;
     let image = image_cache::get_or_download(
@@ -628,7 +628,7 @@ pub async fn read_local_file_for_upload(
 }
 
 /// Forward a multipart upload (file bytes + optional session bucket) to the
-/// remote codeg-server identified by `connection_id`. Sibling of
+/// remote yoyocode-server identified by `connection_id`. Sibling of
 /// `remote_http_call`, but multipart-shaped — the JSON proxy can't carry
 /// binary bodies, and webview `fetch` to a plain `http://` remote is
 /// blocked by mixed-content rules, so we cannot have the frontend hit
@@ -811,7 +811,7 @@ fn guess_mime_from_path(path: &std::path::Path) -> Option<String> {
 
 // ─── Workspace file upload / download proxy ───────────────────────────
 //
-// Issue #179 follow-up: a Tauri client bound to a remote codeg-server
+// Issue #179 follow-up: a Tauri client bound to a remote yoyocode-server
 // previously had no path to upload/download workspace files. The web
 // build hits `/api/upload_workspace_file` etc. directly, but a webview
 // against a plain `http://` remote is blocked by mixed-content rules
@@ -1469,7 +1469,7 @@ async fn remote_error_from_response(
 /// Resolve the download URL the remote handed back, and refuse one that leaves
 /// the connection's origin.
 ///
-/// `codeg-server` always answers with a path (`create_download_ticket` builds
+/// `yoyocode-server` always answers with a path (`create_download_ticket` builds
 /// `/api/workspace_download/<ticket>`), so the absolute branch only ever fires
 /// for a remote that went off-script. It matters because this is the one
 /// request that carries the connection's custom headers with no bearer token
@@ -2057,7 +2057,7 @@ async fn backoff_sleep(shutdown_rx: &mut watch::Receiver<bool>, fail_count: u32)
 }
 
 /// Forward a text frame from the remote WS to all current subscribers of
-/// this connection. The remote codeg-server's `ws.rs` emits frames shaped
+/// this connection. The remote yoyocode-server's `ws.rs` emits frames shaped
 /// `{ "channel": "...", "payload": ... }` (see `WebEventBroadcaster`).
 /// We re-emit the payload as-is into the Tauri event named
 /// `remote-ws-event-{connection_id}`, but only to webview labels listed in
@@ -2191,7 +2191,7 @@ pub(crate) fn ws_request_with_subprotocol_auth(
 /// connect timeout cancels it, and the next is never tried. Windows resolves
 /// `localhost` to `::1` before `127.0.0.1`, and WSL's mirrored networking
 /// leaves a SYN from Windows to `::1` unanswered: a connection to a
-/// codeg-server in WSL at `http://localhost:…` served every HTTP call while
+/// yoyocode-server in WSL at `http://localhost:…` served every HTTP call while
 /// its event socket timed out on every retry (#930). Those HTTP calls, like
 /// any browser, give the first address family a head start and then race the
 /// other one (Happy Eyeballs), so this dials through the same connector
@@ -2298,7 +2298,7 @@ mod tests {
 
     #[test]
     fn ticket_url_resolves_a_path_against_the_connection() {
-        // The only shape `codeg-server` actually returns.
+        // The only shape `yoyocode-server` actually returns.
         assert_eq!(
             absolute_remote_ticket_url("https://box.example", "/api/workspace_download/t1")
                 .unwrap(),

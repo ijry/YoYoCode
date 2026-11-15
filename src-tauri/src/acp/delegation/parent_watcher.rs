@@ -7,7 +7,7 @@
 //! leave `yoyocode-mcp` running forever, holding open the binary file and a
 //! companion connection that no one will ever read from.
 //!
-//! When the parent codeg / codeg-server passes `--parent-pid <pid>` on
+//! When the parent codeg / yoyocode-server passes `--parent-pid <pid>` on
 //! the command line, `yoyocode-mcp` spawns this watchdog. It polls the OS
 //! every couple of seconds and, the moment the parent PID stops existing,
 //! tears down the process. Polling (vs. a kernel notification) keeps the

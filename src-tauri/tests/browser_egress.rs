@@ -165,7 +165,7 @@ async fn a_port_nobody_listens_on_is_refused_in_socks_terms() {
     assert_eq!(code, 0x05, "connection refused");
 }
 
-// An older codeg-server has no tunnel; a server that switched it off says so;
+// An older yoyocode-server has no tunnel; a server that switched it off says so;
 // a wrong token is neither. The tabs tell these apart.
 #[tokio::test]
 async fn what_the_server_is_decides_the_status() {

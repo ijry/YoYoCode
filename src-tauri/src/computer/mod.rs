@@ -99,7 +99,7 @@ pub mod spawn;
 pub mod tcc;
 
 // codeg's side of the helper and the events it raises: the desktop app's,
-// and codeg-server's where the person who runs it lets it share the screen
+// and yoyocode-server's where the person who runs it lets it share the screen
 // it runs on (`CODEG_COMPUTER_USE`).
 pub mod driver_admin;
 pub mod events;

@@ -504,7 +504,7 @@ pub struct Scheduler {
 static SCHEDULER: OnceLock<Arc<Scheduler>> = OnceLock::new();
 
 /// Build this process's scheduler and publish it, then spawn [`run`] with it.
-/// Desktop setup and codeg-server each do this once; a second call returns
+/// Desktop setup and yoyocode-server each do this once; a second call returns
 /// `None`.
 pub fn build(emitter: EventEmitter) -> Option<Arc<Scheduler>> {
     let (kicks, receiver) = mpsc::unbounded_channel();

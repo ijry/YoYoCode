@@ -6,7 +6,7 @@ use crate::app_error::AppCommandError;
 use crate::terminal::shell_flavor::{classify_shell_family, ShellFamily};
 
 /// Run a folder command on the machine this desktop app runs on, even when the
-/// window is bound to a remote codeg-server.
+/// window is bound to a remote yoyocode-server.
 ///
 /// Every other folder-command path goes through the window's transport, which
 /// in a remote-desktop window means the remote host. This one is only ever
