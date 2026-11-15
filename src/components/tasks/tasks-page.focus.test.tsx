@@ -46,6 +46,7 @@ vi.mock("./task-deliver-pr-dialog", () => ({
   TaskDeliverPrDialog: () => null,
 }))
 vi.mock("./task-cancel-dialog", () => ({ TaskCancelDialog: () => null }))
+vi.mock("./task-follow-up-dialog", () => ({ TaskFollowUpDialog: () => null }))
 vi.mock("./task-restart-dialog", () => ({ TaskRestartDialog: () => null }))
 vi.mock("./task-schedule-dialog", () => ({ TaskScheduleDialog: () => null }))
 vi.mock("./task-settings-dialog", () => ({ TaskSettingsDialog: () => null }))

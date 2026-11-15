@@ -342,7 +342,7 @@ describe("MessageListView", () => {
     ]) {
       expect(commandsPassedBy(surface)).toBe("connectionCommands")
       expect(read(surface)).toMatch(
-        /const connectionCommands = connIsForOtherAgent \? null : conn\.availableCommands\n/
+        /const connectionCommands = connIsForOtherAgent \? null : conn\.availableCommands\r?\n/
       )
     }
   })
