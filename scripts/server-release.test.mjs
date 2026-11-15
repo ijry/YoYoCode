@@ -92,15 +92,14 @@ test("server identity rejects a noncanonical PLUS iteration", (t) => {
   assert.match(result.stderr, /iteration/)
 })
 
-test("CI packages both asset names with matching roots and unchanged executables", (t) => {
+test("CI packages one asset with a matching root and unchanged executables", (t) => {
   const dir = scratch(t)
   const matrix = server.strategy.matrix.include.find(
     (entry) => entry.target === "x86_64-unknown-linux-gnu"
   )
   assert.equal(matrix.artifact, "yoyocode-server-linux-x64")
-  assert.equal(matrix.legacy_artifact, "codeg-server-linux-x64")
   const bins = [
-    "codeg-server",
+    "yoyocode-server",
     "yoyocode-mcp",
     "codeg-computer-helper",
     "yoyo-cli",
@@ -116,14 +115,13 @@ test("CI packages both asset names with matching roots and unchanged executables
     (_, key) => matrix[key]
   )
   run("bash", ["-e", "-c", script], dir)
-  for (const name of [matrix.artifact, matrix.legacy_artifact]) {
-    const entries = run("tar", ["tzf", `dist/${name}.tar.gz`], dir)
-      .trim()
-      .split(/\r?\n/)
-    for (const bin of bins) assert.ok(entries.includes(`${name}/${bin}`))
-    assert.ok(entries.includes(`${name}/web/index.html`))
-    assert.ok(entries.every((entry) => entry.startsWith(`${name}/`)))
-  }
+  const name = matrix.artifact
+  const entries = run("tar", ["tzf", `dist/${name}.tar.gz`], dir)
+    .trim()
+    .split(/\r?\n/)
+  for (const bin of bins) assert.ok(entries.includes(`${name}/${bin}`))
+  assert.ok(entries.includes(`${name}/web/index.html`))
+  assert.ok(entries.every((entry) => entry.startsWith(`${name}/`)))
   const dockerDownloads = workflow.jobs["build-docker"].steps
     .filter((entry) => entry.uses === "actions/download-artifact@v4")
     .map((entry) => entry.with.name)
@@ -134,7 +132,7 @@ test("CI packages both asset names with matching roots and unchanged executables
 })
 
 test(
-  "Windows CI packages both asset roots",
+  "Windows CI packages one asset root",
   { skip: process.platform !== "win32" },
   (t) => {
     const dir = scratch(t)
@@ -144,7 +142,7 @@ test(
     const binDir = join(dir, "src-tauri/target", matrix.target, "release")
     mkdirSync(binDir, { recursive: true })
     for (const bin of [
-      "codeg-server",
+      "yoyocode-server",
       "yoyocode-mcp",
       "codeg-computer-helper",
       "yoyo-cli",
@@ -163,11 +161,10 @@ test(
     writeFileSync(
       join(dir, "package.ps1"),
       `$ErrorActionPreference = 'Stop'\n${script}\n
-    foreach ($name in @('yoyocode-server-windows-x64', 'codeg-server-windows-x64')) {
-      Expand-Archive -Path "dist/$name.zip" -DestinationPath "check/$name"
-      foreach ($leaf in @('codeg-server.exe', 'yoyocode-mcp.exe', 'codeg-computer-helper.exe', 'yoyo-cli.exe', 'web/index.html')) {
-        if (-not (Test-Path "check/$name/$name/$leaf")) { throw "Missing $name/$leaf" }
-      }
+    $name = 'yoyocode-server-windows-x64'
+    Expand-Archive -Path "dist/$name.zip" -DestinationPath "check/$name"
+    foreach ($leaf in @('yoyocode-server.exe', 'yoyocode-mcp.exe', 'codeg-computer-helper.exe', 'yoyo-cli.exe', 'web/index.html')) {
+      if (-not (Test-Path "check/$name/$name/$leaf")) { throw "Missing $name/$leaf" }
     }
   `
     )

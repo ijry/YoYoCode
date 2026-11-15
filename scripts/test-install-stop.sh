@@ -147,18 +147,18 @@ mkdir -p "$T/install" "$T/other" "$T/stale" "$T/elsewhere" "$T/stale-link" \
   "$T/releases" "$T/install2" "$T/alias"
 # INSTALL_DIR is given through a symlink, as /usr/local/bin may be.
 ln -s "$T/install" "$T/linked"
-for _f in install/codeg-server install/yoyocode-mcp other/codeg-server other/yoyocode-mcp \
-  stale/codeg-server stale/yoyocode-mcp stale/yoyo-cli elsewhere/codeg-server \
-  releases/codeg-server-v1 mapper; do
+for _f in install/yoyocode-server install/yoyocode-mcp other/yoyocode-server other/yoyocode-mcp \
+  stale/yoyocode-server stale/yoyocode-mcp stale/yoyo-cli elsewhere/yoyocode-server \
+  releases/yoyocode-server-v1 mapper; do
   cp "$T/fake" "$T/$_f"
 done
 # A stale PATH entry that is only a link to another install: cleanup removes
 # the link, which changes nothing that runs.
-ln -s "$T/elsewhere/codeg-server" "$T/stale-link/codeg-server"
-# An install whose codeg-server is a link to a versioned file, and another
+ln -s "$T/elsewhere/yoyocode-server" "$T/stale-link/yoyocode-server"
+# An install whose yoyocode-server is a link to a versioned file, and another
 # name for that file.
-ln -s "$T/releases/codeg-server-v1" "$T/install2/codeg-server"
-ln "$T/releases/codeg-server-v1" "$T/alias/cs"
+ln -s "$T/releases/yoyocode-server-v1" "$T/install2/yoyocode-server"
+ln "$T/releases/yoyocode-server-v1" "$T/alias/cs"
 
 # A path for a fake to make once it is ready: none there yet.
 ready_file() {
@@ -216,9 +216,9 @@ expect_no_out() {
   CHECKS=$((CHECKS + 1))
   if grep -qF -- "$2" "$T/out"; then fail "$1: '$2' in what the section printed"; fi
 }
-# Whether the section named pid $2 among the codeg-servers it left running.
+# Whether the section named pid $2 among the yoyocode-servers it left running.
 left_running() {
-  grep -qE "^Left running: codeg-server \(pid( [0-9]+)* $1( [0-9]+)*\)" "$T/out"
+  grep -qE "^Left running: yoyocode-server \(pid( [0-9]+)* $1( [0-9]+)*\)" "$T/out"
 }
 expect_left_running() {
   CHECKS=$((CHECKS + 1))
@@ -247,24 +247,24 @@ section() {
 # ── 1. Cleanup on: what runs from the install, or a stale copy, stops ──
 
 # Started from the file a later install replaced: it runs a deleted one.
-DELETED="$(spawn "$T/install/codeg-server")"
-rm "$T/install/codeg-server"
-cp "$T/fake" "$T/install/codeg-server"
+DELETED="$(spawn "$T/install/yoyocode-server")"
+rm "$T/install/yoyocode-server"
+cp "$T/fake" "$T/install/yoyocode-server"
 
-ABSOLUTE="$(spawn "$T/install/codeg-server")"
+ABSOLUTE="$(spawn "$T/install/yoyocode-server")"
 # shellcheck disable=SC2016 # for the shell it starts
-RELATIVE="$(spawn sh -c 'cd "$1" && exec ./codeg-server' _ "$T/install")"
-LINKED="$(spawn "$T/linked/codeg-server")"
-STUBBORN="$(spawn "$T/install/codeg-server" --ignore-term)"
+RELATIVE="$(spawn sh -c 'cd "$1" && exec ./yoyocode-server' _ "$T/install")"
+LINKED="$(spawn "$T/linked/yoyocode-server")"
+STUBBORN="$(spawn "$T/install/yoyocode-server" --ignore-term)"
 MCP="$(spawn "$T/install/yoyocode-mcp")"
-OTHER="$(spawn "$T/other/codeg-server")"
+OTHER="$(spawn "$T/other/yoyocode-server")"
 OTHER_MCP="$(spawn "$T/other/yoyocode-mcp")"
-STALE="$(spawn "$T/stale/codeg-server")"
+STALE="$(spawn "$T/stale/yoyocode-server")"
 STALE_MCP="$(spawn "$T/stale/yoyocode-mcp")"
 STALE_CLI="$(spawn "$T/stale/yoyo-cli")"
-LINK_TARGET="$(spawn "$T/elsewhere/codeg-server")"
+LINK_TARGET="$(spawn "$T/elsewhere/yoyocode-server")"
 # A program that has the install's file mapped, without running it.
-MAPPER="$(spawn "$T/mapper" --map "$T/install/codeg-server")"
+MAPPER="$(spawn "$T/mapper" --map "$T/install/yoyocode-server")"
 
 # Linux: a process of another mount namespace reports a path of its own
 # filesystem. One that runs another file under the install's path stays; one
@@ -283,9 +283,9 @@ if [ "$PLATFORM" = "linux" ]; then
   if [ -n "$UNSHARE" ]; then
     # shellcheck disable=SC2086,SC2016 # $UNSHARE is words; the rest is for sh
     ELSEWHERE="$(spawn $UNSHARE sh -c 'mount --bind "$1" "$2" && exec "$2"' _ \
-      "$T/other/codeg-server" "$T/install/codeg-server")"
+      "$T/other/yoyocode-server" "$T/install/yoyocode-server")"
     # shellcheck disable=SC2086 # $UNSHARE is words
-    SAME_FILE="$(spawn $UNSHARE "$T/install/codeg-server")"
+    SAME_FILE="$(spawn $UNSHARE "$T/install/yoyocode-server")"
   elif [ "$IS_ROOT" -eq 1 ]; then
     skip "no unshare: processes of other mount namespaces"
   else
@@ -299,7 +299,7 @@ if [ "$IS_ROOT" -eq 0 ]; then
   if sudo -n true 2>/dev/null; then
     _ready="$(ready_file)"
     ROOTS="$(sudo -n env FAKE_READY="$_ready" \
-      sh -c '"$1" </dev/null >/dev/null 2>&1 & echo $!' _ "$T/install/codeg-server")"
+      sh -c '"$1" </dev/null >/dev/null 2>&1 & echo $!' _ "$T/install/yoyocode-server")"
     echo "$ROOTS" >> "$ROOT_STARTED"
     wait_ready "$ROOTS" "$_ready" || exit 1
   else
@@ -308,16 +308,16 @@ if [ "$IS_ROOT" -eq 0 ]; then
 fi
 
 section "1. cleanup on" "$T/linked" 1 \
-  "$T/stale/codeg-server" "$T/stale/yoyocode-mcp" "$T/stale/yoyo-cli" "$T/stale-link/codeg-server"
+  "$T/stale/yoyocode-server" "$T/stale/yoyocode-mcp" "$T/stale/yoyo-cli" "$T/stale-link/yoyocode-server"
 expect_stopped "1: started from a file since replaced" "$DELETED"
 expect_stopped "1: started by its absolute path" "$ABSOLUTE"
 expect_stopped "1: started by a relative path" "$RELATIVE"
 expect_stopped "1: started through a symlinked directory" "$LINKED"
 expect_stopped "1: one that ignores SIGTERM" "$STUBBORN"
 expect_stopped "1: the install's yoyocode-mcp" "$MCP"
-expect_stopped "1: a stale codeg-server cleanup removes" "$STALE"
+expect_stopped "1: a stale yoyocode-server cleanup removes" "$STALE"
 expect_stopped "1: a stale yoyocode-mcp cleanup removes" "$STALE_MCP"
-expect_running "1: a codeg-server of another directory" "$OTHER"
+expect_running "1: a yoyocode-server of another directory" "$OTHER"
 expect_running "1: a yoyocode-mcp of another directory" "$OTHER_MCP"
 expect_running "1: a stale yoyo-cli" "$STALE_CLI"
 expect_running "1: what a stale link that cleanup removes points to" "$LINK_TARGET"
@@ -327,35 +327,35 @@ if [ -n "$ELSEWHERE" ]; then
   expect_stopped "1: the install's file, run in another namespace" "$SAME_FILE"
 fi
 if [ -n "$ROOTS" ]; then
-  expect_running "1: root's codeg-server" "$ROOTS"
+  expect_running "1: root's yoyocode-server" "$ROOTS"
   expect_left_running "1" "$ROOTS"
 fi
-expect_out "1" "Force stopping codeg-server"
-expect_out "1" "codeg-server stopped."
+expect_out "1" "Force stopping yoyocode-server"
+expect_out "1" "yoyocode-server stopped."
 expect_out "1" "yoyocode-mcp stopped."
 expect_out "1" "SERVER_STOPPED=1"
 expect_no_out "1" "Warning:"
 
 # ── 2. Cleanup off: a stale copy's processes stay ──
 
-STALE="$(spawn "$T/stale/codeg-server")"
+STALE="$(spawn "$T/stale/yoyocode-server")"
 STALE_MCP="$(spawn "$T/stale/yoyocode-mcp")"
 MCP="$(spawn "$T/install/yoyocode-mcp")"
-section "2. cleanup off" "$T/install" 0 "$T/stale/codeg-server" "$T/stale/yoyocode-mcp"
-expect_running "2: a stale codeg-server, kept" "$STALE"
+section "2. cleanup off" "$T/install" 0 "$T/stale/yoyocode-server" "$T/stale/yoyocode-mcp"
+expect_running "2: a stale yoyocode-server, kept" "$STALE"
 expect_running "2: a stale yoyocode-mcp, kept" "$STALE_MCP"
-expect_running "2: a codeg-server of another directory" "$OTHER"
+expect_running "2: a yoyocode-server of another directory" "$OTHER"
 expect_stopped "2: the install's yoyocode-mcp" "$MCP"
-expect_no_out "2" "Stopping codeg-server"
-# Only a codeg-server stopping asks for a restart.
+expect_no_out "2" "Stopping yoyocode-server"
+# Only a yoyocode-server stopping asks for a restart.
 expect_out "2" "SERVER_STOPPED=0"
 
 # ── 3. A first install: the directory is not there yet ──
 
-# And a zombie named codeg-server: it runs nothing, so it is not named.
+# And a zombie named yoyocode-server: it runs nothing, so it is not named.
 # shellcheck disable=SC2016 # for the shell it starts
 ZOMBIE_PARENT="$(spawn sh -c '"$1" & echo $! > "$2.new" && mv "$2.new" "$2"; exec sleep 300' _ \
-  "$T/install/codeg-server" "$T/zombie")"
+  "$T/install/yoyocode-server" "$T/zombie")"
 wait_ready "$ZOMBIE_PARENT" "$T/zombie" || exit 1
 ZOMBIE="$(cat "$T/zombie")"
 echo "$ZOMBIE" >> "$STARTED"
@@ -380,15 +380,15 @@ case "$(ps -o stat= -p "$ZOMBIE" 2>/dev/null || true)" in
   *) fail "3: pid $ZOMBIE never became a zombie" ;;
 esac
 section "3. first install" "$T/fresh/bin" 1
-expect_running "3: a codeg-server of another directory" "$OTHER"
+expect_running "3: a yoyocode-server of another directory" "$OTHER"
 expect_not_left_running "3: a zombie" "$ZOMBIE"
 expect_out "3" "SERVER_STOPPED=0"
 kill -9 "$ZOMBIE_PARENT"
 
-# ── 4. An install whose codeg-server is a link to a versioned file ──
+# ── 4. An install whose yoyocode-server is a link to a versioned file ──
 
-VERSIONED="$(spawn "$T/releases/codeg-server-v1")"
-THROUGH_LINK="$(spawn "$T/install2/codeg-server")"
+VERSIONED="$(spawn "$T/releases/yoyocode-server-v1")"
+THROUGH_LINK="$(spawn "$T/install2/yoyocode-server")"
 ALIAS=""
 if [ "$PLATFORM" = "linux" ]; then
   # Another name for the same file, a hard link: Linux tells it by inode.
@@ -400,7 +400,7 @@ expect_stopped "4: started through the install's link" "$THROUGH_LINK"
 if [ -n "$ALIAS" ]; then
   expect_stopped "4: started by another name for the file" "$ALIAS"
 fi
-expect_running "4: a codeg-server of another directory" "$OTHER"
+expect_running "4: a yoyocode-server of another directory" "$OTHER"
 expect_out "4" "SERVER_STOPPED=1"
 
 if [ "$FAILED" -ne 0 ]; then

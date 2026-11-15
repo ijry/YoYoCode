@@ -35,14 +35,12 @@ ARCH_SUFFIX=x64
 VERSION=v0.42.0-plus.10
 ${sh.match(/^REPO=.*$/m)[0]}
 ${sh.match(/^ARTIFACT=.*$/m)[0]}
-for prefix in yoyocode codeg; do
-  name="$prefix-server-linux-x64"
-  mkdir -p "$FIXTURE/$name/web"
-  printf server > "$FIXTURE/$name/codeg-server"
-  printf companion > "$FIXTURE/$name/yoyocode-mcp"
-  printf frontend > "$FIXTURE/$name/web/index.html"
-  tar czf "$FIXTURE/$name.tar.gz" -C "$FIXTURE" "$name"
-done
+name="yoyocode-server-linux-x64"
+mkdir -p "$FIXTURE/$name/web"
+printf server > "$FIXTURE/$name/yoyocode-server"
+printf companion > "$FIXTURE/$name/yoyocode-mcp"
+printf frontend > "$FIXTURE/$name/web/index.html"
+tar czf "$FIXTURE/$name.tar.gz" -C "$FIXTURE" "$name"
 curl() {
   local out='' url='' write_out=0 status
   while [ "$#" -gt 0 ]; do
@@ -66,7 +64,7 @@ curl() {
   esac
 }
 ${section(sh, "# ── Install binaries ──")}
-[ "$(< "$TMP_DIR/$ARTIFACT/codeg-server")" = server ]
+[ "$(< "$TMP_DIR/$ARTIFACT/yoyocode-server")" = server ]
 [ "$(< "$TMP_DIR/$ARTIFACT/yoyocode-mcp")" = companion ]
 [ "$(< "$TMP_DIR/$ARTIFACT/web/index.html")" = frontend ]
 printf '%s' "$ARTIFACT" > "$FIXTURE/extracted"
@@ -77,15 +75,13 @@ $ErrorActionPreference = "Stop"
 $Version = "v0.42.0-plus.10"
 ${ps.match(/^\$Repo =.*$/m)[0]}
 ${ps.match(/^\$Artifact =.*$/m)[0]}
-foreach ($prefix in @("yoyocode", "codeg")) {
-    $name = "$prefix-server-windows-x64"
-    $dir = Join-Path $env:FIXTURE $name
-    New-Item -ItemType Directory -Path (Join-Path $dir "web") -Force | Out-Null
-    Set-Content (Join-Path $dir "codeg-server.exe") "server"
-    Set-Content (Join-Path $dir "yoyocode-mcp.exe") "companion"
-    Set-Content (Join-Path $dir "web/index.html") "frontend"
-    Compress-Archive -Path $dir -DestinationPath (Join-Path $env:FIXTURE "$name.zip")
-}
+$name = "yoyocode-server-windows-x64"
+$dir = Join-Path $env:FIXTURE $name
+New-Item -ItemType Directory -Path (Join-Path $dir "web") -Force | Out-Null
+Set-Content (Join-Path $dir "yoyocode-server.exe") "server"
+Set-Content (Join-Path $dir "yoyocode-mcp.exe") "companion"
+Set-Content (Join-Path $dir "web/index.html") "frontend"
+Compress-Archive -Path $dir -DestinationPath (Join-Path $env:FIXTURE "$name.zip")
 $script:Requests = 0
 function Invoke-WebRequest {
     param($Uri, $OutFile, [switch]$UseBasicParsing)
@@ -105,7 +101,7 @@ function Invoke-WebRequest {
     throw $exception
 }
 ${section(ps, "# ── Install ──")}
-foreach ($entry in @(@("codeg-server.exe", "server"), @("yoyocode-mcp.exe", "companion"), @("web/index.html", "frontend"))) {
+foreach ($entry in @(@("yoyocode-server.exe", "server"), @("yoyocode-mcp.exe", "companion"), @("web/index.html", "frontend"))) {
     if ((Get-Content (Join-Path $ArtifactDir $entry[0])) -ne $entry[1]) { throw "Wrong extracted content" }
 }
 Set-Content (Join-Path $env:FIXTURE "extracted") $Artifact
@@ -116,11 +112,9 @@ for (const [shell, suffix, ext, script] of [
   [powershell, "windows-x64", "zip", psScript],
 ]) {
   for (const [label, first, second, expectedPrefix] of [
-    ["new asset", "200", "500", "yoyocode"],
-    ["404 falls back to legacy asset", "404", "200", "codeg"],
-    ["500 does not fall back", "500", "200", null],
-    ["connection failure does not fall back", "network", "200", null],
-    ["legacy 404 fails without another fallback", "404", "404", null],
+    ["successful download", "200", "500", "yoyocode"],
+    ["HTTP error fails without retry", "500", "200", null],
+    ["connection failure fails without retry", "network", "200", null],
   ]) {
     test(`${shell || "PowerShell"}: ${label}`, (t) => {
       assert.ok(shell, "PowerShell (pwsh or powershell) must be available")
@@ -156,7 +150,6 @@ for (const [shell, suffix, ext, script] of [
       const base =
         "https://github.com/ijry/YoYoCode/releases/download/v0.42.0-plus.10/"
       const expected = [`${base}yoyocode-server-${suffix}.${ext}`]
-      if (first === "404") expected.push(`${base}codeg-server-${suffix}.${ext}`)
       assert.deepEqual(
         readFileSync(join(dir, "requests"), "utf8").trim().split(/\r?\n/),
         expected

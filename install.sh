@@ -12,8 +12,8 @@ REPO="ijry/YoYoCode"
 INSTALL_DIR="${CODEG_INSTALL_DIR:-/usr/local/bin}"
 WEB_DIR="${CODEG_WEB_DIR:-/usr/local/share/codeg/web}"
 VERSION=""
-# Stale codeg-server / yoyocode-mcp binaries elsewhere in PATH are removed by
-# default so the user's `codeg-server` command always runs the freshly
+# Stale yoyocode-server / yoyocode-mcp binaries elsewhere in PATH are removed by
+# default so the user's `yoyocode-server` command always runs the freshly
 # installed binary AND the runtime locates the matching companion via the
 # exe-sibling lookup. Set CODEG_NO_CLEANUP=1 (or pass --no-cleanup) to
 # disable.
@@ -22,15 +22,15 @@ if [ "${CODEG_NO_CLEANUP:-0}" = "1" ]; then
   CLEANUP_CONFLICTS=0
 fi
 
-# Names of binaries this installer manages. `codeg-server` is the user-facing
+# Names of binaries this installer manages. `yoyocode-server` is the user-facing
 # entry point; `yoyocode-mcp` is the stdio MCP companion that the server's ACP
 # layer spawns per session for delegation. Both must live in the same
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
-MANAGED_BINS=(codeg-server yoyocode-mcp)
+MANAGED_BINS=(yoyocode-server yoyocode-mcp)
 # Looked for on PATH as well: the two above, and `yoyo-cli`, the command-line
 # client the release ships beside them (older releases do not).
-SCANNED_BINS=(codeg-server yoyocode-mcp yoyo-cli)
+SCANNED_BINS=(yoyocode-server yoyocode-mcp yoyo-cli)
 
 # ── Parse arguments ──
 
@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --version     Version to install (e.g. v0.5.0). Default: latest"
       echo "  --dir         Installation directory. Default: /usr/local/bin"
-      echo "  --no-cleanup  Keep stale codeg-server binaries found elsewhere in PATH"
+      echo "  --no-cleanup  Keep stale yoyocode-server binaries found elsewhere in PATH"
       echo "                (default: remove them so the new install is what runs)"
       echo ""
       echo "Environment:"
@@ -103,7 +103,7 @@ canon_path() {
   fi
 }
 
-# Read the version of a codeg-server binary (with a 3s timeout for old binaries
+# Read the version of a yoyocode-server binary (with a 3s timeout for old binaries
 # that lack --version support and would otherwise start the full server).
 read_bin_version() {
   local bin="$1"
@@ -227,20 +227,20 @@ priv_run() {
   fi
 }
 
-# ── Scan PATH for codeg-server binaries that shadow the target install ──
+# ── Scan PATH for yoyocode-server binaries that shadow the target install ──
 #
 # A binary "shadows" the install only if it appears in PATH BEFORE the
-# destination directory: that's the binary `command -v codeg-server` would
+# destination directory: that's the binary `command -v yoyocode-server` would
 # return after install. Walk PATH and stop at the destination directory —
 # anything past it cannot affect resolution today, so we leave it alone.
 
-DEST_BIN="${INSTALL_DIR}/codeg-server"
+DEST_BIN="${INSTALL_DIR}/yoyocode-server"
 DEST_BIN_REAL="$(canon_path "$DEST_BIN")"
 INSTALL_DIR_REAL="$(canon_path "$INSTALL_DIR")"
 
 # Scan PATH for both managed binaries — a stale `yoyocode-mcp` in an earlier
 # PATH entry would be picked by the runtime's `which` fallback once
-# `codeg-server` was upgraded out from under it, breaking delegation in
+# `yoyocode-server` was upgraded out from under it, breaking delegation in
 # subtle ways. Track conflicts uniformly for cleanup.
 PATH_CONFLICTS=()
 # Shadowing files that belong to the desktop app: reported, never removed.
@@ -274,17 +274,17 @@ for _dir in "${_PATH_DIRS[@]}"; do
 done
 
 # If the destination directory isn't on PATH, nothing "shadows" the install —
-# the new binary just won't be reachable as `codeg-server`. Drop any collected
+# the new binary just won't be reachable as `yoyocode-server`. Drop any collected
 # entries; the post-install check will tell the user to fix PATH instead.
 if [ "$DEST_IN_PATH" -eq 0 ]; then
   PATH_CONFLICTS=()
   DESKTOP_SHADOWS=()
 fi
 
-# What does `codeg-server` actually resolve to right now in PATH?
+# What does `yoyocode-server` actually resolve to right now in PATH?
 ACTIVE_BIN=""
-if command -v codeg-server >/dev/null 2>&1; then
-  ACTIVE_BIN="$(command -v codeg-server)"
+if command -v yoyocode-server >/dev/null 2>&1; then
+  ACTIVE_BIN="$(command -v yoyocode-server)"
 fi
 
 # ── Version detection — prefer the binary the user actually invokes ──
@@ -313,23 +313,23 @@ if [ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" = "$TARGET_VER" ] \
    && [ "${#PATH_CONFLICTS[@]}" -eq 0 ] \
    && [ -x "$DEST_BIN" ] \
    && [ -f "${WEB_DIR}/index.html" ]; then
-  echo "codeg-server is already at version ${TARGET_VER} with web assets in place, nothing to do."
+  echo "yoyocode-server is already at version ${TARGET_VER} with web assets in place, nothing to do."
   exit 0
 fi
 
 if [ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" = "$TARGET_VER" ]; then
-  echo "codeg-server is already at ${TARGET_VER}; reinstalling to repair the existing install..."
+  echo "yoyocode-server is already at ${TARGET_VER}; reinstalling to repair the existing install..."
 elif [ -n "$CURRENT_VERSION" ]; then
-  echo "Upgrading codeg-server: ${CURRENT_VERSION} -> ${TARGET_VER}..."
+  echo "Upgrading yoyocode-server: ${CURRENT_VERSION} -> ${TARGET_VER}..."
 else
-  echo "Installing codeg-server ${VERSION} (${PLATFORM}/${ARCH_SUFFIX})..."
+  echo "Installing yoyocode-server ${VERSION} (${PLATFORM}/${ARCH_SUFFIX})..."
 fi
 
-# ── Warn about codeg-server binaries shadowing the target install ──
+# ── Warn about yoyocode-server binaries shadowing the target install ──
 
 if [ "${#PATH_CONFLICTS[@]}" -gt 0 ]; then
   echo ""
-  echo "Found other codeg-server binaries in PATH that may shadow ${DEST_BIN}:"
+  echo "Found other yoyocode-server binaries in PATH that may shadow ${DEST_BIN}:"
   for _c in "${PATH_CONFLICTS[@]}"; do
     if [ "$(basename "$_c")" = "yoyo-cli" ]; then
       # Only removed if this release ships a yoyo-cli (known once extracted).
@@ -347,7 +347,7 @@ if [ "${#PATH_CONFLICTS[@]}" -gt 0 ]; then
     echo "These will be removed after installation. Pass --no-cleanup to keep them."
   else
     echo "Keeping them (--no-cleanup). You may need to remove them manually so that"
-    echo "typing 'codeg-server' runs the new install at ${DEST_BIN}."
+    echo "typing 'yoyocode-server' runs the new install at ${DEST_BIN}."
   fi
   echo ""
 fi
@@ -356,7 +356,7 @@ fi
 #
 # On Linux `cp` onto a running executable fails (text file busy); on macOS
 # it goes through, under a process that goes on running the old program. So
-# what runs ${INSTALL_DIR}'s codeg-server or yoyocode-mcp stops first, and with
+# what runs ${INSTALL_DIR}'s yoyocode-server or yoyocode-mcp stops first, and with
 # cleanup on, what runs a stale copy removed below. Only that: the desktop
 # app runs a yoyocode-mcp of its own, and other users, other directories and
 # containers have theirs. A process is told by the file it runs — on Linux
@@ -534,8 +534,8 @@ stop_processes() {
   echo "${name} stopped."
 }
 
-stop_processes codeg-server 10 || true
-# Whether a codeg-server stopped, for the note at the end.
+stop_processes yoyocode-server 10 || true
+# Whether a yoyocode-server stopped, for the note at the end.
 SERVER_STOPPED="$STOPPED_ANY"
 # Companions are short-lived: a brief moment to end on SIGTERM.
 stop_processes yoyocode-mcp 3 || true
@@ -550,15 +550,6 @@ echo "Downloading ${DOWNLOAD_URL}..."
 CURL_STATUS=0
 HTTP_STATUS=$(curl -fSL --progress-bar -w '%{http_code}' \
   -o "${TMP_DIR}/${ARTIFACT}.tar.gz" "$DOWNLOAD_URL") || CURL_STATUS=$?
-# Older releases in this repository used the codeg-server asset name.
-# Only a missing asset warrants a retry; preserve other download failures.
-if [ "$CURL_STATUS" -eq 22 ] && [ "$HTTP_STATUS" = "404" ]; then
-  ARTIFACT="codeg-server-${PLATFORM}-${ARCH_SUFFIX}"
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARTIFACT}.tar.gz"
-  echo "New asset not found; downloading ${DOWNLOAD_URL}..."
-  CURL_STATUS=0
-  curl -fSL --progress-bar -o "${TMP_DIR}/${ARTIFACT}.tar.gz" "$DOWNLOAD_URL" || CURL_STATUS=$?
-fi
 if [ "$CURL_STATUS" -ne 0 ]; then
   echo "Error: download failed. Check that version ${VERSION} exists and has a ${ARTIFACT} asset."
   exit 1
@@ -606,9 +597,9 @@ _install_one() {
 for _name in "${MANAGED_BINS[@]}"; do
   _install_one "$_name"
 done
-# codeg-computer-helper: computer use, which codeg-server offers only when
+# codeg-computer-helper: computer use, which yoyocode-server offers only when
 # started with CODEG_COMPUTER_USE=1 in a desktop session. Installed when the
-# release ships it (older ones do not). It exits with the codeg-server that
+# release ships it (older ones do not). It exits with the yoyocode-server that
 # started it, but may still be on its way out — and `cp` onto a running
 # executable fails (text file busy) — so a copy is renamed over it instead:
 # the one still running keeps its old file to the end.
@@ -679,7 +670,7 @@ fi
 
 if [ "${#PATH_CONFLICTS[@]}" -gt 0 ] && [ "$CLEANUP_CONFLICTS" = "1" ]; then
   echo ""
-  echo "Removing stale codeg-server binaries..."
+  echo "Removing stale yoyocode-server binaries..."
   for _c in "${PATH_CONFLICTS[@]}"; do
     _parent="$(dirname "$_c")"
     _rm_ok=0
@@ -691,7 +682,7 @@ if [ "${#PATH_CONFLICTS[@]}" -gt 0 ] && [ "$CLEANUP_CONFLICTS" = "1" ]; then
     if [ "$_rm_ok" -eq 1 ]; then
       echo "  removed $_c"
     else
-      echo "  failed to remove $_c (remove it manually so 'codeg-server' resolves to the new install)"
+      echo "  failed to remove $_c (remove it manually so 'yoyocode-server' resolves to the new install)"
       EXIT_STATUS=1
     fi
   done
@@ -709,25 +700,25 @@ fi
 
 if [ "$SERVER_STOPPED" -eq 1 ]; then
   echo ""
-  echo "Note: codeg-server was stopped for the upgrade."
+  echo "Note: yoyocode-server was stopped for the upgrade."
   echo "Please restart it manually to ensure your environment variables (CODEG_PORT, CODEG_TOKEN, etc.) are preserved:"
-  echo "  CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
+  echo "  CODEG_STATIC_DIR=${WEB_DIR} yoyocode-server"
 fi
 
 # ── Done ──
 
 echo ""
-echo "codeg-server installed to ${INSTALL_DIR}/codeg-server"
+echo "yoyocode-server installed to ${INSTALL_DIR}/yoyocode-server"
 echo "yoyocode-mcp    installed to ${INSTALL_DIR}/yoyocode-mcp"
 case "$CLI_STATUS" in
   installed) echo "yoyo-cli    installed to ${CLI_DST}" ;;
   desktop) echo "yoyo-cli    kept: ${CLI_DST} is the codeg desktop app's (the same program; remove it first to use this release's)" ;;
   removed) echo "yoyo-cli    removed: this release has none" ;;
 esac
-INSTALLED_VER=$("${INSTALL_DIR}/codeg-server" --version 2>/dev/null || echo "${TARGET_VER}")
+INSTALLED_VER=$("${INSTALL_DIR}/yoyocode-server" --version 2>/dev/null || echo "${TARGET_VER}")
 echo "Version: ${INSTALLED_VER}"
 
-# Final smoke: yoyocode-mcp must exist next to codeg-server so the runtime's
+# Final smoke: yoyocode-mcp must exist next to yoyocode-server so the runtime's
 # `locate_codeg_mcp_binary()` exe-sibling lookup hits. A failure here means
 # the tarball was malformed or a previous `_install_one` was silently
 # blocked — surface it loudly rather than ship a half-broken install.
@@ -738,21 +729,21 @@ if [ ! -x "${INSTALL_DIR}/yoyocode-mcp" ]; then
   EXIT_STATUS=1
 fi
 
-# Verify the user's `codeg-server` command actually resolves to the new binary.
+# Verify the user's `yoyocode-server` command actually resolves to the new binary.
 ACTIVE_BIN_AFTER=""
-if command -v codeg-server >/dev/null 2>&1; then
-  ACTIVE_BIN_AFTER="$(command -v codeg-server)"
+if command -v yoyocode-server >/dev/null 2>&1; then
+  ACTIVE_BIN_AFTER="$(command -v yoyocode-server)"
 fi
 ACTIVE_BIN_AFTER_REAL="$(canon_path "$ACTIVE_BIN_AFTER")"
 
 if [ -z "$ACTIVE_BIN_AFTER" ]; then
   echo ""
-  echo "Note: ${INSTALL_DIR} is not on your PATH. Add it so 'codeg-server' resolves directly:"
+  echo "Note: ${INSTALL_DIR} is not on your PATH. Add it so 'yoyocode-server' resolves directly:"
   echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
   EXIT_STATUS=1
 elif [ "$ACTIVE_BIN_AFTER_REAL" != "$DEST_BIN_REAL" ]; then
   echo ""
-  echo "Warning: typing 'codeg-server' still runs ${ACTIVE_BIN_AFTER}, not ${DEST_BIN}."
+  echo "Warning: typing 'yoyocode-server' still runs ${ACTIVE_BIN_AFTER}, not ${DEST_BIN}."
   echo "Another binary earlier in PATH is shadowing the new install. To fix, either:"
   echo "  - re-run without --no-cleanup (the default removes shadowing binaries), or"
   echo "  - remove the stale binary manually: rm '${ACTIVE_BIN_AFTER}', or"
@@ -761,15 +752,15 @@ elif [ "$ACTIVE_BIN_AFTER_REAL" != "$DEST_BIN_REAL" ]; then
 else
   # Same path: a previous shell session may have cached the old inode.
   echo ""
-  echo "Tip: if you ran codeg-server earlier in this shell, run 'hash -r' (bash/zsh) to clear the path cache."
+  echo "Tip: if you ran yoyocode-server earlier in this shell, run 'hash -r' (bash/zsh) to clear the path cache."
 fi
 
 echo ""
 echo "Quick start:"
-echo "  CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
+echo "  CODEG_STATIC_DIR=${WEB_DIR} yoyocode-server"
 echo ""
 echo "Or with custom settings:"
-echo "  CODEG_PORT=18989 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} codeg-server"
+echo "  CODEG_PORT=18989 CODEG_TOKEN=your-secret CODEG_STATIC_DIR=${WEB_DIR} yoyocode-server"
 echo ""
 echo "The auth token is printed to stderr on startup if not set via CODEG_TOKEN."
 

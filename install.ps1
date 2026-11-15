@@ -22,12 +22,12 @@ $Artifact = "yoyocode-server-windows-x64"
 # versions of this script installed the server there all the same. A server
 # they left there stays — unless the desktop app is there too: then it moves
 # here (see "Move out of the desktop app's folder" below).
-$DefaultDir = Join-Path $env:LOCALAPPDATA "codeg-server"
+$DefaultDir = Join-Path $env:LOCALAPPDATA "yoyocode-server"
 $LegacyDir = Join-Path $env:LOCALAPPDATA "codeg"
 $MoveFrom = ""
 if (-not $InstallDir) {
     $InstallDir = $DefaultDir
-    if (Test-Path -LiteralPath (Join-Path $LegacyDir "codeg-server.exe") -PathType Leaf) {
+    if (Test-Path -LiteralPath (Join-Path $LegacyDir "yoyocode-server.exe") -PathType Leaf) {
         if (Test-Path -LiteralPath (Join-Path $LegacyDir "codeg.exe") -PathType Leaf) {
             $MoveFrom = $LegacyDir
         } else {
@@ -53,26 +53,26 @@ function Test-DesktopBinDir([string]$Dir) {
     }
 }
 if (Test-Path -LiteralPath (Join-Path $InstallDir "codeg.exe") -PathType Leaf) {
-    Write-Error "$InstallDir holds the codeg desktop app, whose yoyocode-mcp.exe, codeg-computer-helper.exe, yoyo-cli.exe and web\ the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
+    Write-Error "$InstallDir holds the codeg desktop app, whose yoyocode-mcp.exe, codeg-computer-helper.exe, yoyo-cli.exe and web\ the server's would replace. Install yoyocode-server in a folder of its own (by default $DefaultDir)."
     exit 1
 }
 if (Test-DesktopBinDir $InstallDir) {
-    Write-Error "$InstallDir is the codeg desktop app's bin\ folder, whose yoyo-cli.exe the server's would replace. Install codeg-server in a folder of its own (by default $DefaultDir)."
+    Write-Error "$InstallDir is the codeg desktop app's bin\ folder, whose yoyo-cli.exe the server's would replace. Install yoyocode-server in a folder of its own (by default $DefaultDir)."
     exit 1
 }
 
-# Names of binaries this installer manages. codeg-server is the user-facing
+# Names of binaries this installer manages. yoyocode-server is the user-facing
 # entry point; yoyocode-mcp is the stdio MCP companion that the server's ACP
 # layer spawns per session for delegation. Both must live in the same
 # directory — `locate_codeg_mcp_binary()` in src-tauri/src/acp/connection.rs
 # resolves the companion as a sibling of the running server executable.
-$ManagedBins = @("codeg-server", "yoyocode-mcp")
+$ManagedBins = @("yoyocode-server", "yoyocode-mcp")
 # Looked for on PATH as well: the two above, and yoyo-cli, the command-line
 # client the release ships beside them (older releases do not).
-$ScannedBins = @("codeg-server", "yoyocode-mcp", "yoyo-cli")
+$ScannedBins = @("yoyocode-server", "yoyocode-mcp", "yoyo-cli")
 
-# Stale codeg-server / yoyocode-mcp binaries elsewhere in PATH are removed by
-# default so the user's `codeg-server` command always runs the freshly
+# Stale yoyocode-server / yoyocode-mcp binaries elsewhere in PATH are removed by
+# default so the user's `yoyocode-server` command always runs the freshly
 # installed binary AND the runtime locates the matching companion via the
 # exe-sibling lookup. Pass -NoCleanup (or set CODEG_NO_CLEANUP=1) to disable.
 $Cleanup = -not $NoCleanup
@@ -91,7 +91,7 @@ function Get-CanonicalPath([string]$Path) {
 
 # Whether two PATH entries name the same folder: compared expanded, without a
 # trailing backslash, ignoring case — not as substrings, since
-# ...\Local\codeg is a prefix of ...\Local\codeg-server.
+# ...\Local\codeg is a prefix of ...\Local\yoyocode-server.
 function Test-SameDir([string]$A, [string]$B) {
     $a = [Environment]::ExpandEnvironmentVariables($A).TrimEnd('\')
     $b = [Environment]::ExpandEnvironmentVariables($B).TrimEnd('\')
@@ -142,18 +142,18 @@ if (-not $Version) {
 
 $TargetVer = $Version -replace '^v', ''
 
-# ── Scan PATH for codeg-server binaries that shadow the target install ──
+# ── Scan PATH for yoyocode-server binaries that shadow the target install ──
 #
 # A binary "shadows" the install if it appears in PATH BEFORE the destination
-# directory: that's the binary `Get-Command codeg-server` returns after install.
+# directory: that's the binary `Get-Command yoyocode-server` returns after install.
 # Unlike install.sh (which doesn't modify PATH), this script appends
 # `$InstallDir` to user PATH below when it's missing, so any pre-existing
-# codeg-server in PATH ends up before the destination after install and must be
+# yoyocode-server in PATH ends up before the destination after install and must be
 # cleaned. We therefore collect conflicts even when the destination isn't on
 # PATH yet: stop the walk at the destination if present, otherwise scan to the
 # end (post-install, the destination will be at the tail).
 
-$DestBin = Join-Path $InstallDir "codeg-server.exe"
+$DestBin = Join-Path $InstallDir "yoyocode-server.exe"
 $DestBinReal = Get-CanonicalPath $DestBin
 $InstallDirReal = Get-CanonicalPath $InstallDir
 
@@ -165,7 +165,7 @@ $pathDirs = @()
 if ($env:Path) { $pathDirs = $env:Path.Split(';') }
 # Scan PATH for both managed binaries — a stale `yoyocode-mcp.exe` in an earlier
 # PATH entry would be picked by the runtime's `which` fallback once
-# `codeg-server.exe` was upgraded out from under it, breaking delegation in
+# `yoyocode-server.exe` was upgraded out from under it, breaking delegation in
 # subtle ways. Track conflicts uniformly for cleanup.
 foreach ($dir in $pathDirs) {
     if (-not $dir) { continue }
@@ -175,7 +175,7 @@ foreach ($dir in $pathDirs) {
     if ($dirReal -eq $InstallDirReal) {
         break
     }
-    # In the desktop app's folder only a codeg-server.exe is a server's
+    # In the desktop app's folder only a yoyocode-server.exe is a server's
     # leftover: the yoyocode-mcp.exe and yoyo-cli.exe there are the desktop
     # app's own, and so is everything in its bin\ folder.
     $desktopDir = Test-Path -LiteralPath (Join-Path $dir "codeg.exe") -PathType Leaf
@@ -187,7 +187,7 @@ foreach ($dir in $pathDirs) {
                 $real = Get-CanonicalPath $bin
                 if ($seenReal.ContainsKey($real)) { continue }
                 $seenReal[$real] = $true
-                if ($desktopBin -or ($desktopDir -and $name -ne "codeg-server")) {
+                if ($desktopBin -or ($desktopDir -and $name -ne "yoyocode-server")) {
                     if ($name -eq "yoyo-cli") { $DesktopShadows += $bin }
                     continue
                 }
@@ -197,9 +197,9 @@ foreach ($dir in $pathDirs) {
     }
 }
 
-# What does `codeg-server` actually resolve to in the current PATH?
+# What does `yoyocode-server` actually resolve to in the current PATH?
 $ActiveBin = ""
-$resolved = Get-Command codeg-server -ErrorAction SilentlyContinue
+$resolved = Get-Command yoyocode-server -ErrorAction SilentlyContinue
 if ($resolved) { $ActiveBin = $resolved.Source }
 
 # ── Version detection — prefer the binary the user actually invokes ──
@@ -222,21 +222,21 @@ if ($VersionCheckBin) {
 if ($CurrentVersion -and ($CurrentVersion -eq $TargetVer) `
         -and ($PathConflicts.Count -eq 0) `
         -and (Test-Path -LiteralPath $DestBin)) {
-    Write-Host "codeg-server is already at version $TargetVer, nothing to do."
+    Write-Host "yoyocode-server is already at version $TargetVer, nothing to do."
     exit 0
 }
 
 if ($CurrentVersion) {
-    Write-Host "Upgrading codeg-server: $CurrentVersion -> $TargetVer..."
+    Write-Host "Upgrading yoyocode-server: $CurrentVersion -> $TargetVer..."
 } else {
-    Write-Host "Installing codeg-server $Version (windows/x64)..."
+    Write-Host "Installing yoyocode-server $Version (windows/x64)..."
 }
 
-# ── Warn about codeg-server binaries shadowing the target install ──
+# ── Warn about yoyocode-server binaries shadowing the target install ──
 
 if ($PathConflicts.Count -gt 0) {
     Write-Host ""
-    Write-Host "Found other codeg-server binaries in PATH that may shadow ${DestBin}:"
+    Write-Host "Found other yoyocode-server binaries in PATH that may shadow ${DestBin}:"
     foreach ($c in $PathConflicts) {
         if ((Split-Path -Leaf $c) -like "yoyo-cli*") {
             # Only removed if this release ships a yoyo-cli (known once extracted).
@@ -254,7 +254,7 @@ if ($PathConflicts.Count -gt 0) {
         Write-Host "These will be removed after installation. Pass -NoCleanup to keep them."
     } else {
         Write-Host "Keeping them (-NoCleanup). You may need to remove them manually so that"
-        Write-Host "typing 'codeg-server' runs the new install at $DestBin."
+        Write-Host "typing 'yoyocode-server' runs the new install at $DestBin."
     }
     Write-Host ""
 }
@@ -272,7 +272,7 @@ if ($PathConflicts.Count -gt 0) {
 # stop it either.
 
 $Changing = @(
-    (Join-Path $InstallDir "codeg-server.exe"),
+    (Join-Path $InstallDir "yoyocode-server.exe"),
     (Join-Path $InstallDir "yoyocode-mcp.exe"),
     (Join-Path $InstallDir "codeg-computer-helper.exe")
 )
@@ -280,7 +280,7 @@ if ($Cleanup) {
     # A yoyo-cli is never stopped for this: a run in progress is the user's.
     # One in use is moved aside instead (see the install below).
     $Changing += @($PathConflicts | Where-Object { (Split-Path -Leaf $_) -notlike "yoyo-cli*" })
-    if ($MoveFrom) { $Changing += (Join-Path $MoveFrom "codeg-server.exe") }
+    if ($MoveFrom) { $Changing += (Join-Path $MoveFrom "yoyocode-server.exe") }
 }
 $Changing = @($Changing | ForEach-Object {
     [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($_))
@@ -312,22 +312,22 @@ function Get-RunningFrom([string]$Name) {
     })
 }
 
-$ServerProcesses = Get-RunningFrom "codeg-server"
+$ServerProcesses = Get-RunningFrom "yoyocode-server"
 if ($ServerProcesses) {
-    Write-Host "Stopping running codeg-server process(es)..."
+    Write-Host "Stopping running yoyocode-server process(es)..."
     $WasRunning = $true
     $ServerProcesses | Stop-Process -Force
     Start-Sleep -Seconds 2
     # Verify stopped
-    $StillRunning = Get-RunningFrom "codeg-server"
+    $StillRunning = Get-RunningFrom "yoyocode-server"
     if ($StillRunning) {
         $StillRunning | Stop-Process -Force
         Start-Sleep -Seconds 1
     }
-    Write-Host "codeg-server stopped."
+    Write-Host "yoyocode-server stopped."
 }
 
-# codeg-computer-helper.exe exits with the codeg-server that started it, but
+# codeg-computer-helper.exe exits with the yoyocode-server that started it, but
 # not necessarily before the copy below; it holds its file the same way.
 # Stopped with the cua-driver it runs (`taskkill /T`).
 $HelperProcesses = Get-RunningFrom "codeg-computer-helper"
@@ -363,20 +363,7 @@ $ArtifactDir = Join-Path $TmpDir $Artifact
 
 Write-Host "Downloading $Url..."
 try {
-    try {
-        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
-    } catch {
-        # Only a missing new asset falls back, within the same repo and version.
-        if (-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) {
-            throw
-        }
-        $Artifact = "codeg-server-windows-x64"
-        $Url = "https://github.com/$Repo/releases/download/$Version/$Artifact.zip"
-        $ZipPath = Join-Path $TmpDir "$Artifact.zip"
-        $ArtifactDir = Join-Path $TmpDir $Artifact
-        Write-Host "New asset not found; downloading $Url..."
-        Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
-    }
+    Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
 } catch {
     Write-Error "Download failed. Check that version $Version exists and has a $Artifact asset."
     exit 1
@@ -425,7 +412,7 @@ if (Test-Path -LiteralPath $CliDst -PathType Leaf) {
             } catch {}
         }
         $who = if ($users.Count -gt 0) { " (in use by PID $($users -join ', '))" } else { "" }
-        $stopped = if ($WasRunning) { " codeg-server was stopped for the upgrade: start it again." } else { "" }
+        $stopped = if ($WasRunning) { " yoyocode-server was stopped for the upgrade: start it again." } else { "" }
         Write-Error "Cannot move $CliDst aside to replace it$who, so no file was changed. Let that yoyo-cli finish, then run the installer again.$stopped $why"
         exit 1
     }
@@ -453,7 +440,7 @@ try {
 # stays removed: a newer CLI would talk to an older server.
 Get-ChildItem -LiteralPath $InstallDir -Filter "yoyo-cli.exe.old-*" -ErrorAction SilentlyContinue |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
-# codeg-computer-helper.exe: computer use, which codeg-server offers only when
+# codeg-computer-helper.exe: computer use, which yoyocode-server offers only when
 # started with CODEG_COMPUTER_USE=1 in a desktop session. Installed when the
 # release ships it (older ones do not).
 $HelperSrc = Join-Path $ArtifactDir "codeg-computer-helper.exe"
@@ -483,7 +470,7 @@ if (-not (Test-PathHasDir $UserPath $InstallDir)) {
     Write-Host "Added $InstallDir to user PATH (restart terminal to take effect)"
 }
 # Mirror the change into the current process so the post-install verification
-# below can resolve `codeg-server`. Without this, the first-time install would
+# below can resolve `yoyocode-server`. Without this, the first-time install would
 # always exit non-zero on Windows because Get-Command runs against the in-process
 # $env:Path that does not yet include $InstallDir.
 if (-not (Test-PathHasDir $env:Path $InstallDir)) {
@@ -505,7 +492,7 @@ if ($CliStatus -ne "installed") {
 
 if ($Cleanup -and $PathConflicts.Count -gt 0) {
     Write-Host ""
-    Write-Host "Removing stale codeg-server binaries..."
+    Write-Host "Removing stale yoyocode-server binaries..."
     foreach ($c in $PathConflicts) {
         try {
             Remove-Item -LiteralPath $c -Force -ErrorAction Stop
@@ -522,7 +509,7 @@ if ($Cleanup -and $PathConflicts.Count -gt 0) {
                 } catch {}
             }
             if (-not $moved) {
-                Write-Host "  failed to remove $c (remove it manually so 'codeg-server' resolves to the new install): $why"
+                Write-Host "  failed to remove $c (remove it manually so 'yoyocode-server' resolves to the new install): $why"
                 $ExitStatus = 1
             }
         }
@@ -541,12 +528,12 @@ if ($CliStatus -eq "installed" -and $DesktopShadows.Count -gt 0) {
 #
 # The server an earlier version of this script installed in $MoveFrom, the
 # desktop app's folder, now lives in $InstallDir. Of what is left there only
-# codeg-server.exe is the server's: yoyocode-mcp.exe, codeg-computer-helper.exe
+# yoyocode-server.exe is the server's: yoyocode-mcp.exe, codeg-computer-helper.exe
 # and web\ are the desktop app's. The folder went on the user PATH for the
 # server, and comes off it.
 
 if ($MoveFrom) {
-    $OldBin = Join-Path $MoveFrom "codeg-server.exe"
+    $OldBin = Join-Path $MoveFrom "yoyocode-server.exe"
     if ($Cleanup) {
         if (Test-Path -LiteralPath $OldBin) {
             try {
@@ -565,10 +552,10 @@ if ($MoveFrom) {
         }
         $env:Path = (@($env:Path.Split(';') | Where-Object { $_ -and -not (Test-SameDir $_ $MoveFrom) }) -join ';')
     } else {
-        Write-Host "Keeping $OldBin (-NoCleanup); remove it so 'codeg-server' runs the new install."
+        Write-Host "Keeping $OldBin (-NoCleanup); remove it so 'yoyocode-server' runs the new install."
     }
     Write-Host ""
-    Write-Host "codeg-server moved from $MoveFrom to ${InstallDir}: the codeg desktop app is installed"
+    Write-Host "yoyocode-server moved from $MoveFrom to ${InstallDir}: the codeg desktop app is installed"
     Write-Host "in $MoveFrom, and the two would keep replacing each other's files."
     Write-Host "If a service, scheduled task or shortcut starts $OldBin, or CODEG_STATIC_DIR"
     Write-Host "points to $MoveFrom\web, point it at $InstallDir instead."
@@ -578,21 +565,21 @@ if ($MoveFrom) {
 
 if ($WasRunning) {
     Write-Host ""
-    Write-Host "Note: codeg-server was stopped for the upgrade."
+    Write-Host "Note: yoyocode-server was stopped for the upgrade."
     Write-Host "Please restart it manually to ensure your environment variables (CODEG_PORT, CODEG_TOKEN, etc.) are preserved:"
-    Write-Host "  `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
+    Write-Host "  `$env:CODEG_STATIC_DIR=`"$WebDir`"; yoyocode-server"
 }
 
 # ── Done ──
 
 $InstalledVer = ""
 try {
-    $InstalledVer = (& (Join-Path $InstallDir "codeg-server.exe") --version 2>$null).Trim()
+    $InstalledVer = (& (Join-Path $InstallDir "yoyocode-server.exe") --version 2>$null).Trim()
 } catch {}
 if (-not $InstalledVer) { $InstalledVer = $TargetVer }
 
 Write-Host ""
-Write-Host "codeg-server installed to $InstallDir\codeg-server.exe"
+Write-Host "yoyocode-server installed to $InstallDir\yoyocode-server.exe"
 Write-Host "yoyocode-mcp    installed to $InstallDir\yoyocode-mcp.exe"
 if ($CliStatus -eq "installed") {
     Write-Host "yoyo-cli    installed to $CliDst"
@@ -601,7 +588,7 @@ if ($CliStatus -eq "installed") {
 }
 Write-Host "Version: $InstalledVer"
 
-# Final smoke: yoyocode-mcp.exe must exist next to codeg-server.exe so the
+# Final smoke: yoyocode-mcp.exe must exist next to yoyocode-server.exe so the
 # runtime's `locate_codeg_mcp_binary()` exe-sibling lookup hits. A failure
 # here means the zip was malformed or a previous Copy-Item was silently
 # blocked — surface it loudly rather than ship a half-broken install.
@@ -613,9 +600,9 @@ if (-not (Test-Path -LiteralPath $McpPath)) {
     $ExitStatus = 1
 }
 
-# Verify the user's `codeg-server` command actually resolves to the new binary.
+# Verify the user's `yoyocode-server` command actually resolves to the new binary.
 $ActiveBinAfter = ""
-$resolvedAfter = Get-Command codeg-server -ErrorAction SilentlyContinue
+$resolvedAfter = Get-Command yoyocode-server -ErrorAction SilentlyContinue
 if ($resolvedAfter) { $ActiveBinAfter = $resolvedAfter.Source }
 $ActiveBinAfterReal = Get-CanonicalPath $ActiveBinAfter
 
@@ -627,7 +614,7 @@ if (-not $ActiveBinAfter) {
     $ExitStatus = 1
 } elseif ($ActiveBinAfterReal -ne $DestBinReal) {
     Write-Host ""
-    Write-Host "Warning: typing 'codeg-server' still runs $ActiveBinAfter, not $DestBin."
+    Write-Host "Warning: typing 'yoyocode-server' still runs $ActiveBinAfter, not $DestBin."
     Write-Host "Another binary earlier in PATH is shadowing the new install. To fix, either:"
     Write-Host "  - re-run without -NoCleanup (the default removes shadowing binaries), or"
     Write-Host "  - remove the stale binary manually: Remove-Item '$ActiveBinAfter', or"
@@ -637,9 +624,9 @@ if (-not $ActiveBinAfter) {
 
 Write-Host ""
 Write-Host "Quick start:"
-Write-Host "  `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
+Write-Host "  `$env:CODEG_STATIC_DIR=`"$WebDir`"; yoyocode-server"
 Write-Host ""
 Write-Host "Or with custom settings:"
-Write-Host "  `$env:CODEG_PORT=`"18989`"; `$env:CODEG_TOKEN=`"your-secret`"; `$env:CODEG_STATIC_DIR=`"$WebDir`"; codeg-server"
+Write-Host "  `$env:CODEG_PORT=`"18989`"; `$env:CODEG_TOKEN=`"your-secret`"; `$env:CODEG_STATIC_DIR=`"$WebDir`"; yoyocode-server"
 
 exit $ExitStatus
