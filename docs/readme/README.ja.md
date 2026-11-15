@@ -1,5 +1,5 @@
 <h1 align="center">
-  <a href="https://docs.codeg.app"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
 </h1>
 
 <p align="center">
@@ -7,8 +7,8 @@
   <a href="https://github.com/ijry/YoYoCode/releases/latest"><img src="https://img.shields.io/github/v/release/ijry/YoYoCode?style=flat&color=e91e63" alt="Latest release" /></a>
   <a href="https://github.com/ijry/YoYoCode/releases"><img src="https://img.shields.io/github/downloads/ijry/YoYoCode/total?style=flat&color=e91e63" alt="Total downloads" /></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/github/license/ijry/YoYoCode?style=flat&color=e91e63" alt="License" /></a>
-  <a href="https://docs.codeg.app"><img src="https://img.shields.io/badge/docs-docs.codeg.app-3451b2?style=flat" alt="Documentation" /></a>
-  <a href="https://docs.codeg.app/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="https://img.shields.io/badge/docs-yoyocode--docs-3451b2?style=flat" alt="Documentation" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   あらゆる AI コーディングエージェントをひとつの場所で動かし、そして協働させます。
 </p>
 
-<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>YoYoCode をダウンロード</ins></a> · <a href="https://docs.codeg.app"><ins>ドキュメント</ins></a></h3>
+<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>YoYoCode をダウンロード</ins></a> · <a href="https://ijry.github.io/yoyocode-docs"><ins>ドキュメント</ins></a> · <a href="https://getmcode.lingyun.net"><ins>App · getmcode.lingyun.net</ins></a></h3>
 
 <p align="center">
   <picture>
@@ -50,7 +50,7 @@
 
 20 の内蔵エージェントと任意の ACP エージェントに対応。ツールカードや差分、対話型の返答を同じ画面で。
 
-[ドキュメント →](https://docs.codeg.app/guide/supported-agents) · [カスタムエージェント →](https://docs.codeg.app/guide/custom-agents) · [UI レンダリング →](https://docs.codeg.app/guide/skills#cards-tables-and-charts-in-replies)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/supported-agents) · [カスタムエージェント →](https://ijry.github.io/yoyocode-docs/guide/custom-agents) · [UI レンダリング →](https://ijry.github.io/yoyocode-docs/guide/skills#cards-tables-and-charts-in-replies)
 
 </td>
 <td width="50%">
@@ -67,7 +67,7 @@
 
 履歴を取り込み、検索して再開。`@` で別のエージェントにセッションを共有し、タグで整理できます。
 
-[ドキュメント →](https://docs.codeg.app/guide/aggregation) · [タグ →](https://docs.codeg.app/guide/workspace#tag-conversations)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/aggregation) · [タグ →](https://ijry.github.io/yoyocode-docs/guide/workspace#tag-conversations)
 
 </td>
 <td width="50%">
@@ -84,7 +84,7 @@
 
 `@` でエージェントに依頼。複数のエージェントが並行して働き、進捗が会話に届きます。
 
-[ドキュメント →](https://docs.codeg.app/guide/multi-agent)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/multi-agent)
 
 </td>
 <td width="50%">
@@ -101,7 +101,7 @@
 
 タスク専用のワークツリーで、今すぐ、または指定時刻に実行。変更はあなたが確認して承認します。
 
-[ドキュメント →](https://docs.codeg.app/guide/tasks) · [自動処理 →](https://docs.codeg.app/guide/repository#let-it-pick-items-up-by-itself)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/tasks) · [自動処理 →](https://ijry.github.io/yoyocode-docs/guide/repository#let-it-pick-items-up-by-itself)
 
 </td>
 <td width="50%">
@@ -118,7 +118,7 @@
 
 会話、ファイル、ターミナル、メモを無限のボードに配置。各エージェントの作業をひと目で把握できます。
 
-[ドキュメント →](https://docs.codeg.app/guide/canvas)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/canvas)
 
 </td>
 <td width="50%">
@@ -135,7 +135,7 @@
 
 デスクトップ、サーバー、Docker、モバイルに対応。Telegram、Lark、WeChat からもエージェントと会話できます。
 
-[ドキュメント →](https://docs.codeg.app/getting-started/deployment) · [リモートワークスペース →](https://docs.codeg.app/guide/workspace#desktop-and-browser) · [モバイルアプリ →](https://docs.codeg.app/getting-started/installation#mobile-apps) · [チャットチャンネル →](https://docs.codeg.app/guide/chat-channels)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/getting-started/deployment) · [リモートワークスペース →](https://ijry.github.io/yoyocode-docs/guide/workspace#desktop-and-browser) · [getmcode.lingyun.net →](https://getmcode.lingyun.net) · [チャットチャンネル →](https://ijry.github.io/yoyocode-docs/guide/chat-channels)
 
 </td>
 <td width="50%">
@@ -152,7 +152,7 @@
 
 Office ファイルを作成してライブプレビュー、PDF も閲覧。研究スキルはどのエージェントでも使えます。
 
-[ドキュメント →](https://docs.codeg.app/guide/office) · [科学研究 →](https://docs.codeg.app/guide/research)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/office) · [科学研究 →](https://ijry.github.io/yoyocode-docs/guide/research)
 
 </td>
 <td width="50%">
@@ -169,7 +169,7 @@ Office ファイルを作成してライブプレビュー、PDF も閲覧。研
 
 デスクトップの内蔵ブラウザからページやエラーを共有。コンピューター操作（プレビュー）で共有ウィンドウも操作できます。
 
-[ドキュメント →](https://docs.codeg.app/guide/browser) · [コンピューター操作 →](https://docs.codeg.app/guide/computer-use)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/browser) · [コンピューター操作 →](https://ijry.github.io/yoyocode-docs/guide/computer-use)
 
 </td>
 <td width="50%">
@@ -186,7 +186,7 @@ Office ファイルを作成してライブプレビュー、PDF も閲覧。研
 
 `yoyo-cli` でスクリプトや CI から起動中の YoYoCode に依頼。返答や JSON イベントを出力します。
 
-[ドキュメント →](https://docs.codeg.app/guide/command-line)
+[ドキュメント →](https://ijry.github.io/yoyocode-docs/guide/command-line)
 
 </td>
 <td width="50%" valign="middle">
@@ -205,16 +205,16 @@ git diff | yoyo-cli -a codex \
 
 **このほかにも：**
 
-- **[開発の一連の流れをまるごと](https://docs.codeg.app/guide/workspace)** — コードエディター、ライブ差分、[Git とワークツリー](https://docs.codeg.app/guide/git)、3 ペインのマージエディター、ターミナル、分割表示
-- **[リポジトリパネル](https://docs.codeg.app/guide/repository)** — GitHub、GitLab、Gitea、Forgejo のイシュー、プルリクエスト、チェック、マージ。どのイシューや PR も ToDo タスクにできます
-- **[オートメーション](https://docs.codeg.app/guide/automations)** — 設定済みの入力欄を保存し、cron スケジュールまたは任意のタイミングでヘッドレス実行
-- **[トークン使用量](https://docs.codeg.app/guide/token-usage)** — 推移、キャッシュヒット率、アクティビティのヒートマップ、フォルダー・エージェント・モデル・セッション別の使用量、API の定価で見積もったコスト
-- **[分岐とステアリング](https://docs.codeg.app/guide/workspace#follow-along-%E2%80%94-the-conversation)** — 対応しているエージェントでは、完了した返信から会話を分岐させたり、まだ実行中のターンにメッセージを送り込んだりできます
-- **[スキル](https://docs.codeg.app/guide/skills) と [MCP](https://docs.codeg.app/guide/mcp)** — エージェントごとのスキルパック、ローカルの MCP スキャン、レジストリの検索とインストール
-- **[プロジェクトブート](https://docs.codeg.app/guide/project-boot)** — ライブプレビュー付きで新規プロジェクトを視覚的に構築
-- **[通知](https://docs.codeg.app/reference/settings/general#desktop-notifications)** — ターンが終わったときやエージェントに呼ばれたときに、デスクトップ通知と通知音、タスクバーボタンの点滅や Dock アイコンのバウンドで知らせます
-- **[自分好みに](https://docs.codeg.app/reference/settings/appearance)** — カラートークン単位で塗り替えられる 12 のテーマ、壁紙、角丸、チャット幅、カスタム CSS、デスクトップペット — インターフェースは 10 言語に対応
-- **[バックアップと同期](https://docs.codeg.app/reference/settings/system#backup-restore)** — 暗号化バックアップと、ファイルまたは自分の WebDAV サーバーを介したマシン間の設定同期
+- **[開発の一連の流れをまるごと](https://ijry.github.io/yoyocode-docs/guide/workspace)** — コードエディター、ライブ差分、[Git とワークツリー](https://ijry.github.io/yoyocode-docs/guide/git)、3 ペインのマージエディター、ターミナル、分割表示
+- **[リポジトリパネル](https://ijry.github.io/yoyocode-docs/guide/repository)** — GitHub、GitLab、Gitea、Forgejo のイシュー、プルリクエスト、チェック、マージ。どのイシューや PR も ToDo タスクにできます
+- **[オートメーション](https://ijry.github.io/yoyocode-docs/guide/automations)** — 設定済みの入力欄を保存し、cron スケジュールまたは任意のタイミングでヘッドレス実行
+- **[トークン使用量](https://ijry.github.io/yoyocode-docs/guide/token-usage)** — 推移、キャッシュヒット率、アクティビティのヒートマップ、フォルダー・エージェント・モデル・セッション別の使用量、API の定価で見積もったコスト
+- **[分岐とステアリング](https://ijry.github.io/yoyocode-docs/guide/workspace#follow-along-%E2%80%94-the-conversation)** — 対応しているエージェントでは、完了した返信から会話を分岐させたり、まだ実行中のターンにメッセージを送り込んだりできます
+- **[スキル](https://ijry.github.io/yoyocode-docs/guide/skills) と [MCP](https://ijry.github.io/yoyocode-docs/guide/mcp)** — エージェントごとのスキルパック、ローカルの MCP スキャン、レジストリの検索とインストール
+- **[プロジェクトブート](https://ijry.github.io/yoyocode-docs/guide/project-boot)** — ライブプレビュー付きで新規プロジェクトを視覚的に構築
+- **[通知](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — ターンが終わったときやエージェントに呼ばれたときに、デスクトップ通知と通知音、タスクバーボタンの点滅や Dock アイコンのバウンドで知らせます
+- **[自分好みに](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — カラートークン単位で塗り替えられる 12 のテーマ、壁紙、角丸、チャット幅、カスタム CSS、デスクトップペット — インターフェースは 10 言語に対応
+- **[バックアップと同期](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — 暗号化バックアップと、ファイルまたは自分の WebDAV サーバーを介したマシン間の設定同期
 - **[URL スキーム](../../docs/url-scheme.md)** — `codeg://session/<id>` で別のアプリから会話を開けます（デスクトップ）
 - **まだまだあります** — ほぼすべてのリリースで何かが加わります。全リストは [リリースノート](https://github.com/ijry/YoYoCode/releases) で確認できます
 
@@ -243,14 +243,14 @@ YoYoCode はすべてのエージェントと [Agent Client Protocol](https://ag
   <a href="../agents/zcode.md"><kbd><img src="../images/agents/zcode.svg" alt="" width="16" valign="middle" /> ZCode</kbd></a> &nbsp;
   <a href="https://docs.trae.cn/cli_about-trae-code-cli-2"><kbd><img src="../images/agents/trae.svg" alt="" width="16" valign="middle" /> TRAE CLI</kbd></a> &nbsp;
   <a href="https://commandcode.ai"><kbd><img src="../images/agents/command-code.svg" alt="" width="16" valign="middle" /> Command Code</kbd></a> &nbsp;
-  <a href="https://docs.codeg.app/guide/custom-agents"><kbd>+ 任意の ACP エージェント</kbd></a>
+  <a href="https://ijry.github.io/yoyocode-docs/guide/custom-agents"><kbd>+ 任意の ACP エージェント</kbd></a>
 </p>
 
-リストにない？公開されている ACP レジストリから好きなエージェントを選ぶか、その distribution JSON を貼り付ければ、YoYoCode がインストールし、起動できるかを確かめ、内蔵エージェントと同じように扱います。各エージェントの実行環境要件とセッションの保存場所は [対応エージェント](https://docs.codeg.app/guide/supported-agents) を参照してください。
+リストにない？公開されている ACP レジストリから好きなエージェントを選ぶか、その distribution JSON を貼り付ければ、YoYoCode がインストールし、起動できるかを確かめ、内蔵エージェントと同じように扱います。各エージェントの実行環境要件とセッションの保存場所は [対応エージェント](https://ijry.github.io/yoyocode-docs/guide/supported-agents) を参照してください。
 
 ## 📦 インストール
 
-**デスクトップ** — macOS・Windows・Linux 向けインストーラーは [Releases](https://github.com/ijry/YoYoCode/releases/latest) にあります。セットアップ手順は [インストール](https://docs.codeg.app/getting-started/installation) を参照してください。
+**デスクトップ** — macOS・Windows・Linux 向けインストーラーは [Releases](https://github.com/ijry/YoYoCode/releases/latest) にあります。セットアップ手順は [インストール](https://ijry.github.io/yoyocode-docs/getting-started/installation) を参照してください。
 
 **サーバー** — YoYoCode をヘッドレスで動かし、任意のブラウザから利用します。Linux / macOS の場合：
 
@@ -274,9 +274,9 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 どちらの場合も、ブラウザで `http://<host>:18989` を開き、サーバーが起動時に出力するアクセストークンを入力します（コンテナでは `docker logs` で確認できます）。`CODEG_TOKEN` で自分で決めることもできます。
 
-**モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `codeg-server` を指定します：URL とトークンで完了。ペアリング手順は[モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)を参照。
+**モバイル** — モバイルアプリは [getmcode.lingyun.net](https://getmcode.lingyun.net) から入手し、デスクトップアプリの**Web サービス**または自分の `codeg-server` を指定します：URL とトークンで完了。ペアリング手順は[getmcode.lingyun.net](https://getmcode.lingyun.net)を参照。
 
-Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://docs.codeg.app/getting-started/deployment) に、環境変数は [設定](https://docs.codeg.app/getting-started/configuration) にあります。
+Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://ijry.github.io/yoyocode-docs/getting-started/deployment) に、環境変数は [設定](https://ijry.github.io/yoyocode-docs/getting-started/configuration) にあります。
 
 ## 👥 コミュニティとサポート
 
@@ -288,13 +288,13 @@ Compose、ビルド済みバイナリ、ソースからのビルド、その場�
   </picture>
 
 - **イシュー** — バグを見つけた？欲しい機能がない？[イシューを作成してください](https://github.com/ijry/YoYoCode/issues)。
-- **プライバシー** — ローカル優先：解析・保存・プロジェクト操作はあなたのマシン上にとどまり、Web モードとサーバーモードはトークン認証で保護されます。詳細は [プライバシーとセキュリティ](https://docs.codeg.app/reference/privacy) を参照してください。
+- **プライバシー** — ローカル優先：解析・保存・プロジェクト操作はあなたのマシン上にとどまり、Web モードとサーバーモードはトークン認証で保護されます。詳細は [プライバシーとセキュリティ](https://ijry.github.io/yoyocode-docs/reference/privacy) を参照してください。
 - **LinuxDO** — [LinuxDO](https://linux.do) コミュニティのサポートに感謝します。
 - **応援する** — [リポジトリにスターを付けて](https://github.com/ijry/YoYoCode)、今後の進展をフォローしてください。
 
 ## 🤝 コントリビューション
 
-イシューもプルリクエストも歓迎します。YoYoCode を自分でビルドするなら、まず [開発](https://docs.codeg.app/reference/development) と [アーキテクチャ](https://docs.codeg.app/reference/architecture) から読んでください。
+イシューもプルリクエストも歓迎します。YoYoCode を自分でビルドするなら、まず [開発](https://ijry.github.io/yoyocode-docs/reference/development) と [アーキテクチャ](https://ijry.github.io/yoyocode-docs/reference/architecture) から読んでください。
 
 <a href="https://github.com/ijry/YoYoCode/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ijry/YoYoCode" alt="YoYoCode のコントリビューター" />

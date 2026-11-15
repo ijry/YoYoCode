@@ -1,5 +1,5 @@
 <h1 align="center">
-  <a href="https://docs.codeg.app"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
 </h1>
 
 <p align="center">
@@ -7,8 +7,8 @@
   <a href="https://github.com/ijry/YoYoCode/releases/latest"><img src="https://img.shields.io/github/v/release/ijry/YoYoCode?style=flat&color=e91e63" alt="Latest release" /></a>
   <a href="https://github.com/ijry/YoYoCode/releases"><img src="https://img.shields.io/github/downloads/ijry/YoYoCode/total?style=flat&color=e91e63" alt="Total downloads" /></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/github/license/ijry/YoYoCode?style=flat&color=e91e63" alt="License" /></a>
-  <a href="https://docs.codeg.app"><img src="https://img.shields.io/badge/docs-docs.codeg.app-3451b2?style=flat" alt="Documentation" /></a>
-  <a href="https://docs.codeg.app/zh/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="https://img.shields.io/badge/docs-yoyocode--docs-3451b2?style=flat" alt="Documentation" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs/zh/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   把所有 AI 编码智能体收进同一个地方 —— 并让它们协同工作。
 </p>
 
-<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>下载 YoYoCode</ins></a> · <a href="https://docs.codeg.app/zh"><ins>使用文档</ins></a></h3>
+<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>下载 YoYoCode</ins></a> · <a href="https://ijry.github.io/yoyocode-docs/zh"><ins>使用文档</ins></a> · <a href="https://getmcode.lingyun.net"><ins>App · getmcode.lingyun.net</ins></a></h3>
 
 <p align="center">
   <picture>
@@ -50,7 +50,7 @@
 
 二十个内置智能体，兼容任意 ACP 智能体。工具卡片、实时 diff 与交互式回复，尽在同一界面。
 
-[文档 →](https://docs.codeg.app/zh/guide/supported-agents) · [自定义智能体 →](https://docs.codeg.app/zh/guide/custom-agents) · [界面渲染 →](https://docs.codeg.app/zh/guide/skills#cards-tables-and-charts-in-replies)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/supported-agents) · [自定义智能体 →](https://ijry.github.io/yoyocode-docs/zh/guide/custom-agents) · [界面渲染 →](https://ijry.github.io/yoyocode-docs/zh/guide/skills#cards-tables-and-charts-in-replies)
 
 </td>
 <td width="50%">
@@ -67,7 +67,7 @@
 
 一键导入、搜索和续聊历史会话。用 `@` 跨智能体分享上下文，用标签整理对话。
 
-[文档 →](https://docs.codeg.app/zh/guide/aggregation) · [标签 →](https://docs.codeg.app/zh/guide/workspace#tag-conversations)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/aggregation) · [标签 →](https://ijry.github.io/yoyocode-docs/zh/guide/workspace#tag-conversations)
 
 </td>
 <td width="50%">
@@ -84,7 +84,7 @@
 
 用 `@` 委派任务，让多个智能体并行协作，进度实时汇入当前对话。
 
-[文档 →](https://docs.codeg.app/zh/guide/multi-agent)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/multi-agent)
 
 </td>
 <td width="50%">
@@ -101,7 +101,7 @@
 
 任务独享工作树，可立即执行或定时启动。智能体完成工作，你来验收改动。
 
-[文档 →](https://docs.codeg.app/zh/guide/tasks) · [自动处理 →](https://docs.codeg.app/zh/guide/repository#let-it-pick-items-up-by-itself)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/tasks) · [自动处理 →](https://ijry.github.io/yoyocode-docs/zh/guide/repository#let-it-pick-items-up-by-itself)
 
 </td>
 <td width="50%">
@@ -118,7 +118,7 @@
 
 在无限画布上摆放对话、文件、终端与便签，让多个智能体的工作一目了然。
 
-[文档 →](https://docs.codeg.app/zh/guide/canvas)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/canvas)
 
 </td>
 <td width="50%">
@@ -135,7 +135,7 @@
 
 支持桌面、服务器、Docker 与移动端，也能通过 Telegram、飞书和微信与智能体对话。
 
-[文档 →](https://docs.codeg.app/zh/getting-started/deployment) · [远端工作区 →](https://docs.codeg.app/zh/guide/workspace#desktop-and-browser) · [移动应用 →](https://docs.codeg.app/zh/getting-started/installation#mobile-apps) · [消息渠道 →](https://docs.codeg.app/zh/guide/chat-channels)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/getting-started/deployment) · [远端工作区 →](https://ijry.github.io/yoyocode-docs/zh/guide/workspace#desktop-and-browser) · [getmcode.lingyun.net →](https://getmcode.lingyun.net) · [消息渠道 →](https://ijry.github.io/yoyocode-docs/zh/guide/chat-channels)
 
 </td>
 <td width="50%">
@@ -152,7 +152,7 @@
 
 生成 Office 文档并实时预览，直接查看 PDF。内置科研技能，任意智能体都能调用。
 
-[文档 →](https://docs.codeg.app/zh/guide/office) · [科学研究 →](https://docs.codeg.app/zh/guide/research)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/office) · [科学研究 →](https://ijry.github.io/yoyocode-docs/zh/guide/research)
 
 </td>
 <td width="50%">
@@ -169,7 +169,7 @@
 
 从桌面内置浏览器分享页面与报错，用电脑操作（预览版）让智能体操作共享窗口。
 
-[文档 →](https://docs.codeg.app/zh/guide/browser) · [电脑操作 →](https://docs.codeg.app/zh/guide/computer-use)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/browser) · [电脑操作 →](https://ijry.github.io/yoyocode-docs/zh/guide/computer-use)
 
 </td>
 <td width="50%">
@@ -186,7 +186,7 @@
 
 `yoyo-cli` 将脚本与 CI 接入正在运行的 YoYoCode，输出智能体回复或 JSON 事件。
 
-[文档 →](https://docs.codeg.app/zh/guide/command-line)
+[文档 →](https://ijry.github.io/yoyocode-docs/zh/guide/command-line)
 
 </td>
 <td width="50%" valign="middle">
@@ -205,16 +205,16 @@ git diff | yoyo-cli -a codex \
 
 **还有这些：**
 
-- **[完整的工程闭环](https://docs.codeg.app/zh/guide/workspace)** — 代码编辑器、实时 diff、[Git 与工作树](https://docs.codeg.app/zh/guide/git)、三栏合并编辑器、终端与分屏
-- **[仓库面板](https://docs.codeg.app/zh/guide/repository)** — GitHub、GitLab、Gitea 与 Forgejo 的议题、拉取请求、检查与合并；任意议题或 PR 都能变成待办任务
-- **[自动化](https://docs.codeg.app/zh/guide/automations)** — 把配置好的输入框存成自动化，按 cron 计划或手动触发、无界面运行
-- **[Token 用量](https://docs.codeg.app/zh/guide/token-usage)** — 趋势与缓存命中率、活跃热力图、按文件夹、智能体、模型与会话的分项统计，以及按 API 标价估算的花费
-- **[分叉与插话](https://docs.codeg.app/zh/guide/workspace#follow-along-%E2%80%94-the-conversation)** — 在支持的智能体上，从已完成的回复分叉出新会话，或者在回合进行中插进一条消息
-- **[技能](https://docs.codeg.app/zh/guide/skills) 与 [MCP](https://docs.codeg.app/zh/guide/mcp)** — 按智能体启用的技能包、本地 MCP 扫描，以及注册表搜索与安装
-- **[项目启动器](https://docs.codeg.app/zh/guide/project-boot)** — 可视化创建新项目，并实时预览
-- **[通知与提醒](https://docs.codeg.app/zh/reference/settings/general#desktop-notifications)** — 回合结束或智能体需要你时，发出桌面通知和提示音，并让任务栏按钮闪烁、Dock 图标跳动
-- **[外观自定义](https://docs.codeg.app/zh/reference/settings/appearance)** — 十二套主题都能逐个色彩 token 重新调色，还有壁纸、圆角、聊天区域宽度、自定义 CSS 与桌面宠物——界面支持十种语言
-- **[备份与同步](https://docs.codeg.app/zh/reference/settings/system#backup-restore)** — 可加密的备份，以及通过文件或你自己的 WebDAV 服务器在多台机器之间同步配置
+- **[完整的工程闭环](https://ijry.github.io/yoyocode-docs/zh/guide/workspace)** — 代码编辑器、实时 diff、[Git 与工作树](https://ijry.github.io/yoyocode-docs/zh/guide/git)、三栏合并编辑器、终端与分屏
+- **[仓库面板](https://ijry.github.io/yoyocode-docs/zh/guide/repository)** — GitHub、GitLab、Gitea 与 Forgejo 的议题、拉取请求、检查与合并；任意议题或 PR 都能变成待办任务
+- **[自动化](https://ijry.github.io/yoyocode-docs/zh/guide/automations)** — 把配置好的输入框存成自动化，按 cron 计划或手动触发、无界面运行
+- **[Token 用量](https://ijry.github.io/yoyocode-docs/zh/guide/token-usage)** — 趋势与缓存命中率、活跃热力图、按文件夹、智能体、模型与会话的分项统计，以及按 API 标价估算的花费
+- **[分叉与插话](https://ijry.github.io/yoyocode-docs/zh/guide/workspace#follow-along-%E2%80%94-the-conversation)** — 在支持的智能体上，从已完成的回复分叉出新会话，或者在回合进行中插进一条消息
+- **[技能](https://ijry.github.io/yoyocode-docs/zh/guide/skills) 与 [MCP](https://ijry.github.io/yoyocode-docs/zh/guide/mcp)** — 按智能体启用的技能包、本地 MCP 扫描，以及注册表搜索与安装
+- **[项目启动器](https://ijry.github.io/yoyocode-docs/zh/guide/project-boot)** — 可视化创建新项目，并实时预览
+- **[通知与提醒](https://ijry.github.io/yoyocode-docs/zh/reference/settings/general#desktop-notifications)** — 回合结束或智能体需要你时，发出桌面通知和提示音，并让任务栏按钮闪烁、Dock 图标跳动
+- **[外观自定义](https://ijry.github.io/yoyocode-docs/zh/reference/settings/appearance)** — 十二套主题都能逐个色彩 token 重新调色，还有壁纸、圆角、聊天区域宽度、自定义 CSS 与桌面宠物——界面支持十种语言
+- **[备份与同步](https://ijry.github.io/yoyocode-docs/zh/reference/settings/system#backup-restore)** — 可加密的备份，以及通过文件或你自己的 WebDAV 服务器在多台机器之间同步配置
 - **[URL Scheme](../../docs/url-scheme.md)** — 用 `codeg://session/<id>` 从其它应用直接打开一个会话（桌面端）
 - **还有更多** — 几乎每个版本都有新东西；完整清单见 [发布说明](https://github.com/ijry/YoYoCode/releases)
 
@@ -243,14 +243,14 @@ YoYoCode 通过 [Agent Client Protocol](https://agentclientprotocol.com) 与每�
   <a href="../agents/zcode.md"><kbd><img src="../images/agents/zcode.svg" alt="" width="16" valign="middle" /> ZCode</kbd></a> &nbsp;
   <a href="https://docs.trae.cn/cli_about-trae-code-cli-2"><kbd><img src="../images/agents/trae.svg" alt="" width="16" valign="middle" /> TRAE CLI</kbd></a> &nbsp;
   <a href="https://commandcode.ai"><kbd><img src="../images/agents/command-code.svg" alt="" width="16" valign="middle" /> Command Code</kbd></a> &nbsp;
-  <a href="https://docs.codeg.app/zh/guide/custom-agents"><kbd>+ 任意 ACP 智能体</kbd></a>
+  <a href="https://ijry.github.io/yoyocode-docs/zh/guide/custom-agents"><kbd>+ 任意 ACP 智能体</kbd></a>
 </p>
 
-名单之外的呢？从公开的 ACP 注册表里挑一个，或者粘贴它的 distribution JSON——YoYoCode 会安装它、预检它能否启动，然后像对待内置智能体一样对待它。各自的运行环境要求以及会话在磁盘上的存放位置，见 [支持的智能体](https://docs.codeg.app/zh/guide/supported-agents)。
+名单之外的呢？从公开的 ACP 注册表里挑一个，或者粘贴它的 distribution JSON——YoYoCode 会安装它、预检它能否启动，然后像对待内置智能体一样对待它。各自的运行环境要求以及会话在磁盘上的存放位置，见 [支持的智能体](https://ijry.github.io/yoyocode-docs/zh/guide/supported-agents)。
 
 ## 📦 安装
 
-**桌面端** — macOS、Windows 与 Linux 的安装包都在 [Releases](https://github.com/ijry/YoYoCode/releases/latest)，安装步骤见 [安装](https://docs.codeg.app/zh/getting-started/installation)。
+**桌面端** — macOS、Windows 与 Linux 的安装包都在 [Releases](https://github.com/ijry/YoYoCode/releases/latest)，安装步骤见 [安装](https://ijry.github.io/yoyocode-docs/zh/getting-started/installation)。
 
 **服务器** — 无界面运行 YoYoCode，用任意浏览器访问。Linux 或 macOS：
 
@@ -274,9 +274,9 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 无论哪种方式，都在浏览器里打开 `http://<host>:18989`，输入服务器启动时打印的访问令牌（容器用 `docker logs` 查看）；也可以用 `CODEG_TOKEN` 自己指定。
 
-**移动端** — 从 [getmcode.lingyun.net](https://getmcode.lingyun.net) 获取移动端应用，然后指向桌面应用的**Web 服务**或你自己的 `codeg-server`：填 URL 和 token 即可。配对步骤见[移动应用](https://docs.codeg.app/getting-started/installation#mobile-apps)。
+**移动端** — 从 [getmcode.lingyun.net](https://getmcode.lingyun.net) 获取移动端应用，然后指向桌面应用的**Web 服务**或你自己的 `codeg-server`：填 URL 和 token 即可。配对步骤见[getmcode.lingyun.net](https://getmcode.lingyun.net)。
 
-Compose、预编译二进制、源码构建与就地升级见 [部署](https://docs.codeg.app/zh/getting-started/deployment)；环境变量见 [配置](https://docs.codeg.app/zh/getting-started/configuration)。
+Compose、预编译二进制、源码构建与就地升级见 [部署](https://ijry.github.io/yoyocode-docs/zh/getting-started/deployment)；环境变量见 [配置](https://ijry.github.io/yoyocode-docs/zh/getting-started/configuration)。
 
 ## 👥 社区与支持
 
@@ -288,13 +288,13 @@ Compose、预编译二进制、源码构建与就地升级见 [部署](https://d
   </picture>
 
 - **问题反馈** — 遇到 bug，或者缺了什么功能？[提交 issue](https://github.com/ijry/YoYoCode/issues)。
-- **隐私** — 默认本地优先：解析、存储与项目操作都在你的机器上完成，Web 模式与服务器模式均使用令牌认证。详见 [隐私与安全](https://docs.codeg.app/zh/reference/privacy)。
+- **隐私** — 默认本地优先：解析、存储与项目操作都在你的机器上完成，Web 模式与服务器模式均使用令牌认证。详见 [隐私与安全](https://ijry.github.io/yoyocode-docs/zh/reference/privacy)。
 - **LinuxDO** — 感谢 [LinuxDO](https://linux.do) 社区的支持。
 - **支持我们** — [给仓库点个 Star](https://github.com/ijry/YoYoCode)，关注后续进展。
 
 ## 🤝 参与贡献
 
-欢迎提交 issue 与 pull request。想自己构建 YoYoCode，可以从 [开发](https://docs.codeg.app/zh/reference/development) 与 [架构](https://docs.codeg.app/zh/reference/architecture) 开始。
+欢迎提交 issue 与 pull request。想自己构建 YoYoCode，可以从 [开发](https://ijry.github.io/yoyocode-docs/zh/reference/development) 与 [架构](https://ijry.github.io/yoyocode-docs/zh/reference/architecture) 开始。
 
 <a href="https://github.com/ijry/YoYoCode/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ijry/YoYoCode" alt="YoYoCode 贡献者" />

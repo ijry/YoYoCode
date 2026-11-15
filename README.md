@@ -1,5 +1,5 @@
 <h1 align="center">
-  <a href="https://docs.codeg.app"><img src="./public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="./public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
 </h1>
 
 <p align="center">
@@ -7,8 +7,8 @@
   <a href="https://github.com/ijry/YoYoCode/releases/latest"><img src="https://img.shields.io/github/v/release/ijry/YoYoCode?style=flat&color=e91e63" alt="Latest release" /></a>
   <a href="https://github.com/ijry/YoYoCode/releases"><img src="https://img.shields.io/github/downloads/ijry/YoYoCode/total?style=flat&color=e91e63" alt="Total downloads" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/ijry/YoYoCode?style=flat&color=e91e63" alt="License" /></a>
-  <a href="https://docs.codeg.app"><img src="https://img.shields.io/badge/docs-docs.codeg.app-3451b2?style=flat" alt="Documentation" /></a>
-  <a href="https://docs.codeg.app/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="https://img.shields.io/badge/docs-yoyocode--docs-3451b2?style=flat" alt="Documentation" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   Run every AI coding agent in one place — and let them work together.
 </p>
 
-<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>Download YoYoCode</ins></a> · <a href="https://docs.codeg.app"><ins>Documentation</ins></a></h3>
+<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>Download YoYoCode</ins></a> · <a href="https://ijry.github.io/yoyocode-docs"><ins>Documentation</ins></a> · <a href="https://getmcode.lingyun.net"><ins>App · getmcode.lingyun.net</ins></a></h3>
 
 <p align="center">
   <picture>
@@ -50,7 +50,7 @@
 
 Twenty agents, plus any ACP agent, in one rich chat with tool cards, live diffs, and interactive replies.
 
-[Docs →](https://docs.codeg.app/guide/supported-agents) · [Custom agents →](https://docs.codeg.app/guide/custom-agents) · [UI Render →](https://docs.codeg.app/guide/skills#cards-tables-and-charts-in-replies)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/supported-agents) · [Custom agents →](https://ijry.github.io/yoyocode-docs/guide/custom-agents) · [UI Render →](https://ijry.github.io/yoyocode-docs/guide/skills#cards-tables-and-charts-in-replies)
 
 </td>
 <td width="50%">
@@ -67,7 +67,7 @@ Twenty agents, plus any ACP agent, in one rich chat with tool cards, live diffs,
 
 Import, search, and resume any agent's history. Share sessions with `@` mentions and organize them with tags.
 
-[Docs →](https://docs.codeg.app/guide/aggregation) · [Tags →](https://docs.codeg.app/guide/workspace#tag-conversations)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/aggregation) · [Tags →](https://ijry.github.io/yoyocode-docs/guide/workspace#tag-conversations)
 
 </td>
 <td width="50%">
@@ -84,7 +84,7 @@ Import, search, and resume any agent's history. Share sessions with `@` mentions
 
 `@` an agent to delegate. Run agents side by side and watch their progress stream into your conversation.
 
-[Docs →](https://docs.codeg.app/guide/multi-agent)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/multi-agent)
 
 </td>
 <td width="50%">
@@ -101,7 +101,7 @@ Import, search, and resume any agent's history. Share sessions with `@` mentions
 
 Schedule tasks in isolated worktrees. Agents handle the work; you review and approve the changes.
 
-[Docs →](https://docs.codeg.app/guide/tasks) · [Auto-processing →](https://docs.codeg.app/guide/repository#let-it-pick-items-up-by-itself)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/tasks) · [Auto-processing →](https://ijry.github.io/yoyocode-docs/guide/repository#let-it-pick-items-up-by-itself)
 
 </td>
 <td width="50%">
@@ -118,7 +118,7 @@ Schedule tasks in isolated worktrees. Agents handle the work; you review and app
 
 Arrange chats, files, terminals, and notes on an infinite board. Keep every agent's work in view.
 
-[Docs →](https://docs.codeg.app/guide/canvas)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/canvas)
 
 </td>
 <td width="50%">
@@ -135,7 +135,7 @@ Arrange chats, files, terminals, and notes on an infinite board. Keep every agen
 
 Work on desktop, server, Docker, or mobile. Reach your agents through Telegram, Lark, and WeChat.
 
-[Docs →](https://docs.codeg.app/getting-started/deployment) · [Remote workspaces →](https://docs.codeg.app/guide/workspace#desktop-and-browser) · [Mobile apps →](https://docs.codeg.app/getting-started/installation#mobile-apps) · [Chat channels →](https://docs.codeg.app/guide/chat-channels)
+[Docs →](https://ijry.github.io/yoyocode-docs/getting-started/deployment) · [Remote workspaces →](https://ijry.github.io/yoyocode-docs/guide/workspace#desktop-and-browser) · [getmcode.lingyun.net →](https://getmcode.lingyun.net) · [Chat channels →](https://ijry.github.io/yoyocode-docs/guide/chat-channels)
 
 </td>
 <td width="50%">
@@ -152,7 +152,7 @@ Work on desktop, server, Docker, or mobile. Reach your agents through Telegram, 
 
 Create Office files with live previews and view PDFs beside chat. Research skills work with any agent.
 
-[Docs →](https://docs.codeg.app/guide/office) · [Research →](https://docs.codeg.app/guide/research)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/office) · [Research →](https://ijry.github.io/yoyocode-docs/guide/research)
 
 </td>
 <td width="50%">
@@ -169,7 +169,7 @@ Create Office files with live previews and view PDFs beside chat. Research skill
 
 Share pages and errors from the desktop browser. Let agents operate shared windows with Computer Use (preview).
 
-[Docs →](https://docs.codeg.app/guide/browser) · [Computer Use →](https://docs.codeg.app/guide/computer-use)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/browser) · [Computer Use →](https://ijry.github.io/yoyocode-docs/guide/computer-use)
 
 </td>
 <td width="50%">
@@ -186,7 +186,7 @@ Share pages and errors from the desktop browser. Let agents operate shared windo
 
 Run prompts from scripts or CI with `yoyo-cli`. Connect to a running YoYoCode for replies or JSON events.
 
-[Docs →](https://docs.codeg.app/guide/command-line)
+[Docs →](https://ijry.github.io/yoyocode-docs/guide/command-line)
 
 </td>
 <td width="50%" valign="middle">
@@ -205,16 +205,16 @@ git diff | yoyo-cli -a codex \
 
 **Also in the box:**
 
-- **[The Full Engineering Loop](https://docs.codeg.app/guide/workspace)** — a code editor, live diffs, [Git & worktrees](https://docs.codeg.app/guide/git), a three-pane merge editor, terminals, and split views
-- **[Repository Panel](https://docs.codeg.app/guide/repository)** — issues, pull requests, checks, and merges for GitHub, GitLab, Gitea, and Forgejo; any issue or PR can become a to-do
-- **[Automations](https://docs.codeg.app/guide/automations)** — save a configured composer and run it headlessly, on a cron schedule or on demand
-- **[Token Usage](https://docs.codeg.app/guide/token-usage)** — trends, cache hit rate, an activity heatmap, usage by folder, agent, model, and session, and what it would cost at API list prices
-- **[Fork & Steer](https://docs.codeg.app/guide/workspace#follow-along-%E2%80%94-the-conversation)** — fork a conversation from a finished reply, or send a message into a turn that is still running, on agents that support it
-- **[Skills](https://docs.codeg.app/guide/skills) & [MCP](https://docs.codeg.app/guide/mcp)** — skill packs per agent, a local MCP scan, and registry search and install
-- **[Project Boot](https://docs.codeg.app/guide/project-boot)** — scaffold a new project visually, with a live preview
-- **[Notifications](https://docs.codeg.app/reference/settings/general#desktop-notifications)** — desktop notifications, sounds, and a flashing taskbar button or bouncing Dock icon when a turn ends or an agent needs you
-- **[Make It Yours](https://docs.codeg.app/reference/settings/appearance)** — twelve themes you can recolor token by token, wallpapers, corner radius, chat width, custom CSS, and a desktop pet — in any of ten interface languages
-- **[Backup & Sync](https://docs.codeg.app/reference/settings/system#backup-restore)** — encrypted backups, and configuration sync between machines through a file or your own WebDAV server
+- **[The Full Engineering Loop](https://ijry.github.io/yoyocode-docs/guide/workspace)** — a code editor, live diffs, [Git & worktrees](https://ijry.github.io/yoyocode-docs/guide/git), a three-pane merge editor, terminals, and split views
+- **[Repository Panel](https://ijry.github.io/yoyocode-docs/guide/repository)** — issues, pull requests, checks, and merges for GitHub, GitLab, Gitea, and Forgejo; any issue or PR can become a to-do
+- **[Automations](https://ijry.github.io/yoyocode-docs/guide/automations)** — save a configured composer and run it headlessly, on a cron schedule or on demand
+- **[Token Usage](https://ijry.github.io/yoyocode-docs/guide/token-usage)** — trends, cache hit rate, an activity heatmap, usage by folder, agent, model, and session, and what it would cost at API list prices
+- **[Fork & Steer](https://ijry.github.io/yoyocode-docs/guide/workspace#follow-along-%E2%80%94-the-conversation)** — fork a conversation from a finished reply, or send a message into a turn that is still running, on agents that support it
+- **[Skills](https://ijry.github.io/yoyocode-docs/guide/skills) & [MCP](https://ijry.github.io/yoyocode-docs/guide/mcp)** — skill packs per agent, a local MCP scan, and registry search and install
+- **[Project Boot](https://ijry.github.io/yoyocode-docs/guide/project-boot)** — scaffold a new project visually, with a live preview
+- **[Notifications](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — desktop notifications, sounds, and a flashing taskbar button or bouncing Dock icon when a turn ends or an agent needs you
+- **[Make It Yours](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — twelve themes you can recolor token by token, wallpapers, corner radius, chat width, custom CSS, and a desktop pet — in any of ten interface languages
+- **[Backup & Sync](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — encrypted backups, and configuration sync between machines through a file or your own WebDAV server
 - **[URL Scheme](./docs/url-scheme.md)** — `codeg://session/<id>` opens a conversation from another app (desktop)
 - **And more** — nearly every release adds something; the [release notes](https://github.com/ijry/YoYoCode/releases) are the full list
 
@@ -243,14 +243,14 @@ YoYoCode talks to every agent over the [Agent Client Protocol](https://agentclie
   <a href="./docs/agents/zcode.md"><kbd><img src="./docs/images/agents/zcode.svg" alt="" width="16" valign="middle" /> ZCode</kbd></a> &nbsp;
   <a href="https://docs.trae.cn/cli_about-trae-code-cli-2"><kbd><img src="./docs/images/agents/trae.svg" alt="" width="16" valign="middle" /> TRAE CLI</kbd></a> &nbsp;
   <a href="https://commandcode.ai"><kbd><img src="./docs/images/agents/command-code.svg" alt="" width="16" valign="middle" /> Command Code</kbd></a> &nbsp;
-  <a href="https://docs.codeg.app/guide/custom-agents"><kbd>+ any ACP agent</kbd></a>
+  <a href="https://ijry.github.io/yoyocode-docs/guide/custom-agents"><kbd>+ any ACP agent</kbd></a>
 </p>
 
-Not on the list? Pick any agent from the public ACP registry or paste its distribution JSON — YoYoCode installs it, checks that it launches, and treats it like a built-in. Runtime requirements and where each agent keeps its sessions: [Supported Agents](https://docs.codeg.app/guide/supported-agents).
+Not on the list? Pick any agent from the public ACP registry or paste its distribution JSON — YoYoCode installs it, checks that it launches, and treats it like a built-in. Runtime requirements and where each agent keeps its sessions: [Supported Agents](https://ijry.github.io/yoyocode-docs/guide/supported-agents).
 
 ## 📦 Install
 
-**Desktop** — installers for macOS, Windows, and Linux are on [Releases](https://github.com/ijry/YoYoCode/releases/latest); setup steps in [Installation](https://docs.codeg.app/getting-started/installation).
+**Desktop** — installers for macOS, Windows, and Linux are on [Releases](https://github.com/ijry/YoYoCode/releases/latest); setup steps in [Installation](https://ijry.github.io/yoyocode-docs/getting-started/installation).
 
 **Server** — run YoYoCode headless and reach it from any browser. On Linux or macOS:
 
@@ -274,9 +274,9 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 Either way, open `http://<host>:18989` in a browser and enter the access token the server prints when it starts (`docker logs` shows it for the container), or set `CODEG_TOKEN` to choose your own.
 
-**Mobile** — get the mobile app from [getmcode.lingyun.net](https://getmcode.lingyun.net), then point it at the **Web Service** of your desktop app or at your own `codeg-server`: URL, token, done. Pairing steps in [Mobile apps](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**Mobile** — get the mobile app from [getmcode.lingyun.net](https://getmcode.lingyun.net), then point it at the **Web Service** of your desktop app or at your own `codeg-server`: URL, token, done. Pairing steps: open **Settings → Web Service** on the desktop (or the status-bar popover) and scan the connection QR code with the app. Remote access over a Tailscale Funnel HTTPS address is supported too. Pairing reference: [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
-Compose, prebuilt binaries, source builds, and in-place updates are covered in [Deployment](https://docs.codeg.app/getting-started/deployment); environment variables in [Configuration](https://docs.codeg.app/getting-started/configuration).
+Compose, prebuilt binaries, source builds, and in-place updates are covered in [Deployment](https://ijry.github.io/yoyocode-docs/getting-started/deployment); environment variables in [Configuration](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 
 ## 👥 Community & Support
 
@@ -288,13 +288,13 @@ Compose, prebuilt binaries, source builds, and in-place updates are covered in [
   </picture>
 
 - **Issues** — found a bug or missing a feature? [Open an issue](https://github.com/ijry/YoYoCode/issues).
-- **Privacy** — local-first: parsing, storage, and project operations stay on your machine, and web and server modes are guarded by token authentication. Details in [Privacy & Security](https://docs.codeg.app/reference/privacy).
+- **Privacy** — local-first: parsing, storage, and project operations stay on your machine, and web and server modes are guarded by token authentication. Details in [Privacy & Security](https://ijry.github.io/yoyocode-docs/reference/privacy).
 - **LinuxDO** — thanks to the [LinuxDO](https://linux.do) community for their support.
 - **Show support** — [star the repo](https://github.com/ijry/YoYoCode) to follow along.
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. To build YoYoCode yourself, start with [Development](https://docs.codeg.app/reference/development) and [Architecture](https://docs.codeg.app/reference/architecture).
+Issues and pull requests are welcome. To build YoYoCode yourself, start with [Development](https://ijry.github.io/yoyocode-docs/reference/development) and [Architecture](https://ijry.github.io/yoyocode-docs/reference/architecture).
 
 <a href="https://github.com/ijry/YoYoCode/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ijry/YoYoCode" alt="YoYoCode contributors" />

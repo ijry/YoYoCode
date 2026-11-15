@@ -1,5 +1,5 @@
 <h1 align="center">
-  <a href="https://docs.codeg.app"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="../../public/icon.svg" alt="YoYoCode logo" width="64" align="absmiddle" /></a> YoYoCode
 </h1>
 
 <p align="center">
@@ -7,8 +7,8 @@
   <a href="https://github.com/ijry/YoYoCode/releases/latest"><img src="https://img.shields.io/github/v/release/ijry/YoYoCode?style=flat&color=e91e63" alt="Latest release" /></a>
   <a href="https://github.com/ijry/YoYoCode/releases"><img src="https://img.shields.io/github/downloads/ijry/YoYoCode/total?style=flat&color=e91e63" alt="Total downloads" /></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/github/license/ijry/YoYoCode?style=flat&color=e91e63" alt="License" /></a>
-  <a href="https://docs.codeg.app"><img src="https://img.shields.io/badge/docs-docs.codeg.app-3451b2?style=flat" alt="Documentation" /></a>
-  <a href="https://docs.codeg.app/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs"><img src="https://img.shields.io/badge/docs-yoyocode--docs-3451b2?style=flat" alt="Documentation" /></a>
+  <a href="https://ijry.github.io/yoyocode-docs/getting-started/installation"><img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker%20%7C%20iOS%20%7C%20Android-03a9f4?style=flat" alt="Platforms: macOS, Windows, Linux, Docker, iOS, Android" /></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   شغّل كل وكلاء البرمجة بالذكاء الاصطناعي في مكان واحد — ودعهم يعملون معًا.
 </p>
 
-<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>تنزيل YoYoCode</ins></a> · <a href="https://docs.codeg.app"><ins>التوثيق</ins></a></h3>
+<h3 align="center"><a href="https://github.com/ijry/YoYoCode/releases/latest"><ins>تنزيل YoYoCode</ins></a> · <a href="https://ijry.github.io/yoyocode-docs"><ins>التوثيق</ins></a> · <a href="https://getmcode.lingyun.net"><ins>App · getmcode.lingyun.net</ins></a></h3>
 
 <p align="center">
   <picture>
@@ -50,7 +50,7 @@
 
 20 وكيلًا مدمجًا وأي وكيل ACP، في محادثة واحدة مع بطاقات أدوات وفروق مباشرة وردود تفاعلية.
 
-[التوثيق ←](https://docs.codeg.app/guide/supported-agents) · [الوكلاء المخصّصون ←](https://docs.codeg.app/guide/custom-agents) · [عرض الواجهة ←](https://docs.codeg.app/guide/skills#cards-tables-and-charts-in-replies)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/supported-agents) · [الوكلاء المخصّصون ←](https://ijry.github.io/yoyocode-docs/guide/custom-agents) · [عرض الواجهة ←](https://ijry.github.io/yoyocode-docs/guide/skills#cards-tables-and-charts-in-replies)
 
 </td>
 <td width="50%">
@@ -67,7 +67,7 @@
 
 استورد الجلسات وابحث فيها واستأنفها. شاركها مع الوكلاء عبر `@` ونظّمها بالوسوم.
 
-[التوثيق ←](https://docs.codeg.app/guide/aggregation) · [الوسوم ←](https://docs.codeg.app/guide/workspace#tag-conversations)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/aggregation) · [الوسوم ←](https://ijry.github.io/yoyocode-docs/guide/workspace#tag-conversations)
 
 </td>
 <td width="50%">
@@ -84,7 +84,7 @@
 
 فوّض المهام عبر `@`. يعمل الوكلاء بالتوازي ويعرضون تقدّمهم مباشرة في محادثتك.
 
-[التوثيق ←](https://docs.codeg.app/guide/multi-agent)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/multi-agent)
 
 </td>
 <td width="50%">
@@ -101,7 +101,7 @@
 
 شغّل المهام فورًا أو بجدول زمني في أشجار عمل مستقلة. الوكلاء يعملون وأنت تراجع التغييرات وتوافق عليها.
 
-[التوثيق ←](https://docs.codeg.app/guide/tasks) · [المعالجة التلقائية ←](https://docs.codeg.app/guide/repository#let-it-pick-items-up-by-itself)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/tasks) · [المعالجة التلقائية ←](https://ijry.github.io/yoyocode-docs/guide/repository#let-it-pick-items-up-by-itself)
 
 </td>
 <td width="50%">
@@ -118,7 +118,7 @@
 
 رتّب المحادثات والملفات والطرفيات والملاحظات على لوحة لا نهائية. كل الوكلاء أمامك.
 
-[التوثيق ←](https://docs.codeg.app/guide/canvas)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/canvas)
 
 </td>
 <td width="50%">
@@ -135,7 +135,7 @@
 
 سطح المكتب أو الخادم أو Docker أو الهاتف. تواصل مع وكلائك أيضًا عبر Telegram وLark وWeChat.
 
-[التوثيق ←](https://docs.codeg.app/getting-started/deployment) · [مساحات العمل البعيدة ←](https://docs.codeg.app/guide/workspace#desktop-and-browser) · [التطبيقات المحمولة ←](https://docs.codeg.app/getting-started/installation#mobile-apps) · [قنوات المحادثة ←](https://docs.codeg.app/guide/chat-channels)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/getting-started/deployment) · [مساحات العمل البعيدة ←](https://ijry.github.io/yoyocode-docs/guide/workspace#desktop-and-browser) · [← getmcode.lingyun.net](https://getmcode.lingyun.net) · [قنوات المحادثة ←](https://ijry.github.io/yoyocode-docs/guide/chat-channels)
 
 </td>
 <td width="50%">
@@ -152,7 +152,7 @@
 
 أنشئ ملفات Office بمعاينة مباشرة وافتح ملفات PDF. مهارات البحث متاحة لكل وكيل.
 
-[التوثيق ←](https://docs.codeg.app/guide/office) · [البحث العلمي ←](https://docs.codeg.app/guide/research)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/office) · [البحث العلمي ←](https://ijry.github.io/yoyocode-docs/guide/research)
 
 </td>
 <td width="50%">
@@ -169,7 +169,7 @@
 
 شارك الصفحات والأخطاء من متصفح سطح المكتب. استخدام الحاسوب (معاينة) يتحكم بالنوافذ المشتركة.
 
-[التوثيق ←](https://docs.codeg.app/guide/browser) · [استخدام الحاسوب ←](https://docs.codeg.app/guide/computer-use)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/browser) · [استخدام الحاسوب ←](https://ijry.github.io/yoyocode-docs/guide/computer-use)
 
 </td>
 <td width="50%">
@@ -186,7 +186,7 @@
 
 اربط السكربتات وCI بـ YoYoCode قيد التشغيل عبر `yoyo-cli`، واحصل على الردود أو أحداث JSON.
 
-[التوثيق ←](https://docs.codeg.app/guide/command-line)
+[التوثيق ←](https://ijry.github.io/yoyocode-docs/guide/command-line)
 
 </td>
 <td width="50%" valign="middle">
@@ -205,16 +205,16 @@ git diff | yoyo-cli -a codex \
 
 **ويتضمن أيضًا:**
 
-- **[الحلقة الهندسية الكاملة](https://docs.codeg.app/guide/workspace)** — محرر شيفرة وفروق مباشرة و[Git وأشجار العمل](https://docs.codeg.app/guide/git) ومحرر دمج بثلاث لوحات وطرفيات وعروض مقسّمة
-- **[لوحة المستودع](https://docs.codeg.app/guide/repository)** — المشكلات وطلبات السحب والفحوصات وعمليات الدمج لـ GitHub وGitLab وGitea وForgejo؛ ويمكن لأي مشكلة أو طلب سحب أن يتحول إلى مهمة قيد الانتظار
-- **[الأتمتة](https://docs.codeg.app/guide/automations)** — احفظ مربع الإدخال بإعداداته وشغّله بلا واجهة، وفق جدول cron أو عند الطلب
-- **[استخدام الرموز](https://docs.codeg.app/guide/token-usage)** — الاتجاهات، ونسبة إصابة التخزين المؤقت، وخريطة حرارية للنشاط، والاستخدام حسب المجلد والوكيل والنموذج والجلسة، وما سيكلّفه ذلك بأسعار API المعلنة
-- **[التفريع والتوجيه](https://docs.codeg.app/guide/workspace#follow-along-%E2%80%94-the-conversation)** — مع الوكلاء الذين يدعمون ذلك، فرّع محادثة من رد مكتمل، أو أرسل رسالة إلى دورٍ لا يزال قيد التنفيذ
-- **[المهارات](https://docs.codeg.app/guide/skills) و[MCP](https://docs.codeg.app/guide/mcp)** — حزم مهارات لكل وكيل، وفحص MCP المحلي، والبحث في السجل والتثبيت منه
-- **[مُنشئ المشروع](https://docs.codeg.app/guide/project-boot)** — أنشئ مشروعًا جديدًا بصريًا، مع معاينة حية
-- **[الإشعارات](https://docs.codeg.app/reference/settings/general#desktop-notifications)** — إشعارات سطح المكتب، وأصوات التنبيه، وزر شريط مهام يومض أو أيقونة Dock تقفز عندما ينتهي دورٌ أو يحتاجك وكيل
-- **[اجعله على ذوقك](https://docs.codeg.app/reference/settings/appearance)** — اثنتا عشرة سمة يمكنك إعادة تلوينها رمزًا لونيًا تلو الآخر، وخلفيات، واستدارة الزوايا، وعرض المحادثة، وCSS مخصّص، وحيوان أليف على سطح المكتب — بأيٍّ من لغات الواجهة العشر
-- **[النسخ الاحتياطي والمزامنة](https://docs.codeg.app/reference/settings/system#backup-restore)** — نسخ احتياطية مشفّرة، ومزامنة الإعدادات بين الأجهزة عبر ملف أو خادم WebDAV الخاص بك
+- **[الحلقة الهندسية الكاملة](https://ijry.github.io/yoyocode-docs/guide/workspace)** — محرر شيفرة وفروق مباشرة و[Git وأشجار العمل](https://ijry.github.io/yoyocode-docs/guide/git) ومحرر دمج بثلاث لوحات وطرفيات وعروض مقسّمة
+- **[لوحة المستودع](https://ijry.github.io/yoyocode-docs/guide/repository)** — المشكلات وطلبات السحب والفحوصات وعمليات الدمج لـ GitHub وGitLab وGitea وForgejo؛ ويمكن لأي مشكلة أو طلب سحب أن يتحول إلى مهمة قيد الانتظار
+- **[الأتمتة](https://ijry.github.io/yoyocode-docs/guide/automations)** — احفظ مربع الإدخال بإعداداته وشغّله بلا واجهة، وفق جدول cron أو عند الطلب
+- **[استخدام الرموز](https://ijry.github.io/yoyocode-docs/guide/token-usage)** — الاتجاهات، ونسبة إصابة التخزين المؤقت، وخريطة حرارية للنشاط، والاستخدام حسب المجلد والوكيل والنموذج والجلسة، وما سيكلّفه ذلك بأسعار API المعلنة
+- **[التفريع والتوجيه](https://ijry.github.io/yoyocode-docs/guide/workspace#follow-along-%E2%80%94-the-conversation)** — مع الوكلاء الذين يدعمون ذلك، فرّع محادثة من رد مكتمل، أو أرسل رسالة إلى دورٍ لا يزال قيد التنفيذ
+- **[المهارات](https://ijry.github.io/yoyocode-docs/guide/skills) و[MCP](https://ijry.github.io/yoyocode-docs/guide/mcp)** — حزم مهارات لكل وكيل، وفحص MCP المحلي، والبحث في السجل والتثبيت منه
+- **[مُنشئ المشروع](https://ijry.github.io/yoyocode-docs/guide/project-boot)** — أنشئ مشروعًا جديدًا بصريًا، مع معاينة حية
+- **[الإشعارات](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — إشعارات سطح المكتب، وأصوات التنبيه، وزر شريط مهام يومض أو أيقونة Dock تقفز عندما ينتهي دورٌ أو يحتاجك وكيل
+- **[اجعله على ذوقك](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — اثنتا عشرة سمة يمكنك إعادة تلوينها رمزًا لونيًا تلو الآخر، وخلفيات، واستدارة الزوايا، وعرض المحادثة، وCSS مخصّص، وحيوان أليف على سطح المكتب — بأيٍّ من لغات الواجهة العشر
+- **[النسخ الاحتياطي والمزامنة](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — نسخ احتياطية مشفّرة، ومزامنة الإعدادات بين الأجهزة عبر ملف أو خادم WebDAV الخاص بك
 - **[مخطط URL](../../docs/url-scheme.md)** — يفتح `codeg://session/<id>` محادثةً من تطبيق آخر (سطح المكتب)
 - **والمزيد** — يضيف كل إصدار تقريبًا شيئًا جديدًا؛ و[ملاحظات الإصدار](https://github.com/ijry/YoYoCode/releases) هي القائمة الكاملة
 
@@ -243,14 +243,14 @@ git diff | yoyo-cli -a codex \
   <a href="../agents/zcode.md"><kbd><img src="../images/agents/zcode.svg" alt="" width="16" valign="middle" /> ZCode</kbd></a> &nbsp;
   <a href="https://docs.trae.cn/cli_about-trae-code-cli-2"><kbd><img src="../images/agents/trae.svg" alt="" width="16" valign="middle" /> TRAE CLI</kbd></a> &nbsp;
   <a href="https://commandcode.ai"><kbd><img src="../images/agents/command-code.svg" alt="" width="16" valign="middle" /> Command Code</kbd></a> &nbsp;
-  <a href="https://docs.codeg.app/guide/custom-agents"><kbd>+ أي وكيل ACP</kbd></a>
+  <a href="https://ijry.github.io/yoyocode-docs/guide/custom-agents"><kbd>+ أي وكيل ACP</kbd></a>
 </p>
 
-ليس في القائمة؟ اختر أي وكيل من سجل ACP العام أو الصق ملف distribution JSON الخاص به — فيتولّى YoYoCode تثبيته، ويتحقق من قدرته على الإقلاع، ويعامله كوكيل مدمج. متطلبات التشغيل، وأين يحفظ كل وكيل جلساته: [الوكلاء المدعومون](https://docs.codeg.app/guide/supported-agents).
+ليس في القائمة؟ اختر أي وكيل من سجل ACP العام أو الصق ملف distribution JSON الخاص به — فيتولّى YoYoCode تثبيته، ويتحقق من قدرته على الإقلاع، ويعامله كوكيل مدمج. متطلبات التشغيل، وأين يحفظ كل وكيل جلساته: [الوكلاء المدعومون](https://ijry.github.io/yoyocode-docs/guide/supported-agents).
 
 ## 📦 التثبيت
 
-**سطح المكتب** — تجد مثبّتات macOS وWindows وLinux في [Releases](https://github.com/ijry/YoYoCode/releases/latest)؛ وخطوات الإعداد في [التثبيت](https://docs.codeg.app/getting-started/installation).
+**سطح المكتب** — تجد مثبّتات macOS وWindows وLinux في [Releases](https://github.com/ijry/YoYoCode/releases/latest)؛ وخطوات الإعداد في [التثبيت](https://ijry.github.io/yoyocode-docs/getting-started/installation).
 
 **الخادم** — شغّل YoYoCode بلا واجهة وادخل إليه من أي متصفح. على Linux أو macOS:
 
@@ -274,9 +274,9 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
 
 في الحالتين، افتح `http://<host>:18989` في المتصفح وأدخل رمز الوصول الذي يطبعه الخادم عند بدء تشغيله (وفي الحاوية يعرضه `docker logs`)، أو عيّن `CODEG_TOKEN` لتختار رمزك بنفسك.
 
-**الهاتف واللوحي** — احصل على تطبيق الجوّال من [getmcode.lingyun.net](https://getmcode.lingyun.net) ثم وجّهه نحو **خدمة الويب** لتطبيق سطح المكتب أو `codeg-server` الخاص بك: الرابط والرمز، وانتهى الأمر. خطوات الاقتران في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
+**الهاتف واللوحي** — احصل على تطبيق الجوّال من [getmcode.lingyun.net](https://getmcode.lingyun.net) ثم وجّهه نحو **خدمة الويب** لتطبيق سطح المكتب أو `codeg-server` الخاص بك: الرابط والرمز، وانتهى الأمر. خطوات الاقتران في [getmcode.lingyun.net](https://getmcode.lingyun.net).
 
-يغطي [النشر](https://docs.codeg.app/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://docs.codeg.app/getting-started/configuration).
+يغطي [النشر](https://ijry.github.io/yoyocode-docs/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://ijry.github.io/yoyocode-docs/getting-started/configuration).
 
 ## 👥 المجتمع والدعم
 
@@ -288,13 +288,13 @@ docker run -d -p 18989:18989 -v codeg-data:/data ghcr.io/ijry/YoYoCode:latest
   </picture>
 
 - **المشكلات** — وجدت خللًا أو تفتقد ميزةً ما؟ [افتح مشكلة](https://github.com/ijry/YoYoCode/issues).
-- **الخصوصية** — محلي أولاً: يبقى التحليل والتخزين وعمليات المشروع على جهازك، ووضعا الويب والخادم محميّان بمصادقة قائمة على الرموز. التفاصيل في [الخصوصية والأمان](https://docs.codeg.app/reference/privacy).
+- **الخصوصية** — محلي أولاً: يبقى التحليل والتخزين وعمليات المشروع على جهازك، ووضعا الويب والخادم محميّان بمصادقة قائمة على الرموز. التفاصيل في [الخصوصية والأمان](https://ijry.github.io/yoyocode-docs/reference/privacy).
 - **LinuxDO** — شكراً لمجتمع [LinuxDO](https://linux.do) على دعمه.
 - **أظهر دعمك** — [امنح المستودع نجمة](https://github.com/ijry/YoYoCode) لتتابع جديده.
 
 ## 🤝 المساهمة
 
-نرحّب بفتح المشكلات وتقديم طلبات السحب. ولبناء YoYoCode بنفسك، ابدأ بـ [التطوير](https://docs.codeg.app/reference/development) و[البنية](https://docs.codeg.app/reference/architecture).
+نرحّب بفتح المشكلات وتقديم طلبات السحب. ولبناء YoYoCode بنفسك، ابدأ بـ [التطوير](https://ijry.github.io/yoyocode-docs/reference/development) و[البنية](https://ijry.github.io/yoyocode-docs/reference/architecture).
 
 <a href="https://github.com/ijry/YoYoCode/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ijry/YoYoCode" alt="المساهمون في YoYoCode" />

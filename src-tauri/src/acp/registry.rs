@@ -451,7 +451,7 @@ pub fn binary_system_dirs(agent_type: AgentType) -> &'static [&'static str] {
 
 /// Docs anchor explaining the adapter/vendor-CLI split. The zh mirror carries
 /// the same explicit `{#acp-adapters}` anchor.
-const ACP_ADAPTER_DOCS_URL: &str = "https://docs.codeg.app/guide/supported-agents#acp-adapters";
+const ACP_ADAPTER_DOCS_URL: &str = "https://ijry.github.io/yoyocode-docs/guide/supported-agents#acp-adapters";
 
 /// The oldest pi the pinned pi-acp can open a session with. pi-acp 0.0.34 asks
 /// pi for the current model's thinking levels (`get_available_thinking_levels`,

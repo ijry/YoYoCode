@@ -221,7 +221,7 @@ pub async fn create_file_tree_entry(
 /// Mirrored by `UPLOAD_MAX_BYTES` in `commands/remote_proxy.rs` and
 /// `src/lib/api.ts` — keep the three in lockstep. The docs site also states
 /// this cap (Storage limits,
-/// <https://docs.codeg.app/getting-started/configuration#storage-limits>, in
+/// <https://ijry.github.io/yoyocode-docs/getting-started/configuration#storage-limits>, in
 /// English and Chinese); update it there whenever the value changes.
 pub const UPLOAD_MAX_BYTES: u64 = 20 * 1024 * 1024;
 
