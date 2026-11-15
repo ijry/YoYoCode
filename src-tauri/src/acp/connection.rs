@@ -49393,7 +49393,7 @@ mod tests {
         let forks = fork.forks.lock().unwrap().clone();
         let resumes = fork.resumes.lock().unwrap().clone();
         assert_eq!((forks.len(), resumes.len()), (1, 1));
-        assert_eq!(forks[0]["mcpServers"][0]["name"], "codeg-mcp");
+        assert_eq!(forks[0]["mcpServers"][0]["name"], "yoyocode-mcp");
         assert_eq!(forks[0]["mcpServers"], resumes[0]["mcpServers"]);
         assert!(forks[0].get("_meta").is_none());
         fork.shutdown().await;

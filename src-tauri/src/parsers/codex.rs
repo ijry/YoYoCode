@@ -13591,6 +13591,20 @@ mod tests {
         ]
     }
 
+    fn code_mode_mcp_names(lines: &[String], server: &str) -> Vec<String> {
+        match server {
+            "codeg-mcp" => lines.to_vec(),
+            "yoyocode-mcp" => lines
+                .iter()
+                .map(|line| {
+                    line.replace("mcp__codeg_mcp__", "mcp__yoyocode_mcp__")
+                        .replace("\"server\":\"codeg-mcp\"", "\"server\":\"yoyocode-mcp\"")
+                })
+                .collect(),
+            _ => panic!("unknown MCP fixture server: {server}"),
+        }
+    }
+
     #[test]
     fn code_mode_single_call_renders_as_the_inner_tool() {
         let lines = code_mode_rollout(
@@ -13664,7 +13678,7 @@ mod tests {
                         "item": {
                             "type": "McpToolCall",
                             "id": id,
-                            "server": "yoyocode-mcp",
+                            "server": "codeg-mcp",
                             "tool": "delegate_to_agent",
                             "arguments": {"agent_type":"codex", "task":task},
                             "status": "completed",
@@ -13681,36 +13695,42 @@ mod tests {
             );
         }
 
-        let detail = parse_lines(&lines, "code-mode-semantic-mcp");
-        let uses = tool_uses(&detail);
-        assert_eq!(
-            uses.iter()
-                .map(|(id, name, _)| (id.as_str(), name.as_str()))
-                .collect::<Vec<_>>(),
-            vec![
-                ("exec-b", "mcp__codeg_mcp__delegate_to_agent"),
-                ("exec-a", "mcp__codeg_mcp__delegate_to_agent"),
-            ],
-            "semantic items replace the outer script with real MCP cards"
-        );
-        assert_eq!(
-            uses[0].2.as_deref(),
-            Some(r#"{"agent_type":"codex","task":"B"}"#)
-        );
-        assert_eq!(
-            uses[1].2.as_deref(),
-            Some(r#"{"agent_type":"codex","task":"A"}"#)
-        );
-        assert_eq!(
-            tool_results(&detail)
-                .into_iter()
-                .map(|(id, output, _)| (id, output))
-                .collect::<Vec<_>>(),
-            vec![
-                ("exec-b".into(), Some("Delegation successful. task_id=task-b.".into())),
-                ("exec-a".into(), Some("Delegation successful. task_id=task-a.".into())),
-            ]
-        );
+        for (server, tool_name) in [
+            ("codeg-mcp", "mcp__codeg_mcp__delegate_to_agent"),
+            ("yoyocode-mcp", "mcp__yoyocode_mcp__delegate_to_agent"),
+        ] {
+            let lines = code_mode_mcp_names(&lines, server);
+            let detail = parse_lines(&lines, "code-mode-semantic-mcp");
+            let uses = tool_uses(&detail);
+            assert_eq!(
+                uses.iter()
+                    .map(|(id, name, _)| (id.as_str(), name.as_str()))
+                    .collect::<Vec<_>>(),
+                vec![
+                    ("exec-b", tool_name),
+                    ("exec-a", tool_name),
+                ],
+                "semantic items replace the outer script with real MCP cards"
+            );
+            assert_eq!(
+                uses[0].2.as_deref(),
+                Some(r#"{"agent_type":"codex","task":"B"}"#)
+            );
+            assert_eq!(
+                uses[1].2.as_deref(),
+                Some(r#"{"agent_type":"codex","task":"A"}"#)
+            );
+            assert_eq!(
+                tool_results(&detail)
+                    .into_iter()
+                    .map(|(id, output, _)| (id, output))
+                    .collect::<Vec<_>>(),
+                vec![
+                    ("exec-b".into(), Some("Delegation successful. task_id=task-b.".into())),
+                    ("exec-a".into(), Some("Delegation successful. task_id=task-a.".into())),
+                ]
+            );
+        }
     }
 
     #[test]
@@ -13755,7 +13775,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "mcp-semantic-initial",
-                        "server": "yoyocode-mcp",
+                        "server": "codeg-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {
                             "agent_type": "codex",
@@ -13812,7 +13832,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "mcp-semantic-continuation",
-                        "server": "yoyocode-mcp",
+                        "server": "codeg-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {
                             "agent_type": "codex",
@@ -13853,78 +13873,84 @@ mod tests {
             native[5].clone(), // native SubAgentActivity completed
         ];
 
-        let detail = parse_lines(&lines, "mixed-native-semantic-delegation");
-        let uses = tool_uses(&detail);
-        let semantic_uses: Vec<_> = uses
-            .iter()
-            .filter(|(id, _, _)| id.starts_with("mcp-semantic-"))
-            .map(|(id, name, input)| (id.as_str(), name.as_str(), input.as_deref()))
-            .collect();
-        assert_eq!(
-            semantic_uses,
-            vec![
-                (
-                    "mcp-semantic-initial",
-                    "mcp__codeg_mcp__delegate_to_agent",
-                    Some(
-                        r#"{"agent_type":"codex","working_dir":"/tmp/mcp-worker","task":"semantic initial"}"#,
-                    ),
-                ),
-                (
-                    "mcp-semantic-continuation",
-                    "mcp__codeg_mcp__delegate_to_agent",
-                    Some(
-                        r#"{"agent_type":"codex","working_dir":"/tmp/mcp-worker","task":"semantic followup","continue_from_task_id":"task-semantic-initial"}"#,
-                    ),
-                ),
-            ],
-            "semantic MCP cards keep their own item ids, tool names, and inputs"
-        );
-        assert!(
-            !uses
+        for (server, tool_name) in [
+            ("codeg-mcp", "mcp__codeg_mcp__delegate_to_agent"),
+            ("yoyocode-mcp", "mcp__yoyocode_mcp__delegate_to_agent"),
+        ] {
+            let lines = code_mode_mcp_names(&lines, server);
+            let detail = parse_lines(&lines, "mixed-native-semantic-delegation");
+            let uses = tool_uses(&detail);
+            let semantic_uses: Vec<_> = uses
                 .iter()
-                .any(|(id, name, _)| id.starts_with("exec-semantic-") || name == "exec"),
-            "completed semantic scripts must not remain as generic exec cards: {uses:?}"
-        );
-
-        let semantic_results: Vec<_> = tool_results(&detail)
-            .into_iter()
-            .filter(|(id, _, _)| id.starts_with("mcp-semantic-"))
-            .collect();
-        assert_eq!(
-            semantic_results,
-            vec![
-                (
-                    "mcp-semantic-initial".to_string(),
-                    Some(
-                        "Delegation successful. task_id=task-semantic-initial. child_conversation_id=901."
-                            .to_string(),
+                .filter(|(id, _, _)| id.starts_with("mcp-semantic-"))
+                .map(|(id, name, input)| (id.as_str(), name.as_str(), input.as_deref()))
+                .collect();
+            assert_eq!(
+                semantic_uses,
+                vec![
+                    (
+                        "mcp-semantic-initial",
+                        tool_name,
+                        Some(
+                            r#"{"agent_type":"codex","working_dir":"/tmp/mcp-worker","task":"semantic initial"}"#,
+                        ),
                     ),
-                    false,
-                ),
-                (
-                    "mcp-semantic-continuation".to_string(),
-                    Some(
-                        "Delegation successful. task_id=task-semantic-next. child_conversation_id=901."
-                            .to_string(),
+                    (
+                        "mcp-semantic-continuation",
+                        tool_name,
+                        Some(
+                            r#"{"agent_type":"codex","working_dir":"/tmp/mcp-worker","task":"semantic followup","continue_from_task_id":"task-semantic-initial"}"#,
+                        ),
                     ),
-                    false,
-                ),
-            ],
-            "each semantic result stays on its matching MCP card"
-        );
+                ],
+                "semantic MCP cards keep their own item ids, tool names, and inputs"
+            );
+            assert!(
+                !uses
+                    .iter()
+                    .any(|(id, name, _)| id.starts_with("exec-semantic-") || name == "exec"),
+                "completed semantic scripts must not remain as generic exec cards: {uses:?}"
+            );
 
-        let (native_input, native_result) = spawn_capsule(&detail);
-        assert_eq!(
-            native_input.get("agent_id").and_then(|value| value.as_str()),
-            Some("01a07fc2-db62-78b3-9762-9cb2540216c2"),
-            "native activity must keep its own child session id"
-        );
-        assert_eq!(
-            native_result.as_deref(),
-            Some("历史与运行预算增强已完成。"),
-            "native agent_message must stay attached to the native spawn"
-        );
+            let semantic_results: Vec<_> = tool_results(&detail)
+                .into_iter()
+                .filter(|(id, _, _)| id.starts_with("mcp-semantic-"))
+                .collect();
+            assert_eq!(
+                semantic_results,
+                vec![
+                    (
+                        "mcp-semantic-initial".to_string(),
+                        Some(
+                            "Delegation successful. task_id=task-semantic-initial. child_conversation_id=901."
+                                .to_string(),
+                        ),
+                        false,
+                    ),
+                    (
+                        "mcp-semantic-continuation".to_string(),
+                        Some(
+                            "Delegation successful. task_id=task-semantic-next. child_conversation_id=901."
+                                .to_string(),
+                        ),
+                        false,
+                    ),
+                ],
+                "each semantic result stays on its matching MCP card"
+            );
+
+            let (native_input, native_result) = spawn_capsule(&detail);
+            assert_eq!(
+                native_input.get("agent_id").and_then(|value| value.as_str()),
+                Some("01a07fc2-db62-78b3-9762-9cb2540216c2"),
+                "native activity must keep its own child session id"
+            );
+            assert_eq!(
+                native_result.as_deref(),
+                Some("历史与运行预算增强已完成。"),
+                "native agent_message must stay attached to the native spawn"
+            );
+        }
     }
 
     #[test]
@@ -13948,7 +13974,7 @@ mod tests {
             serde_json::json!({
                 "type":"item_completed",
                 "item": {
-                    "type":"McpToolCall", "id":"exec-from-a", "server":"yoyocode-mcp",
+                    "type":"McpToolCall", "id":"exec-from-a", "server":"codeg-mcp",
                     "tool":"delegate_to_agent", "arguments":{"task":"A"},
                     "status":"completed", "result":{"content":[], "isError":false}
                 }
@@ -13999,7 +14025,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "exec-depth-limit",
-                        "server": "yoyocode-mcp",
+                        "server": "codeg-mcp",
                         "tool": "delegate_to_agent",
                         "arguments": {"agent_type":"codex", "working_dir":"/tmp/w"},
                         "status": "failed",
@@ -14013,20 +14039,23 @@ mod tests {
             ),
         );
 
-        let detail = parse_lines(&lines, "semantic-mcp-failed");
-        assert_eq!(
-            tool_use_statuses(&detail),
-            vec![("exec-depth-limit".to_string(), Some("failed".to_string()))],
-            "the card must report the call's own outcome, not the wrapper's"
-        );
-        assert_eq!(
-            tool_results(&detail),
-            vec![(
-                "exec-depth-limit".to_string(),
-                Some("depth limit exceeded (2 >= 2)".to_string()),
-                true,
-            )]
-        );
+        for server in ["codeg-mcp", "yoyocode-mcp"] {
+            let lines = code_mode_mcp_names(&lines, server);
+            let detail = parse_lines(&lines, "semantic-mcp-failed");
+            assert_eq!(
+                tool_use_statuses(&detail),
+                vec![("exec-depth-limit".to_string(), Some("failed".to_string()))],
+                "the card must report the call's own outcome, not the wrapper's"
+            );
+            assert_eq!(
+                tool_results(&detail),
+                vec![(
+                    "exec-depth-limit".to_string(),
+                    Some("depth limit exceeded (2 >= 2)".to_string()),
+                    true,
+                )]
+            );
+        }
     }
 
     /// A tool whose SUCCESSFUL answer merely reads like a failure — it wraps a
@@ -14176,7 +14205,7 @@ mod tests {
                             "item": {
                                 "type": "McpToolCall",
                                 "id": "exec-poll",
-                                "server": "yoyocode-mcp",
+                                "server": "codeg-mcp",
                                 "tool": "get_delegation_status",
                                 "arguments": {"task_ids":["t1"], "wall_ms":30000},
                                 "status": "completed",
@@ -14234,7 +14263,7 @@ mod tests {
                     "item": {
                         "type": "McpToolCall",
                         "id": "exec-progress",
-                        "server": "yoyocode-mcp",
+                        "server": "codeg-mcp",
                         "tool": "task_progress",
                         "arguments": {"message":"halfway"},
                         "status": "completed",
@@ -14244,24 +14273,27 @@ mod tests {
             ),
         );
 
-        let detail = parse_lines(&lines, "semantic-mcp-thrown-script");
-        assert!(
-            !tool_uses(&detail)
-                .iter()
-                .any(|(id, _, _)| id == "exec-progress"),
-            "a thrown script must not be replaced by the call that did answer"
-        );
-        let results = tool_results(&detail);
-        assert_eq!(results.len(), 1, "one card: {results:?}");
-        assert!(results[0].2, "a thrown script still renders as an error");
-        assert!(
-            results[0]
-                .1
-                .as_deref()
-                .is_some_and(|text| text.contains("TypeError")),
-            "the thrown script's own error must survive: {:?}",
-            results[0].1
-        );
+        for server in ["codeg-mcp", "yoyocode-mcp"] {
+            let lines = code_mode_mcp_names(&lines, server);
+            let detail = parse_lines(&lines, "semantic-mcp-thrown-script");
+            assert!(
+                !tool_uses(&detail)
+                    .iter()
+                    .any(|(id, _, _)| id == "exec-progress"),
+                "a thrown script must not be replaced by the call that did answer"
+            );
+            let results = tool_results(&detail);
+            assert_eq!(results.len(), 1, "one card: {results:?}");
+            assert!(results[0].2, "a thrown script still renders as an error");
+            assert!(
+                results[0]
+                    .1
+                    .as_deref()
+                    .is_some_and(|text| text.contains("TypeError")),
+                "the thrown script's own error must survive: {:?}",
+                results[0].1
+            );
+        }
     }
 
     /// The sink is what makes a preview bounded: it has to STOP the writer, not
@@ -15803,7 +15835,7 @@ mod tests {
                 "item": {
                     "type": "McpToolCall",
                     "id": "mcp-deferred-status",
-                    "server": "yoyocode-mcp",
+                    "server": "codeg-mcp",
                     "tool": "get_delegation_status",
                     "arguments": {"task_ids":["t1"], "wait_ms":60000},
                     "result": {
@@ -15833,24 +15865,30 @@ mod tests {
             }),
         ));
 
-        let detail = parse_lines(&lines, "deferred-semantic-mcp");
-        assert_eq!(
-            tool_uses(&detail),
-            vec![ (
-                "mcp-deferred-status".into(),
-                "mcp__codeg_mcp__get_delegation_status".into(),
-                Some(r#"{"task_ids":["t1"],"wait_ms":60000}"#.into()),
-            ) ],
-            "the completed semantic item replaces the parked script card"
-        );
-        assert_eq!(
-            tool_results(&detail),
-            vec![(
-                "mcp-deferred-status".into(),
-                Some("status: running".into()),
-                false,
-            )]
-        );
+        for (server, tool_name) in [
+            ("codeg-mcp", "mcp__codeg_mcp__get_delegation_status"),
+            ("yoyocode-mcp", "mcp__yoyocode_mcp__get_delegation_status"),
+        ] {
+            let lines = code_mode_mcp_names(&lines, server);
+            let detail = parse_lines(&lines, "deferred-semantic-mcp");
+            assert_eq!(
+                tool_uses(&detail),
+                vec![ (
+                    "mcp-deferred-status".into(),
+                    tool_name.into(),
+                    Some(r#"{"task_ids":["t1"],"wait_ms":60000}"#.into()),
+                ) ],
+                "the completed semantic item replaces the parked script card"
+            );
+            assert_eq!(
+                tool_results(&detail),
+                vec![(
+                    "mcp-deferred-status".into(),
+                    Some("status: running".into()),
+                    false,
+                )]
+            );
+        }
     }
 
     #[test]

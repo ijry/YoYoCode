@@ -107,13 +107,13 @@ jobs:
             # that this cell exists to verify.
             clippy_args: "--no-default-features --features server-bin --bin codeg-server --lib"
           - mode: cli
-            # The `codeg-cli` client (`src/cli/`), which only `cli-bin`
+            # The `yoyo-cli` client (`src/cli/`), which only `cli-bin`
             # compiles: the server cells leave it out, and the Windows
             # desktop cell only builds its tests (`--no-run`), so without
             # this cell they would never run on Windows. The runtime side
             # (`cli_run`) is in the lib, which the server cells test already.
             cargo_args: "--no-default-features --features cli-bin --lib cli::"
-            clippy_args: "--no-default-features --features cli-bin --bin codeg-cli --lib"
+            clippy_args: "--no-default-features --features cli-bin --bin yoyo-cli --lib"
     steps:
       - uses: actions/checkout@v4
 

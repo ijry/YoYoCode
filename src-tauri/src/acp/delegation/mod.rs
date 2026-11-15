@@ -90,7 +90,11 @@ pub fn is_codeg_mcp_tool(name: &str, tool: &str) -> bool {
         return false;
     };
     let (server, named_tool) = (name[..at].trim(), name[at + sep.len()..].trim());
-    matches!(server, "yoyocode-mcp" | "codeg_mcp") && named_tool == tool
+    // Both brands occur in saved histories, and adapters also use underscores.
+    matches!(
+        server,
+        "yoyocode-mcp" | "yoyocode_mcp" | "codeg-mcp" | "codeg_mcp"
+    ) && named_tool == tool
 }
 
 #[cfg(test)]
@@ -99,27 +103,34 @@ mod tests {
 
     #[test]
     fn a_codeg_mcp_tool_is_known_by_its_whole_name_only() {
-        for name in [
-            "mcp__yoyocode-mcp__submit_result",
-            "yoyocode-mcp__submit_result",
-            "yoyocode-mcp/submit_result",
-            "yoyocode-mcp: submit_result",
-            "mcp.yoyocode-mcp.submit_result",
-            "  MCP__Codeg-MCP__Submit_Result  ",
-        ] {
-            assert!(is_codeg_mcp_tool(name, "submit_result"), "{name}");
+        for server in ["codeg-mcp", "codeg_mcp", "yoyocode-mcp", "yoyocode_mcp"] {
+            for name in [
+                format!("mcp__{server}__submit_result"),
+                format!("{server}__submit_result"),
+                format!("{server}/submit_result"),
+                format!("{server}: submit_result"),
+                format!("mcp.{server}.submit_result"),
+                format!("  MCP__{}__Submit_Result  ", server.to_ascii_uppercase()),
+            ] {
+                assert!(is_codeg_mcp_tool(&name, "submit_result"), "{name}");
+            }
+            for name in [
+                format!("mcp__other-{server}__submit_result"),
+                format!("mcp__{server}-x__submit_result"),
+                format!("mcp__{server}__submit_result_twice"),
+                format!("mcp__{server}__ask_user_question"),
+            ] {
+                assert!(!is_codeg_mcp_tool(&name, "submit_result"), "{name}");
+            }
         }
         for name in [
-            "mcp__other-yoyocode-mcp__submit_result",
-            "mcp__yoyocode-mcp-x__submit_result",
-            "mcp__yoyocode-mcp__submit_result_twice",
-            "mcp__yoyocode-mcp__ask_user_question",
             // A server named `codeg` with a tool `mcp_submit_result`: the same
             // words, another boundary.
             "mcp__codeg__mcp_submit_result",
             "codeg/mcp_submit_result",
             "submit_result",
             "yoyocode-mcp",
+            "codeg-mcp",
             "",
         ] {
             assert!(!is_codeg_mcp_tool(name, "submit_result"), "{name}");

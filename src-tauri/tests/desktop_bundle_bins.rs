@@ -81,11 +81,11 @@ fn only_codeg_is_a_binary_target_tauri_build_bundles() {
     }
     assert!(
         others >= 4,
-        "codeg-server, codeg-mcp, the helper and codeg-cli"
+        "codeg-server, codeg-mcp, the helper and yoyo-cli"
     );
 }
 
-/// The desktop bundle carries `codeg-cli` as a sidecar, so the desktop user
+/// The desktop bundle carries `yoyo-cli` as a sidecar, so the desktop user
 /// needs no server package to have the command. Four places must agree: the
 /// sidecar build, both bundle configurations, and the placeholders `build.rs`
 /// writes for a build that skipped the sidecars.
@@ -97,7 +97,7 @@ fn codeg_cli_is_a_sidecar_everywhere_the_desktop_build_looks() {
         .lines()
         .find(|l| l.starts_with("const BIN_NAMES"))
         .expect("BIN_NAMES");
-    assert!(bin_names.contains("\"codeg-cli\""), "{bin_names}");
+    assert!(bin_names.contains("\"yoyo-cli\""), "{bin_names}");
     let features = prepare
         .lines()
         .find(|l| l.starts_with("const FEATURES"))
@@ -113,12 +113,12 @@ fn codeg_cli_is_a_sidecar_everywhere_the_desktop_build_looks() {
             .iter()
             .map(|b| b.as_str().unwrap())
             .collect();
-        assert!(bins.contains(&"binaries/codeg-cli"), "{config}: {bins:?}");
+        assert!(bins.contains(&"binaries/yoyo-cli"), "{config}: {bins:?}");
     }
     let build = read("build.rs");
     assert!(
-        build.contains("\"codeg-cli\""),
-        "build.rs writes no codeg-cli placeholder"
+        build.contains("\"yoyo-cli\""),
+        "build.rs writes no yoyo-cli placeholder"
     );
 }
 
