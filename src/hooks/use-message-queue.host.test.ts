@@ -333,6 +333,80 @@ describe("owned queues never race the host drainer", () => {
     await waitFor(() => expect(wire.save).toHaveBeenCalledTimes(2))
   })
 
+  it("clears the previous owner's queue before the new queue finishes loading", async () => {
+    wire.capabilities.mockResolvedValue({ backend_drain: true })
+    let hydrate!: (items: unknown[]) => void
+    const nextQueue = new Promise<unknown[]>((resolve) => {
+      hydrate = resolve
+    })
+    wire.list.mockImplementation((owner: string) =>
+      owner === "42" ? Promise.resolve([item("old-task")]) : nextQueue
+    )
+    const { result, rerender } = renderHook(
+      ({ owner }: { owner: string }) => useMessageQueue(owner),
+      { initialProps: { owner: "42" } }
+    )
+    await waitFor(() =>
+      expect(result.current.queue.map((entry) => entry.id)).toEqual([
+        "old-task",
+      ])
+    )
+
+    rerender({ owner: "43" })
+    expect(result.current.queue).toEqual([])
+    expect(result.current.getQueueLength()).toBe(0)
+    await act(async () => hydrate([item("new-task")]))
+    await waitFor(() =>
+      expect(result.current.queue.map((entry) => entry.id)).toEqual([
+        "new-task",
+      ])
+    )
+  })
+
+  it("clears recovery state when switching owners before the next state loads", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+    })
+    const previousState = {
+      owner_id: "42",
+      status: "paused",
+      active_attempt_id: null,
+      failed_attempt_id: "old-failure",
+      error: "quota",
+      hold: null,
+      revision: 20,
+    }
+    const nextState = {
+      owner_id: "43",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      hold: null,
+      revision: 0,
+    }
+    let hydrate!: (state: typeof nextState) => void
+    const stateRead = new Promise<typeof nextState>((resolve) => {
+      hydrate = resolve
+    })
+    wire.state.mockImplementation((owner: string) =>
+      owner === "42" ? Promise.resolve(previousState) : stateRead
+    )
+    const { result, rerender } = renderHook(
+      ({ owner }: { owner: string }) => useMessageQueue(owner),
+      { initialProps: { owner: "42" } }
+    )
+    await waitFor(() => expect(result.current.control).toEqual(previousState))
+
+    rerender({ owner: "43" })
+    expect(result.current.control).toBeNull()
+    await act(async () => result.current.continueTask())
+    expect(wire.continue).not.toHaveBeenCalled()
+    await act(async () => hydrate(nextState))
+    await waitFor(() => expect(result.current.control).toEqual(nextState))
+  })
+
   it("persists a parked unbound draft before host hydration can clear it", async () => {
     wire.capabilities.mockResolvedValue({ backend_drain: true })
     const { result, rerender } = renderHook(

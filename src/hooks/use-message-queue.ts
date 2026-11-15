@@ -359,6 +359,9 @@ export function useMessageQueue(
     }
     const prev = prevOwnerRef.current
     prevOwnerRef.current = ownerId
+    // Clear the old owner's authoritative queue before starting the new read;
+    // otherwise parked-draft hydration can persist it into the wrong session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (prev && prev !== ownerId) commit([])
     ownerHydratedRef.current = false
     let cancelled = false
@@ -396,6 +399,9 @@ export function useMessageQueue(
   useEffect(() => {
     if (!ownerId) return
     controlRef.current = null
+    // Recovery ids and revisions belong to one owner. Drop the previous state
+    // while loading so another session cannot reuse its continue/hold controls.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setControl(null)
     let cancelled = false
     let unsubscribe: (() => void) | undefined

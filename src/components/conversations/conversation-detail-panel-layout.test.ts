@@ -529,8 +529,8 @@ describe("ConversationDetailPanel send-path hardening", () => {
     // The backend-drain gate rides the same effect: when the host drains the
     // persisted queue itself (`conn.messageQueueBackendDrain`), this effect
     // must not dequeue at all — two drainers would race the same head.
-    expect(effectWithDeps).toContain(
-      "canFlushClientQueue(dbConversationId != null"
+    expect(effectWithDeps).toMatch(
+      /canFlushClientQueue\(\s*dbConversationId != null,\s*conn\.messageQueueBackendDrain,\s*messageQueue\.backendDrain\s*\)/
     )
     expect(effectWithDeps).toContain("conn.messageQueueBackendDrain,")
 
