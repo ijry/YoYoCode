@@ -69,3 +69,10 @@ src-tauri/binaries/
 # otools/ is tracked on the parked plugins branch only. While on main, its
 # regenerable dependency artifacts (node_modules, Cargo.lock) stay untracked.
 /otools/
+
+# ZCode session plans are worth keeping; everything else in .zcode/ is a
+# per-session scratch artifact (helper scripts, lint dumps, release drafts).
+/.zcode/*
+!/.zcode/plans/
+/.zcode/plans/*
+!/.zcode/plans/*.md
