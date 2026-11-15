@@ -217,3 +217,11 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 2. `git cherry-pick <main 上的本地 commit>`（或按 PR 范围重写）
 3. push 到自己的 fork、向上游发 PR；上游合并后该内容与本地一致，merge 不再
    冲突，在上表把它标记为"已上游"
+
+### server 二进制与 Release 资产全量改名（2026-11-15）
+
+- 承接「连二进制一起改名」：`codeg-server` 全量统一为 `yoyocode-server`。Cargo `[[bin]]` 名与 `src/bin/codeg_server.rs` → `yoyocode_server.rs`、压缩包内可执行文件名、Release 资产名、安装目录名、Docker / PATH 命令名、更新器查找名、i18n 文案、文档与测试夹具全部同步；下划线形式 `codeg_server` 的注释引用一并更新。
+- `.github/workflows/release.yml` 删除 matrix `legacy_artifact` 与双份复制 / 签名 / 上传循环，每个平台只产一套 `yoyocode-server-*` 资产；`install.sh` / `install.ps1` 删除「新名 404 回退旧名」逻辑；`scripts/server-release.test.mjs`、`scripts/server-install-download.test.mjs` 断言同步改为单资产 / 不重试。
+- **保留**：`CODEG_*` 环境变量、`CODEG_STATIC_DIR`、`.codeg` 数据目录、`codeg://` URL scheme、桌面端安装包文件名前缀等协议与兼容标识；`.workbuddy/memory/`、`.zcode/plans/`、`docs/releasing/v*.md`、`docs/model-switch-history.md` 等历史归档保留原文，避免篡改历史记录。
+- **升级风险**：plus.1 / plus.2 已发布的内置更新器会在新包内查找旧名 `codeg-server`，从这些版本直接走「软件更新」到下一版会失败，需手动重装或由发版时额外提供兼容副本。旧 Release 中已存在的 `codeg-server-*` 资产是否删除、是否发 plus.3 另行决定。
+- 上游同步冲突面进一步扩大：Cargo.toml、release.yml、两份 install 脚本、Dockerfile*、AGENTS.md / CLAUDE.md、README×11、docs/cli.md 等均属 fork 自有改动，上游动这些文件时需手动合并。
