@@ -98,14 +98,14 @@ jobs:
             # need for webkit/appindicator system libs. `--lib` skips
             # integration tests for `cargo test`, so `test-utils` is not
             # required here.
-            cargo_args: "--no-default-features --features server-bin --bin codeg-server --lib"
+            cargo_args: "--no-default-features --features server-bin --bin yoyocode-server --lib"
             # Server clippy intentionally skips `--all-targets`: integration
             # tests are already linted in the desktop cells, and pulling
             # them in here would force `test-utils` (a test-only feature)
             # into the server build matrix. Lint scope here is lib + the
-            # codeg-server binary, which is exactly the cfg-gated surface
+            # yoyocode-server binary, which is exactly the cfg-gated surface
             # that this cell exists to verify.
-            clippy_args: "--no-default-features --features server-bin --bin codeg-server --lib"
+            clippy_args: "--no-default-features --features server-bin --bin yoyocode-server --lib"
           - mode: cli
             # The `yoyo-cli` client (`src/cli/`), which only `cli-bin`
             # compiles: the server cells leave it out, and the Windows

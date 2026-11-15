@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 WORKDIR /app/src-tauri
 COPY src-tauri/ ./
 # yoyocode-mcp is the stdio MCP companion the runtime injects per session
-# (see acp/delegation/companion.rs). It must ship next to codeg-server so
+# (see acp/delegation/companion.rs). It must ship next to yoyocode-server so
 # `locate_codeg_mcp_binary()` finds it via the exe-sibling lookup.
-RUN cargo build --release --bin codeg-server --no-default-features --features server-bin \
+RUN cargo build --release --bin yoyocode-server --no-default-features --features server-bin \
  && cargo build --release --bin yoyocode-mcp --no-default-features --features mcp-bin \
  && cargo build --release --bin yoyo-cli --no-default-features --features cli-bin
 
@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y \
 # server/Docker mode. The version (72) is pinned to Debian bookworm; bump it to match
 # if the base image moves to a newer Debian release (e.g. trixie ships libicu76).
 
-COPY --from=backend /app/src-tauri/target/release/codeg-server /usr/local/bin/codeg-server
+COPY --from=backend /app/src-tauri/target/release/yoyocode-server /usr/local/bin/yoyocode-server
 COPY --from=backend /app/src-tauri/target/release/yoyocode-mcp /usr/local/bin/yoyocode-mcp
 # yoyo-cli: `docker exec <container> yoyo-cli run …` finds this server through
 # its discovery file under CODEG_DATA_DIR (/data/cli).
@@ -71,4 +71,4 @@ VOLUME /data
 
 # Run under the built-in supervisor (PID 1) so an in-place upgrade can swap
 # the binary and have the worker relaunched without stopping the container.
-CMD ["codeg-server", "--supervise"]
+CMD ["yoyocode-server", "--supervise"]

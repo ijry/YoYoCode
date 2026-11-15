@@ -655,7 +655,7 @@ jobs:
       #     never asks it to — `StopShortcut` names no media key and no webview
       #     is given the shortcut plugin, both held by tests. Nothing else is
       #     let through.
-      #   * the bundle carries no `codeg-server`, and its `yoyocode-mcp` and
+      #   * the bundle carries no `yoyocode-server`, and its `yoyocode-mcp` and
       #     `yoyo-cli` are the sidecars built without the desktop features (no
       #     WebKit): the copies `tauri build` compiles itself stay out
       #     (`server-bin` / `mcp-bin` / `cli-bin`).
@@ -681,8 +681,8 @@ jobs:
             echo "FATAL: $helper_app not found"
             exit 1
           fi
-          if [ -e "$app/Contents/MacOS/codeg-server" ]; then
-            echo "FATAL: codeg-server is in the desktop bundle; its binary target must need server-bin"
+          if [ -e "$app/Contents/MacOS/yoyocode-server" ]; then
+            echo "FATAL: yoyocode-server is in the desktop bundle; its binary target must need server-bin"
             exit 1
           fi
           for sidecar in yoyocode-mcp yoyo-cli; do
@@ -771,8 +771,8 @@ jobs:
             echo "FATAL: $helper_app not found"
             exit 1
           fi
-          if [ -e "$app/Contents/MacOS/codeg-server" ]; then
-            echo "FATAL: codeg-server must not be in the desktop bundle"
+          if [ -e "$app/Contents/MacOS/yoyocode-server" ]; then
+            echo "FATAL: yoyocode-server must not be in the desktop bundle"
             exit 1
           fi
           for sidecar in yoyocode-mcp yoyo-cli; do
@@ -849,12 +849,10 @@ jobs:
             runner: "ubuntu-22.04"
             target: "x86_64-unknown-linux-gnu"
             artifact: "yoyocode-server-linux-x64"
-            legacy_artifact: "codeg-server-linux-x64"
           - name: "Linux arm64"
             runner: "ubuntu-22.04"
             target: "aarch64-unknown-linux-gnu"
             artifact: "yoyocode-server-linux-arm64"
-            legacy_artifact: "codeg-server-linux-arm64"
           # server 不上 macOS：未签名的 server 二进制每次更新都会丢 TCC 授权
           # （上游 #1035 为此专门做了 Developer ID 签名）。签名证书就绪前，
           # macOS 用户走桌面版（build-tauri 的 ad-hoc 包）即可。
@@ -862,7 +860,6 @@ jobs:
             runner: "windows-2022"
             target: "x86_64-pc-windows-msvc"
             artifact: "yoyocode-server-windows-x64"
-            legacy_artifact: "codeg-server-windows-x64"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -961,7 +958,7 @@ jobs:
         # `yoyo-cli` is the command-line client (`yoyo-cli run …`), for CI
         # jobs and scripts on the server's machine or reaching it with --url.
         run: |
-          cargo build --release --bin codeg-server --no-default-features --features server-bin --target ${{ matrix.target }}
+          cargo build --release --bin yoyocode-server --no-default-features --features server-bin --target ${{ matrix.target }}
           cargo build --release --bin yoyocode-mcp --no-default-features --features mcp-bin --target ${{ matrix.target }}
           cargo build --release --bin codeg-computer-helper --no-default-features --features computer-helper --target ${{ matrix.target }}
           cargo build --release --bin yoyo-cli --no-default-features --features cli-bin --target ${{ matrix.target }}
@@ -1092,7 +1089,7 @@ jobs:
           set -euo pipefail
           dir="src-tauri/target/${{ matrix.target }}/release"
           anchor="anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = \"${APPLE_TEAM_ID}\""
-          for bin in codeg-server yoyocode-mcp yoyo-cli; do
+          for bin in yoyocode-server yoyocode-mcp yoyo-cli; do
             codesign --force --options runtime --timestamp \
               --identifier "$bin" \
               --sign "$APPLE_SIGNING_IDENTITY" "$dir/$bin"
@@ -1113,7 +1110,7 @@ jobs:
             fi
             grep -E '^(Identifier|TeamIdentifier|Timestamp)=' <<< "$info"
           done
-          "$dir/codeg-server" --version
+          "$dir/yoyocode-server" --version
 
       - name: Delete Apple signing keychain (macOS)
         if: always() && contains(matrix.target, 'apple-darwin')
@@ -1153,38 +1150,31 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist/${{ matrix.artifact }}
-          cp src-tauri/target/${{ matrix.target }}/release/codeg-server dist/${{ matrix.artifact }}/
+          cp src-tauri/target/${{ matrix.target }}/release/yoyocode-server dist/${{ matrix.artifact }}/
           cp src-tauri/target/${{ matrix.target }}/release/yoyocode-mcp dist/${{ matrix.artifact }}/
           cp src-tauri/target/${{ matrix.target }}/release/codeg-computer-helper dist/${{ matrix.artifact }}/
           cp src-tauri/target/${{ matrix.target }}/release/yoyo-cli dist/${{ matrix.artifact }}/
-          chmod +x dist/${{ matrix.artifact }}/codeg-server dist/${{ matrix.artifact }}/yoyocode-mcp dist/${{ matrix.artifact }}/codeg-computer-helper dist/${{ matrix.artifact }}/yoyo-cli
+          chmod +x dist/${{ matrix.artifact }}/yoyocode-server dist/${{ matrix.artifact }}/yoyocode-mcp dist/${{ matrix.artifact }}/codeg-computer-helper dist/${{ matrix.artifact }}/yoyo-cli
           cp -r out dist/${{ matrix.artifact }}/web
-          # Legacy installers require a root directory matching the old asset name.
-          cp -r dist/${{ matrix.artifact }} dist/${{ matrix.legacy_artifact }}
-          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
-            tar czf "dist/${artifact}.tar.gz" -C dist "$artifact"
-          done
+          tar czf "dist/${{ matrix.artifact }}.tar.gz" -C dist "${{ matrix.artifact }}"
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/${{ matrix.artifact }}
-          Copy-Item src-tauri/target/${{ matrix.target }}/release/codeg-server.exe dist/${{ matrix.artifact }}/
+          Copy-Item src-tauri/target/${{ matrix.target }}/release/yoyocode-server.exe dist/${{ matrix.artifact }}/
           Copy-Item src-tauri/target/${{ matrix.target }}/release/yoyocode-mcp.exe dist/${{ matrix.artifact }}/
           Copy-Item src-tauri/target/${{ matrix.target }}/release/codeg-computer-helper.exe dist/${{ matrix.artifact }}/
           Copy-Item src-tauri/target/${{ matrix.target }}/release/yoyo-cli.exe dist/${{ matrix.artifact }}/
           Copy-Item -Recurse out dist/${{ matrix.artifact }}/web
-          Copy-Item -Recurse dist/${{ matrix.artifact }} dist/${{ matrix.legacy_artifact }}
-          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
-            Compress-Archive -Path "dist/$artifact" -DestinationPath "dist/$artifact.zip"
-          }
+          Compress-Archive -Path "dist/${{ matrix.artifact }}" -DestinationPath "dist/${{ matrix.artifact }}.zip"
 
       - name: Smoke test packaged artifact (Unix)
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
-          test -x "dist/${{ matrix.artifact }}/codeg-server"
+          test -x "dist/${{ matrix.artifact }}/yoyocode-server"
           test -x "dist/${{ matrix.artifact }}/yoyocode-mcp"
           test -x "dist/${{ matrix.artifact }}/codeg-computer-helper"
           test -x "dist/${{ matrix.artifact }}/yoyo-cli"
@@ -1194,7 +1184,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-gnu" ] || \
              [ "${{ matrix.target }}" = "x86_64-apple-darwin" ] || \
              [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
-            test "$("dist/${{ matrix.artifact }}/codeg-server" --version)" = "${GITHUB_REF_NAME#v}"
+            test "$("dist/${{ matrix.artifact }}/yoyocode-server" --version)" = "${GITHUB_REF_NAME#v}"
             "dist/${{ matrix.artifact }}/yoyocode-mcp" --help | grep -F 'yoyocode-mcp --parent-connection-id'
             "dist/${{ matrix.artifact }}/yoyo-cli" --version | grep -F 'yoyo-cli '
             "dist/${{ matrix.artifact }}/yoyo-cli" --help | grep -F 'Usage: yoyo-cli'
@@ -1206,8 +1196,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist/${{ matrix.artifact }}/codeg-server.exe")) {
-            throw "codeg-server.exe missing from packaged artifact"
+          if (-not (Test-Path "dist/${{ matrix.artifact }}/yoyocode-server.exe")) {
+            throw "yoyocode-server.exe missing from packaged artifact"
           }
           if (-not (Test-Path "dist/${{ matrix.artifact }}/yoyocode-mcp.exe")) {
             throw "yoyocode-mcp.exe missing from packaged artifact"
@@ -1218,7 +1208,7 @@ jobs:
           if (-not (Test-Path "dist/${{ matrix.artifact }}/yoyo-cli.exe")) {
             throw "yoyo-cli.exe missing from packaged artifact"
           }
-          $serverVersion = & "dist/${{ matrix.artifact }}/codeg-server.exe" --version
+          $serverVersion = & "dist/${{ matrix.artifact }}/yoyocode-server.exe" --version
           if ($LASTEXITCODE -ne 0 -or $serverVersion -ne $env:GITHUB_REF_NAME.TrimStart('v')) {
             throw "server version does not match release tag: $serverVersion"
           }
@@ -1256,11 +1246,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
-            pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "dist/${artifact}.tar.gz"
-            test -f "dist/${artifact}.tar.gz.sig"
-            ( cd dist && shasum -a 256 "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256" )
-          done
+          artifact="${{ matrix.artifact }}"
+          pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "dist/${artifact}.tar.gz"
+          test -f "dist/${artifact}.tar.gz.sig"
+          ( cd dist && shasum -a 256 "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256" )
 
       - name: Sign and checksum bundle (Windows)
         if: runner.os == 'Windows'
@@ -1270,14 +1259,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
-            pnpm tauri signer sign --app-version $version "dist/$artifact.zip"
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path "dist/$artifact.zip.sig")) {
-              throw "signature not produced for $artifact.zip"
-            }
-            $hash = (Get-FileHash -Algorithm SHA256 "dist/$artifact.zip").Hash.ToLower()
-            "$hash  $artifact.zip" | Out-File -Encoding ascii "dist/$artifact.zip.sha256"
+          $artifact = "${{ matrix.artifact }}"
+          pnpm tauri signer sign --app-version $version "dist/$artifact.zip"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "dist/$artifact.zip.sig")) {
+            throw "signature not produced for $artifact.zip"
           }
+          $hash = (Get-FileHash -Algorithm SHA256 "dist/$artifact.zip").Hash.ToLower()
+          "$hash  $artifact.zip" | Out-File -Encoding ascii "dist/$artifact.zip.sha256"
 
       - name: Upload to release (Unix)
         if: runner.os != 'Windows'
@@ -1285,13 +1273,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for artifact in "${{ matrix.artifact }}" "${{ matrix.legacy_artifact }}"; do
-            gh release upload "${{ github.ref_name }}" \
-              "dist/${artifact}.tar.gz" \
-              "dist/${artifact}.tar.gz.sig" \
-              "dist/${artifact}.tar.gz.sha256" \
-              --clobber
-          done
+          artifact="${{ matrix.artifact }}"
+          gh release upload "${{ github.ref_name }}" \
+            "dist/${artifact}.tar.gz" \
+            "dist/${artifact}.tar.gz.sig" \
+            "dist/${artifact}.tar.gz.sha256" \
+            --clobber
 
       - name: Upload to release (Windows)
         if: runner.os == 'Windows'
@@ -1299,10 +1286,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          foreach ($artifact in @("${{ matrix.artifact }}", "${{ matrix.legacy_artifact }}")) {
-            gh release upload "${{ github.ref_name }}" "dist/$artifact.zip" "dist/$artifact.zip.sig" "dist/$artifact.zip.sha256" --clobber
-            if ($LASTEXITCODE -ne 0) { throw "Upload failed for $artifact" }
-          }
+          $artifact = "${{ matrix.artifact }}"
+          gh release upload "${{ github.ref_name }}" "dist/$artifact.zip" "dist/$artifact.zip.sig" "dist/$artifact.zip.sha256" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Upload failed for $artifact" }
 
       - name: Generate server update manifest
         if: matrix.target == 'x86_64-unknown-linux-gnu'
@@ -1352,15 +1338,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/amd64 dist/arm64
-          cp artifacts/linux-x64/codeg-server dist/amd64/codeg-server
+          cp artifacts/linux-x64/yoyocode-server dist/amd64/yoyocode-server
           cp artifacts/linux-x64/yoyocode-mcp dist/amd64/yoyocode-mcp
           cp artifacts/linux-x64/yoyo-cli dist/amd64/yoyo-cli
-          cp artifacts/linux-arm64/codeg-server dist/arm64/codeg-server
+          cp artifacts/linux-arm64/yoyocode-server dist/arm64/yoyocode-server
           cp artifacts/linux-arm64/yoyocode-mcp dist/arm64/yoyocode-mcp
           cp artifacts/linux-arm64/yoyo-cli dist/arm64/yoyo-cli
           cp -r artifacts/linux-x64/web dist/web
-          chmod +x dist/amd64/codeg-server dist/amd64/yoyocode-mcp dist/amd64/yoyo-cli \
-                   dist/arm64/codeg-server dist/arm64/yoyocode-mcp dist/arm64/yoyo-cli
+          chmod +x dist/amd64/yoyocode-server dist/amd64/yoyocode-mcp dist/amd64/yoyo-cli \
+                   dist/arm64/yoyocode-server dist/arm64/yoyocode-mcp dist/arm64/yoyo-cli
           # Fail fast if any companion went missing — Docker would otherwise
           # produce an image where delegation silently degrades, or without
           # the yoyo-cli its docs promise.
