@@ -233,3 +233,10 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 - **升级断裂（已知限制，已写入 Release 说明）**：plus.1 / plus.2 的内置更新器会在下载包内查找旧名 `codeg-server`，本版包内只有新名，从旧版直接走应用内更新会失败，需手动重装；本版之后恢复正常。
 - 已发布 Release 里的旧 `codeg-server-*` 资产本版未删除，保留历史安装兼容；是否清理另行决定。
 - 版本仍为 safe 模式：`tauri.conf.json` / `package.json` 保持 `0.44.0`，迭代号由 tag 与 Release 标题承载，server Cargo 版本由 `--iteration 3` 注入为 `0.44.0-plus.3`。
+
+### ZCode 供应商切换（v0.44.0-plus.4）
+
+- `src-tauri/src/commands/zcode_provider.rs`（fork 自有新文件）：`acp_zcode_list_providers` 双模式命令，镜像上游 zcode-acp 桥接的供应商扫描（`~/.zcode/v2/config.json` 供应商表 + `acp-accounts.json` 叠加 + `providerSelectable` 可用性判定），只出 id / 名称 / 可用性、永不携带密钥；`ZCODE_HOME`（agent env 优先）跟随。接线：`commands/mod.rs`、`lib.rs` invoke_handler、`web/handlers/acp.rs`、`web/router.rs`。
+- `commands/acp.rs`：`agent_env_keys` 为 ZCode 加显式条目（占位符 `ZCODE_ACP_BASE_URL` / `ZCODE_ACP_API_KEY` 特意避开 `ZCODE_BASE_URL` —— 它是 app-server 的 service origin，桥接器会剥离继承值；模型槽 `ZCODE_MODEL` 是真实变量）；`keeps_own_providers` 收编 ZCode，绑定模型供应商直接拒绝。
+- 前端：`acp-agent-settings.tsx` 的 ZCode 面板新增供应商下拉（写 `env_json` 的 `ZCODE_PROVIDER`，与 env 文本框同一 Save 提交；手输自定义 id 透传，未启用项带提示）；`lib/{api,types}.ts`、i18n×10、`acp-agent-settings.zcode.test.tsx`（4 用例）。
+- 上游跟进：供应商元数据 / 会话级切换 / 账号套餐可见性已提 william0wang/zcode-acp#400；上游落地后可把「下拉 + 新会话生效」升级为会话内切换。上游动 `commands/{acp,mod}.rs`、`lib.rs`、`web/{router,handlers/acp}.rs`、`acp-agent-settings.tsx`、i18n 时需手动合并。
