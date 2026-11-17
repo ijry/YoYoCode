@@ -40,6 +40,22 @@
   </tr>
 </table>
 
+## 🆚 Par rapport à Codeg (amont)
+
+[YoYoCode](https://github.com/ijry/YoYoCode) est un fork de [spacering-net/codeg](https://github.com/spacering-net/codeg). Tout ce que fait l'original est ici, et en plus :
+
+| Fonctionnalité | Apport |
+|---|---|
+| **📬 Une file de messages persistante gérée par le backend** | Le backend Rust gère entièrement la réclamation et la remise des messages en file : réclamation atomique avec confirmation de remise, protection contre la résurrection d'anciennes sauvegardes, et déclencheurs au démarrage / scan toutes les 30 s / changement d'état d'un tour. Sans fenêtre ni connexion ouverte, il ouvre et reconnecte une session lui-même pour que le travail en file continue sans surveillance. |
+| **⏸️ Mise en attente à l'arrêt, reprise après erreur** | Arrêter un tour manuellement met en attente les messages filetés au lieu de les laisser déborder sur le suivant ; un tour en échec se met en pause sur un point de reprise persisté et reprend dans le même contexte, les messages suivants n'étant libérés qu'après un vrai succès. |
+| **⏰ Envoi programmé de messages de session** | Définissez une heure et le message s'envoie tout seul, avec des préréglages de 30 min / 2 h. Idéal pour un envoi sans surveillance juste après une réinitialisation de quota — un message programmé attend son heure sans bloquer le reste de la file. |
+| **🌐 Accès public avec Tailscale Funnel** | Publiez votre service Web en un clic sur une adresse HTTPS publique — connexion et autorisation, approbation des appareils et distinction des problèmes DNS, et nettoyage de ses propres mappages. Les codes QR de jumelage **MCode v2** suivent l'adresse actuelle et portent le jeton d'accès. |
+| **📷 Un outil de capture d'écran complet** | Figer l'écran, choisir parmi les fenêtres visibles en ordre d'empilement avec aperçu au survol, ou tracer une zone libre. Ensuite déplacer, redimensionner, annoter, épingler, enregistrer ou copier. Sur macOS, un helper authentifié de courte durée capture nativement via ScreenCaptureKit. |
+| **🧠 Changement de modèle et fournisseurs ZCode** | Les changements de modèle dans une session sont persistés et affichés dans l'historique ; les paramètres ZCode ajoutent une liste de fournisseurs qui fixe `ZCODE_PROVIDER` à un compte précis. |
+| **📚 Atelier de bande dessinée** | Flux de création amélioré pour l'atelier de bande dessinée. |
+
+Pour la liste complète des changements du fork et leur suivi de l'amont, voir [PLUS-PATCHES.md](../../docs/PLUS-PATCHES.md).
+
 ## ✨ Fonctionnalités
 
 <table>

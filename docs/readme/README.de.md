@@ -40,6 +40,22 @@
   </tr>
 </table>
 
+## 🆚 Gegenüber Codeg (Upstream)
+
+[YoYoCode](https://github.com/ijry/YoYoCode) ist ein Fork von [spacering-net/codeg](https://github.com/spacering-net/codeg). Alles, was das Original kann, ist enthalten — zusätzlich gibt es:
+
+| Funktion | Was es bringt |
+|---|---|
+| **📬 Eine persistente, vom Backend verwaltete Nachrichtenwarteschlange** | Das Rust-Backend übernimmt das vollständige Einreihen und Zustellen: atomare Reservierung mit Zustellbestätigung, Schutz gegen Wiederbelebung veralteter Speicherstände sowie Trigger beim Start / alle 30 Sekunden / bei Statusänderung einer Runde. Ohne geöffnetes Fenster oder Verbindung öffnet und verbindet es eine Sitzung selbstständig, damit eingereihte Arbeit unbeaufsichtigt läuft. |
+| **⏸️ Beim Stopp halten, nach Fehlern fortsetzen** | Manuelles Stoppen einer Runde hält die wartenden Nachrichten zurück, statt sie in die nächste Runde laufen zu lassen; eine fehlgeschlagene Runde pausiert an einem persistierten Wiederherstellungspunkt und wird im selben Kontext fortgesetzt — spätere Nachrichten werden erst nach echtem Erfolg freigegeben. |
+| **⏰ Geplantes Senden von Sitzungsnachrichten** | Stelle eine Uhrzeit ein und die Nachricht wird automatisch gesendet, mit Presets für 30 Minuten / 2 Stunden. Ideal für unbeaufsichtigtes Senden direkt nach einem Kontingent-Reset — eine geplante Nachricht wartet auf ihren Termin, ohne andere Einträge zu blockieren. |
+| **🌐 Öffentlicher Zugriff mit Tailscale Funnel** | Veröffentliche deinen Web-Dienst mit einem Klick unter einer öffentlichen HTTPS-Adresse — inklusive Anmeldung und Autorisierung, Gerätefreigabe und DNS-Unterscheidung sowie Aufräumen eigener Zuordnungen. Die **MCode v2**-Pairing-QR-Codes folgen der aktuellen Adresse und enthalten den Zugriffstoken. |
+| **📷 Ein ausgereiftes Screenshot-Werkzeug** | Friere den Bildschirm ein und wähle aus sichtbaren Fenstern in Stapelreihenfolge mit Hover-Vorschau oder ziehe einen freien Bereich. Danach verschieben, skalieren, annotieren, anheften, speichern oder kopieren. Unter macOS nutzt ein kurzlebiger authentifizierter Helper nativ ScreenCaptureKit. |
+| **🧠 Modellwechsel und ZCode-Anbieter** | Modellwechsel innerhalb einer Sitzung werden persistent gespeichert und im Verlauf angezeigt; in den ZCode-Einstellungen gibt es ein Anbieter-Dropdown, das `ZCODE_PROVIDER` auf ein bestimmtes Konto festlegt. |
+| **📚 Comic-Workbench** | Verbesserter Erstellungsablauf für die Comic-Workbench. |
+
+Die vollständige Liste der Fork-Änderungen und wie sie dem Upstream folgen, findest du in [PLUS-PATCHES.md](../../docs/PLUS-PATCHES.md).
+
 ## ✨ Funktionen
 
 <table>

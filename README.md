@@ -40,6 +40,22 @@
   </tr>
 </table>
 
+## 🆚 Compared with upstream Codeg
+
+[YoYoCode](https://github.com/ijry/YoYoCode) is a fork of [spacering-net/codeg](https://github.com/spacering-net/codeg). Everything upstream does is here, plus:
+
+| Feature | What it adds |
+|---|---|
+| **📬 A persistent, backend-owned message queue** | The Rust backend fully owns claiming and delivering queued messages — atomic claim with delivery confirmation, stale-save revival protection, and startup / 30-second scan / turn-status triggers. It opens a session and reconnects on its own when no window or connection is open, so queued work runs unattended. |
+| **⏸️ Hold on stop, resume after errors** | Manually stopping a turn holds its queued messages instead of letting them trail into the next one; a failed turn pauses on a persisted gate and resumes in the same context, releasing later messages only after a genuine success. |
+| **⏰ Scheduled session messages** | Set a time and the message sends itself, with 30-minute / 2-hour presets built in. Ideal for unattended sending right after a quota reset — a scheduled message waits for its deadline without blocking other queued work. |
+| **🌐 Tailscale Funnel public access** | Publish your Web Service to a public HTTPS address in one click — login/authorization, device-approval and DNS handling, and cleanup of its own mappings. **MCode v2** pairing QR codes follow the current address and carry the access token. |
+| **📷 A full-featured screenshot tool** | Freeze the screen and pick from on-screen windows in stacking order with hover preview, or drag a freeform region. Then move, resize, annotate, pin, save, or copy the capture. On macOS, a short-lived authenticated helper captures natively through ScreenCaptureKit. |
+| **🧠 Model switches and ZCode providers** | Model changes made inside a session persist and are shown in the transcript; ZCode settings add a provider dropdown that pins `ZCODE_PROVIDER` to a specific account. |
+| **📚 Comic workbench** | An improved creation flow for the comic-workbench workspace. |
+
+For the full list of fork-side changes and how they track upstream, see [PLUS-PATCHES.md](./docs/PLUS-PATCHES.md).
+
 ## ✨ Features
 
 <table>

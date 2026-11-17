@@ -40,6 +40,22 @@
   </tr>
 </table>
 
+## 🆚 Frente a Codeg (proyecto original)
+
+[YoYoCode](https://github.com/ijry/YoYoCode) es un fork de [spacering-net/codeg](https://github.com/spacering-net/codeg). Todo lo que hace el original está aquí, y además añade:
+
+| Función | Qué aporta |
+|---|---|
+| **📬 Una cola de mensajes persistente gestionada por el backend** | El backend Rust gestiona por completo la reclamación y entrega de los mensajes en cola: reclamación atómica con confirmación de entrega, protección contra la resurrección de guardados obsoletos y disparadores de inicio / escaneo cada 30 s / cambio de estado del turno. Abre una sesión y se reconecta por sí mismo cuando no hay ventana ni conexión, para que el trabajo en cola siga sin supervisión. |
+| **⏸️ Retener al detener, reanudar tras errores** | Detener un turno manualmente retiene los mensajes en cola en lugar de dejarlos desbordarse al siguiente; un turno fallido se pausa en un punto de recuperación persistido y se reanuda en el mismo contexto, liberando los mensajes posteriores solo tras un éxito real. |
+| **⏰ Envío programado de mensajes de sesión** | Fija una hora y el mensaje se envía solo, con preset de 30 minutos / 2 horas. Ideal para envío desatendido justo después de un restablecimiento de cuota: un mensaje programado espera su hora sin bloquear el resto de la cola. |
+| **🌐 Acceso público con Tailscale Funnel** | Publica tu servicio Web en una dirección HTTPS pública con un clic: inicio de sesión y autorización, aprobación de dispositivos y distinción de problemas de DNS, y limpieza de sus propias asignaciones. Los códigos QR de emparejamiento **MCode v2** siguen la dirección actual y llevan el token de acceso. |
+| **📷 Una herramienta de capturas completa** | Congela la pantalla y elige entre las ventanas visibles en orden de apilamiento con vista previa al pasar el ratón, o arrastra una región libre. Después puedes mover, redimensionar, anotar, fijar, guardar o copiar la captura. En macOS, un ayudante efímero autenticado captura de forma nativa con ScreenCaptureKit. |
+| **🧠 Cambio de modelo y proveedores ZCode** | Los cambios de modelo dentro de una sesión se persisten y se muestran en el historial; los ajustes de ZCode añaden un desplegable de proveedor que fija `ZCODE_PROVIDER` a una cuenta concreta. |
+| **📚 Taller de cómics** | Flujo de creación mejorado para el taller de cómics. |
+
+Para la lista completa de cambios del fork y cómo siguen al original, consulta [PLUS-PATCHES.md](../../docs/PLUS-PATCHES.md).
+
 ## ✨ Características
 
 <table>
