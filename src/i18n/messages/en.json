@@ -3682,6 +3682,7 @@
         "heldNotice": "Turn stopped manually — the queue is holding. Send rows one by one or resume auto-send.",
         "resumeQueue": "Resume auto-send",
         "sendNow": "Send now",
+        "sendNowResume": "Send this message and resume the session",
         "steerItemNow": "Insert into current turn",
         "steerItemAsNote": "Send as note for next check",
         "scheduledSend": "Send later",

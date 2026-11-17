@@ -3643,6 +3643,7 @@
         "heldNotice": "已手動停止：佇列暫緩自動發送，可逐條手動發送或恢復自動發送。",
         "resumeQueue": "恢復自動發送",
         "sendNow": "立即發送",
+        "sendNowResume": "傳送此訊息並繼續工作階段",
         "steerItemNow": "插入目前回合",
         "steerItemAsNote": "作為留言，供下次檢查時讀取",
         "scheduledSend": "定時傳送",

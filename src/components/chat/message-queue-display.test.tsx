@@ -200,6 +200,53 @@ describe("MessageQueueDisplay click-to-insert", () => {
     expect(onReleaseHold).toHaveBeenCalledTimes(1)
   })
 
+  it("lets an error-paused queue resume from ANY pending row, even with the notice closed", async () => {
+    const onSendNow = vi.fn(async () => {})
+    renderDisplay({
+      queue: [item("q1", "first"), item("q2", "second")],
+      queueControl: {
+        owner_id: "42",
+        status: "paused",
+        failed_attempt_id: "attempt-a",
+        active_attempt_id: null,
+        error: "quota error",
+        hold: null,
+        revision: 1,
+      },
+      onContinue: vi.fn(),
+      onSendNow,
+    })
+    const buttons = screen.getAllByTitle(TQ.sendNowResume)
+    expect(buttons).toHaveLength(2)
+    // The user picks the SECOND row: that message is what resumes the session.
+    await userEvent.click(buttons[1])
+    expect(onSendNow).toHaveBeenCalledWith("q2")
+
+    await userEvent.click(
+      screen.getByRole("button", { name: TQ.dismissNotice })
+    )
+    expect(screen.queryByText(TQ.unfinishedTitle)).toBeNull()
+    expect(screen.getAllByTitle(TQ.sendNowResume)).toHaveLength(2)
+  })
+
+  it("keeps manual sends off while a recovery turn owns the session", () => {
+    renderDisplay({
+      queueControl: {
+        owner_id: "42",
+        status: "resuming",
+        failed_attempt_id: "attempt-a",
+        active_attempt_id: "r",
+        error: null,
+        hold: null,
+        revision: 2,
+      },
+      onContinue: vi.fn(),
+      onSendNow: vi.fn(async () => {}),
+    })
+    expect(screen.queryByTitle(TQ.sendNow)).toBeNull()
+    expect(screen.queryByTitle(TQ.sendNowResume)).toBeNull()
+  })
+
   it("offers no held banner or send buttons while the queue drains normally", () => {
     renderDisplay({
       queueControl: {

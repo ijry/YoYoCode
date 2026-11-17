@@ -3643,6 +3643,7 @@
         "heldNotice": "Arrêt manuel — la file d'attente est suspendue. Envoyez les éléments un par un ou reprenez l'envoi automatique.",
         "resumeQueue": "Reprendre l'envoi automatique",
         "sendNow": "Envoyer maintenant",
+        "sendNowResume": "Envoyer ce message et reprendre la session",
         "steerItemNow": "Insérer dans le tour en cours",
         "steerItemAsNote": "Envoyer comme note pour la prochaine vérification",
         "scheduledSend": "Envoyer plus tard",

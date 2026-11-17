@@ -3682,6 +3682,7 @@
         "heldNotice": "已手动停止：队列暂缓自动发送，可逐条手动发送或恢复自动发送。",
         "resumeQueue": "恢复自动发送",
         "sendNow": "立即发送",
+        "sendNowResume": "发送此消息并继续会话",
         "steerItemNow": "插入当前回合",
         "steerItemAsNote": "作为留言，供下次检查时读取",
         "scheduledSend": "定时发送",

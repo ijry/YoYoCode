@@ -397,6 +397,94 @@ async fn an_execution_failure_pauses_b_until_original_context_continuation_succe
     lifecycle.abort();
 }
 
+/// A paused queue is not a dead end: clicking send on ONE pending row admits
+/// exactly that message through the pause, so the user can pick what the
+/// conversation resumes with (rather than the canned "continue" prompt).
+#[tokio::test]
+async fn send_now_on_a_paused_row_resumes_with_that_exact_message() {
+    use crate::db::service::message_queue_control_service as control;
+    let db = test_helpers::fresh_in_memory_db().await;
+    let folder = test_helpers::seed_folder(&db, "/tmp/queue-send-now-paused").await;
+    let cid = test_helpers::seed_conversation(&db, folder, AgentType::Codex).await;
+    let owner = cid.to_string();
+    message_queue_service::save(
+        &db.conn,
+        &owner,
+        vec![queue_input("a", "A"), queue_input("b", "B")],
+    )
+    .await
+    .unwrap();
+    // A turn failed without delivering anything: the queue is paused and both
+    // rows are still pending.
+    let failed = control::begin_attempt(&db.conn, &owner, "old", "m", "{}", None)
+        .await
+        .unwrap();
+    control::complete_attempt(
+        &db.conn,
+        &control::QueueTurnCompletion {
+            attempt_id: failed.id,
+            owner_id: owner.clone(),
+            success: false,
+            cancelled: false,
+            user_cancelled: false,
+            error: Some("boom".into()),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        control::get_state(&db.conn, &owner).await.unwrap().status,
+        "paused"
+    );
+
+    let manager = ConnectionManager::new();
+    let bus = Arc::new(crate::acp::InternalEventBus::new(Arc::new(
+        crate::acp::EventBusMetrics::default(),
+    )));
+    let emitter = EventEmitter::web_only(
+        Arc::new(crate::web::event_bridge::WebEventBroadcaster::new()),
+        bus,
+    );
+    let mut commands = manager
+        .insert_test_connection_live(
+            "send-now-paused",
+            AgentType::Codex,
+            None,
+            emitter.clone(),
+        )
+        .await;
+    manager
+        .get_state("send-now-paused")
+        .await
+        .unwrap()
+        .write()
+        .await
+        .conversation_id = Some(cid);
+
+    // The user picks the SECOND row, not the FIFO head.
+    send_item_now(
+        &db.conn,
+        &manager,
+        &emitter,
+        Path::new("/tmp"),
+        &owner,
+        "b",
+    )
+    .await
+    .unwrap();
+    let Some(ConnectionCommand::Prompt { blocks, .. }) = commands.recv().await else {
+        panic!("the chosen row must be delivered");
+    };
+    assert_eq!(blocks, [PromptInputBlock::Text { text: "B".into() }]);
+
+    let state = control::get_state(&db.conn, &owner).await.unwrap();
+    assert_eq!(state.status, "open", "the manual send lifts the pause");
+    assert!(state.active_attempt_id.is_some());
+    let rows = message_queue_service::list(&db.conn, &owner).await.unwrap();
+    assert_eq!(rows.len(), 1, "the chosen row is acknowledged, others stay");
+    assert_eq!(rows[0].id, "a");
+}
+
 #[test]
 fn only_one_process_can_recover_and_drain_the_same_database() {
     let dir = tempfile::tempdir().unwrap();

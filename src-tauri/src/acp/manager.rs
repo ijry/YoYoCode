@@ -1499,12 +1499,17 @@ impl ConnectionManager {
             Vec::new(),
             None,
             None,
+            // A composer prompt is the user's own decision to keep talking:
+            // unlike a queue drain it may lift an error pause.
+            true,
         )
         .await
     }
 
     /// Submit a persisted queue item under the same admission lock as direct
     /// prompts. Mode application cannot be interleaved with another sender.
+    /// The AUTOMATIC drain path never lifts an error pause; use
+    /// [`Self::send_manual_queued_prompt`] for a row the user picked by hand.
     #[allow(clippy::too_many_arguments)]
     pub async fn send_queued_prompt(
         &self,
@@ -1515,6 +1520,59 @@ impl ConnectionManager {
         conversation_id: i32,
         mode_id: Option<String>,
         message_id: String,
+    ) -> Result<Option<i32>, AcpError> {
+        self.send_queued_prompt_inner(
+            db,
+            conn_id,
+            blocks,
+            folder_id,
+            conversation_id,
+            mode_id,
+            message_id,
+            false,
+        )
+        .await
+    }
+
+    /// The `message_queue_send_now` override: ONE row the user explicitly
+    /// picked while the queue was held or paused. Identical to a drain send
+    /// except it is allowed to lift an error pause — that message becomes the
+    /// conversation's recovery turn.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_manual_queued_prompt(
+        &self,
+        db: &AppDatabase,
+        conn_id: &str,
+        blocks: Vec<PromptInputBlock>,
+        folder_id: i32,
+        conversation_id: i32,
+        mode_id: Option<String>,
+        message_id: String,
+    ) -> Result<Option<i32>, AcpError> {
+        self.send_queued_prompt_inner(
+            db,
+            conn_id,
+            blocks,
+            folder_id,
+            conversation_id,
+            mode_id,
+            message_id,
+            true,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn send_queued_prompt_inner(
+        &self,
+        db: &AppDatabase,
+        conn_id: &str,
+        blocks: Vec<PromptInputBlock>,
+        folder_id: i32,
+        conversation_id: i32,
+        mode_id: Option<String>,
+        message_id: String,
+        manual_override: bool,
     ) -> Result<Option<i32>, AcpError> {
         self.send_prompt_linked_full(
             db,
@@ -1527,7 +1585,9 @@ impl ConnectionManager {
             Vec::new(),
             Some(mode_id),
             None,
-        ).await
+            manual_override,
+        )
+        .await
     }
 
     pub async fn send_queue_continuation(
@@ -1537,7 +1597,7 @@ impl ConnectionManager {
         let blocks = vec![PromptInputBlock::Text { text:
             "继续之前因错误中断的任务。从中断处接着完成尚未完成的部分，不要重新执行已完成操作，也不要开始待发送队列中的后续任务。".into() }];
         self.send_prompt_linked_full(db, conn_id, blocks, Some(folder_id), Some(conversation_id),
-            None, Some(format!("queue-resume-{}", uuid::Uuid::new_v4())), Vec::new(), Some(None), Some(failed_attempt.to_owned())).await
+            None, Some(format!("queue-resume-{}", uuid::Uuid::new_v4())), Vec::new(), Some(None), Some(failed_attempt.to_owned()), false).await
     }
 
     /// As [`send_prompt_linked`], plus `internal_suffix`: Codeg-authored
@@ -1567,6 +1627,7 @@ impl ConnectionManager {
             internal_suffix,
             None,
             None,
+            false,
         )
         .await
     }
@@ -1584,6 +1645,10 @@ impl ConnectionManager {
         internal_suffix: Vec<PromptInputBlock>,
         queued_mode: Option<Option<String>>,
         recovery_of: Option<String>,
+        // The send was explicitly initiated by the user (composer prompt or
+        // a picked queue row). Only such a send may be admitted through an
+        // error pause; an automatic queue drain must never lift it.
+        manual_override: bool,
     ) -> Result<Option<i32>, AcpError> {
         // Reject an empty prompt up front, BEFORE any side effects: linking /
         // creating the conversation row, flipping it to InProgress, or emitting
@@ -2001,7 +2066,15 @@ impl ConnectionManager {
             let control = crate::db::service::message_queue_control_service::get_state(&db.conn, &cid.to_string()).await.map_err(|error| AcpError::protocol(error.to_string()))?;
             let allowed = match recovery_of.as_deref() {
                 Some(failed) => control.status == "resume_requested" && control.failed_attempt_id.as_deref() == Some(failed),
-                None => control.status == "open",
+                // Mirrors `begin_attempt` below: an AUTOMATIC queue drain is
+                // refused while paused, but a prompt the user sent by hand
+                // (composer, or a picked queue row) is admitted and lifts the
+                // pause when that attempt is created. The duplication is
+                // deliberate — this check sits before `InProgress` is written
+                // and the linked-row events are emitted, so a rejected send
+                // must not mutate the conversation at all.
+                None => control.status == "open"
+                    || (control.status == "paused" && manual_override),
             };
             if !allowed || control.active_attempt_id.is_some() {
                 return Err(AcpError::protocol("queue is paused or a previous turn is not settled"));

@@ -155,6 +155,75 @@ async fn a_paused_conversation_rejects_direct_send_without_changing_its_status()
     assert_eq!(crate::db::service::conversation_service::get_by_id(&db.conn,cid).await.unwrap().status, "cancelled");
 }
 
+/// The pause gates the AUTOMATIC queue drain, not the user sitting at the
+/// composer. A picked-row / composer prompt carries `manual_override` and is
+/// admitted (lifting the pause); a bare drain prompt is still refused before
+/// it can mutate the conversation row or send anything.
+#[tokio::test]
+async fn a_user_prompt_lifts_the_pause_while_a_drain_prompt_is_refused() {
+    use crate::db::service::message_queue_control_service as control;
+    let db = test_helpers::fresh_in_memory_db().await;
+    let folder = test_helpers::seed_folder(&db, "/tmp/queue-paused-manual").await;
+    let cid = test_helpers::seed_conversation(&db, folder, AgentType::Codex).await;
+    crate::db::service::conversation_service::update_status(
+        &db.conn,
+        cid,
+        crate::db::entities::conversation::ConversationStatus::Cancelled,
+    )
+    .await
+    .unwrap();
+    let failed = control::begin_attempt(&db.conn, &cid.to_string(), "queued", "A", "{}", None)
+        .await
+        .unwrap();
+    control::complete_attempt(
+        &db.conn,
+        &control::QueueTurnCompletion {
+            attempt_id: failed.id,
+            owner_id: cid.to_string(),
+            success: false,
+            cancelled: false,
+            user_cancelled: false,
+            error: Some("failed A".into()),
+        },
+    )
+    .await
+    .unwrap();
+    let manager = ConnectionManager::new();
+    let mut commands = connection(&manager, cid).await;
+    assert!(
+        manager
+            .send_queued_prompt(&db, "queued", text("B"), folder, cid, None, "B".into())
+            .await
+            .is_err(),
+        "the automatic drain must not lift an error pause"
+    );
+    assert!(commands.try_recv().is_err());
+    manager
+        .send_prompt_linked_with_message_id(
+            &db,
+            "queued",
+            text("C"),
+            Some(folder),
+            Some(cid),
+            None,
+            Some("optimistic-c".into()),
+        )
+        .await
+        .unwrap();
+    let Some(ConnectionCommand::Prompt { blocks, .. }) = commands.recv().await else {
+        panic!("the user's own prompt must be delivered");
+    };
+    assert_eq!(blocks, text("C"));
+    assert_eq!(
+        control::get_state(&db.conn, &cid.to_string())
+            .await
+            .unwrap()
+            .status,
+        "open",
+        "the admitted prompt lifts the pause"
+    );
+}
+
 #[tokio::test]
 async fn queued_prompt_never_uses_a_connection_bound_to_another_conversation() {
     let db = test_helpers::fresh_in_memory_db().await;

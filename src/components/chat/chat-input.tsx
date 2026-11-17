@@ -58,7 +58,8 @@ interface ChatInputProps {
    *  `MessageQueueDisplayProps.onReleaseHold`). */
   onQueueReleaseHold?: () => Promise<void> | void
   /** Send ONE queued row immediately at the user's request — the manual
-   *  override for a held queue (see `MessageQueueDisplayProps.onSendNow`). */
+   *  override for a held queue AND for an error pause, where the chosen row
+   *  itself resumes the session (see `MessageQueueDisplayProps.onSendNow`). */
   onQueueSendNow?: (id: string) => Promise<void> | void
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   /** One-off scheduled send (see `MessageInput.onEnqueueScheduled`); present

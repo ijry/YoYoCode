@@ -3643,6 +3643,7 @@
         "heldNotice": "수동으로 중지되었습니다 — 대기열이 보류 중입니다. 항목을 하나씩 보내거나 자동 전송을 재개하세요.",
         "resumeQueue": "자동 전송 재개",
         "sendNow": "지금 보내기",
+        "sendNowResume": "이 메시지를 보내고 세션 재개",
         "steerItemNow": "현재 턴에 삽입",
         "steerItemAsNote": "메모로 보내 다음 점검 때 읽도록 함",
         "scheduledSend": "예약 전송",

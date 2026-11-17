@@ -3643,6 +3643,7 @@
         "heldNotice": "Detenido manualmente: la cola está en espera. Envía los elementos uno a uno o reanuda el envío automático.",
         "resumeQueue": "Reanudar envío automático",
         "sendNow": "Enviar ahora",
+        "sendNowResume": "Enviar este mensaje y reanudar la sesión",
         "steerItemNow": "Insertar en el turno actual",
         "steerItemAsNote": "Enviar como nota para la próxima comprobación",
         "scheduledSend": "Enviar más tarde",

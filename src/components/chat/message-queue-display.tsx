@@ -41,10 +41,11 @@ interface MessageQueueDisplayProps {
    *  can be acted on. */
   onReleaseHold?: () => Promise<void> | void
   /**
-   * Send ONE queued row immediately at the user's explicit request — the
-   * manual override for a queue held by a user stop. Only passed while the
-   * hold is set; the backend skips the hold (and only the hold), still
-   * refusing a paused queue or a running turn, and a failure surfaces on the
+   * Send ONE queued row immediately at the user's explicit request. A manual
+   * override for a queue parked by a user stop OR by an error pause: in the
+   * latter case sending a chosen row IS the decision to resume the session
+   * (the backend admits that prompt through the pause). A recovery turn that
+   * is requested or running is still refused, and a failure surfaces on the
    * row's delivery state.
    */
   onSendNow?: (id: string) => Promise<void> | void
@@ -91,8 +92,11 @@ interface QueueItemProps {
   steering: boolean
   onSteerStart: (id: string) => Promise<void>
   onScheduleOpen: (id: string) => void
-  /** Manual send for a held queue; absent when no hold is set. */
+  /** Manual send for a parked queue; absent when no override is available. */
   onSendNow?: (id: string) => Promise<void> | void
+  /** True on an error pause: this manual send also lifts the pause, so the
+   *  tooltip says what the click will do to the conversation. */
+  resumeOnSend?: boolean
   /** The row whose manual send is in flight — every row's button is disabled
    *  for the duration, mirroring the insert's single-flight. */
   sendNowId: string | null
@@ -113,6 +117,7 @@ function QueueItem({
   onSteerStart,
   onScheduleOpen,
   onSendNow,
+  resumeOnSend,
   sendNowId,
   onSendNowStart,
 }: QueueItemProps) {
@@ -247,7 +252,7 @@ function QueueItem({
           onClick={() => void onSendNowStart(item.id)}
           disabled={sendNowId !== null}
           className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground disabled:opacity-50"
-          title={t("sendNow")}
+          title={t(resumeOnSend ? "sendNowResume" : "sendNow")}
         >
           <Send className="h-2.5 w-2.5" />
         </button>
@@ -326,6 +331,12 @@ export function MessageQueueDisplay({
   // A user-stop hold: the queue is "open" but parked. The banner is neutral
   // (nothing failed) and the rows gain a manual send.
   const held = queueControl?.status === "open" && queueControl.hold != null
+  // An error pause gets the same manual override as a user-stop hold: each
+  // PENDING row can be sent on its own, and that exact prompt lifts the
+  // pause. Raw status, not `paused` — dismissing the notice must not take
+  // away the rows' way out of the pause.
+  const errorPaused = queueControl?.status === "paused"
+  const manualSend = held || errorPaused
   const resumeRunning =
     continuing || queueControl?.status === "resume_requested"
   const continueTask = async () => {
@@ -512,7 +523,8 @@ export function MessageQueueDisplay({
             steerChannel={steerChannel}
             steering={steeringId !== null}
             onSteerStart={handleSteerStart}
-            onSendNow={held ? onSendNow : undefined}
+            onSendNow={manualSend ? onSendNow : undefined}
+            resumeOnSend={errorPaused}
             sendNowId={sendNowId}
             onSendNowStart={handleSendNowStart}
           />

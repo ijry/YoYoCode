@@ -508,13 +508,15 @@ async fn try_continue_owner(
 }
 
 /// Send ONE queued item right now at the user's explicit request
-/// (`message_queue_send_now`). The whole point of this path is to bypass the
-/// user-stop hold — the user is choosing what goes out — so unlike
-/// [`try_drain_owner`] it never consults `can_drain`; it still respects the
-/// queue barrier itself (`open`, no active attempt, one claim at a time), so
-/// it cannot interleave with a paused recovery or a running turn. Mirrors the
-/// drain's admission sequence: claim → parse → live/spawn connection →
-/// send → acknowledge/release.
+/// (`message_queue_send_now`). The whole point of this path is to bypass a
+/// barrier the user chose to override — a user-stop hold, or an error pause
+/// where picking ONE row IS the decision to resume the conversation — so
+/// unlike [`try_drain_owner`] it never consults `can_drain`; it still respects
+/// the queue barrier itself (no active attempt, one claim at a time) and
+/// refuses a recovery turn that is requested or running. Mirrors the drain's
+/// admission sequence: claim → parse → live/spawn connection → send →
+/// acknowledge/release. `begin_attempt` lifts a `paused` barrier on admission
+/// and `complete_attempt` re-pauses on failure / opens on success.
 pub async fn send_item_now(
     db: &DatabaseConnection,
     manager: &ConnectionManager,
@@ -526,9 +528,16 @@ pub async fn send_item_now(
     let control = crate::db::service::message_queue_control_service::get_state(db, owner_id)
         .await
         .map_err(|error| AcpError::protocol(error.to_string()))?;
-    if control.status != "open" || control.active_attempt_id.is_some() {
+    // `"open"` covers the user-stop hold; `"paused"` is the recovery case:
+    // the user clicked send on ONE specific row instead of typing a new
+    // message or accepting the canned continuation. `begin_attempt` admits
+    // that prompt through the pause, so this one message resumes the session.
+    // `resume_requested`/`resuming` and a live attempt still own the session.
+    if control.active_attempt_id.is_some()
+        || !matches!(control.status.as_str(), "open" | "paused")
+    {
         return Err(AcpError::protocol(
-            "queue is paused or a previous turn is not settled",
+            "a recovery turn is already running or the previous turn is not settled",
         ));
     }
     let claim = message_queue_service::claim_item(db, owner_id, item_id, &uuid::Uuid::new_v4().to_string())
@@ -580,7 +589,7 @@ pub async fn send_item_now(
             claim.item.mode_id.clone()
         };
         manager
-            .send_queued_prompt(
+            .send_manual_queued_prompt(
                 &AppDatabase { conn: db.clone() },
                 &connection_id,
                 blocks,
