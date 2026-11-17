@@ -3522,6 +3522,11 @@
         "sendMessage": "أرسل رسالة..."
       },
       "messageInput": {
+        "zcodeProviderAuto": "تلقائي (يختاره الجسر)",
+        "zcodeProviderPinned": "تم التبديل إلى {provider}",
+        "zcodeProviderAutoSet": "تمت العودة للاختيار التلقائي",
+        "zcodeProviderFailed": "فشل تبديل الموفر",
+        "zcodeProviderReconnectHint": "استخدم شعار إعادة الاتصال أعلاه لتطبيق التغيير.",
         "askAnything": "اسأل أي شيء...",
         "promptSuggestion": "{suggestion} (اضغط Tab للاستخدام)",
         "removeAttachmentAria": "إزالة {name}",

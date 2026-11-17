@@ -3522,6 +3522,11 @@
         "sendMessage": "傳送訊息..."
       },
       "messageInput": {
+        "zcodeProviderAuto": "自動（橋接自行選擇）",
+        "zcodeProviderPinned": "已切換到 {provider}",
+        "zcodeProviderAutoSet": "已還原自動選擇",
+        "zcodeProviderFailed": "供應商切換失敗",
+        "zcodeProviderReconnectHint": "點上方重新連線提示即可生效。",
         "askAnything": "請開始輸入...",
         "promptSuggestion": "{suggestion}（按 Tab 填入）",
         "removeAttachmentAria": "移除 {name}",

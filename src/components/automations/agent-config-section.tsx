@@ -198,7 +198,10 @@ export function AgentConfigSection({
           loadingLabel={null}
           onChange={(target, value) => {
             if (target.type === "mode") onModeChange(value)
-            else onConfigChange(target.configId, value)
+            // This panel builds settings from ACP config options/modes only —
+            // no zcode-provider target is ever emitted here.
+            else if (target.type === "config")
+              onConfigChange(target.configId, value)
           }}
         />
       </div>

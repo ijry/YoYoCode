@@ -3561,6 +3561,11 @@
         "sendMessage": "发送消息..."
       },
       "messageInput": {
+        "zcodeProviderAuto": "自动（桥接自行选择）",
+        "zcodeProviderPinned": "已切换到 {provider}",
+        "zcodeProviderAutoSet": "已恢复自动选择",
+        "zcodeProviderFailed": "供应商切换失败",
+        "zcodeProviderReconnectHint": "点顶部的重新连接提示即可生效。",
         "askAnything": "请开始输入...",
         "promptSuggestion": "{suggestion}（按 Tab 填入）",
         "removeAttachmentAria": "移除 {name}",

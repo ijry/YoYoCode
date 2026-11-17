@@ -3522,6 +3522,11 @@
         "sendMessage": "メッセージを送信..."
       },
       "messageInput": {
+        "zcodeProviderAuto": "自動（ブリッジが選択）",
+        "zcodeProviderPinned": "{provider} に切り替えました",
+        "zcodeProviderAutoSet": "自動選択に戻しました",
+        "zcodeProviderFailed": "プロバイダの切り替えに失敗しました",
+        "zcodeProviderReconnectHint": "上部の再接続バナーから適用してください。",
         "askAnything": "何でも質問してください...",
         "promptSuggestion": "{suggestion}（Tab で入力）",
         "removeAttachmentAria": "{name} を削除",

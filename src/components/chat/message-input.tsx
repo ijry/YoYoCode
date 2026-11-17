@@ -85,6 +85,7 @@ import {
 import { useAgentSkills } from "@/hooks/use-agent-skills"
 import { isPrimaryPointerCoarse } from "@/hooks/use-is-coarse-pointer"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
+import { useZcodeProviderSetting } from "@/hooks/use-zcode-provider-setting"
 import {
   clearMessageInputDraftV2,
   loadMessageInputDraftV2,
@@ -393,6 +394,19 @@ export function MessageInput({
   // upload / attachment toasts — read as a single coherent group when
   // scanning the file. Same namespace, no extra runtime cost.
   const tAttach = useTranslations("Folder.chat.messageInput")
+  const tZcode = useTranslations("AcpAgentSettings.zcode")
+  // ZCode's provider pin lives in the same popover as Model/Reasoning so users
+  // find it where they already switch models, not buried in Settings → Agents.
+  const { setting: zcodeSetting, pin: pinZcodeProvider } =
+    useZcodeProviderSetting(agentType, {
+      title: tZcode("providerLabel"),
+      autoLabel: t("zcodeProviderAuto"),
+      unselectableLabel: tZcode("providerUnselectable"),
+      pinnedToast: t("zcodeProviderPinned"),
+      autoToast: t("zcodeProviderAutoSet"),
+      failedToast: t("zcodeProviderFailed"),
+      reconnectHint: t("zcodeProviderReconnectHint"),
+    })
   // Skills read from disk feed the menu only for an agent that does not
   // advertise them itself: Codex under `$` (its native command set is very
   // small), Antigravity and OpenCode under `/` beside their commands (their
@@ -1931,28 +1945,32 @@ export function MessageInput({
   // The agent's settings — its config options, or the legacy mode list for an
   // agent that publishes none (the two never show together, see
   // `showModeSelector`) — as the one ordered list the settings chip edits.
-  const sessionSettings = useMemo(
-    () =>
-      buildSessionSettings({
-        configOptions: availableConfigOptions,
-        modes: showModeSelector ? availableModes : [],
-        currentModeId: showModeSelector ? effectiveModeId : null,
-        modeTitle: t("modeLabel"),
-      }),
-    [
-      availableConfigOptions,
-      showModeSelector,
-      availableModes,
-      effectiveModeId,
-      t,
-    ]
-  )
+  const sessionSettings = useMemo(() => {
+    const base = buildSessionSettings({
+      configOptions: availableConfigOptions,
+      modes: showModeSelector ? availableModes : [],
+      currentModeId: showModeSelector ? effectiveModeId : null,
+      modeTitle: t("modeLabel"),
+    })
+    // Provider pin is a launch-time env write, not an ACP config option; the
+    // hook only yields a setting for ZCode. Append it so it sits in the same
+    // popover (and chip summary) as Model/Reasoning.
+    return zcodeSetting ? [...base, zcodeSetting] : base
+  }, [
+    availableConfigOptions,
+    showModeSelector,
+    availableModes,
+    effectiveModeId,
+    t,
+    zcodeSetting,
+  ])
   const handleSessionSettingChange = useCallback(
     (target: SessionSettingTarget, value: string) => {
       if (target.type === "mode") handleModeSelect(value)
+      else if (target.type === "zcode-provider") void pinZcodeProvider(value)
       else onConfigOptionChange?.(target.configId, value)
     },
-    [handleModeSelect, onConfigOptionChange]
+    [handleModeSelect, onConfigOptionChange, pinZcodeProvider]
   )
 
   // The send-later entry shared by every split dropdown (busy steer menu,

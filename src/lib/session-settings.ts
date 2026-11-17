@@ -4,7 +4,11 @@ import {
   modelListGroups,
   type ModelOptionGroup,
 } from "@/lib/model-config-groups"
-import type { SessionConfigOptionInfo, SessionModeInfo } from "@/lib/types"
+import type {
+  SessionConfigOptionInfo,
+  SessionModeInfo,
+  ZcodeProviderOption,
+} from "@/lib/types"
 
 // The composer's agent settings — the session's config options, or the legacy
 // mode list for an agent that publishes no config options — normalized into the
@@ -19,10 +23,13 @@ export const SESSION_SETTING_SEARCH_THRESHOLD = 8
  *  is the model picker, which is always a list. */
 export const SESSION_SETTING_SEGMENTED_MAX = 8
 
-/** Where a picked value goes: a config option by id, or the legacy mode. */
+/** Where a picked value goes: a config option by id, the legacy mode, or the
+ *  ZCode bridge's provider pin (a launch-time agent env write, NOT an ACP
+ *  config option — see `zcodeProviderSetting`). */
 export type SessionSettingTarget =
   | { type: "config"; configId: string }
   | { type: "mode" }
+  | { type: "zcode-provider" }
 
 interface SessionSettingBase {
   /** Stable React key, unique across the list. */
@@ -244,4 +251,56 @@ export function buildSessionSettings({
     }
   }
   return settings
+}
+
+/**
+ * The ZCode bridge's provider pin, as one more composer setting. Unlike every
+ * other setting here this is NOT an ACP config option: `ZCODE_PROVIDER` is a
+ * launch-time env the bridge reads when the agent process starts, so picking
+ * a value writes the agent env and needs a reconnect to take effect (the
+ * connection reports config-stale and its banner offers one). Kept as a
+ * `SessionChoiceSetting` so the popover renders it with the same list UI.
+ *
+ * Providers that the bridge's default scan cannot offer (`selectable ===
+ * false`) are omitted; the current pin is always kept so the chip never lies
+ * about what is applied. `""` is the "auto" value (unpin).
+ */
+export function zcodeProviderSetting(input: {
+  providers: ZcodeProviderOption[]
+  pinned: string
+  title: string
+  autoLabel: string
+  unselectableLabel: string
+}): SessionChoiceSetting {
+  const pinned = input.pinned.trim()
+  const options = input.providers
+    .filter((provider) => provider.selectable || provider.id === pinned)
+    .map((provider) => ({
+      value: provider.id,
+      name: provider.name,
+      description: provider.selectable
+        ? null
+        : input.unselectableLabel,
+    }))
+  // "Auto" always leads; keeping it even when the agent is pinned lets the
+  // user go back to the bridge's own "first enabled provider" scan.
+  options.unshift({ value: "", name: input.autoLabel, description: null })
+  const current = options.find((option) => option.value === pinned)
+  return {
+    key: "zcode-provider",
+    target: { type: "zcode-provider" },
+    title: input.title,
+    description: null,
+    kind: "segmented",
+    isModel: false,
+    currentValue: pinned,
+    currentLabel: current?.name ?? (pinned || input.autoLabel),
+    currentDescription: null,
+    groups: [{ key: "__zcode_providers__", name: null, options }],
+    recommendedValue: null,
+    searchable: false,
+    // Always show it in the chip: without a visible value the user cannot
+    // tell a provider is pinned at all, which is the whole point of the entry.
+    summary: current?.name ?? (pinned || input.autoLabel),
+  }
 }

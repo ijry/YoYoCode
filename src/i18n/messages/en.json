@@ -3561,6 +3561,11 @@
         "sendMessage": "Send a message..."
       },
       "messageInput": {
+        "zcodeProviderAuto": "Auto (bridge picks)",
+        "zcodeProviderPinned": "Switched to {provider}",
+        "zcodeProviderAutoSet": "Back to auto provider",
+        "zcodeProviderFailed": "Failed to switch provider",
+        "zcodeProviderReconnectHint": "Reconnect via the banner above to apply.",
         "askAnything": "Ask anything...",
         "promptSuggestion": "{suggestion} (Tab to use)",
         "removeAttachmentAria": "Remove {name}",
