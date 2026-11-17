@@ -13,13 +13,8 @@ import {
   type SidebarSectionOrder,
 } from "@/lib/sidebar-view-mode-storage"
 
-// How many conversations the "Recent" section shows before its "show more" row,
-// and how many each click adds. Recent deliberately re-lists what the Folders /
-// Chat sections already show, so an unbounded one pushes every section below it
-// off the screen — a page keeps it a glance-able "where was I" list. Lives here
-// (not in the list component) because `buildRows` needs it to tell an untouched
-// first page from an expanded one.
-export const RECENT_PAGE_SIZE = 10
+// 每个会话列表的默认根会话数，也是每次“查看更多”增加的条数。
+export const CONVERSATION_PAGE_SIZE = 5
 
 export function parseTimestamp(value: string): number {
   const timestamp = Date.parse(value)
@@ -1001,25 +996,19 @@ export interface RecentEmptyRow {
   kind: "recent-empty"
 }
 
-/**
- * The paging footer of the "Recent" section. Recent re-lists every reachable
- * conversation, so an untruncated one buries the sections below it; the list
- * shows a page at a time and this row reveals the next one. Carries how many
- * rows are still hidden so the label can say it.
- *
- * It is also where the list gets folded back up, which is why `remaining === 0`
- * does NOT retire the row: once the section is past its first page the footer
- * survives with `canReset` alone, as a pure "back to the first page" control.
- * Retiring it there would take the only way out of a fully expanded list away
- * exactly when the list is longest.
- */
-export interface RecentMoreRow {
-  kind: "recent-more"
+export type ConversationListKey =
+  | "pinned"
+  | "chats"
+  | "recent"
+  | `folder-${number}`
+
+/** 会话列表的分页页脚；全部展开后仍保留有效的收起操作。 */
+export interface ConversationMoreRow {
+  kind: "conversation-more"
+  listKey: ConversationListKey
+  depth: number
   remaining: number
-  /** Set only when the section is showing more than its first page, i.e. when
-   *  collapsing back to {@link RECENT_PAGE_SIZE} would actually hide rows.
-   *  Written only when true so equality assertions on the un-expanded footer
-   *  keep passing. */
+  /** 仅在收起到默认页确实会隐藏根会话时设置。 */
   canReset?: true
 }
 
@@ -1096,7 +1085,7 @@ export type SidebarRow =
   | ChatsEmptyRow
   | FoldersEmptyRow
   | RecentEmptyRow
-  | RecentMoreRow
+  | ConversationMoreRow
   | SubsessionLoadingRow
 
 const MAX_RENDER_DEPTH = 32
@@ -1268,12 +1257,8 @@ export function buildRows(args: {
    *  matching the pre-Recent row model. The app passes it explicitly; its
    *  product default is ON. */
   showRecent?: boolean
-  /** How many Recent conversations to emit before stopping and appending a
-   *  {@link RecentMoreRow}. Optional — omitted means no limit (the historical
-   *  behavior, kept for tests). The app raises it a page at a time, and the
-   *  footer row carries `canReset` once it is past the first page so the list
-   *  can be folded back to {@link RECENT_PAGE_SIZE}. */
-  recentLimit?: number
+  /** 各列表独立的根会话展示上限，未设置时使用 {@link CONVERSATION_PAGE_SIZE}。 */
+  conversationLimits?: Partial<Record<ConversationListKey, number>>
   /** Vertical order of the Folders / Chat / Recent sections. The Pinned section
    *  (when present) always stays on top regardless. Normalized defensively, so
    *  a partial or repeated list still renders each section exactly once.
@@ -1338,7 +1323,7 @@ export function buildRows(args: {
     recentConversations = EMPTY_CONVERSATIONS,
     recentExpanded = true,
     showRecent = false,
-    recentLimit,
+    conversationLimits,
     sectionOrder = DEFAULT_SECTION_ORDER,
     conversationExpanded = EMPTY_EXPANDED,
     childrenByParent = EMPTY_CHILDREN,
@@ -1350,6 +1335,40 @@ export function buildRows(args: {
     hideEmptyFolders = false,
   } = args
   const rows: SidebarRow[] = []
+
+  const pushConversationList = (
+    conversations: readonly DbConversationSummary[],
+    listKey: ConversationListKey,
+    depth: number
+  ) => {
+    const limit = conversationLimits?.[listKey] ?? CONVERSATION_PAGE_SIZE
+    // 先分页再展开子树，子会话及加载占位行不占根会话的展示名额。
+    const shown = conversations.slice(0, Math.max(0, limit))
+    for (const conv of shown) {
+      pushConversationRow(
+        rows,
+        conv,
+        depth,
+        conversationExpanded,
+        childrenByParent,
+        childrenLoading,
+        listKey === "recent"
+      )
+    }
+    const remaining = conversations.length - shown.length
+    // 上限可能在筛选或删除后仍然很大，按实际展示数量判断收起是否有效。
+    const canReset = shown.length > CONVERSATION_PAGE_SIZE
+    if (remaining > 0 || canReset) {
+      const row: ConversationMoreRow = {
+        kind: "conversation-more",
+        listKey,
+        depth,
+        remaining,
+      }
+      if (canReset) row.canReset = true
+      rows.push(row)
+    }
+  }
 
   // Under `hideEmptyFolders`: does this display bucket hold any row, and does
   // this folder entry — a container counts its worktrees too — hold any?
@@ -1366,18 +1385,7 @@ export function buildRows(args: {
       expanded: pinnedExpanded,
       count: pinned.length,
     })
-    if (pinnedExpanded) {
-      for (const conv of pinned) {
-        pushConversationRow(
-          rows,
-          conv,
-          0,
-          conversationExpanded,
-          childrenByParent,
-          childrenLoading
-        )
-      }
-    }
+    if (pinnedExpanded) pushConversationList(pinned, "pinned", 0)
   }
 
   // The Folders, Chat and Recent sections sit below the (always-top) Pinned
@@ -1399,16 +1407,7 @@ export function buildRows(args: {
       })
       return
     }
-    for (const conv of convs) {
-      pushConversationRow(
-        rows,
-        conv,
-        baseDepth,
-        conversationExpanded,
-        childrenByParent,
-        childrenLoading
-      )
-    }
+    pushConversationList(convs, `folder-${folderId}`, baseDepth)
   }
 
   // Emit one folder's header + (when expanded) its body, at `baseDepth`.
@@ -1514,16 +1513,7 @@ export function buildRows(args: {
       if (chatConversations.length === 0) {
         rows.push({ kind: "chats-empty" })
       } else {
-        for (const conv of chatConversations) {
-          pushConversationRow(
-            rows,
-            conv,
-            0,
-            conversationExpanded,
-            childrenByParent,
-            childrenLoading
-          )
-        }
+        pushConversationList(chatConversations, "chats", 0)
       }
     }
   }
@@ -1540,37 +1530,7 @@ export function buildRows(args: {
       rows.push({ kind: "recent-empty" })
       return
     }
-    // Recent re-lists everything the other sections already show, so it is
-    // paged: only the first `recentLimit` land, and a "show more" row offers
-    // the rest. No limit given (tests, and the section's original behavior) =
-    // the whole bucket. The header's own count always reports the total.
-    const shown =
-      recentLimit == null
-        ? recentConversations
-        : recentConversations.slice(0, Math.max(0, recentLimit))
-    for (const conv of shown) {
-      pushConversationRow(
-        rows,
-        conv,
-        0,
-        conversationExpanded,
-        childrenByParent,
-        childrenLoading,
-        true
-      )
-    }
-    const remaining = recentConversations.length - shown.length
-    // The gate is "more than a page is on screen", not "recentLimit is past a
-    // page": a raised limit outlives the conversations it revealed (delete them
-    // and the limit still reads 30), which would leave a reset button that
-    // changes nothing on click. `recentLimit == null` is the unpaged mode —
-    // nothing was ever collapsed, so there is nothing to restore.
-    const canReset = recentLimit != null && shown.length > RECENT_PAGE_SIZE
-    if (remaining > 0 || canReset) {
-      const row: RecentMoreRow = { kind: "recent-more", remaining }
-      if (canReset) row.canReset = true
-      rows.push(row)
-    }
+    pushConversationList(recentConversations, "recent", 0)
   }
 
   // Normalized (not consumed raw) so a truncated / repeated / unknown-entry

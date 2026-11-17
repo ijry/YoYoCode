@@ -129,7 +129,7 @@ import {
   mergeChildrenById,
   nextHeaderAfter,
   pointerYToTargetIndex,
-  RECENT_PAGE_SIZE,
+  CONVERSATION_PAGE_SIZE,
   reuseSelected,
   reuseSet,
   selectChatConversationsWithReuse,
@@ -137,6 +137,7 @@ import {
   selectRecentConversationsWithReuse,
   worktreeChildrenByParent,
   worktreeHeaderAlias,
+  type ConversationListKey,
   type DragSlot,
   type SidebarEntry,
   type SidebarLayout,
@@ -1109,30 +1110,32 @@ export function SidebarConversationList({
     saveRecentFilter(next)
     setRecentFilter(next)
   }, [])
-  // How many Recent rows are currently revealed. Session-only (not persisted):
-  // "show me more of this list right now" is a reading gesture, not a setting —
-  // and a fresh sidebar should open short again.
-  const [recentLimit, setRecentLimit] = useState(RECENT_PAGE_SIZE)
-  const revealMoreRecent = useCallback(
-    () => setRecentLimit((n) => n + RECENT_PAGE_SIZE),
+  // Each list reveals its own pages. Session-only: a fresh sidebar starts with
+  // five conversations per folder / section again.
+  const [conversationLimits, setConversationLimits] = useState<
+    Partial<Record<ConversationListKey, number>>
+  >({})
+  const revealMoreConversations = useCallback(
+    (listKey: ConversationListKey) => {
+      setConversationLimits((prev) => ({
+        ...prev,
+        [listKey]:
+          (prev[listKey] ?? CONVERSATION_PAGE_SIZE) + CONVERSATION_PAGE_SIZE,
+      }))
+    },
     []
   )
-  // The Recent footer's own button, so the reset can hand focus to it.
-  const recentMoreButtonRef = useRef<HTMLButtonElement>(null)
-  // The way back out. `recentLimit` only ever grew before, so a list expanded a
-  // few pages deep stayed that way for the rest of the session, pushing the
-  // sections under Recent off the screen.
-  const resetRecentLimit = useCallback(() => {
-    // Move focus FIRST, while the right-edge icon variant is still mounted:
-    // dropping the limit unmounts it (its `canReset` goes false) and would
-    // otherwise leave keyboard focus on <body>, i.e. back at the top of the
-    // document. The footer button always survives a reset — the reset only
-    // exists when more than a page is on screen, so a remainder is guaranteed —
-    // and in the reset-only variant it IS the clicked button, making this a
-    // no-op. Programmatic focus after a mouse click does not raise
-    // `:focus-visible`, so pointer users see no ring.
-    recentMoreButtonRef.current?.focus()
-    setRecentLimit(RECENT_PAGE_SIZE)
+  const moreButtonRefs = useRef(
+    new Map<ConversationListKey, HTMLButtonElement>()
+  )
+  const resetConversationLimit = useCallback((listKey: ConversationListKey) => {
+    // The secondary reset button unmounts on collapse. Hand focus to the
+    // surviving footer button first so keyboard navigation stays in this list.
+    moreButtonRefs.current.get(listKey)?.focus()
+    setConversationLimits((prev) => ({
+      ...prev,
+      [listKey]: CONVERSATION_PAGE_SIZE,
+    }))
   }, [])
   // ── Per-conversation delegation sub-session expansion ───────────────────
   // Default COLLAPSED (unlike folders): only ids the user opened are tracked
@@ -1652,7 +1655,7 @@ export function SidebarConversationList({
         recentConversations,
         recentExpanded,
         showRecent,
-        recentLimit,
+        conversationLimits,
         sectionOrder,
         conversationExpanded,
         childrenByParent,
@@ -1676,7 +1679,7 @@ export function SidebarConversationList({
       recentConversations,
       recentExpanded,
       showRecent,
-      recentLimit,
+      conversationLimits,
       sectionOrder,
       conversationExpanded,
       childrenByParent,
@@ -1775,6 +1778,20 @@ export function SidebarConversationList({
         (c) => c.id === targetId && c.agent_type === targetAgent
       )
       if (!conv) return
+      const displayFolderId =
+        displayChildToParent.get(conv.folder_id) ?? conv.folder_id
+      const listKey: ConversationListKey =
+        conv.pinned_at != null
+          ? "pinned"
+          : conv.kind === "chat"
+            ? "chats"
+            : `folder-${displayFolderId}`
+      const bucket =
+        listKey === "pinned"
+          ? pinned
+          : listKey === "chats"
+            ? chatConversations
+            : (byFolder.get(displayFolderId) ?? [])
       // Each expansion step below defers the actual scroll to the next render
       // (the row only exists in the flat model once visible); this effect re-runs
       // on the expansion-state change with the rebuilt rows available via
@@ -1810,6 +1827,19 @@ export function SidebarConversationList({
           setSectionCollapsed((prev) => {
             const next = { ...prev, folders: false }
             saveSectionCollapsed(next)
+            return next
+          })
+          pendingScrollRef.current = true
+          return
+        }
+        const groupId = locateEntry(layout, {
+          kind: "folder",
+          id: childToParent.get(conv.folder_id) ?? conv.folder_id,
+        })?.groupId
+        if (groupId != null && !(folderGroupExpanded[groupId] ?? true)) {
+          setFolderGroupExpanded((prev) => {
+            const next = { ...prev, [groupId]: true }
+            saveFolderGroupExpanded(next)
             return next
           })
           pendingScrollRef.current = true
@@ -1859,8 +1889,6 @@ export function SidebarConversationList({
         // so the row's visibility is gated by that group's expansion. With
         // "Show worktrees" off the display group is the parent repo; on, the
         // worktree folder renders its own header, so expand the folder itself.
-        const displayFolderId =
-          displayChildToParent.get(conv.folder_id) ?? conv.folder_id
         if (!(folderExpanded[displayFolderId] ?? true)) {
           setFolderExpanded((prev) => {
             const next = { ...prev, [displayFolderId]: true }
@@ -1870,6 +1898,22 @@ export function SidebarConversationList({
           pendingScrollRef.current = true
           return
         }
+      }
+      const targetIndex = bucket.findIndex(
+        (c) => c.id === targetId && c.agent_type === targetAgent
+      )
+      if (
+        targetIndex >= (conversationLimits[listKey] ?? CONVERSATION_PAGE_SIZE)
+      ) {
+        // Reveal the page containing the target before asking virtua to scroll.
+        setConversationLimits((prev) => ({
+          ...prev,
+          [listKey]:
+            Math.ceil((targetIndex + 1) / CONVERSATION_PAGE_SIZE) *
+            CONVERSATION_PAGE_SIZE,
+        }))
+        pendingScrollRef.current = true
+        return
       }
       // Off-screen virtualized rows are not in the DOM, so resolve the flat row
       // index and let virtua scroll to it.
@@ -1901,6 +1945,12 @@ export function SidebarConversationList({
     pinnedExpanded,
     foldersExpanded,
     chatsExpanded,
+    pinned,
+    chatConversations,
+    byFolder,
+    conversationLimits,
+    layout,
+    folderGroupExpanded,
   ])
 
   const toggleFolder = useCallback((folderId: number) => {
@@ -3181,50 +3231,40 @@ export function SidebarConversationList({
         </div>
       )
     }
-    if (row.kind === "recent-more") {
-      // Footer of the paged Recent section — a row, not a hint: each click
-      // reveals another page. Its geometry is the conversation card's, so the
-      // section reads as one column — the chevron sits ON the rail axis exactly
-      // where a card's agent icon does (same 0.75rem glyph in the same 0.875rem
-      // box, centred on the var), and the label starts at the card's title
-      // inset (`axis + 0.875rem`). Same row height and full rounding too, so
-      // its hover pill is the one the rows above it use.
-      //
-      // Two directions live here. While pages remain, the row is "show more"
-      // and the reset hides at the right edge as an icon, on the same
-      // reveal-on-hover terms as the section headers' actions. Once the last
-      // page is out (`remaining === 0`) buildRows keeps the row alive for the
-      // reset alone, and it takes over the row: nothing is left to expand, so a
-      // hover-only affordance would be the section's only exit hiding itself.
+    if (row.kind === "conversation-more") {
       const showMore = row.remaining > 0
-      const resetLabel = t("resetRecentLimit", { count: RECENT_PAGE_SIZE })
+      const resetLabel = t("resetConversationLimit", {
+        count: CONVERSATION_PAGE_SIZE,
+      })
+      const railAxis = `calc(var(--conv-rail-axis, 0.875rem) + ${row.depth} * ${CONV_RAIL_DEPTH_STEP})`
       return (
-        <div className="group/recent-more relative h-[2rem]">
+        <div
+          className="group/conversation-more relative h-[2rem]"
+          data-conversation-list-footer={row.listKey}
+        >
+          <SubsessionAncestorRails depth={row.depth} />
           <button
-            ref={recentMoreButtonRef}
+            ref={(node) => {
+              if (node) moreButtonRefs.current.set(row.listKey, node)
+              else moreButtonRefs.current.delete(row.listKey)
+            }}
             type="button"
-            onClick={showMore ? revealMoreRecent : resetRecentLimit}
+            onClick={() =>
+              showMore
+                ? revealMoreConversations(row.listKey)
+                : resetConversationLimit(row.listKey)
+            }
             className={cn(
-              // Lit from the ROW (`group-hover`), not from this button's own
-              // `:hover`. The reset icon is a sibling stacked on top, so with a
-              // plain `hover:` the pill went out the moment the pointer crossed
-              // onto it — the row read as un-hovered while the cursor was still
-              // inside it. Same reason the section headers put their group on
-              // the row container rather than the toggle button.
-              "relative flex h-[1.9375rem] w-full items-center rounded-full text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] group-hover/recent-more:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] group-hover/recent-more:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-              // Reserved unconditionally (not just while hovered) so revealing
-              // the reset icon never reflows the label under the cursor.
+              "relative flex h-[1.9375rem] w-full items-center rounded-full text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] group-hover/conversation-more:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] group-hover/conversation-more:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               showMore && row.canReset ? "pr-[1.75rem]" : "pr-[0.25rem]"
             )}
-            style={{
-              paddingLeft: "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
-            }}
+            style={{ paddingLeft: `calc(${railAxis} + 0.875rem)` }}
           >
             <span
               aria-hidden
               className="pointer-events-none absolute top-1/2 flex items-center justify-center"
               style={{
-                left: "var(--conv-rail-axis, 0.875rem)",
+                left: railAxis,
                 width: "0.875rem",
                 height: "0.875rem",
                 transform: "translate(-50%, -50%)",
@@ -3238,24 +3278,18 @@ export function SidebarConversationList({
             </span>
             <span className="truncate">
               {showMore
-                ? t("showMoreRecent", { count: row.remaining })
+                ? t("showMoreConversations", { count: row.remaining })
                 : resetLabel}
             </span>
           </button>
           {showMore && row.canReset && (
-            // A SIBLING of the row button, never a child: buttons cannot nest.
-            // Being a sibling is also why the row's pill has to be driven from
-            // the group above — `:hover` only walks ancestors, and this button
-            // is not one, so the pill would blink off under the cursor.
-            // Geometry copied from the section headers' right-edge actions
-            // (`sidebar-section-header.tsx`) so every right-edge affordance in
-            // the sidebar lands on the same axis and reads as one family.
+            // Always visible after expansion, including on touch devices.
             <button
               type="button"
-              onClick={resetRecentLimit}
+              onClick={() => resetConversationLimit(row.listKey)}
               title={resetLabel}
               aria-label={resetLabel}
-              className="absolute top-1/2 right-[0.375rem] flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-end rounded-[0.375rem] text-muted-foreground/90 opacity-0 outline-none transition-[color,opacity] duration-150 group-hover/recent-more:opacity-100 hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [@media(hover:none)]:opacity-100"
+              className="absolute top-1/2 right-[0.375rem] flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-end rounded-[0.375rem] text-muted-foreground/90 outline-none transition-colors duration-150 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               <ChevronsUp className="h-[0.875rem] w-[0.875rem]" />
             </button>
@@ -3332,7 +3366,7 @@ export function SidebarConversationList({
     if (row.kind === "chats-empty") return "chats-empty"
     if (row.kind === "folders-empty") return "folders-empty"
     if (row.kind === "recent-empty") return "recent-empty"
-    if (row.kind === "recent-more") return "recent-more"
+    if (row.kind === "conversation-more") return `more-${row.listKey}`
     const prefix = row.recent ? "recent-" : ""
     if (row.kind === "subsession-loading") {
       return `${prefix}subloading-${row.parentId}`

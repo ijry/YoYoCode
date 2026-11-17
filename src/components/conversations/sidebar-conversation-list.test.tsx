@@ -1325,34 +1325,30 @@ describe("SidebarConversationList — Recent section", () => {
   })
 
   describe("paging", () => {
-    // `recentLimit` starts at RECENT_PAGE_SIZE and only ever grew, so a list
-    // expanded a few pages deep stayed that way for the rest of the session.
-    // These cover the way back out.
-    //
-    // A literal rather than the constant: ten rows a page is the product
-    // decision these assertions pin, so a changed page size has to be a
-    // deliberate edit here too.
-    const PAGE = 10
+    // Pin the product page size independently of the implementation constant.
+    const PAGE = 5
     const TOTAL = PAGE + 4
 
-    // Recent duplicates every canonical row, so total cards = canonical + recent
-    // slice. Counting the Recent slice alone keeps the assertions readable.
+    // The canonical folder stays on its first page while Recent expands.
     const recentRowCount = () =>
-      Array.from(document.querySelectorAll("[data-conversation-id]")).length -
-      TOTAL
-
+      document.querySelectorAll("[data-conversation-id]").length - PAGE
+    const footer = () =>
+      document.querySelector('[data-conversation-list-footer="recent"]')!
     const buttonWithText = (text: string) =>
-      Array.from(document.querySelectorAll("button")).find((b) =>
+      Array.from(footer().querySelectorAll("button")).find((b) =>
         b.textContent?.includes(text)
       )
     const resetButton = () =>
-      Array.from(document.querySelectorAll("button")).find(
+      Array.from(footer().querySelectorAll("button")).find(
         (b) => b.getAttribute("aria-label") === resetLabel
       )
 
     const showMoreLabel = (count: number) =>
-      enMessages.Folder.sidebar.showMoreRecent.replace("{count}", String(count))
-    const resetLabel = enMessages.Folder.sidebar.resetRecentLimit.replace(
+      enMessages.Folder.sidebar.showMoreConversations.replace(
+        "{count}",
+        String(count)
+      )
+    const resetLabel = enMessages.Folder.sidebar.resetConversationLimit.replace(
       "{count}",
       String(PAGE)
     )
@@ -1402,9 +1398,7 @@ describe("SidebarConversationList — Recent section", () => {
       act(() => {
         fireEvent.click(buttonWithText(showMoreLabel(PAGE * 2))!)
       })
-      const recentRows = () =>
-        Array.from(document.querySelectorAll("[data-conversation-id]")).length -
-        conversations.length
+      const recentRows = recentRowCount
       expect(recentRows()).toBe(PAGE * 2)
       // Still more to reveal…
       expect(buttonWithText(showMoreLabel(PAGE))).toBeDefined()
@@ -1564,6 +1558,193 @@ describe("SidebarConversationList — Recent section", () => {
       expect(cardsFor(12)).toBe(2)
     })
   })
+})
+
+describe("SidebarConversationList — per-list paging", () => {
+  const showMoreLabel = (count: number) =>
+    enMessages.Folder.sidebar.showMoreConversations.replace(
+      "{count}",
+      String(count)
+    )
+  const resetLabel = enMessages.Folder.sidebar.resetConversationLimit.replace(
+    "{count}",
+    "5"
+  )
+  const footer = (key: string) =>
+    document.querySelector(`[data-conversation-list-footer="${key}"]`)!
+  const moreButton = (key: string, remaining: number) =>
+    within(footer(key) as HTMLElement).getByRole("button", {
+      name: showMoreLabel(remaining),
+    })
+  const cards = () => document.querySelectorAll("[data-conversation-id]")
+
+  beforeEach(() => {
+    localStorage.clear()
+    store.activeTabId = null
+    store.tabSpec = []
+    const folders = [folder(1, "Repo"), folder(2, "Other repo")]
+    useAppWorkspaceStore.setState({
+      folders,
+      allFolders: folders,
+      ensureGitHead: async () => {},
+    })
+  })
+
+  afterEach(() => localStorage.clear())
+
+  it.each(["folder-1", "pinned", "chats"])(
+    "reveals five at a time and collapses %s after partial or full expansion",
+    (key) => {
+      useAppWorkspaceStore.setState({
+        conversations: Array.from({ length: 12 }, (_, i) =>
+          conv(i + 1, 1, {
+            kind: key === "chats" ? "chat" : "regular",
+            pinned_at: key === "pinned" ? new Date(FIXED).toISOString() : null,
+          })
+        ),
+      })
+      render(tree())
+      expect(cards()).toHaveLength(5)
+      expect(
+        within(footer(key) as HTMLElement).queryByRole("button", {
+          name: resetLabel,
+        })
+      ).toBeNull()
+
+      fireEvent.click(moreButton(key, 7))
+      expect(cards()).toHaveLength(10)
+      const reset = within(footer(key) as HTMLElement).getByRole("button", {
+        name: resetLabel,
+      })
+      reset.focus()
+      fireEvent.click(reset)
+      expect(cards()).toHaveLength(5)
+      expect(document.activeElement).toBe(moreButton(key, 7))
+
+      fireEvent.click(moreButton(key, 7))
+      fireEvent.click(moreButton(key, 2))
+      expect(cards()).toHaveLength(12)
+      expect(
+        within(footer(key) as HTMLElement).getAllByRole("button")
+      ).toHaveLength(1)
+      fireEvent.click(
+        within(footer(key) as HTMLElement).getByRole("button", {
+          name: resetLabel,
+        })
+      )
+      expect(cards()).toHaveLength(5)
+    }
+  )
+
+  it("keeps each folder, pinned, chat and recent limit independent", () => {
+    useAppWorkspaceStore.setState({
+      conversations: [
+        ...Array.from({ length: 12 }, (_, i) => conv(i + 1, 1)),
+        ...Array.from({ length: 12 }, (_, i) => conv(i + 21, 2)),
+        ...Array.from({ length: 12 }, (_, i) =>
+          conv(i + 41, 1, { pinned_at: new Date(FIXED).toISOString() })
+        ),
+        ...Array.from({ length: 12 }, (_, i) =>
+          conv(i + 61, 99, { kind: "chat" })
+        ),
+      ],
+    })
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <SidebarConversationList showCompleted showRecent sortMode="created" />
+      </NextIntlClientProvider>
+    )
+    expect(cards()).toHaveLength(25)
+    fireEvent.click(moreButton("folder-1", 7))
+    expect(cards()).toHaveLength(30)
+    expect(moreButton("folder-1", 2)).toBeInTheDocument()
+    for (const key of ["folder-2", "pinned", "chats"]) {
+      expect(moreButton(key, 7)).toBeInTheDocument()
+    }
+    expect(moreButton("recent", 31)).toBeInTheDocument()
+    fireEvent.click(moreButton("pinned", 7))
+    fireEvent.click(
+      within(footer("folder-1") as HTMLElement).getByRole("button", {
+        name: resetLabel,
+      })
+    )
+    expect(moreButton("pinned", 2)).toBeInTheDocument()
+    expect(moreButton("folder-1", 7)).toBeInTheDocument()
+    expect(cards()).toHaveLength(30)
+  })
+
+  it.each([
+    "folder",
+    "pinned",
+    "chats",
+    "merged-worktree",
+    "worktree",
+    "group",
+  ])(
+    "reveals the target page before locating a hidden %s conversation",
+    (kind) => {
+      const isWorktree = kind.includes("worktree")
+      const folders = [
+        { ...folder(1, "Repo"), group_id: kind === "group" ? 7 : null },
+        folder(2, "Worktree", 1),
+      ]
+      if (kind === "group") {
+        localStorage.setItem(
+          "workspace:sidebar-folder-group-expanded",
+          JSON.stringify({ 7: false })
+        )
+        useAppWorkspaceStore.setState({
+          folderGroups: [
+            { id: 7, name: "Work", color: "inherit", sort_order: 1 },
+          ],
+        })
+      }
+      const folderId = isWorktree ? 2 : 1
+      const conversations = Array.from({ length: 12 }, (_, i) =>
+        conv(i + 1, folderId, {
+          kind: kind === "chats" ? "chat" : "regular",
+          pinned_at: kind === "pinned" ? new Date(FIXED).toISOString() : null,
+        })
+      )
+      useAppWorkspaceStore.setState({
+        folders,
+        allFolders: folders,
+        conversations,
+      })
+      store.activeTabId = "target"
+      store.tabSpec = [
+        {
+          id: "target",
+          conversationId: 6,
+          agentType: "claude_code",
+          folderId,
+          title: "conv-6",
+          isPinned: false,
+        },
+      ]
+      const ref = createRef<SidebarConversationListHandle>()
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <SidebarConversationList
+            showCompleted
+            showWorktrees={kind === "worktree"}
+            sortMode="created"
+            ref={ref}
+          />
+        </NextIntlClientProvider>
+      )
+      expect(document.querySelector('[data-conversation-id="6"]')).toBeNull()
+      act(() => ref.current?.scrollToActive())
+      expect(
+        document.querySelector('[data-conversation-id="6"]')
+      ).toBeInTheDocument()
+      expect(cards()).toHaveLength(10)
+      expect(virtuaCtl.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), {
+        align: "center",
+        smooth: true,
+      })
+    }
+  )
 })
 
 describe("SidebarConversationList — time labels", () => {

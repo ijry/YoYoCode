@@ -14,7 +14,7 @@ import {
   mergeChildrenById,
   nextHeaderAfter,
   pointerYToTargetIndex,
-  RECENT_PAGE_SIZE,
+  CONVERSATION_PAGE_SIZE,
   reuseSelected,
   reuseSet,
   selectChatConversationsWithReuse,
@@ -1118,132 +1118,286 @@ describe("buildRows — Recent section", () => {
       []
     )
   })
+})
 
-  describe("paging", () => {
-    const many = Array.from({ length: 5 }, (_, i) => conv(i + 1, 10))
-
-    it("stops at recentLimit and appends a show-more row with the remainder", () => {
-      const rows = buildRows({
-        ...baseArgs,
-        byFolder: new Map([[10, many]]),
-        folderTotalCounts: new Map([[10, many.length]]),
-        recentConversations: many,
+describe.each(["pinned", "chats", "recent", "folder-10"] as const)(
+  "buildRows 分页：%s",
+  (listKey) => {
+    const many = Array.from({ length: 13 }, (_, i) => conv(i + 1, 10))
+    const pageRows = (
+      conversations = many,
+      overrides: Partial<Parameters<typeof buildRows>[0]> = {}
+    ) =>
+      buildRows({
+        pinned: listKey === "pinned" ? conversations : [],
+        pinnedExpanded: true,
+        orderedFolderIds: [10],
+        byFolder: new Map([[10, listKey === "folder-10" ? conversations : []]]),
+        folderExpanded: {},
+        folderTotalCounts: new Map([[10, conversations.length]]),
+        foldersExpanded: true,
+        chatConversations: listKey === "chats" ? conversations : [],
+        chatsExpanded: true,
+        recentConversations: listKey === "recent" ? conversations : [],
         showRecent: true,
-        recentLimit: 2,
+        ...overrides,
       })
-      expect(
-        rows.filter((r) => r.kind === "conversation" && r.recent).length
-      ).toBe(2)
-      expect(rows).toContainEqual({ kind: "recent-more", remaining: 3 })
-      // The header keeps reporting the TOTAL, not the visible slice.
-      expect(rows).toContainEqual({
-        kind: "section",
-        section: "recent",
-        expanded: true,
-        count: 5,
-      })
+    const conversationRows = (rows: SidebarRow[]) =>
+      rows.filter((r): r is ConversationRow => r.kind === "conversation")
+    const footer = (remaining: number, canReset?: true) => ({
+      kind: "conversation-more",
+      listKey,
+      depth: 0,
+      remaining,
+      ...(canReset ? { canReset } : {}),
     })
 
-    it("omits the show-more row once the limit covers everything", () => {
-      const rows = buildRows({
-        ...baseArgs,
-        byFolder: new Map([[10, many]]),
-        folderTotalCounts: new Map([[10, many.length]]),
-        recentConversations: many,
-        showRecent: true,
-        recentLimit: 5,
-      })
-      expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
-    })
-
-    it("emits every conversation when no limit is given", () => {
-      const rows = buildRows({
-        ...baseArgs,
-        byFolder: new Map([[10, many]]),
-        folderTotalCounts: new Map([[10, many.length]]),
-        recentConversations: many,
-        showRecent: true,
-      })
-      expect(
-        rows.filter((r) => r.kind === "conversation" && r.recent).length
-      ).toBe(5)
-      expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
-    })
-
-    it("does not page a collapsed section", () => {
-      const rows = buildRows({
-        ...baseArgs,
-        byFolder: new Map([[10, many]]),
-        folderTotalCounts: new Map([[10, many.length]]),
-        recentConversations: many,
-        recentExpanded: false,
-        showRecent: true,
-        recentLimit: 2,
-      })
-      expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
-    })
-
-    describe("resetting", () => {
-      // Enough to page twice over: one full first page, plus a second one.
-      const lots = Array.from({ length: RECENT_PAGE_SIZE + 4 }, (_, i) =>
-        conv(i + 1, 10)
-      )
-      const pagedArgs = {
-        ...baseArgs,
-        byFolder: new Map([[10, lots]]),
-        folderTotalCounts: new Map([[10, lots.length]]),
-        recentConversations: lots,
-        showRecent: true,
+    it("默认显示5条并保留原顺序、对象引用和总数", () => {
+      expect(CONVERSATION_PAGE_SIZE).toBe(5)
+      const rows = pageRows()
+      const shown = conversationRows(rows)
+      expect(shown).toHaveLength(5)
+      shown.forEach((row, i) => expect(row.conversation).toBe(many[i]))
+      expect(rows).toContainEqual(footer(8))
+      if (listKey !== "folder-10") {
+        expect(rows).toContainEqual({
+          kind: "section",
+          section: listKey,
+          expanded: true,
+          count: many.length,
+        })
       }
+    })
 
-      it("leaves the first page un-resettable", () => {
-        const rows = buildRows({ ...pagedArgs, recentLimit: RECENT_PAGE_SIZE })
-        // Exact equality: nothing to fold back yet, so no `canReset` at all.
-        expect(rows).toContainEqual({ kind: "recent-more", remaining: 4 })
-      })
-
-      it("marks the footer resettable once past the first page", () => {
-        const rows = buildRows({
-          ...pagedArgs,
-          recentLimit: RECENT_PAGE_SIZE + 2,
+    it("每次增加5条，全部展示后仍可收起到5条", () => {
+      for (const [limit, shown, remaining] of [
+        [10, 10, 3],
+        [15, 13, 0],
+        [5, 5, 8],
+      ]) {
+        const rows = pageRows(many, {
+          conversationLimits: { [listKey]: limit },
         })
-        expect(rows).toContainEqual({
-          kind: "recent-more",
-          remaining: 2,
+        expect(conversationRows(rows)).toHaveLength(shown)
+        expect(rows).toContainEqual(
+          footer(remaining, shown > 5 ? true : undefined)
+        )
+      }
+    })
+
+    it("其他列表的上限不会扩大当前列表", () => {
+      const otherKey = listKey === "recent" ? "pinned" : "recent"
+      const rows = pageRows(many, {
+        conversationLimits: { [otherKey]: 15 },
+      })
+      expect(conversationRows(rows)).toHaveLength(5)
+      expect(rows).toContainEqual(footer(8))
+    })
+
+    it.each([0, 3, 5])("数据缩减到%d条后不显示无效收起", (count) => {
+      const rows = pageRows(many.slice(0, count), {
+        conversationLimits: { [listKey]: 15 },
+      })
+      expect(conversationRows(rows)).toHaveLength(count)
+      expect(rows.some((r) => r.kind === "conversation-more")).toBe(false)
+    })
+
+    it("筛选至一页以内后不显示无效收起", () => {
+      const filtered = many.filter((c) => c.id > 10)
+      const rows = pageRows(filtered, {
+        conversationLimits: { [listKey]: 15 },
+        hideEmptyFolders: true,
+      })
+      expect(conversationRows(rows).map((r) => r.conversation)).toEqual(
+        filtered
+      )
+      expect(rows.some((r) => r.kind === "conversation-more")).toBe(false)
+    })
+
+    it("折叠列表时不生成会话或分页页脚", () => {
+      const rows = pageRows(many, {
+        pinnedExpanded: false,
+        chatsExpanded: false,
+        recentExpanded: false,
+        folderExpanded: { 10: false },
+        conversationLimits: { [listKey]: 15 },
+      })
+      expect(conversationRows(rows)).toEqual([])
+      expect(rows.some((r) => r.kind === "conversation-more")).toBe(false)
+    })
+
+    it("子会话不占根会话名额，也不展开被分页隐藏的根会话", () => {
+      const parents = many.map((c) => ({ ...c, child_count: 8 }))
+      const children = Array.from({ length: 8 }, (_, i) =>
+        conv(100 + i, 10, { parent_id: 1 })
+      )
+      const rows = pageRows(parents, {
+        conversationExpanded: new Set([1, 6]),
+        childrenByParent: new Map([
+          [1, children],
+          [6, [conv(200, 10, { parent_id: 6 })]],
+        ]),
+      })
+      const shown = conversationRows(rows)
+      expect(shown.filter((r) => r.depth === 0)).toHaveLength(5)
+      expect(
+        shown.filter((r) => r.depth === 1).map((r) => r.conversation)
+      ).toEqual(children)
+      expect(rows).toContainEqual(footer(8))
+      expect(rows.some((r) => r.kind === "subsession-loading")).toBe(false)
+    })
+
+    it("子会话超过一页也不会产生无效收起", () => {
+      const parent = conv(1, 10, { child_count: 8 })
+      const rows = pageRows([parent], {
+        conversationLimits: { [listKey]: 15 },
+        conversationExpanded: new Set([1]),
+        childrenByParent: new Map([
+          [
+            1,
+            Array.from({ length: 8 }, (_, i) =>
+              conv(100 + i, 10, { parent_id: 1 })
+            ),
+          ],
+        ]),
+      })
+      expect(conversationRows(rows)).toHaveLength(9)
+      expect(rows.some((r) => r.kind === "conversation-more")).toBe(false)
+    })
+  }
+)
+
+describe("buildRows 文件夹独立分页", () => {
+  const byFolder = new Map(
+    [10, 11, 20].map(
+      (folderId) =>
+        [
+          folderId,
+          Array.from({ length: 13 }, (_, i) =>
+            conv(folderId * 100 + i, folderId)
+          ),
+        ] as const
+    )
+  )
+  const baseArgs = {
+    pinned: [],
+    pinnedExpanded: true,
+    orderedFolderIds: [10, 20],
+    byFolder,
+    folderExpanded: {},
+    folderTotalCounts: new Map([
+      [10, 13],
+      [11, 13],
+      [20, 13],
+    ]),
+    foldersExpanded: true,
+    chatConversations: [],
+    chatsExpanded: true,
+  }
+
+  it("仅增加指定文件夹的展示数量，其他文件夹维持默认5条", () => {
+    const rows = buildRows({
+      ...baseArgs,
+      conversationLimits: { "folder-10": 10 },
+    })
+    const shown = rows.filter((r) => r.kind === "conversation")
+    expect(shown.filter((r) => r.conversation.folder_id === 10)).toHaveLength(
+      10
+    )
+    expect(shown.filter((r) => r.conversation.folder_id === 20)).toHaveLength(5)
+    expect(rows.filter((r) => r.kind === "conversation-more")).toEqual([
+      {
+        kind: "conversation-more",
+        listKey: "folder-10",
+        depth: 0,
+        remaining: 3,
+        canReset: true,
+      },
+      {
+        kind: "conversation-more",
+        listKey: "folder-20",
+        depth: 0,
+        remaining: 8,
+      },
+    ])
+    expect(rows[0]).toEqual({
+      kind: "section",
+      section: "folders",
+      expanded: true,
+      count: 2,
+    })
+  })
+
+  it.each([false, true])(
+    "分组=%s时，根目录和worktree独立分页且缩进正确",
+    (grouped) => {
+      const rows = buildRows({
+        ...baseArgs,
+        containerChildren: new Map([[10, [11]]]),
+        layout: grouped
+          ? {
+              top: [{ kind: "group", id: 1 }],
+              membersByGroup: new Map([[1, [10, 20]]]),
+            }
+          : undefined,
+        conversationLimits: { "folder-11": 10 },
+      })
+      const baseDepth = grouped ? 1 : 0
+      expect(rows.filter((r) => r.kind === "conversation-more")).toEqual([
+        {
+          kind: "conversation-more",
+          listKey: "folder-10",
+          depth: baseDepth + 1,
+          remaining: 8,
+        },
+        {
+          kind: "conversation-more",
+          listKey: "folder-11",
+          depth: baseDepth + 1,
+          remaining: 3,
           canReset: true,
-        })
-      })
+        },
+        {
+          kind: "conversation-more",
+          listKey: "folder-20",
+          depth: baseDepth,
+          remaining: 8,
+        },
+      ])
+      const shown = rows.filter((r) => r.kind === "conversation")
+      expect(shown.filter((r) => r.conversation.folder_id === 10)).toHaveLength(
+        5
+      )
+      expect(shown.filter((r) => r.conversation.folder_id === 11)).toHaveLength(
+        10
+      )
+      expect(shown.filter((r) => r.conversation.folder_id === 20)).toHaveLength(
+        5
+      )
+    }
+  )
 
-      it("keeps the footer alive after the last page, as a reset-only row", () => {
-        // The regression this guards: retiring the row at `remaining === 0`
-        // took the only way back to a short list away exactly when the list was
-        // longest.
-        const rows = buildRows({
-          ...pagedArgs,
-          recentLimit: RECENT_PAGE_SIZE * 2,
-        })
-        expect(
-          rows.filter((r) => r.kind === "conversation" && r.recent).length
-        ).toBe(lots.length)
-        expect(rows).toContainEqual({
-          kind: "recent-more",
-          remaining: 0,
-          canReset: true,
-        })
-      })
-
-      it("drops the reset once a raised limit outlives the rows it revealed", () => {
-        // Same raised limit, but the conversations are gone: collapsing back
-        // would hide nothing, so the row must not offer it.
-        const rows = buildRows({
-          ...pagedArgs,
-          byFolder: new Map([[10, many]]),
-          folderTotalCounts: new Map([[10, many.length]]),
-          recentConversations: many,
-          recentLimit: RECENT_PAGE_SIZE * 2,
-        })
-        expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
-      })
+  it("合并worktree时按合并后的排序结果分页", () => {
+    const all = [...byFolder.get(10)!, ...byFolder.get(11)!]
+    const merged = groupByFolderWithReuse(
+      all,
+      "created",
+      new Map(),
+      new Map([[11, 10]])
+    )
+    const rows = buildRows({
+      ...baseArgs,
+      byFolder: merged,
+      orderedFolderIds: [10],
+    })
+    expect(
+      rows.filter((r) => r.kind === "conversation").map((r) => r.conversation)
+    ).toEqual(merged.get(10)!.slice(0, 5))
+    expect(rows).toContainEqual({
+      kind: "conversation-more",
+      listKey: "folder-10",
+      depth: 0,
+      remaining: 21,
     })
   })
 })
