@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "Dieser Agent kann hier nicht gestartet werden: {reason}",
     "zcode": {
       "adapterInfo": "Codeg startet {adapterPackage} als ACP-Brücke. Installiere zuerst ZCode und melde dich an; die vorhandene Laufzeit und Konfiguration werden verwendet.",
-      "runtimeHint": "Installiere zuerst ZCode und melde dich an. Codeg installiert nur die ACP-Brücke. Bei Erkennungsproblemen gib mit ZCODE_BIN den CLI-Einstieg und mit ZCODE_NODE Node.js an. Modelle und Zugangsdaten werden in ZCode verwaltet."
+      "runtimeHint": "Installiere zuerst ZCode und melde dich an. Codeg installiert nur die ACP-Brücke. Bei Erkennungsproblemen gib mit ZCODE_BIN den CLI-Einstieg und mit ZCODE_NODE Node.js an. Modelle und Zugangsdaten werden in ZCode verwaltet.",
+      "providerLabel": "Anbieter",
+      "providerAuto": "Automatisch (Bridge entscheidet)",
+      "providerHint": "Legt fest, welches Anbieter-Konto die ZCode-Bridge verwendet (schreibt ZCODE_PROVIDER). Da es eine Startzeit-Variable ist, wirkt es erst mit der nächsten Verbindung nach dem Speichern; neue Sitzungen laufen dann unter diesem Anbieter. Bleibt es leer, nutzt die Bridge ihre eigene Suche: der erste aktivierte Anbieter in der Anbietertabelle der ZCode-App gewinnt. Anbieter und Zugangsdaten werden in der ZCode-App verwaltet; diese Liste enthält niemals API-Schlüssel.",
+      "providerUnselectable": "deaktiviert oder ohne Zugangsdaten"
     }
   },
   "AgentVocabulary": {

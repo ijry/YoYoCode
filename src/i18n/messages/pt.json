@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "Este agente não pode ser iniciado aqui: {reason}",
     "zcode": {
       "adapterInfo": "O Codeg executa {adapterPackage} como ponte ACP. Instale o ZCode e entre na sua conta primeiro; são usados o ambiente e a configuração existentes.",
-      "runtimeHint": "Instale o ZCode e entre na sua conta primeiro. O Codeg instala apenas a ponte ACP. Se a detecção falhar, indique a entrada CLI com ZCODE_BIN e o Node.js com ZCODE_NODE. Gerencie modelos e credenciais no ZCode."
+      "runtimeHint": "Instale o ZCode e entre na sua conta primeiro. O Codeg instala apenas a ponte ACP. Se a detecção falhar, indique a entrada CLI com ZCODE_BIN e o Node.js com ZCODE_NODE. Gerencie modelos e credenciais no ZCode.",
+      "providerLabel": "Provedor",
+      "providerAuto": "Automático (escolha da ponte)",
+      "providerHint": "Fixa qual conta de provedor a ponte do ZCode usa (grava ZCODE_PROVIDER). É uma variável resolvida na inicialização: vale a partir da próxima conexão após salvar; as novas sessões passam a rodar nesse provedor. Deixando vazio, a ponte aplica a própria varredura: vence o primeiro provedor habilitado da tabela de provedores do app ZCode. Gerencie provedores e credenciais no app do ZCode; esta lista nunca inclui chaves de API.",
+      "providerUnselectable": "desativado ou sem credenciais"
     }
   },
   "AgentVocabulary": {

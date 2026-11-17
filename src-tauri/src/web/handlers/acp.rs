@@ -17,6 +17,7 @@ use crate::app_state::AppState;
 use crate::commands::acp as acp_commands;
 use crate::commands::custom_agents as custom_agent_commands;
 use crate::commands::deepseek_settings as deepseek_settings_commands;
+use crate::commands::zcode_provider as zcode_provider_commands;
 use crate::models::agent::AgentType;
 
 #[derive(Deserialize)]
@@ -999,6 +1000,15 @@ pub async fn acp_load_deepseek_model_catalog(
     Ok(Json(
         deepseek_settings_commands::load_deepseek_model_catalog_core(),
     ))
+}
+
+pub async fn acp_zcode_list_providers(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<Vec<zcode_provider_commands::ZcodeProviderOption>>, AppCommandError> {
+    let result = zcode_provider_commands::acp_zcode_list_providers_core(&state.db)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(result))
 }
 
 #[derive(Deserialize)]

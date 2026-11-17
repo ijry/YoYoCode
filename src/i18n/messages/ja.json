@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "この環境では起動できません: {reason}",
     "zcode": {
       "adapterInfo": "Codeg は {adapterPackage} を ACP ブリッジとして起動します。先に公式 ZCode をインストールしてログインしてください。既存の実行環境と設定を使用します。",
-      "runtimeHint": "先に公式 ZCode をインストールしてログインしてください。Codeg は ACP ブリッジのみをインストールします。自動検出に失敗した場合は ZCODE_BIN で CLI、ZCODE_NODE で Node.js を指定できます。モデルと認証情報は ZCode で管理します。"
+      "runtimeHint": "先に公式 ZCode をインストールしてログインしてください。Codeg は ACP ブリッジのみをインストールします。自動検出に失敗した場合は ZCODE_BIN で CLI、ZCODE_NODE で Node.js を指定できます。モデルと認証情報は ZCode で管理します。",
+      "providerLabel": "プロバイダー",
+      "providerAuto": "自動（ブリッジが選択）",
+      "providerHint": "ZCode ブリッジが使用するプロバイダーアカウントを固定します（ZCODE_PROVIDER に書き込み）。起動時に解決される変数のため、保存後の次回接続から有効になり、以降の新規セッションはそのプロバイダーで実行されます。空のままにするとブリッジ自身のスキャンに従い、ZCode のプロバイダーテーブルで最初に有効なプロバイダーが選ばれます。プロバイダーと資格情報は ZCode アプリで管理してください。このリストに API キーは含まれません。",
+      "providerUnselectable": "無効または資格情報なし"
     }
   },
   "AgentVocabulary": {

@@ -90,6 +90,7 @@ import type {
   PlanApprovalAnswer,
   AcpAgentInfo,
   AcpAgentStatus,
+  ZcodeProviderOption,
   AgentLatestRelease,
   AgentDiagnosticsReport,
   GrokStructuredConfig,
@@ -530,6 +531,16 @@ export async function acpFindConnectionForConversation(
 
 export async function acpListAgents(): Promise<AcpAgentInfo[]> {
   return getTransport().call("acp_list_agents")
+}
+
+/**
+ * The providers the ZCode bridge can pin through `ZCODE_PROVIDER` — the ZCode
+ * desktop app's config.json provider table plus any `zcode-acp setup`
+ * accounts, WITHOUT the keys. Bootstrap env: a new pin reaches the bridge only
+ * on the next connection.
+ */
+export async function acpZcodeListProviders(): Promise<ZcodeProviderOption[]> {
+  return getTransport().call("acp_zcode_list_providers", {})
 }
 
 export async function acpGetAgentStatus(

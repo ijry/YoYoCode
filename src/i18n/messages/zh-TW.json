@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "該智慧體在此環境無法啟動：{reason}",
     "zcode": {
       "adapterInfo": "Codeg 透過 {adapterPackage} 橋接 ACP。請先安裝並登入官方 ZCode；橋接器使用其執行環境與現有設定。",
-      "runtimeHint": "請先安裝並登入官方 ZCode，Codeg 僅安裝 ACP 橋接器。自動偵測失敗時，可用 ZCODE_BIN 指定 CLI 入口、ZCODE_NODE 指定 Node.js。模型與憑證在 ZCode 中管理。"
+      "runtimeHint": "請先安裝並登入官方 ZCode，Codeg 僅安裝 ACP 橋接器。自動偵測失敗時，可用 ZCODE_BIN 指定 CLI 入口、ZCODE_NODE 指定 Node.js。模型與憑證在 ZCode 中管理。",
+      "providerLabel": "供應商",
+      "providerAuto": "自動（橋接器自行選擇）",
+      "providerHint": "固定 ZCode 橋接器使用的供應商帳號（寫入 ZCODE_PROVIDER）。它是啟動層級變數，儲存後對下一次連線生效——之後新開的會話都會在該供應商下執行。留空時由橋接器自行掃描：取 ZCode 供應商表中第一個已啟用的供應商。供應商與憑證請在 ZCode 應用中管理，此清單不含任何 API 金鑰。",
+      "providerUnselectable": "未啟用或缺少憑證"
     }
   },
   "AgentVocabulary": {

@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "Cet agent ne peut pas démarrer ici : {reason}",
     "zcode": {
       "adapterInfo": "Codeg exécute {adapterPackage} comme passerelle ACP. Installez ZCode et connectez-vous d’abord ; son environnement et sa configuration existants sont utilisés.",
-      "runtimeHint": "Installez ZCode et connectez-vous d’abord. Codeg installe uniquement la passerelle ACP. Si la détection échoue, indiquez l’entrée CLI avec ZCODE_BIN et Node.js avec ZCODE_NODE. Gérez modèles et identifiants dans ZCode."
+      "runtimeHint": "Installez ZCode et connectez-vous d’abord. Codeg installe uniquement la passerelle ACP. Si la détection échoue, indiquez l’entrée CLI avec ZCODE_BIN et Node.js avec ZCODE_NODE. Gérez modèles et identifiants dans ZCode.",
+      "providerLabel": "Fournisseur",
+      "providerAuto": "Automatique (choix du pont)",
+      "providerHint": "Épingle le compte de fournisseur utilisé par le pont ZCode (écrit ZCODE_PROVIDER). Variable résolue au démarrage : elle prend effet à la prochaine connexion après enregistrement ; les nouvelles sessions s'exécutent alors sous ce fournisseur. Laissée vide, le pont applique son propre balayage : le premier fournisseur activé de la table des fournisseurs de l'application ZCode l'emporte. Gérez les fournisseurs et les identifiants dans l'application ZCode ; cette liste ne contient jamais de clés d'API.",
+      "providerUnselectable": "désactivé ou identifiants manquants"
     }
   },
   "AgentVocabulary": {

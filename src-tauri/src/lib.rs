@@ -132,6 +132,7 @@ mod tauri_app {
         token_usage as token_usage_commands,
         forge as forge_commands, version_control, windows, work_task as work_task_commands,
         workspace_state as workspace_state_commands, workspace_windows,
+        zcode_provider as zcode_provider_commands,
     };
     use crate::terminal::manager::TerminalManager;
     use crate::{db, git_credential, network, paths, process, web};
@@ -2322,6 +2323,7 @@ mod tauri_app {
                 acp_commands::acp_get_session_snapshot_by_conversation,
                 acp_commands::acp_find_connection_for_conversation,
                 acp_commands::acp_list_agents,
+                zcode_provider_commands::acp_zcode_list_providers,
                 acp_commands::acp_get_agent_status,
                 acp_commands::acp_env_diagnostics,
                 acp_commands::acp_clear_binary_cache,

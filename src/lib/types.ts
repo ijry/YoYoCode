@@ -4216,6 +4216,26 @@ export interface AcpAgentInfo {
   icon_url: string | null
 }
 
+/** One provider the ZCode bridge can pin through `ZCODE_PROVIDER`, for the
+ *  ZCode panel's provider dropdown. Mirrors zcode_provider.rs (snake_case on
+ *  the wire). NEVER carries a key — only whether one is set. */
+export interface ZcodeProviderOption {
+  /** The `ZCODE_PROVIDER` value: the ZCode desktop app's config.json provider
+   *  key verbatim (`ai-switch-codex`, `builtin:zai-coding-plan`, …). */
+  id: string
+  name: string
+  enabled: boolean
+  has_api_key: boolean
+  /** The entry declares `apiKeyRequired: false` — authenticates keyless. */
+  key_optional: boolean
+  /** localhost-style endpoint — usable keyless, like an Ollama provider. */
+  local_base_url: boolean
+  model_count: number
+  /** Whether the bridge's default scan ("first enabled provider wins") would
+   *  offer this entry; an explicit pin is honored regardless. */
+  selectable: boolean
+}
+
 /** Parsed sandbox / approval keys from ~/.codex/config.toml. Serialized
  * snake_case to match AcpAgentInfo.
  *

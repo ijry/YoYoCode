@@ -100,6 +100,7 @@ import {
   acpInstallUvTool,
   acpGetAgentStatus,
   acpListAgents,
+  acpZcodeListProviders,
   acpPreflight,
   acpPrepareNpxAgent,
   acpReorderAgents,
@@ -135,6 +136,7 @@ import type {
   OpenCodeCredentialChange,
   OpenCodeIntegration,
   PreflightResult,
+  ZcodeProviderOption,
 } from "@/lib/types"
 import {
   HERMES_PROVIDERS,
@@ -724,6 +726,39 @@ export function setClaudeThinkingSummaries(
     [CLAUDE_THINKING_DISPLAY_ENV]: enabled
       ? CLAUDE_THINKING_DISPLAY_SUMMARIZED
       : undefined,
+  })
+}
+
+/**
+ * The provider the ZCode bridge pins at process start, read from this agent's
+ * env draft. `ZCODE_PROVIDER` is a bootstrap variable — the bridge resolves it
+ * before any config file is readable, so it must ride the launch env and only
+ * reaches a NEW connection: the dropdown writes it into the same draft the
+ * textarea beside it holds (one Save button owns both), and after saving every
+ * session of the next connection starts on that provider. Absent keeps the
+ * bridge's own scan — "first enabled provider wins" over the ZCode desktop
+ * app's provider table. The ids come from `acpZcodeListProviders`, which
+ * mirrors the bridge's scan; hand-typed values pass through untouched.
+ */
+const ZCODE_PROVIDER_ENV = "ZCODE_PROVIDER"
+
+/** Radix `Select` items cannot carry an empty value, so the "no pin" choice —
+ *  delete `ZCODE_PROVIDER_ENV` from the draft — rides this sentinel and is
+ *  unwrapped in `onValueChange`. */
+const ZCODE_PROVIDER_AUTO_VALUE = "__auto__"
+
+/** Whether this agent's env draft pins a ZCode provider, and which. */
+export function zcodePinnedProvider(envText: string): string {
+  return (parseEnvText(envText)[ZCODE_PROVIDER_ENV] ?? "").trim()
+}
+
+/** Pin (or, for an empty value, unpin) the ZCode provider in an env draft. */
+export function setZcodePinnedProvider(
+  envText: string,
+  provider: string
+): string {
+  return patchEnvText(envText, {
+    [ZCODE_PROVIDER_ENV]: provider.trim() || undefined,
   })
 }
 
@@ -5013,6 +5048,13 @@ export function AcpAgentSettings() {
   const [openCodeCredentialBusy, setOpenCodeCredentialBusy] = useState<
     string | null
   >(null)
+  // The ZCode bridge's pin-able providers (see `acpZcodeListProviders`), for
+  // the ZCode panel's provider dropdown. Fetched once per mount, when the
+  // ZCode panel is first opened; a failed read leaves just the auto entry.
+  const [zcodeProviders, setZcodeProviders] = useState<ZcodeProviderOption[]>(
+    []
+  )
+  const zcodeProvidersRequestedRef = useRef(false)
   const [dragging, setDragging] = useState<AgentType | null>(null)
   const [reordering, setReordering] = useState(false)
   const pendingOrderRef = useRef<AgentType[] | null>(null)
@@ -5227,6 +5269,22 @@ export function AcpAgentSettings() {
       console.error("[Settings] refresh agents failed:", err)
     })
   }, [refreshAgents])
+
+  // Fetch the ZCode bridge's pin-able providers once, when the ZCode panel is
+  // first opened. `ZCODE_PROVIDER` is a bootstrap env, so the dropdown only
+  // needs the id list — a failed read (no ZCode signed in, unreadable config)
+  // degrades to the auto entry alone rather than an error surface.
+  useEffect(() => {
+    if (selectedAgentType !== "zcode" || zcodeProvidersRequestedRef.current) {
+      return
+    }
+    zcodeProvidersRequestedRef.current = true
+    acpZcodeListProviders()
+      .then((providers) => setZcodeProviders(providers))
+      .catch((err) => {
+        console.error("[Settings] list zcode providers failed:", err)
+      })
+  }, [selectedAgentType])
 
   useEffect(() => {
     if (loadingAgents || !agentTypesKey) return
@@ -8876,9 +8934,72 @@ export function AcpAgentSettings() {
                 <div className="space-y-2">
                   <label className="text-xs font-medium">{t("envVars")}</label>
                   {selectedAgent.agent_type === "zcode" && (
-                    <p className="text-2xs text-muted-foreground">
-                      {t("zcode.runtimeHint")}
-                    </p>
+                    <>
+                      <p className="text-2xs text-muted-foreground">
+                        {t("zcode.runtimeHint")}
+                      </p>
+                      <div className="space-y-1.5">
+                        <label className="text-2xs text-muted-foreground">
+                          {t("zcode.providerLabel")}
+                        </label>
+                        <Select
+                          value={
+                            zcodePinnedProvider(selectedDraft.envText) ||
+                            ZCODE_PROVIDER_AUTO_VALUE
+                          }
+                          disabled={selectedGrokSaving}
+                          onValueChange={(value) => {
+                            updateSelectedDraft((current) => ({
+                              ...current,
+                              envText: setZcodePinnedProvider(
+                                current.envText,
+                                value === ZCODE_PROVIDER_AUTO_VALUE ? "" : value
+                              ),
+                            }))
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent align="start">
+                            <SelectItem value={ZCODE_PROVIDER_AUTO_VALUE}>
+                              {t("zcode.providerAuto")}
+                            </SelectItem>
+                            {zcodeProviders.map((provider) => (
+                              <SelectItem key={provider.id} value={provider.id}>
+                                {provider.name}
+                                {!provider.selectable
+                                  ? ` (${t("zcode.providerUnselectable")})`
+                                  : ""}
+                              </SelectItem>
+                            ))}
+                            {/* A hand-typed pin that matched no listed
+                                provider stays selectable instead of being
+                                silently dropped by the controlled value. */}
+                            {(() => {
+                              const pinned = zcodePinnedProvider(
+                                selectedDraft.envText
+                              )
+                              if (
+                                !pinned ||
+                                pinned === ZCODE_PROVIDER_AUTO_VALUE ||
+                                zcodeProviders.some(
+                                  (provider) => provider.id === pinned
+                                )
+                              ) {
+                                return null
+                              }
+                              return (
+                                <SelectItem value={pinned}>{pinned}</SelectItem>
+                              )
+                            })()}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-2xs text-muted-foreground">
+                          {t("zcode.providerHint")}
+                        </p>
+                      </div>
+                    </>
                   )}
                   <div className="relative group">
                     <Textarea

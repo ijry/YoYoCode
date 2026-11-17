@@ -1292,6 +1292,10 @@ pub fn build_router_with_proxy_auth(
             post(handlers::acp::acp_update_deepseek_model_catalog),
         )
         .route(
+            "/acp_zcode_list_providers",
+            post(handlers::acp::acp_zcode_list_providers),
+        )
+        .route(
             "/acp_validate_pi_command",
             post(handlers::acp::acp_validate_pi_command),
         )

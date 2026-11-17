@@ -97,3 +97,6 @@ pub mod workspace_windows;
 /// What a removed worktree does to the workspace — shared by the branch
 /// selector's delete and the to-do task engine's cleanup.
 pub mod worktree_convergence;
+/// The ZCode bridge's pin-able provider list for the settings page's
+/// provider dropdown (both runtimes).
+pub mod zcode_provider;

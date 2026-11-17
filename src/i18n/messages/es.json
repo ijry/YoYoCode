@@ -1894,7 +1894,11 @@
     "customAgentNotLaunchable": "Este agente no puede iniciarse aquí: {reason}",
     "zcode": {
       "adapterInfo": "Codeg ejecuta {adapterPackage} como puente ACP. Instala ZCode e inicia sesión primero; utiliza su entorno y configuración existentes.",
-      "runtimeHint": "Instala ZCode e inicia sesión primero. Codeg solo instala el puente ACP. Si falla la detección, indica la entrada CLI con ZCODE_BIN y Node.js con ZCODE_NODE. Gestiona modelos y credenciales en ZCode."
+      "runtimeHint": "Instala ZCode e inicia sesión primero. Codeg solo instala el puente ACP. Si falla la detección, indica la entrada CLI con ZCODE_BIN y Node.js con ZCODE_NODE. Gestiona modelos y credenciales en ZCode.",
+      "providerLabel": "Proveedor",
+      "providerAuto": "Automático (decisión del puente)",
+      "providerHint": "Fija qué cuenta de proveedor usa el puente de ZCode (escribe ZCODE_PROVIDER). Es una variable de arranque: surte efecto en la siguiente conexión tras guardar; las sesiones nuevas se ejecutan en ese proveedor. Si se deja vacío, el puente aplica su propio sondeo: el primer proveedor habilitado de la tabla de proveedores de ZCode. Gestiona proveedores y credenciales en la app de ZCode; esta lista nunca incluye claves de API.",
+      "providerUnselectable": "deshabilitado o sin credenciales"
     }
   },
   "AgentVocabulary": {

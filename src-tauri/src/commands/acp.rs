@@ -11386,6 +11386,20 @@ fn agent_env_keys(agent_type: AgentType) -> (&'static str, &'static str, &'stati
             crate::acp::command_code::COMMAND_CODE_API_KEY_ENV,
             "COMMAND_CODE_MODEL",
         ),
+        // ZCode's bridge resolves credentials itself: it scans the ZCode
+        // desktop app's `~/.zcode/v2/config.json` provider table (plus an
+        // optional saved `acp-accounts.json`) and pins one of those ids at
+        // process start through the `ZCODE_PROVIDER` bootstrap env — which
+        // codeg's provider dropdown writes into this agent's env. There is NO
+        // endpoint env the bridge or the ZCode app-server accepts:
+        // `ZCODE_BASE_URL` is the app-server's SERVICE ORIGIN, and the bridge
+        // strips it from the launch env precisely so an inherited value cannot
+        // redirect configuration/signing/billing requests — so the base-url
+        // slot is an inert `ZCODE_ACP_BASE_URL` placeholder (never
+        // `ZCODE_BASE_URL`) that keeps the generic cascade off the OPENAI_*
+        // keys, like `QODER_BASE_URL` above. `ZCODE_MODEL` is real: the
+        // bridge's model override, honored ahead of the config default.
+        AgentType::ZCode => ("ZCODE_ACP_BASE_URL", "ZCODE_ACP_API_KEY", "ZCODE_MODEL"),
         _ => ("OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL"),
     }
 }
@@ -11548,13 +11562,20 @@ pub(crate) fn build_runtime_env_from_setting(
 }
 
 /// Agents that keep their own provider configuration and take no codeg model
-/// provider: MiniMax Code (its own login and providers), and OpenCode, whose
+/// provider: MiniMax Code (its own login and providers), OpenCode, whose
 /// providers live in its config and credential store and whose `openai`
 /// integration would otherwise pick up the bound provider's key from the
-/// `OPENAI_*` env the generic binding writes. Binding one is refused, and a
-/// binding stored earlier is ignored at launch.
+/// `OPENAI_*` env the generic binding writes, and ZCode — the bridge reads the
+/// provider table from the ZCode desktop app's `~/.zcode/v2/config.json` (or a
+/// saved `acp-accounts.json`) and pins one of those ids through the
+/// `ZCODE_PROVIDER` bootstrap env, which codeg's provider dropdown writes into
+/// the agent's env instead. Binding one is refused, and a binding stored
+/// earlier is ignored at launch.
 fn keeps_own_providers(agent_type: AgentType) -> bool {
-    matches!(agent_type, AgentType::MiniMaxCode | AgentType::OpenCode)
+    matches!(
+        agent_type,
+        AgentType::MiniMaxCode | AgentType::OpenCode | AgentType::ZCode
+    )
 }
 
 /// Resolve model provider credentials into runtime env vars if `model_provider_id` is set.
