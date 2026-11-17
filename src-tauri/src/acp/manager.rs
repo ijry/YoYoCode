@@ -2082,6 +2082,22 @@ impl ConnectionManager {
             let attempt = crate::db::service::message_queue_control_service::begin_attempt(
                 &db.conn, &cid.to_string(), conn_id, &message_id, &draft_json, recovery_of.as_deref(),
             ).await.map_err(|error| AcpError::protocol(error.to_string()))?;
+            // A direct prompt admitted over a paused queue just lifted that
+            // pause. Broadcast the new state so every client drops the
+            // "continue the unfinished task?" banner now — otherwise it hangs
+            // over a turn that is already running and its button would only
+            // conflict.
+            if attempt.pause_lifted {
+                if let Ok(control) = crate::db::service::message_queue_control_service::get_state(
+                    &db.conn, &attempt.owner_id,
+                ).await {
+                    crate::web::event_bridge::emit_event(
+                        &emitter,
+                        crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT,
+                        control,
+                    );
+                }
+            }
             {
                 let mut state = state_arc.write().await;
                 // A cancel whose flag never got consumed (no queue attempt was

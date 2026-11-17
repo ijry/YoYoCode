@@ -89,6 +89,46 @@ describe("MessageQueueDisplay click-to-insert", () => {
     expect(onContinue).toHaveBeenCalledTimes(1)
   })
 
+  it("lets the user close the notice and raises it again for a NEW failure", async () => {
+    const control = {
+      owner_id: "42",
+      status: "paused" as const,
+      failed_attempt_id: "attempt-a",
+      active_attempt_id: null,
+      error: "quota error",
+      hold: null,
+      revision: 1,
+    }
+    const Harness = ({ state }: { state: typeof control }) => (
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageQueueDisplay
+          queue={[item("q1", "use pnpm")]}
+          queueControl={state}
+          onContinue={vi.fn()}
+          onReorder={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          editingItemId={null}
+        />
+      </NextIntlClientProvider>
+    )
+    const view = render(<Harness state={control} />)
+    expect(screen.getByText(TQ.unfinishedTitle)).toBeInTheDocument()
+    // Closing is local to the notice: the paused queue rows are untouched.
+    await userEvent.click(
+      screen.getByRole("button", { name: TQ.dismissNotice })
+    )
+    expect(screen.queryByText(TQ.unfinishedTitle)).toBeNull()
+    expect(screen.getByText("use pnpm")).toBeInTheDocument()
+
+    view.rerender(
+      <Harness
+        state={{ ...control, failed_attempt_id: "attempt-b", revision: 2 }}
+      />
+    )
+    expect(screen.getByText(TQ.unfinishedTitle)).toBeInTheDocument()
+  })
+
   it("hides the banner once the recovery turn is actually running", () => {
     // The conversation itself shows the running turn; keeping the banner up
     // would only duplicate it. A later failure re-raises it as `paused`.

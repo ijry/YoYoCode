@@ -3637,6 +3637,7 @@
         "retryWarning": "Die Zustellung ist nicht bestätigt. Ein neuer Versuch könnte die Nachricht doppelt senden. Fortfahren?",
         "retryCancel": "Abbrechen",
         "unfinishedTitle": "Die vorherige Aufgabe wurde durch einen Fehler unterbrochen. Fortsetzen?",
+        "dismissNotice": "Hinweis schließen",
         "continueTask": "Unerledigte Aufgabe fortsetzen",
         "continuingTask": "Aufgabe wird fortgesetzt…",
         "heldNotice": "Manuell gestoppt — die Warteschlange pausiert. Elemente einzeln senden oder automatisches Senden fortsetzen.",

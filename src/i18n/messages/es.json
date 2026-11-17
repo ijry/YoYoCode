@@ -3637,6 +3637,7 @@
         "retryWarning": "La entrega no está confirmada. Reintentar puede enviar el mensaje otra vez. ¿Continuar?",
         "retryCancel": "Cancelar",
         "unfinishedTitle": "La tarea anterior se interrumpió por un error. ¿Continuar?",
+        "dismissNotice": "Cerrar aviso",
         "continueTask": "Continuar tarea pendiente",
         "continuingTask": "Continuando tarea pendiente…",
         "heldNotice": "Detenido manualmente: la cola está en espera. Envía los elementos uno a uno o reanuda el envío automático.",

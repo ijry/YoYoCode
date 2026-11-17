@@ -9,6 +9,7 @@ fn state() -> SessionState {
         id: "attempt-a".into(),
         owner_id: "42".into(),
         recovery_of: None,
+        pause_lifted: false,
     });
     state.turn_in_flight = true;
     state

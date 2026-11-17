@@ -3676,6 +3676,7 @@
         "retryWarning": "上次发送结果未确认，重试可能重复发送这条消息。确定重试？",
         "retryCancel": "取消",
         "unfinishedTitle": "上一任务因错误中断，是否继续未完成任务？",
+        "dismissNotice": "关闭提示",
         "continueTask": "继续未完成任务",
         "continuingTask": "正在继续未完成任务…",
         "heldNotice": "已手动停止：队列暂缓自动发送，可逐条手动发送或恢复自动发送。",

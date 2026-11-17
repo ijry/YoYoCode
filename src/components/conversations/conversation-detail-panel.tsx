@@ -1153,20 +1153,37 @@ const ConversationTabView = memo(function ConversationTabView({
       // deliver to the wrong workspace. Same predicate the flush effect uses.
       if (!connectionReady) return
 
-      if (messageQueue.control && messageQueue.control.status !== "open") {
+      // A recovery turn that is already being admitted (`resume_requested`) or
+      // is in flight (`resuming`) leaves no room for a second prompt: the
+      // session would bounce it, so the draft joins the queue and goes out when
+      // that turn ends. A merely `paused` queue is a different story — see
+      // below.
+      const queueStatus = messageQueue.control?.status
+      const resumeTurnLive =
+        queueStatus === "resume_requested" || queueStatus === "resuming"
+      if (resumeTurnLive) {
         mqEnqueue(draft, selectedModeIdArg ?? null)
         return
       }
+      // `paused` (the previous turn died) must NOT swallow a direct send. The
+      // pause parks the QUEUE, not the conversation; the user typing here and
+      // hitting send is their recovery decision, so the backend admits this
+      // prompt through the pause (`begin_attempt`) and keeps the queue shut
+      // until it succeeds. Enqueuing instead — what used to happen — stranded
+      // the draft behind a barrier only the banner's button could lift.
+      const pausedSend = queueStatus === "paused"
       const fromQueueFlush = opts?.fromQueueFlush ?? false
       // Preserve FIFO: a direct send issued while the queue is non-empty joins
       // the tail rather than racing ahead of the queued items. Read the
       // queue length synchronously (it reflects a same-tick bounce requeue).
       // A user-stop hold lifts that rule on purpose: the rows were frozen by
       // a Stop click, and the user's fresh input ("continue the task") must
-      // reach the session NOW, not line up behind what they parked.
+      // reach the session NOW, not line up behind what they parked. A paused
+      // queue is frozen for the same reason: the fresh message IS the resume.
       const queueHeld = messageQueue.control?.hold != null
       if (
         !queueHeld &&
+        !pausedSend &&
         shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength())
       ) {
         mqEnqueue(draft, selectedModeIdArg ?? null)

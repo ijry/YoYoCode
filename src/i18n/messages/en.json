@@ -3676,6 +3676,7 @@
         "retryWarning": "Delivery is not confirmed. Retrying may send this message again. Continue?",
         "retryCancel": "Cancel",
         "unfinishedTitle": "The previous task stopped with an error. Continue unfinished work?",
+        "dismissNotice": "Dismiss notice",
         "continueTask": "Continue unfinished task",
         "continuingTask": "Continuing unfinished task…",
         "heldNotice": "Turn stopped manually — the queue is holding. Send rows one by one or resume auto-send.",

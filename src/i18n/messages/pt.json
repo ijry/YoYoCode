@@ -3637,6 +3637,7 @@
         "retryWarning": "A entrega não foi confirmada. Tentar novamente pode duplicar esta mensagem. Continuar?",
         "retryCancel": "Cancelar",
         "unfinishedTitle": "A tarefa anterior parou com erro. Continuar?",
+        "dismissNotice": "Fechar aviso",
         "continueTask": "Continuar tarefa inacabada",
         "continuingTask": "Continuando tarefa…",
         "heldNotice": "Interrompido manualmente — a fila está retida. Envie os itens um a um ou retome o envio automático.",

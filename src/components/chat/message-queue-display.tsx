@@ -293,6 +293,19 @@ export function MessageQueueDisplay({
   const [retryId, setRetryId] = useState<string | null>(null)
   const [continuing, setContinuing] = useState(false)
   const continuingRef = useRef(false)
+  // The interruption banner is a *question*, not a modal gate. A user who
+  // does not want to continue the failed task can close it like any other
+  // notice and just keep typing — a direct send lifts the pause on its own
+  // (see `handleSend`). Dismissing only hides the notice: the queue's pause
+  // stays in place until a turn succeeds, so no parked row is silently sent.
+  // Keyed on the failed attempt so a NEW failure raises the banner again.
+  const [dismissedFailure, setDismissedFailure] = useState<string | null>(null)
+  const failedAttemptId = queueControl?.failed_attempt_id ?? null
+  // A paused row always carries a failed attempt, but the fallback keeps the
+  // close button functional on a state written by an older host.
+  const noticeKey = failedAttemptId ?? "paused"
+  const noticeDismissed =
+    dismissedFailure !== null && noticeKey === dismissedFailure
   // The row whose clock is open: its id plus the schedule it already carries
   // (seeds the picker and offers "back to ordinary").
   const [scheduleTarget, setScheduleTarget] = useState<{
@@ -308,7 +321,8 @@ export function MessageQueueDisplay({
   const paused =
     queueControl &&
     queueControl.status !== "open" &&
-    queueControl.status !== "resuming"
+    queueControl.status !== "resuming" &&
+    !noticeDismissed
   // A user-stop hold: the queue is "open" but parked. The banner is neutral
   // (nothing failed) and the rows gain a manual send.
   const held = queueControl?.status === "open" && queueControl.hold != null
@@ -444,8 +458,17 @@ export function MessageQueueDisplay({
         </div>
       )}
       {paused && (
-        <div className="mb-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
-          <p>{t("unfinishedTitle")}</p>
+        <div className="relative mb-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setDismissedFailure(noticeKey)}
+            className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
+            aria-label={t("dismissNotice")}
+            title={t("dismissNotice")}
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <p className="pr-5">{t("unfinishedTitle")}</p>
           {queueControl.error && (
             <p className="mt-1 text-muted-foreground">{queueControl.error}</p>
           )}

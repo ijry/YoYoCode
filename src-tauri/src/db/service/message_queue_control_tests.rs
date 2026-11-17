@@ -126,6 +126,64 @@ async fn a_continuation_error_or_cancellation_keeps_the_queue_paused() {
     }
 }
 
+/// A DIRECT prompt (the user typing into the composer while the queue is
+/// paused) is their own recovery: it is admitted, the pause lifts in the same
+/// transaction, and the queue itself stays shut until that turn succeeds.
+/// `"继续未完成任务"` is then only one of two ways back — not the only one.
+#[tokio::test]
+async fn a_direct_prompt_is_admitted_through_the_pause() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    let failed = begin(&db.conn, None).await;
+    complete_attempt(&db.conn, &completed(&failed, false, false))
+        .await
+        .unwrap();
+    save_one(&db.conn, "B").await;
+
+    let direct = begin(&db.conn, None).await;
+    assert!(direct.pause_lifted, "admission must report the lifted pause");
+    let state = get_state(&db.conn, "42").await.unwrap();
+    assert_eq!(state.status, "open");
+    assert_eq!(
+        state.active_attempt_id.as_deref(),
+        Some(direct.id.as_str()),
+        "the direct turn owns the barrier"
+    );
+    assert!(
+        message_queue_service::claim_next(&db.conn, "42", "claim-B")
+            .await
+            .unwrap()
+            .is_none(),
+        "the queue must stay shut while the direct turn runs"
+    );
+
+    // The direct turn failing re-pauses — on the user's own message now.
+    let state = complete_attempt(&db.conn, &completed(&direct, false, false))
+        .await
+        .unwrap();
+    assert_eq!(state.status, "paused");
+    assert_eq!(
+        state.failed_attempt_id.as_deref(),
+        Some(direct.id.as_str())
+    );
+
+    // Its success opens the queue for the rows already waiting.
+    request_continue(&db.conn, "42", &direct.id).await.unwrap();
+    let resume = begin(&db.conn, Some(&direct.id)).await;
+    assert!(!resume.pause_lifted, "a recovery attempt lifts nothing new");
+    let state = complete_attempt(&db.conn, &completed(&resume, true, false))
+        .await
+        .unwrap();
+    assert_eq!(state.status, "open");
+    assert!(state.failed_attempt_id.is_none());
+    assert!(
+        message_queue_service::claim_next(&db.conn, "42", "claim-B")
+            .await
+            .unwrap()
+            .is_some(),
+        "draining resumes once a direct send succeeded"
+    );
+}
+
 #[tokio::test]
 async fn old_duplicate_completion_cannot_clear_a_new_failed_attempt() {
     let db = test_helpers::fresh_in_memory_db().await;

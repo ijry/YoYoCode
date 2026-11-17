@@ -32,6 +32,12 @@ pub struct QueueTurnAttempt {
     pub id: String,
     pub owner_id: String,
     pub recovery_of: Option<String>,
+    /// This attempt was a DIRECT prompt admitted while the queue was paused,
+    /// so it lifted that pause on its way in. Callers re-broadcast the control
+    /// state when it is set — otherwise the interruption banner keeps asking
+    /// "continue the unfinished task?" while the user's own turn is already
+    /// running.
+    pub pause_lifted: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -104,11 +110,23 @@ pub async fn begin_attempt(
             "a queue-controlled turn is already active".into(),
         ));
     }
+    // `"paused"` is admitted here on purpose, and ONLY for a non-recovery
+    // (direct) prompt: the pause parks the QUEUE after an unconfirmed failure,
+    // it must not gag the CONVERSATION. When the user types into the composer
+    // and sends, that message IS their recovery decision — the same intent
+    // "继续未完成任务" expresses, minus the canned prompt — so it goes out now
+    // instead of being enqueued behind a barrier only a button could lift.
+    // This is still safe for the queue: the state flips to `"open"` with an
+    // active attempt, `can_drain` stays false (active attempt), the failed row
+    // keeps blocking the FIFO head, and `complete_attempt` re-pauses on
+    // failure / opens the queue on success. A recovery attempt (the continue
+    // button, or a queue resume) still needs its own `"resume_requested"`.
+    let pause_lifted = recovery_of.is_none() && state.status == "paused";
     match recovery_of {
         Some(failed)
             if state.status == "resume_requested"
                 && state.failed_attempt_id.as_deref() == Some(failed) => {}
-        None if state.status == "open" => {}
+        None if state.status == "open" || pause_lifted => {}
         _ => {
             return Err(DbError::Conflict(
                 "queue is paused or recovery request has changed".into(),
@@ -131,6 +149,7 @@ pub async fn begin_attempt(
         id,
         owner_id: owner.into(),
         recovery_of: recovery_of.map(str::to_owned),
+        pause_lifted,
     })
 }
 
