@@ -142,7 +142,7 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 | `plugins.updater.pubkey` | 上游的 minisign 公钥 | PLUS 自己的 minisign 公钥 |
 | `bundle.createUpdaterArtifacts` | `true` | `true`（用 PLUS 私钥签名） |
 | `bundle.macOS.signingIdentity` | 未设置（上游走 env） | `"-"`（ad-hoc） |
-| `version` | `x.y.z` | 默认不变（见「版本模式」） |
+| `version` | `x.y.z` | `x.y.z-plus.N`（见「版本模式」） |
 
 为什么用构建期注入而不是 patch 提交：`version` 上游每次发版都会动，一旦在分支里
 patch 它，每次同步必冲突且 rerere 帮不上（值每次都不同）。注入之后 git 历史里这些
@@ -175,14 +175,27 @@ minisign 密钥对：
 
 ### 版本模式
 
-- **`safe`（默认）**：`tauri.conf.json` 的 `version` 保持纯三段 `x.y.z`。
-  用户看到的 `x.y.z-plus.N` 由 git tag、GitHub release 标题与产物文件名承载；
-  安装后靠 `productName` = `YoYoCode` 区分。
-- **`semver`**：把 `version` 写成 `x.y.z-plus.N`。
+- **`semver`（默认）**：`tauri.conf.json` 的 `version` 写成 `x.y.z-plus.N`，桌面端
+  编译进去的当前版本与 `latest.json` 都带迭代号，`plus.4 → plus.5` 才能被 updater
+  识别为更新。
+- **`safe`（逃生舱）**：`version` 保持纯三段 `x.y.z`（上游原样），`--version-mode
+  safe` 启用；仅在 semver 打包真出问题时临时回退，代价是桌面端重新失去迭代号比较能力。
 
-默认走 `safe` 的原因：Windows MSI 的 ProductVersion 不接受 semver 的 prerelease
-段，而上游从未发过任何 prerelease tag（`release.yml` 的 channel 判定只认 `-rc`），
-所以这条流水线上没有先例可依。在 Windows 上实测通过后可把默认切成 `semver`。
+为什么从 safe 切到 semver（2026-11-17）：桌面端 `tauri-plugin-updater` 的默认比较是
+`release.version > current_version`，而 semver 里 `0.44.0-plus.N < 0.44.0`。safe 模式
+下迭代号只活在 tag 里、从不进 version，于是 latest.json 与本机版本恒为同一个纯三段号，
+桌面端永远报告「已是最新」—— plus.1 到 plus.4 的桌面用户一次都没收到过更新提示。
+把迭代号写进 version 后，两端同带 plus.N，排序由 semver 正确处理（`update/version.rs`
+的 `plus_iterations_are_ordered_numerically` 测试覆盖）。
+
+原先把 semver 留作可选、默认 safe 的理由是 Windows MSI 的 ProductVersion 不接受
+prerelease 段；但 MSI 早因 tauri#14681 在 `release.yml` 跳过（Windows 只打 NSIS +
+updater），这条顾虑随之消失。
+
+**存量用户的一次性断裂**：plus.1 ~ plus.4 装到机器上的都是纯三段 `0.44.0`。按 semver，
+新版 `0.44.0-plus.N` 反而比它「小」，这些用户仍收不到自动更新，需手动装一次首个
+semver 版（从那一版起后续迭代恢复自动检测）。与 plus.1 / plus.2 因 server 改名需
+手动重装是同类的一次性迁移成本。
 
 ### 禁止修改（跨版本互操作契约）
 

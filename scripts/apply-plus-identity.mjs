@@ -8,7 +8,7 @@
  *
  * 用法：
  *   node scripts/apply-plus-identity.mjs --iteration 1
- *   node scripts/apply-plus-identity.mjs --iteration 1 --version-mode semver
+ *   node scripts/apply-plus-identity.mjs --iteration 1 --version-mode safe
  *   node scripts/apply-plus-identity.mjs --check     # 只打印将要改成什么，不落盘
  */
 
@@ -46,7 +46,7 @@ const PLUS_UPDATER_PUBKEY =
 function parseArgs(argv) {
   const args = {
     iteration: process.env.PLUS_ITERATION || "1",
-    versionMode: "safe",
+    versionMode: "semver",
     check: false,
   }
   for (let i = 0; i < argv.length; i += 1) {
@@ -100,11 +100,11 @@ function prettierize(file) {
 }
 
 /**
- * 上游版本号必须是纯 semver 三段。
+ * 注入前 tauri.conf.json 的 version 必须是纯 semver 三段（上游原样）。
  *
- * safe 模式不动 version，所以重复注入是幂等的、无害的。semver 模式会把 version 写成
- * `x.y.z-plus.N`，此时再跑一次就会拿它当基线算出 `x.y.z-plus.N-plus.N` —— 这道守卫
- * 专门挡这种情况。
+ * 默认 semver 模式会把 version 写成 `x.y.z-plus.N`；此时再跑一次就会拿它当基线算出
+ * `x.y.z-plus.N-plus.N` —— 这道守卫专门挡这种重复注入。CI 每次从干净的 checkout 起跑
+ * 不受影响；本地重复注入先 `git checkout` 还原 tauri.conf.json 再重跑。
  */
 function assertPristineBaseVersion(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
@@ -131,16 +131,19 @@ function main() {
   assertPristineBaseVersion(baseVersion)
 
   const plusVersion = `${baseVersion}-plus.${args.iteration}`
-  // safe 模式：tauri.conf 的 version 保持纯三段。
+  // semver 模式（默认）：tauri.conf 的 version 写成 `x.y.z-plus.N`。
   //
-  // 原因：Windows MSI 的 ProductVersion 不接受 semver 的 prerelease 段，而上游从未发过
-  // 任何 prerelease tag（`git tag -l` 里一条都没有，release.yml 的 channel 判定也只认
-  // `-rc`），所以「带 prerelease 的版本号能不能过 Windows 打包」在这条流水线上没有先例。
+  // 为什么必须把 plus 迭代号写进 version：桌面端 tauri-plugin-updater 拿 latest.json 的
+  // `version` 和编译进二进制的当前版本做 semver 比较（`release > current` 才算更新）。
+  // safe 模式下两者恒为纯三段 `x.y.z`，plus.N 只活在 tag 里 —— 桌面端永远报告「已是
+  // 最新」，迭代号再涨也检测不到。写成 semver 后 latest.json / 签名 / 二进制当前版本
+  // 都带 plus.N，`plus.4 → plus.5` 才能被识别（见 update/version.rs 的排序测试）。
   //
-  // 用户看到的 `0.27.0-plus.N` 由 git tag、GitHub release 标题和产物文件名承载；
-  // 安装后的应用靠 productName「YoYoCode」区分，不会和官方版混淆。
+  // Windows 只打 NSIS（MSI 因 tauri#14681 早已在 release.yml 跳过），ProductVersion
+  // 不接受 prerelease 的顾虑不再适用，MSI 那条老约束已随 MSI 一起消失。
   //
-  // 等你在 Windows 上实测过 semver 模式能出包，把默认切成 semver 即可。
+  // safe 模式保留作逃生舱：`--version-mode safe` 让 version 回到纯三段（上游原样），
+  // 代价是桌面端重新失去迭代号比较能力，仅在 semver 打包真出问题时临时使用。
   const injectedVersion =
     args.versionMode === "semver" ? plusVersion : baseVersion
 

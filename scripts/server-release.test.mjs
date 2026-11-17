@@ -19,6 +19,7 @@ const workflow = parse(
   readFileSync(join(root, ".github/workflows/release.yml"), "utf8")
 )
 const server = workflow.jobs["build-server"]
+const desktop = workflow.jobs["build-tauri"]
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "yoyocode-server-test-"))
@@ -57,28 +58,63 @@ function identityFixture(t) {
   return dir
 }
 
-test("server identity uses the full PLUS version without changing desktop safe mode", (t) => {
+test("desktop identity writes the full PLUS version by default so updaters see iterations", (t) => {
   const dir = identityFixture(t)
-  const args = ["scripts/apply-plus-identity.mjs", "--iteration", "10"]
+  const args = ["scripts/apply-plus-identity.mjs", "--check", "--iteration", "10"]
+  // --check must not touch disk, so a later real injection still sees a pristine base.
+  run(process.execPath, args, dir)
+  assert.equal(
+    JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
+    "0.42.0"
+  )
+  run(process.execPath, ["scripts/apply-plus-identity.mjs", "--iteration", "10"], dir)
+  assert.equal(
+    JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
+    "0.42.0-plus.10"
+  )
+  assert.equal(
+    JSON.parse(readFileSync(join(dir, "package.json"))).version,
+    "0.42.0-plus.10"
+  )
+  // Desktop injection leaves Cargo.toml alone; only --server writes it.
+  assert.match(
+    readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"),
+    /version = "0\.42\.0"/
+  )
+})
+
+test("safe mode remains an explicit escape hatch back to a pure three-part version", (t) => {
+  const dir = identityFixture(t)
+  run(
+    process.execPath,
+    ["scripts/apply-plus-identity.mjs", "--version-mode", "safe", "--iteration", "10"],
+    dir
+  )
+  assert.equal(
+    JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
+    "0.42.0"
+  )
+})
+
+test("server identity uses the full PLUS version and is idempotent only via --check", (t) => {
+  const dir = identityFixture(t)
+  const args = ["scripts/apply-plus-identity.mjs", "--server", "--check", "--iteration", "10"]
   run(process.execPath, args, dir)
   assert.match(
     readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"),
     /version = "0\.42\.0"/
   )
-  run(process.execPath, [...args, "--server", "--check"], dir)
-  assert.match(
-    readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"),
-    /version = "0\.42\.0"/
-  )
-  run(process.execPath, [...args, "--server"], dir)
-  run(process.execPath, [...args, "--server"], dir)
+  run(process.execPath, ["scripts/apply-plus-identity.mjs", "--server", "--iteration", "10"], dir)
   const cargo = readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8")
   assert.match(cargo, /version = "0\.42\.0-plus\.10"/)
   assert.match(cargo, /serde = \{ version = "1" \}/)
-  assert.equal(
-    JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
-    "0.42.0"
-  )
+})
+
+test("desktop CI injects the PLUS version with semver mode", () => {
+  const step = desktop.steps.find((entry) => entry.name === "Apply PLUS identity")
+  assert.ok(step, "desktop build needs the identity injection step")
+  assert.match(step.run, /--version-mode semver/)
+  assert.match(step.run, /--iteration/)
 })
 
 test("server identity rejects a noncanonical PLUS iteration", (t) => {
