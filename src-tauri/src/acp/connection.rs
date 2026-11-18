@@ -66,6 +66,7 @@ use crate::acp::types::{
     SessionConfigOptionInfo, SessionConfigSelectGroupInfo, SessionConfigSelectInfo,
     SessionConfigSelectOptionInfo, SessionFailureRecord, SessionModeInfo, SessionModeStateInfo,
     SessionNotice, ToolApprovalInfo, ToolCallImageInfo, UserMessageBlock,
+    ZcodeProviderInfo, ZcodeProviderMeta,
 };
 use crate::logging::throttle::LeadingEdgeThrottle;
 use crate::models::agent::AgentType;
@@ -4079,8 +4080,53 @@ fn air_recommended_value(
     (!value.is_empty()).then(|| value.to_string())
 }
 
+/// `_meta.zcode` from a config option's extension data (zcode-acp 0.88.0+,
+/// upstream issue #400). Only the `zcode` key is read: every other agent's
+/// `_meta` stays out of the serialized option, so a client never receives
+/// vendor-private blobs it did not ask for. A malformed or partial payload
+/// yields `None` rather than failing the option — provider metadata is an
+/// enhancement, never a parse gate (the same rule the AIR hint follows).
+fn zcode_provider_meta(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Option<ZcodeProviderMeta> {
+    let zcode = meta?.get("zcode")?;
+    let providers = zcode.get("providers").and_then(|value| value.as_array())?;
+    Some(ZcodeProviderMeta {
+        providers: providers
+            .iter()
+            .filter_map(|provider| {
+                Some(ZcodeProviderInfo {
+                    id: provider.get("id")?.as_str()?.to_string(),
+                    name: provider
+                        .get("name")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    selectable: provider
+                        .get("selectable")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false),
+                    unselectable_reason: provider
+                        .get("unselectableReason")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    default_model: provider
+                        .get("defaultModel")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                })
+            })
+            .collect(),
+        current_provider_id: zcode
+            .get("currentProviderId")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
+    })
+}
+
 fn map_session_config_option(option: &SessionConfigOption) -> Option<SessionConfigOptionInfo> {
     let recommended_value = air_recommended_value(option.meta.as_ref());
+    let zcode = zcode_provider_meta(option.meta.as_ref());
     match &option.kind {
         SessionConfigKind::Select(select) => {
             let (flat_options, groups) = match &select.options {
@@ -4117,6 +4163,7 @@ fn map_session_config_option(option: &SessionConfigOption) -> Option<SessionConf
                     groups,
                 }),
                 recommended_value,
+                zcode,
             })
         }
         // A toggle has no value list to recommend INTO — its two states are
@@ -4131,6 +4178,7 @@ fn map_session_config_option(option: &SessionConfigOption) -> Option<SessionConf
                 current_value: toggle.current_value,
             }),
             recommended_value: None,
+            zcode: None,
         }),
         _ => None,
     }
@@ -4860,6 +4908,7 @@ fn build_grok_effort_option(
         // Grok's per-model default IS `current_value` here, so a recommendation
         // would only repeat the checkmark.
         recommended_value: None,
+        zcode: None,
     })
 }
 
@@ -5135,6 +5184,7 @@ fn synthesize_grok_config_options(
             }),
             // `x.ai/sessionConfig` names no default beyond `selected`.
             recommended_value: None,
+            zcode: None,
         });
     }
     // Effort selector. With per-model `specs` (parsed from the response's
@@ -5163,6 +5213,7 @@ fn synthesize_grok_config_options(
                 groups: Vec::new(),
             }),
             recommended_value: None,
+            zcode: None,
         });
     }
     if result.is_empty() {
@@ -5306,6 +5357,7 @@ fn session_model_state_option(
             groups: Vec::new(),
         }),
         recommended_value: None,
+        zcode: None,
     })
 }
 
@@ -5396,6 +5448,7 @@ fn mode_state_option(
             groups: Vec::new(),
         }),
         recommended_value: None,
+        zcode: None,
     })
 }
 
@@ -5462,6 +5515,7 @@ fn kiro_thinking_option(reasoning: &KiroReasoning) -> Option<SessionConfigOption
             groups: Vec::new(),
         }),
         recommended_value: None,
+        zcode: None,
     })
 }
 
@@ -5499,6 +5553,7 @@ fn kiro_effort_option(reasoning: &KiroReasoning) -> Option<SessionConfigOptionIn
             groups: Vec::new(),
         }),
         recommended_value: None,
+        zcode: None,
     })
 }
 
@@ -37342,6 +37397,7 @@ mod tests {
                 groups: Vec::new(),
             }),
             recommended_value: None,
+            zcode: None,
         };
 
         // The model comes from the `model` selector, not from whichever
@@ -37383,6 +37439,7 @@ mod tests {
                     groups: Vec::new(),
                 }),
                 recommended_value: None,
+                zcode: None,
             },
             SessionConfigOptionInfo {
                 id: "auto_approve".to_string(),
@@ -37393,6 +37450,7 @@ mod tests {
                     current_value: true,
                 }),
                 recommended_value: None,
+                zcode: None,
             },
         ];
 
@@ -37953,6 +38011,7 @@ mod tests {
                 groups: vec![],
             }),
             recommended_value: None,
+            zcode: None,
         }]
     }
 
@@ -38019,6 +38078,7 @@ mod tests {
                 current_value: false,
             }),
             recommended_value: None,
+            zcode: None,
         }];
         assert!(config_option_rejection(&toggle, "auto_approve", "true").is_none());
     }
@@ -39208,6 +39268,7 @@ mod tests {
                 groups: Vec::new(),
             }),
             recommended_value: None,
+            zcode: None,
         }]
     }
 
@@ -50229,6 +50290,7 @@ mod tests {
                         groups: Vec::new(),
                     }),
                     recommended_value: None,
+                    zcode: None,
                 }]);
             }
             lp.run_turn("one", "first").await;
@@ -52623,6 +52685,84 @@ mod wire_mcp_gate_tests {
         assert!(agent_delivers_wire_mcp(AgentType::OpenCode));
         assert!(agent_reads_own_mcp_config(AgentType::OpenCode));
         assert!(load_mcp_servers_for_agent(AgentType::OpenCode).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod zcode_provider_meta_tests {
+    use super::*;
+
+    fn as_meta(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        value.as_object().cloned().expect("an object")
+    }
+
+    /// The catalogue zcode-acp 0.88.0 attaches to the `model` option.
+    #[test]
+    fn reads_the_bridge_provider_catalogue() {
+        let meta = as_meta(serde_json::json!({
+            "zcode": {
+                "providers": [
+                    {
+                        "id": "builtin:bigmodel-coding-plan",
+                        "name": "BigModel",
+                        "selectable": true,
+                        "defaultModel": "GLM-5.3"
+                    },
+                    {
+                        "id": "builtin:bigmodel-start-plan",
+                        "name": "BigModel Start Plan",
+                        "selectable": false,
+                        "unselectableReason": "keyless-builtin"
+                    }
+                ],
+                "currentProviderId": "builtin:bigmodel-coding-plan"
+            }
+        }));
+        let parsed = zcode_provider_meta(Some(&meta)).expect("zcode meta");
+        assert_eq!(
+            parsed.current_provider_id.as_deref(),
+            Some("builtin:bigmodel-coding-plan")
+        );
+        assert_eq!(parsed.providers.len(), 2);
+        assert!(parsed.providers[0].selectable);
+        assert_eq!(parsed.providers[0].default_model.as_deref(), Some("GLM-5.3"));
+        assert!(!parsed.providers[1].selectable);
+        assert_eq!(
+            parsed.providers[1].unselectable_reason.as_deref(),
+            Some("keyless-builtin")
+        );
+    }
+
+    /// Another agent's `_meta` must never be mistaken for ZCode's, and the
+    /// absence of `_meta` (an older bridge) is not an error.
+    #[test]
+    fn other_agents_meta_is_ignored() {
+        let meta = as_meta(serde_json::json!({
+            "jetbrains": {"air": {"version": 1, "recommendedValue": "opus"}}
+        }));
+        assert!(zcode_provider_meta(Some(&meta)).is_none());
+        assert!(zcode_provider_meta(None).is_none());
+    }
+
+    /// Provider metadata is an enhancement: a partial payload degrades row by
+    /// row instead of failing the option it rides on.
+    #[test]
+    fn a_partial_payload_degrades_instead_of_failing() {
+        let empty = as_meta(serde_json::json!({"zcode": {"providers": []}}));
+        let parsed = zcode_provider_meta(Some(&empty)).expect("an empty catalogue");
+        assert!(parsed.providers.is_empty());
+        assert!(parsed.current_provider_id.is_none());
+
+        let partial = as_meta(serde_json::json!({
+            "zcode": {"providers": [{"name": "no id"}, {"id": "ok"}]}
+        }));
+        let parsed = zcode_provider_meta(Some(&partial)).expect("partial rows");
+        assert_eq!(parsed.providers.len(), 1);
+        assert_eq!(parsed.providers[0].id, "ok");
+
+        // No `providers` key at all is not a catalogue.
+        let bare = as_meta(serde_json::json!({"zcode": {"currentProviderId": "x"}}));
+        assert!(zcode_provider_meta(Some(&bare)).is_none());
     }
 }
 

@@ -255,3 +255,13 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 - `commands/acp.rs`：`agent_env_keys` 为 ZCode 加显式条目（占位符 `ZCODE_ACP_BASE_URL` / `ZCODE_ACP_API_KEY` 特意避开 `ZCODE_BASE_URL` —— 它是 app-server 的 service origin，桥接器会剥离继承值；模型槽 `ZCODE_MODEL` 是真实变量）；`keeps_own_providers` 收编 ZCode，绑定模型供应商直接拒绝。
 - 前端：`acp-agent-settings.tsx` 的 ZCode 面板新增供应商下拉（写 `env_json` 的 `ZCODE_PROVIDER`，与 env 文本框同一 Save 提交；手输自定义 id 透传，未启用项带提示）；`lib/{api,types}.ts`、i18n×10、`acp-agent-settings.zcode.test.tsx`（4 用例）。
 - 上游跟进：供应商元数据 / 会话级切换 / 账号套餐可见性已提 william0wang/zcode-acp#400；上游落地后可把「下拉 + 新会话生效」升级为会话内切换。上游动 `commands/{acp,mod}.rs`、`lib.rs`、`web/{router,handlers/acp}.rs`、`acp-agent-settings.tsx`、i18n 时需手动合并。
+
+### ZCode 供应商实时切换（上游 #400 已落地）
+
+- `src-tauri/src/acp/registry.rs`：内置 zcode-acp 桥接 pin `0.85.2` → `0.88.1` —— 0.88.0 起桥接在 model 选项上提供 `_meta.zcode`，0.88.1 修 #404（切换前按 registry snapshot 解析 model ref），并补 0.85.3→0.88.1 的逐版本评审注释。
+- `acp/types.rs` + `acp/connection.rs`：`SessionConfigOptionInfo` 新增 `zcode`（`ZcodeProviderMeta`，含 `providers[]` 与 `current_provider_id`）。SDK 本就保留 `_meta`，这里**只提取 `zcode` 键**、不透传其它 agent 的私有 `_meta`；畸形或部分载荷降级为 `None`，不让元数据成为解析门禁。session/new、load、resume、fork 与每次 `config_option_update` 共用同一条映射，故列表随凭证变更实时刷新。
+- 前端：`buildSessionSettings` 在 model 选项带 `_meta.zcode` 时额外产出一个 `target = config:model` 的供应商选择项 —— 选中就是一次普通 model 切换（值为 `providerId\defaultModel`），**无需重连**；`current_provider_id` 直接来自桥接，取代原先「不知道桥接默认选谁」的黑盒。这条是唯一来源：`use-zcode-provider-setting.ts`、`zcodeProviderSetting()` 与 `SessionSettingTarget` 里的 `zcode-provider` 分支连同其文案键一并删除，不再保留旧桥接的「磁盘扫描 + `ZCODE_PROVIDER` 钉住」回退（见下方不兼容说明）。
+- `mcode-app`：`types/acp.ts` 同步 `zcode` 契约；`services/remoteSettings.ts` 新增 `zcodeProviderChoices()`，把元数据摊平成可渲染项（含不可用原因与 `switchValue`），同时删掉随之失去调用方的 `listRemoteZcodeProviders()`、`zcodePinnedProvider()`、`withZcodePinnedProvider()`、`ZCODE_PROVIDER_AUTO` 与 `ZcodeProviderOption`。其 `normalizeSessionConfigOptions` 是透传式的，数据不会丢。输入框的「供应商」页签改为单一来源：点选即 `acp_set_config_option(model, providerId\defaultModel)`（免重连、免写远端 agent env），勾选取 `current_provider_id`；`_meta` 缺失时该页签不出现，「自动」行与重连路径一并移除。
+- 文档：`docs/agents/zcode.md` 的 pin 版本由过期的 `0.82.0` 更正为 `0.88.1`，并补上供应商选择器的行为说明。
+- 不兼容说明（有意为之，不做降级）：供应商选择器只认 `_meta.zcode`。桥接 < 0.88.0（内置 registry 已 pin 0.88.1；仅自建/自定义 agent 才可能指向旧版）不显示该选择器，也没有磁盘扫描兜底；需要连接前钉供应商时，在 agent 的 env 里显式设 `ZCODE_PROVIDER`（设置页仍然支持）。`session/new` 响应**顶层**的 `_meta.zcode`（启动快照）也未取 —— model 选项上的那份在同一响应里就有，取两份只会多一条需要对齐的状态。
+- 验证边界：桌面与 server-bin 两端 `cargo check`、前端 `tsc --noEmit` + vitest、mcode-app 服务层 jest 均通过；`mcode-app` 的 `.uvue` 不在任何 tsc/jest 覆盖面内（需 HBuilderX 编译），该页签改动为静态复核（esbuild 语法校验）+ 逻辑对齐既有 `selectDetailConfigValue` 通道，未做真机验证。

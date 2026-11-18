@@ -466,6 +466,7 @@ mod tests {
             description: None,
             category: Some("model".into()),
             recommended_value: None,
+            zcode: None,
             kind: SessionConfigKindInfo::Select(SessionConfigSelectInfo {
                 current_value: current.into(),
                 groups: vec![],

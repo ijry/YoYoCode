@@ -7461,9 +7461,35 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // terminal relay off unless `remote.exec.enabled` /
             // `ZCODE_ACP_REMOTE_EXEC` is set (0.85.0), and that relay's fixes
             // (0.85.2).
+            //
+            // Bridge 0.88.1, after 0.85.3, 0.86.0, 0.86.1, 0.87.0 and 0.88.0
+            // (2026-11-15 to 2026-11-18), is the first release codeg reads
+            // `_meta.zcode` from. 0.85.3 resolves a registry-dialect model ref
+            // to its display name and persists the advertised model across
+            // restarts, pinning a personal-only provider; 0.86.0 drops the
+            // CLIProxyAPI Gemini quota card; 0.86.1 waits for a background
+            // notification turn before reading history (#396); 0.87.0 exposes
+            // Start Plan usage through `account/usage_stats` (#391), replaces
+            // per-project sandbox configuration with a machine-level global
+            // allowlist, adds Windows catalog probing and normalizes pending
+            // account model ids (#395, #398), and drops `model.streaming`
+            // events naming a foreign turn. codeg enables neither the sandbox
+            // nor the quota card, so those two never reach it; the sandbox move
+            // only matters to a user who set `ZCODE_ACP_SANDBOX` or
+            // `sandbox.enabled` himself, and codeg writes neither.
+            //
+            // 0.88.0 is the change this pin exists for: the bridge attaches
+            // `_meta.zcode` — `{providers: [{id, name, selectable,
+            // unselectableReason?, defaultModel?}], currentProviderId}` — to
+            // its `model` config option, re-attached on every
+            // `config_option_update`, and to the `session/new` answer. It is
+            // purely additive: a client that ignores `_meta` sees the frames
+            // 0.85.2 sent. 0.88.1 fixes #404, resolving a model ref against the
+            // registry snapshot before switching, which is what keeps the
+            // provider-qualified values codeg now reads from drifting.
             distribution: AgentDistribution::Npx {
-                version: "0.85.2",
-                package: "zcode-acp-server@0.85.2",
+                version: "0.88.1",
+                package: "zcode-acp-server@0.88.1",
                 cmd: "zcode-acp-server",
                 args: &["server"],
                 env: &[],

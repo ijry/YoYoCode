@@ -3522,11 +3522,6 @@
         "sendMessage": "Enviar un mensaje..."
       },
       "messageInput": {
-        "zcodeProviderAuto": "Automático (elige el puente)",
-        "zcodeProviderPinned": "Cambiado a {provider}",
-        "zcodeProviderAutoSet": "Vuelto al proveedor automático",
-        "zcodeProviderFailed": "No se pudo cambiar el proveedor",
-        "zcodeProviderReconnectHint": "Usa el aviso de reconexión de arriba para aplicar.",
         "askAnything": "Pregunta lo que sea...",
         "promptSuggestion": "{suggestion} (Tab para usarla)",
         "removeAttachmentAria": "Quitar {name}",

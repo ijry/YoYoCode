@@ -3522,11 +3522,6 @@
         "sendMessage": "Nachricht senden..."
       },
       "messageInput": {
-        "zcodeProviderAuto": "Automatisch (Bridge wählt)",
-        "zcodeProviderPinned": "Zu {provider} gewechselt",
-        "zcodeProviderAutoSet": "Zurück zur automatischen Auswahl",
-        "zcodeProviderFailed": "Anbieterwechsel fehlgeschlagen",
-        "zcodeProviderReconnectHint": "Über den Neue-Verbindung-Hinweis oben anwenden.",
         "askAnything": "Fragen Sie alles...",
         "promptSuggestion": "{suggestion} (Tab zum Übernehmen)",
         "removeAttachmentAria": "{name} entfernen",

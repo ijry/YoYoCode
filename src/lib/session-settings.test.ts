@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildSessionSettings,
-  zcodeProviderSetting,
   type SessionChoiceSetting,
   type SessionSetting,
   type SessionSwitchSetting,
@@ -370,59 +369,3 @@ it("shows a filtered current model without offering it again", () => {
   ).toEqual(["relay/allowed"])
 })
 
-describe("zcodeProviderSetting", () => {
-  const providers = [
-    {
-      id: "ai-switch-codex",
-      name: "AI Switch / Codex",
-      enabled: true,
-      has_api_key: true,
-      key_optional: false,
-      local_base_url: false,
-      model_count: 4,
-      selectable: true,
-    },
-    {
-      id: "builtin:locked",
-      name: "Locked plan",
-      enabled: false,
-      has_api_key: false,
-      key_optional: false,
-      local_base_url: false,
-      model_count: 9,
-      selectable: false,
-    },
-  ]
-  const labels = {
-    title: "Provider",
-    autoLabel: "Auto",
-    unselectableLabel: "Unavailable",
-  }
-
-  it("put auto first and hides unselectable providers", () => {
-    const setting = zcodeProviderSetting({ providers, pinned: "", ...labels })
-    expect(setting.target).toEqual({ type: "zcode-provider" })
-    expect(setting.currentValue).toBe("")
-    expect(setting.summary).toBe("Auto")
-    expect(
-      setting.groups.flatMap((group) =>
-        group.options.map((option) => option.value)
-      )
-    ).toEqual(["", "ai-switch-codex"])
-  })
-
-  it("keeps a pinned provider even when it is no longer selectable", () => {
-    const setting = zcodeProviderSetting({
-      providers,
-      pinned: "builtin:locked",
-      ...labels,
-    })
-    expect(setting.currentLabel).toBe("Locked plan")
-    expect(setting.summary).toBe("Locked plan")
-    const options = setting.groups.flatMap((group) => group.options)
-    expect(options.find((o) => o.value === "builtin:locked")?.description).toBe(
-      "Unavailable"
-    )
-    expect(options.find((o) => o.value === "")).toBeDefined()
-  })
-})

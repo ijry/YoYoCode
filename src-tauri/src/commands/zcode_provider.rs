@@ -17,6 +17,13 @@
 //! here claims to know which provider the bridge picks by default; the UI's
 //! "auto" entry leaves the pin unset and the bridge keeps its own rule.
 //!
+//! Scope: this feeds **Settings → Agents** only, i.e. the pin that has to be
+//! chosen before a session exists. Inside a conversation the provider picker
+//! reads the catalogue the bridge publishes on the model option
+//! (`_meta.zcode`, bridge 0.88.0+) — authoritative, switchable without a
+//! reconnect, and never derived from these files. Do not route the composer
+//! back through here.
+//!
 //! Files that are missing or unreadable yield an empty list rather than an
 //! error: a settings dropdown degrades to the "auto" entry plus the panel's
 //! existing install/sign-in hint, and the bridge itself fails loudly later if

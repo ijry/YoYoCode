@@ -3522,11 +3522,6 @@
         "sendMessage": "메시지 보내기..."
       },
       "messageInput": {
-        "zcodeProviderAuto": "자동 (브리지가 선택)",
-        "zcodeProviderPinned": "{provider}(으)로 전환했습니다",
-        "zcodeProviderAutoSet": "자동 선택으로 되돌렸습니다",
-        "zcodeProviderFailed": "공급자 전환에 실패했습니다",
-        "zcodeProviderReconnectHint": "위의 다시 연결 배너를 눌러 적용하세요.",
         "askAnything": "무엇이든 물어보세요...",
         "promptSuggestion": "{suggestion} (Tab 키로 입력)",
         "removeAttachmentAria": "{name} 제거",

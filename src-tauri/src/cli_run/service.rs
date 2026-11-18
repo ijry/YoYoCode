@@ -4524,6 +4524,7 @@ mod tests {
                 groups: vec![],
             }),
             recommended_value: None,
+            zcode: None,
         }
     }
 

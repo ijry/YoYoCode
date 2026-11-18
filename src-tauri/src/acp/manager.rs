@@ -5460,6 +5460,7 @@ mod tests {
                 groups: Vec::new(),
             }),
             recommended_value: None,
+            zcode: None,
         }
     }
 
@@ -5685,6 +5686,7 @@ mod tests {
             category: None,
             kind,
             recommended_value: None,
+            zcode: None,
         };
         let select = |current: &str| {
             SessionConfigKindInfo::Select(SessionConfigSelectInfo {
@@ -10422,6 +10424,7 @@ mod tests {
                 groups: vec![],
             }),
             recommended_value: None,
+            zcode: None,
         }]
     }
 

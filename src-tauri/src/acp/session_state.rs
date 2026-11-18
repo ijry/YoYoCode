@@ -5919,6 +5919,7 @@ mod tests {
                     groups: vec![],
                 }),
                 recommended_value: None,
+                zcode: None,
             }],
         });
         s.apply_event(&AcpEvent::UsageUpdate {

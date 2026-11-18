@@ -1774,6 +1774,32 @@ export interface SessionConfigOptionInfo {
    *  recommendation matching no option simply marks nothing. Absent for agents
    *  that publish none, and on payloads predating the field. */
   recommended_value?: string | null
+  /** The provider catalogue ZCode's bridge attaches to its `model` option as
+   *  `_meta.zcode` (zcode-acp 0.88.0+). Absent for other agents and for ZCode
+   *  on an older bridge, so its presence is also the signal that the live
+   *  provider picker can be offered without reading `~/.zcode` ourselves. */
+  zcode?: ZcodeProviderMeta | null
+}
+
+/** `_meta.zcode`: the providers a ZCode picker may offer, plus the one this
+ *  session is actually running. Mirrors Rust's `ZcodeProviderMeta`. */
+export interface ZcodeProviderMeta {
+  providers: ZcodeProviderInfo[]
+  /** Config dialect (`builtin:…` / custom UUID), always matching one entry in
+   *  `providers` — the bridge folds registry `account:` refs onto it. */
+  current_provider_id?: string | null
+}
+
+export interface ZcodeProviderInfo {
+  id: string
+  name: string
+  selectable: boolean
+  /** Only when `selectable` is false: `keyless-builtin`, `disabled` or
+   *  `non-local-keyless`. Lets the UI say why a row is unusable. */
+  unselectable_reason?: string | null
+  /** The model a session started on this provider runs — switch to this when
+   *  the user picks the provider itself rather than a specific model. */
+  default_model?: string | null
 }
 
 export interface AgentOptionsSnapshot {

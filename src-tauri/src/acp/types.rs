@@ -1617,6 +1617,47 @@ pub struct SessionConfigOptionInfo {
     /// deserialize.
     #[serde(default)]
     pub recommended_value: Option<String>,
+    /// The provider catalogue ZCode's bridge attaches to its `model` option as
+    /// `_meta.zcode` (zcode-acp 0.88.0+, upstream issue #400). `None` for every
+    /// other agent, and for ZCode on an older bridge — so its presence is also
+    /// the capability signal for the live provider picker, which is why the raw
+    /// `_meta` is not forwarded as a whole.
+    #[serde(default)]
+    pub zcode: Option<ZcodeProviderMeta>,
+}
+
+/// `_meta.zcode` as the ZCode bridge publishes it: the providers a picker may
+/// offer plus the one actually resolved for this session.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ZcodeProviderMeta {
+    #[serde(default)]
+    pub providers: Vec<ZcodeProviderInfo>,
+    /// The provider this session is running. Upstream folds registry
+    /// `account:` refs onto the config dialect (`builtin:…` / a custom UUID)
+    /// before writing it, so it always matches an entry in `providers`.
+    #[serde(default)]
+    pub current_provider_id: Option<String>,
+}
+
+/// One provider row from `_meta.zcode.providers`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ZcodeProviderInfo {
+    /// Config dialect: `builtin:<slug>` or a custom provider's UUID.
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub selectable: bool,
+    /// Present only when `selectable` is false: `keyless-builtin`,
+    /// `disabled` or `non-local-keyless`. Lets a client say WHY a row is
+    /// unusable (\"sign in to the desktop app\") instead of greying it silently.
+    #[serde(default)]
+    pub unselectable_reason: Option<String>,
+    /// The model a session started on this provider runs (the first entry of
+    /// its dropdown group). The value to switch to when the user picks the
+    /// provider itself.
+    #[serde(default)]
+    pub default_model: Option<String>,
 }
 
 /// What Grok says about ONE of its models, parsed from a session response's

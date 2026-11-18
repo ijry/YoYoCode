@@ -1,6 +1,6 @@
 # ZCode
 
-Codeg connects to [official ZCode](https://github.com/zai-org/ZCode) through the community [zcode-acp-server](https://github.com/william0wang/zcode-acp) bridge. The bundled registry pins the bridge to `0.82.0`.
+Codeg connects to [official ZCode](https://github.com/zai-org/ZCode) through the community [zcode-acp-server](https://github.com/william0wang/zcode-acp) bridge. The bundled registry pins the bridge to `0.88.1`.
 
 ## Setup
 
@@ -67,7 +67,7 @@ publishes its current commands.
 
 ## Sessions and tools
 
-A new session explicitly confirms Build mode before sending its first prompt. A valid saved mode, including Yolo, takes precedence. Confirming the mode makes the bridge create the ZCode backend session when the conversation connects rather than at its first prompt. Existing sessions use the normal restore and preference flow. Model and thought selectors follow ACP configuration updates rather than a hardcoded model list.
+A new session explicitly confirms Build mode before sending its first prompt. A valid saved mode, including Yolo, takes precedence. Confirming the mode makes the bridge create the ZCode backend session when the conversation connects rather than at its first prompt. Existing sessions use the normal restore and preference flow. Model and thought selectors follow ACP configuration updates rather than a hardcoded model list. From bridge 0.88.0 the same `model` option carries ZCode's provider catalogue in `_meta.zcode` — `{providers: [{id, name, selectable, unselectableReason?, defaultModel?}], currentProviderId}`, re-attached on every config update — so the composer's provider picker reads live data instead of scanning `~/.zcode`, and switching provider is an ordinary model switch that lands without reconnecting. `ZCODE_PROVIDER` still pins the credential provider per process; when it is set, both the model list and the catalogue narrow to that one provider. That env is the only launch-time path: the composer's picker is built solely from `_meta.zcode`, so a bridge older than 0.88.0 shows no provider picker at all (upgrade the bridge, or pin `ZCODE_PROVIDER` in the agent's env settings).
 
 The bridge writes a disabled sandbox template to `.zcode/acp/sandbox.json` in a workspace only while its sandbox is enabled globally, through `sandbox.enabled` in the bridge's user configuration or `ZCODE_ACP_SANDBOX=1`. Codeg sets neither, so unless you enable the sandbox yourself, the bridge does not create that file.
 
