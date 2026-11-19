@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   concatChunks,
@@ -8,6 +8,7 @@ import {
   FrameBatcher,
   frameRms,
   getSpeechRecognitionCtor,
+  isMicrophonePermissionError,
   localeSupportsStreaming,
   pcm16ToBase64,
   trimSilence,
@@ -97,6 +98,58 @@ describe("voice-input pure helpers", () => {
   it("reports no engine in a bare Node environment", () => {
     expect(getSpeechRecognitionCtor()).toBeNull()
     expect(detectVoiceEngine()).toBe("none")
+  })
+
+  it("classifies browser microphone permission denials", () => {
+    expect(isMicrophonePermissionError({ name: "NotAllowedError" })).toBe(true)
+    expect(isMicrophonePermissionError({ name: "PermissionDeniedError" })).toBe(
+      true
+    )
+    expect(isMicrophonePermissionError({ code: "permission_denied" })).toBe(
+      true
+    )
+    expect(isMicrophonePermissionError({ name: "NotFoundError" })).toBe(false)
+    expect(isMicrophonePermissionError(new Error("codec init failed"))).toBe(
+      false
+    )
+  })
+
+  it.each([
+    {
+      label: "macOS desktop",
+      platform: "MacIntel",
+      tauri: true,
+      engine: "local",
+    },
+    {
+      label: "Windows desktop",
+      platform: "Win32",
+      tauri: true,
+      engine: "web-speech",
+    },
+    {
+      label: "browser on macOS",
+      platform: "MacIntel",
+      tauri: false,
+      engine: "web-speech",
+    },
+  ])("selects $engine in $label", ({ platform, tauri, engine }) => {
+    vi.stubGlobal("window", {
+      ...(tauri ? { __TAURI_INTERNALS__: {} } : {}),
+      webkitSpeechRecognition: class {},
+      AudioContext: class {},
+    })
+    vi.stubGlobal("navigator", {
+      platform,
+      userAgent: "",
+      mediaDevices: { getUserMedia: vi.fn() },
+    })
+    try {
+      expect(detectVoiceEngine()).toBe(engine)
+      if (engine === "local") expect(getSpeechRecognitionCtor()).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it("routes only zh and en locales to the streaming engine", () => {

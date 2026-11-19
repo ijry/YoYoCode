@@ -29,13 +29,14 @@ import {
 } from "@/lib/api"
 import { extractAppCommandError } from "@/lib/app-error"
 import {
+  detectVoiceEngine,
   floatToPcm16,
+  getSpeechRecognitionCtor,
+  isMicrophonePermissionError,
   LocalPcmRecorder,
   localeSupportsStreaming,
   pcm16ToBase64,
   VOICE_MAX_PCM_BYTES,
-  detectVoiceEngine,
-  getSpeechRecognitionCtor,
   voiceLanguageForLocale,
   type SpeechRecognitionLike,
   type VoiceEngine,
@@ -258,7 +259,11 @@ export function ComposerVoiceButton({
     }
     recognition.onerror = (event) => {
       if (event.error === "no-speech" || event.error === "aborted") return
-      toast.error(t("voiceFailed"))
+      toast.error(
+        isMicrophonePermissionError(event.error)
+          ? t("voicePermissionDenied")
+          : t("voiceFailed")
+      )
     }
     recognition.onend = finish
     recognitionRef.current = recognition
@@ -323,10 +328,13 @@ export function ComposerVoiceButton({
       await recorder.start()
       setPhaseSafe("listening")
     } catch (error) {
+      const sessionId = streamSessionRef.current
       streamSessionRef.current = null
-      const message = error instanceof Error ? error.message : String(error)
+      recorderRef.current?.cancel()
+      recorderRef.current = null
+      if (sessionId) void cancelVoiceStream(sessionId).catch(() => {})
       toast.error(
-        /permission|denied|权限/i.test(message)
+        isMicrophonePermissionError(error)
           ? t("voicePermissionDenied")
           : t("voiceFailed")
       )
@@ -375,10 +383,10 @@ export function ComposerVoiceButton({
       await recorder.start()
       setPhaseSafe("listening")
     } catch (error) {
+      recorder.cancel()
       recorderRef.current = null
-      const message = error instanceof Error ? error.message : String(error)
       toast.error(
-        /permission|denied|权限/i.test(message)
+        isMicrophonePermissionError(error)
           ? t("voicePermissionDenied")
           : t("voiceFailed")
       )

@@ -398,16 +398,14 @@ jobs:
       # `codeg-computer-helper` computer-use executor and the `yoyo-cli`
       # command-line client — for the matrix target
       # and stage them at `src-tauri/binaries/<bin>-<triple>{.exe}`.
-      # `tauri-action` (below) then bundles them via the `bundle.externalBin`
-      # entries in `tauri.conf.json` — Tauri installs them next to the main
-      # executable (install root on Linux/Windows) where the runtime finds
-      # them via `current_exe` sibling lookup. On macOS the helper is no
-      # sidecar: it is staged as `src-tauri/binaries/codeg-computer-helper.app`
+      # `tauri-action` bundles the command-line sidecars next to the main
+      # executable, where the runtime finds them via current_exe. macOS signs
+      # them separately below so the main app alone receives Audio Input.
+      # The macOS helper is staged as `src-tauri/binaries/codeg-computer-helper.app`
       # and bundled as `Contents/Helpers/codeg-computer-helper.app`
       # (`tauri.macos.conf.json`), since macOS charges an executable's
-      # permissions to the app bundle it sits in — a helper in Contents/MacOS
-      # would hold codeg's. The Linux arm64 cross env vars set above also
-      # apply to this cargo invocation.
+      # permissions to the app bundle it sits in. The Linux arm64 cross env
+      # vars set above also apply to this cargo invocation.
       - name: Stage sidecars for Tauri bundle
         shell: bash
         run: pnpm tauri:prepare-sidecars --target ${{ matrix.target }}
@@ -637,6 +635,24 @@ jobs:
           includeUpdaterJson: true
           retryAttempts: 2
 
+      # Tauri applies bundle.macOS.entitlements to every executable it signs.
+      # Sign the command-line sidecars separately and copy them at their usual
+      # bundle paths so only the main application receives Audio Input.
+      - name: Stage signed macOS sidecars
+        if: contains(matrix.target, 'apple-darwin')
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bin_dir="src-tauri/binaries"
+          mkdir -p "$bin_dir/macos-release"
+          for bin in yoyocode-mcp yoyo-cli; do
+            staged="$bin_dir/macos-release/$bin"
+            install -m 0755 "$bin_dir/$bin-$BUILD_TARGET" "$staged"
+            codesign --force --options runtime --sign - "$staged"
+          done
+
       # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
       # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
       - name: Build, sign, and upload to draft release (macOS)
@@ -664,7 +680,7 @@ jobs:
           releaseDraft: true
           prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
           tauriScript: pnpm tauri
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --config src-tauri/macos/tauri.release.conf.json
           includeUpdaterJson: true
           retryAttempts: 2
 
@@ -757,9 +773,8 @@ jobs:
           done
           echo "computer-use signing and symbol checks passed"
 
-      # PLUS ad-hoc 版校验：保留与签名体制无关的结构与符号检查
-      # （helper 位置、server 不进桌面包、sidecar 不链 WebKit、无 entitlements、
-      # 敏感 API 符号封锁），跳过 hardened-runtime 与信任锚互检。
+      # PLUS ad-hoc 版校验：验证成品结构、敏感符号和主程序的麦克风权限。
+      # 命令行 sidecar 与电脑操作 helper 仍须无 entitlements。
       - name: Verify macOS bundle (ad-hoc)
         if: contains(matrix.target, 'apple-darwin')
         shell: bash
@@ -799,7 +814,20 @@ jobs:
           fi
           icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist" 2>/dev/null || true)"
           echo "Dock icon OK: $icon matches src-tauri/icons/icon.icns (CFBundleIconFile=${icon_name:-<unset>})"
+          if ! mic_usage="$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$app/Contents/Info.plist")" || [ -z "$mic_usage" ]; then
+            echo "FATAL: $app is missing a microphone usage description"
+            exit 1
+          fi
           codesign --verify --strict --deep "$app"
+          codesign -d --entitlements - --xml "$app/Contents/MacOS/$BIN" \
+            | plutil -convert json -o - - \
+            | node -e '
+                const assert = require("node:assert/strict")
+                const { readFileSync } = require("node:fs")
+                assert.deepEqual(JSON.parse(readFileSync(0, "utf8")), {
+                  "com.apple.security.device.audio-input": true,
+                })
+              '
           helper_app="$app/Contents/Helpers/codeg-computer-helper.app"
           if [ -e "$app/Contents/MacOS/codeg-computer-helper" ]; then
             echo "FATAL: helper must not sit in Contents/MacOS"
@@ -819,7 +847,7 @@ jobs:
               exit 1
             fi
           done
-          for path in "$app/Contents/MacOS/$BIN" "$app/Contents/MacOS/yoyocode-mcp" \
+          for path in "$app/Contents/MacOS/yoyocode-mcp" \
             "$app/Contents/MacOS/yoyo-cli" "$helper_app"; do
             if codesign -d --entitlements - --xml "$path" 2>/dev/null | grep -q '<key>'; then
               echo "FATAL: $(basename "$path") carries entitlements"

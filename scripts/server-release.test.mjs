@@ -183,6 +183,76 @@ test("server identity uses the full PLUS version and is idempotent only via --ch
   assert.match(cargo, /serde = \{ version = "1" \}/)
 })
 
+test("macOS release declares microphone use and signs the main app for audio input", () => {
+  const { infoPlist } = JSON.parse(
+    readFileSync(join(root, "src-tauri/tauri.macos.conf.json"), "utf8")
+  ).bundle.macOS
+  assert.ok(infoPlist, "macOS bundle needs a microphone usage description")
+  assert.match(
+    readFileSync(join(root, "src-tauri", infoPlist), "utf8"),
+    /<key>NSMicrophoneUsageDescription<\/key>\s*<string>\s*[^<\s][^<]*<\/string>/
+  )
+
+  const macosBuild = desktop.steps.find((entry) =>
+    entry.name?.startsWith("Build, sign, and upload to draft release (macOS)")
+  )
+  const configPath = macosBuild?.with.args.match(/--config\s+(\S+)/)?.[1]
+  assert.ok(configPath, "macOS release needs a signing configuration")
+  const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
+  assert.deepEqual(bundle.externalBin, [], "sidecars are signed separately")
+  for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
+    assert.ok(bundle.macOS.files[`MacOS/${name}`], `${name} must remain beside the main executable`)
+  }
+  const entitlementPlist = readFileSync(
+    join(root, "src-tauri", bundle.macOS.entitlements),
+    "utf8"
+  )
+  assert.match(
+    entitlementPlist,
+    /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/
+  )
+  assert.equal(entitlementPlist.match(/<key>/g)?.length, 1)
+})
+
+test("macOS release stages sidecars at their configured bundle source paths", (t) => {
+  const stage = desktop.steps.find(
+    (entry) => entry.name === "Stage signed macOS sidecars"
+  )
+  assert.ok(stage)
+  const macosBuild = desktop.steps.find((entry) =>
+    entry.name?.startsWith("Build, sign, and upload to draft release (macOS)")
+  )
+  const configPath = macosBuild.with.args.match(/--config\s+(\S+)/)[1]
+  const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
+
+  for (const target of ["aarch64-apple-darwin", "x86_64-apple-darwin"]) {
+    const dir = scratch(t)
+    const bins = join(dir, "src-tauri/binaries")
+    mkdirSync(bins, { recursive: true })
+    for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
+      writeFileSync(join(bins, `${name}-${target}`), `${target}:${name}`)
+    }
+    // Only replace the unavailable macOS signing binary. Run the actual
+    // workflow copy commands, then inspect the files the bundler will consume.
+    const script = 'codesign() { printf "%s\\n" "$*" >> signatures.log; }\n' + stage.run
+    run("bash", ["-e", "-c", script], dir, { BUILD_TARGET: target })
+    for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
+      const source = bundle.macOS.files[`MacOS/${name}`]
+      assert.equal(
+        readFileSync(join(dir, "src-tauri", source), "utf8"),
+        `${target}:${name}`
+      )
+    }
+    const signatures = readFileSync(join(dir, "signatures.log"), "utf8")
+      .trim()
+      .split(/\r?\n/)
+    assert.deepEqual(signatures, [
+      "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyocode-mcp",
+      "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyo-cli",
+    ])
+  }
+})
+
 test("desktop CI injects the PLUS version with semver mode", () => {
   const step = desktop.steps.find((entry) => entry.name === "Apply PLUS identity")
   assert.ok(step, "desktop build needs the identity injection step")

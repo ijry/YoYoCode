@@ -13,6 +13,10 @@
  * free of browser globals so they can be unit-tested in Node.
  */
 
+import { detectPlatform } from "@/hooks/use-platform"
+
+import { detectEnvironment } from "./transport/detect"
+
 export type VoiceEngine = "web-speech" | "local" | "none"
 
 export const VOICE_SAMPLE_RATE = 16_000
@@ -61,8 +65,33 @@ interface SpeechWindow extends Window {
 
 export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === "undefined") return null
+  // WKWebView can expose SpeechRecognition without a usable speech service.
+  // The macOS desktop app uses microphone capture and the backend recognizer.
+  if (detectEnvironment() === "tauri" && detectPlatform() === "macos") {
+    return null
+  }
   const w = window as SpeechWindow
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
+}
+
+export function isMicrophonePermissionError(error: unknown): boolean {
+  const permissionMessage = /permission|denied|权限/i
+  if (typeof error === "string") {
+    return error === "not-allowed" || permissionMessage.test(error)
+  }
+  if (typeof error !== "object" || error === null) return false
+
+  const { name, code, message } = error as {
+    name?: unknown
+    code?: unknown
+    message?: unknown
+  }
+  return (
+    name === "NotAllowedError" ||
+    name === "PermissionDeniedError" ||
+    code === "permission_denied" ||
+    (typeof message === "string" && permissionMessage.test(message))
+  )
 }
 
 export function canCaptureLocalAudio(): boolean {
@@ -74,10 +103,7 @@ export function canCaptureLocalAudio(): boolean {
   )
 }
 
-/**
- * Prefer the browser's own recognizer; fall back to local capture. A caller
- * that requires offline STT should use `canCaptureLocalAudio()` directly.
- */
+/** Prefer available Web Speech, then local audio capture. */
 export function detectVoiceEngine(): VoiceEngine {
   if (getSpeechRecognitionCtor()) return "web-speech"
   if (canCaptureLocalAudio()) return "local"

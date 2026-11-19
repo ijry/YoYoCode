@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "externalBin": [],
+    "macOS": {
+      "entitlements": "macos/voice-input.entitlements.plist",
+      "files": {
+        "MacOS/yoyocode-mcp": "binaries/macos-release/yoyocode-mcp",
+        "MacOS/yoyo-cli": "binaries/macos-release/yoyo-cli"
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
   "bundle": {
     "externalBin": ["binaries/yoyocode-mcp", "binaries/yoyo-cli"],
     "macOS": {
+      "infoPlist": "Info.plist",
       "files": {
         "Helpers/codeg-computer-helper.app": "binaries/codeg-computer-helper.app"
       }
