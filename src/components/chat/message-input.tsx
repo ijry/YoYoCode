@@ -140,6 +140,7 @@ import { useComposerMentionLabels } from "@/components/chat/composer/use-compose
 import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
 import { ComposerScreenshotButton } from "@/components/chat/composer/composer-screenshot-button"
+import { ComposerVoiceButton } from "@/components/chat/composer/composer-voice-button"
 import { useComposerAttachments } from "@/components/chat/composer/use-composer-attachments"
 import { useComposerShortcuts } from "@/components/chat/composer/use-composer-shortcuts"
 
@@ -1567,6 +1568,23 @@ export function MessageInput({
     }
   }, [attachmentTabId])
 
+  // Voice input: the transcript is appended at the end as LITERAL text and
+  // left for review. `insertContent` treats a plain string as HTML, so route
+  // it through the same inline-content encoder the page-attach path uses.
+  const handleVoiceTranscript = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const editor = editorRef.current?.getEditor()
+    if (!editor) return
+    const needsSpace = editorRef.current?.isEmpty() === false
+    editor
+      .chain()
+      .focus("end")
+      .insertContent(textToInlineContent(`${needsSpace ? " " : ""}${trimmed}`))
+      .run()
+    setComposerEmpty(false)
+  }, [])
+
   const buildDraft = useCallback((): PromptDraft | null => {
     const editor = editorRef.current?.getEditor()
     // Authoritative prefix normalization at the send boundary. A skill / expert
@@ -2395,6 +2413,10 @@ export function MessageInput({
                     feedbackAddDisabled={feedbackAddDisabled}
                   />
                   <ComposerScreenshotButton disabled={disabled} />
+                  <ComposerVoiceButton
+                    disabled={disabled}
+                    onTranscript={handleVoiceTranscript}
+                  />
                   {hasAnySelector && (
                     <SessionSettingsPicker
                       agentType={agentType ?? null}

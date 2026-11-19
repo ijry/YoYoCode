@@ -130,7 +130,9 @@ mod tauri_app {
         session_info as session_info_commands,
         system_settings, terminal as terminal_commands,
         token_usage as token_usage_commands,
-        forge as forge_commands, version_control, windows, work_task as work_task_commands,
+        forge as forge_commands, version_control, voice as voice_commands,
+        voice_stream as voice_stream_commands,
+        windows, work_task as work_task_commands,
         workspace_state as workspace_state_commands, workspace_windows,
         zcode_provider as zcode_provider_commands,
     };
@@ -2673,6 +2675,17 @@ mod tauri_app {
                 crate::commands::screenshot::screenshot_save_to_file,
                 crate::commands::screenshot::screenshot_pin,
                 crate::commands::screenshot::screenshot_read_pin_image,
+                // Composer voice input: local whisper.cpp STT + readiness probe.
+                voice_commands::voice_transcribe,
+                voice_commands::voice_ensure_ready,
+                voice_commands::voice_status,
+                // Streaming zh+en voice input (sherpa-onnx).
+                voice_stream_commands::voice_stream_prepare,
+                voice_stream_commands::voice_stream_start,
+                voice_stream_commands::voice_stream_chunk,
+                voice_stream_commands::voice_stream_stop,
+                voice_stream_commands::voice_stream_status,
+                voice_stream_commands::voice_stream_cancel,
             ])
             .build(context)
             .expect("error while building tauri application")
