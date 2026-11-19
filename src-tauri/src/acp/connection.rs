@@ -59,14 +59,14 @@ use crate::acp::terminal_runtime::{
     TerminalRuntime, TerminalRuntimeError, TerminalShellRuntimeConfig,
 };
 use crate::acp::types::{
-    AcpEvent, AsyncTaskDelta, AsyncTaskUsage, AvailableCommandInfo, ConnectionStatus,
-    GrokModelCatalog, GrokModelSpec, KiroReasoning, PermissionAnswerOrigin,
-    PermissionOptionInfo, PlanEntryInfo, PluginLoadFailure, PromptCapabilitiesInfo,
-    PromptInputBlock, RemoteControlInfo, SessionConfigBooleanInfo, SessionConfigKindInfo,
-    SessionConfigOptionInfo, SessionConfigSelectGroupInfo, SessionConfigSelectInfo,
-    SessionConfigSelectOptionInfo, SessionFailureRecord, SessionModeInfo, SessionModeStateInfo,
-    SessionNotice, ToolApprovalInfo, ToolCallImageInfo, UserMessageBlock,
-    ZcodeProviderInfo, ZcodeProviderMeta,
+    AccountUsageStatsRaw, AcpEvent, AsyncTaskDelta, AsyncTaskUsage, AvailableCommandInfo,
+    ConnectionStatus, GrokModelCatalog, GrokModelSpec, KiroReasoning, PermissionAnswerOrigin,
+    PermissionOptionInfo, PlanEntryInfo, PlanUsageDeadlineKind, PlanUsageEntry, PlanUsageReport,
+    PlanUsageSection, PluginLoadFailure, PromptCapabilitiesInfo, PromptInputBlock,
+    RemoteControlInfo, SessionConfigBooleanInfo, SessionConfigKindInfo, SessionConfigOptionInfo,
+    SessionConfigSelectGroupInfo, SessionConfigSelectInfo, SessionConfigSelectOptionInfo,
+    SessionFailureRecord, SessionModeInfo, SessionModeStateInfo, SessionNotice, ToolApprovalInfo,
+    ToolCallImageInfo, UserMessageBlock, ZcodeProviderInfo, ZcodeProviderMeta,
 };
 use crate::logging::throttle::LeadingEdgeThrottle;
 use crate::models::agent::AgentType;
@@ -4122,6 +4122,97 @@ fn zcode_provider_meta(
             .and_then(|value| value.as_str())
             .map(str::to_string),
     })
+}
+
+fn rfc3339_to_millis(value: &Option<String>) -> Option<i64> {
+    value
+        .as_deref()
+        .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
+        .map(|time| time.timestamp_millis())
+}
+
+fn derived_percent(used: Option<u64>, total: Option<u64>) -> f64 {
+    match (used, total) {
+        (Some(used), Some(total)) if total > 0 => {
+            (100.0 * used as f64 / total as f64).clamp(0.0, 100.0)
+        }
+        _ => 0.0,
+    }
+}
+
+/// `account/usage_stats` (zcode-acp proposal 0002) raw JSON → the normalized
+/// [`PlanUsageReport`] the frontend renders. Lenient by design: a malformed
+/// payload, a failed section (`kind != "success"`) or an empty one simply
+/// drops out — quota display is an enhancement, never a parse gate. Section
+/// order follows the adapter's (`zcode` first), and both sections share the
+/// wire's per-provider `{kind, ...}` envelope while their window semantics
+/// differ: Start Plan deadlines EXPIRE, GLM item deadlines RESET.
+pub(crate) fn normalize_account_usage(value: serde_json::Value) -> PlanUsageReport {
+    let raw: AccountUsageStatsRaw = match serde_json::from_value(value) {
+        Ok(raw) => raw,
+        Err(_) => return PlanUsageReport::default(),
+    };
+    let mut sections = Vec::new();
+    if let Some(zcode) = raw.zcode {
+        if zcode.kind.as_deref().unwrap_or("success") == "success" && !zcode.windows.is_empty() {
+            let entries = zcode
+                .windows
+                .iter()
+                .map(|window| PlanUsageEntry {
+                    label: window
+                        .label
+                        .clone()
+                        .or_else(|| window.key.clone())
+                        .unwrap_or_default(),
+                    used_percent: window
+                        .usage_percent
+                        .unwrap_or_else(|| derived_percent(window.used_units, window.total_units)),
+                    used_units: window.used_units,
+                    total_units: window.total_units,
+                    unit: None,
+                    deadline_at: rfc3339_to_millis(&window.resets_at),
+                    deadline_kind: Some(PlanUsageDeadlineKind::Expires),
+                })
+                .collect();
+            sections.push(PlanUsageSection {
+                id: "zcode".to_string(),
+                title: zcode.plan_name.unwrap_or_default(),
+                entries,
+            });
+        }
+    }
+    if let Some(glm) = raw.glm {
+        if glm.kind.as_deref().unwrap_or("success") == "success" && !glm.items.is_empty() {
+            let entries = glm
+                .items
+                .iter()
+                .map(|item| PlanUsageEntry {
+                    label: item
+                        .label
+                        .clone()
+                        .or_else(|| item.key.clone())
+                        .unwrap_or_default(),
+                    used_percent: item
+                        .used_percent
+                        .unwrap_or_else(|| derived_percent(item.used_count, item.total_count)),
+                    // glm counts are request counts, not tokens — the shared
+                    // `used_units/total_units` pair is reserved for the zcode
+                    // token counters so the UI never labels counts as tokens.
+                    used_units: None,
+                    total_units: None,
+                    unit: None,
+                    deadline_at: rfc3339_to_millis(&item.next_reset_time),
+                    deadline_kind: Some(PlanUsageDeadlineKind::Resets),
+                })
+                .collect();
+            sections.push(PlanUsageSection {
+                id: "glm".to_string(),
+                title: glm.level.unwrap_or_default(),
+                entries,
+            });
+        }
+    }
+    PlanUsageReport { sections }
 }
 
 fn map_session_config_option(option: &SessionConfigOption) -> Option<SessionConfigOptionInfo> {
@@ -52763,6 +52854,132 @@ mod zcode_provider_meta_tests {
         // No `providers` key at all is not a catalogue.
         let bare = as_meta(serde_json::json!({"zcode": {"currentProviderId": "x"}}));
         assert!(zcode_provider_meta(Some(&bare)).is_none());
+    }
+}
+
+#[cfg(test)]
+mod account_usage_tests {
+    use super::*;
+
+    /// The `account/usage_stats` sections zcode-acp 0.88.1 answers with for a
+    /// user on both the Start Plan and the GLM Coding Plan (proposal 0002;
+    /// wire keys are the adapter's camelCase, not codeg's snake_case).
+    fn zcode_success_sample() -> serde_json::Value {
+        serde_json::json!({
+            "zcode": {
+                "kind": "success",
+                "planId": "start",
+                "planName": "Start Plan",
+                "windows": [{
+                    "key": "5h",
+                    "label": "5-hour window",
+                    "modelIds": ["glm-4.7"],
+                    "usagePercent": 68.5,
+                    "usedUnits": 685_000u64,
+                    "totalUnits": 1_000_000u64,
+                    "remainingUnits": 315_000u64,
+                    "resetsAt": "2026-12-01T00:00:00Z",
+                    "oneTime": false
+                }]
+            },
+            "glm": {
+                "kind": "success",
+                "level": "pro",
+                "items": [{
+                    "key": "5h",
+                    "label": "5h",
+                    "usedPercent": 42.0,
+                    "leftPercent": 58.0,
+                    "usedCount": 42u64,
+                    "totalCount": 100u64,
+                    "nextResetTime": "2026-11-20T18:00:00Z"
+                }]
+            }
+        })
+    }
+
+    #[test]
+    fn normalizes_success_sections_in_wire_order() {
+        let report = normalize_account_usage(zcode_success_sample());
+        assert_eq!(report.sections.len(), 2);
+        assert_eq!(report.sections[0].id, "zcode");
+        assert_eq!(report.sections[0].title, "Start Plan");
+        let zcode_entry = &report.sections[0].entries[0];
+        assert_eq!(zcode_entry.label, "5-hour window");
+        assert!((zcode_entry.used_percent - 68.5).abs() < f64::EPSILON);
+        assert_eq!(zcode_entry.used_units, Some(685_000));
+        assert_eq!(zcode_entry.total_units, Some(1_000_000));
+        assert_eq!(
+            zcode_entry.deadline_at,
+            Some(
+                chrono::DateTime::parse_from_rfc3339("2026-12-01T00:00:00Z")
+                    .expect("rfc3339")
+                    .timestamp_millis()
+            )
+        );
+        assert_eq!(
+            zcode_entry.deadline_kind,
+            Some(PlanUsageDeadlineKind::Expires)
+        );
+
+        assert_eq!(report.sections[1].id, "glm");
+        let glm_entry = &report.sections[1].entries[0];
+        assert!((glm_entry.used_percent - 42.0).abs() < f64::EPSILON);
+        assert_eq!(glm_entry.used_units, None);
+        assert_eq!(
+            glm_entry.deadline_kind,
+            Some(PlanUsageDeadlineKind::Resets)
+        );
+    }
+
+    #[test]
+    fn drops_failed_and_empty_sections() {
+        let mut failed = zcode_success_sample();
+        failed["zcode"]["kind"] = serde_json::json!("error");
+        let report = normalize_account_usage(failed);
+        assert_eq!(report.sections.len(), 1);
+        assert_eq!(report.sections[0].id, "glm");
+
+        let mut empty = zcode_success_sample();
+        empty["zcode"]["windows"] = serde_json::json!([]);
+        empty["glm"]["items"] = serde_json::json!([]);
+        assert!(normalize_account_usage(empty).sections.is_empty());
+    }
+
+    #[test]
+    fn derives_percent_from_units_when_missing() {
+        let mut no_percent = zcode_success_sample();
+        no_percent["zcode"]["windows"][0]
+            .as_object_mut()
+            .expect("object")
+            .remove("usagePercent");
+        let report = normalize_account_usage(no_percent);
+        let entry = &report.sections[0].entries[0];
+        assert!((entry.used_percent - 68.5).abs() < 1e-9);
+
+        let mut no_units = zcode_success_sample();
+        let window = no_units["zcode"]["windows"][0]
+            .as_object_mut()
+            .expect("object");
+        window.remove("usagePercent");
+        window.remove("usedUnits");
+        window.remove("totalUnits");
+        let report = normalize_account_usage(no_units);
+        assert!((report.sections[0].entries[0].used_percent).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn garbage_input_yields_an_empty_report() {
+        assert!(normalize_account_usage(serde_json::json!("garbage"))
+            .sections
+            .is_empty());
+        assert!(normalize_account_usage(serde_json::json!({
+            "zcode": {"kind": "success", "windows": [{"resetsAt": "not-a-date"}]}
+        }))
+        .sections[0]
+            .entries[0]
+            .deadline_at
+            .is_none());
     }
 }
 

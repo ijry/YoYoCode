@@ -1660,6 +1660,128 @@ pub struct ZcodeProviderInfo {
     pub default_model: Option<String>,
 }
 
+/// How a plan-usage entry's deadline should be read. The two adapter sections
+/// use opposite semantics: a Start Plan window's `resetsAt` is when the
+/// granted quota EXPIRES (rendered as "valid until"), while a GLM Coding Plan
+/// item's `nextResetTime` is when a periodic window RESETS.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanUsageDeadlineKind {
+    #[default]
+    Expires,
+    Resets,
+}
+
+/// The normalized `account/usage_stats` report the frontend is allowed to
+/// see: only sections the adapter answered successfully AND that carry at
+/// least one entry survive; all parsing failures degrade to empty output
+/// rather than an error, because quota is an enhancement, never a gate.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PlanUsageReport {
+    #[serde(default)]
+    pub sections: Vec<PlanUsageSection>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PlanUsageSection {
+    /// Adapter section key: `zcode` (Start Plan) or `glm` (GLM Coding Plan).
+    #[serde(default)]
+    pub id: String,
+    /// The adapter's own plan name / level. May be empty — the frontend falls
+    /// back to an i18n label keyed by `id`.
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub entries: Vec<PlanUsageEntry>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PlanUsageEntry {
+    #[serde(default)]
+    pub label: String,
+    /// 0..=100. Derived from used/total units when the adapter omits it.
+    #[serde(default)]
+    pub used_percent: f64,
+    /// Absolute unit counters (tokens for the zcode section). Percent-only
+    /// entries (glm items) leave both None.
+    #[serde(default)]
+    pub used_units: Option<u64>,
+    #[serde(default)]
+    pub total_units: Option<u64>,
+    #[serde(default)]
+    pub unit: Option<String>,
+    /// Epoch millis of the deadline. None when the adapter's timestamp is
+    /// missing or unparseable.
+    #[serde(default)]
+    pub deadline_at: Option<i64>,
+    #[serde(default)]
+    pub deadline_kind: Option<PlanUsageDeadlineKind>,
+}
+
+/// Raw wire shapes of `account/usage_stats` (zcode-acp proposal 0002). The
+/// adapter is TypeScript and answers camelCase; every field is optional so a
+/// partial or future-shaped payload parses instead of failing — anything
+/// missing just drops out of the normalized report. Backend-internal: NOT
+/// serialized to the frontend (they only see [`PlanUsageReport`]).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct AccountUsageStatsRaw {
+    pub glm: Option<GlmUsageStatsRaw>,
+    pub zcode: Option<StartPlanUsageStatsRaw>,
+    pub opencode: Option<serde_json::Value>,
+    pub ollama: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct StartPlanUsageStatsRaw {
+    pub kind: Option<String>,
+    pub plan_id: Option<String>,
+    pub plan_name: Option<String>,
+    pub windows: Vec<StartPlanWindowRaw>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct StartPlanWindowRaw {
+    pub key: Option<String>,
+    pub label: Option<String>,
+    pub model_ids: Vec<String>,
+    pub usage_percent: Option<f64>,
+    pub used_units: Option<u64>,
+    pub total_units: Option<u64>,
+    pub remaining_units: Option<u64>,
+    /// When the GRANTED quota expires ("valid until"), NOT a reset countdown.
+    pub resets_at: Option<String>,
+    pub one_time: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct GlmUsageStatsRaw {
+    pub kind: Option<String>,
+    pub level: Option<String>,
+    pub items: Vec<GlmQuotaItemRaw>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub(crate) struct GlmQuotaItemRaw {
+    pub key: Option<String>,
+    pub label: Option<String>,
+    pub used_percent: Option<f64>,
+    pub left_percent: Option<f64>,
+    pub used_count: Option<u64>,
+    pub total_count: Option<u64>,
+    /// When the periodic window resets (a countdown-style deadline).
+    pub next_reset_time: Option<String>,
+}
+
 /// What Grok says about ONE of its models, parsed from a session response's
 /// top-level `models.availableModels[]._meta` (only reachable via the raw JSON,
 /// since the `unstable_session_model` feature that would surface the typed
