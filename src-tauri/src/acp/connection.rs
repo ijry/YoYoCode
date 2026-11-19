@@ -1423,6 +1423,13 @@ pub enum ConnectionCommand {
         task_id: String,
         reply: tokio::sync::oneshot::Sender<Result<bool, AcpError>>,
     },
+    /// Fetch the adapter's plan-quota report (`account/usage_stats`, proposal
+    /// 0002). Session-independent — callable any time after `initialize` — and
+    /// fallible: the reply carries the error and the manager decides whether
+    /// it means "unsupported" (the usual case) or something transient.
+    FetchAccountUsage {
+        reply: tokio::sync::oneshot::Sender<Result<PlanUsageReport, AcpError>>,
+    },
     Disconnect,
 }
 
@@ -6531,6 +6538,27 @@ async fn send_stop_async_task_request(
         .get("stopped")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false))
+}
+
+/// `account/usage_stats` (zcode-acp proposal 0002): the adapter's plan-quota
+/// report. Session-independent (valid any time after `initialize`), bounded by
+/// 8s because the adapter itself caches for 10s and its hub allows only a 2s
+/// budget — a longer wait would just be a guaranteed timeout. Every failure
+/// mode (unknown method, adapter error, timeout, malformed payload) surfaces
+/// as `Err`; the manager is the one that decides it means "unsupported".
+async fn send_account_usage_request(
+    cx: &ConnectionTo<Agent>,
+) -> Result<PlanUsageReport, AcpError> {
+    let untyped_req = UntypedMessage::new("account/usage_stats", serde_json::json!({}))
+        .map_err(|e| AcpError::protocol(format!("Failed to build account usage request: {e}")))?;
+    let raw = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        cx.send_request_to(Agent, untyped_req).block_task(),
+    )
+    .await
+    .map_err(|_| AcpError::protocol("Account usage request timed out".to_string()))?
+    .map_err(|e| AcpError::protocol(format!("Account usage request failed: {e}")))?;
+    Ok(normalize_account_usage(raw))
 }
 
 /// Parse a `_session/steering` response's top-level `outcome`. Strict on
@@ -16171,6 +16199,11 @@ async fn run_conversation_loop(
                                         send_stop_async_task_request(&cx, &sid, &task_id).await,
                                     );
                                 }
+                                Some(ConnectionCommand::FetchAccountUsage { reply }) => {
+                                    // Session-independent request, same inline
+                                    // await rationale as StopAsyncTask above.
+                                    let _ = reply.send(send_account_usage_request(&cx).await);
+                                }
                                 Some(ConnectionCommand::Cancel { by_user }) => {
                                     // Send CancelNotification to agent to stop the current turn
                                     let _ = cx.send_notification_to(
@@ -16469,6 +16502,12 @@ async fn run_conversation_loop(
                 let cx = session.connection();
                 let sid = session.session_id().clone();
                 let _ = reply.send(send_stop_async_task_request(&cx, &sid, &task_id).await);
+            }
+            Some(ConnectionCommand::FetchAccountUsage { reply }) => {
+                // Session-independent (no `sessionId` in the params), so it
+                // works the same between turns and mid-turn.
+                let cx = session.connection();
+                let _ = reply.send(send_account_usage_request(&cx).await);
             }
             Some(ConnectionCommand::Cancel { .. }) => {
                 let cx = session.connection();
@@ -52980,6 +53019,89 @@ mod account_usage_tests {
             .entries[0]
             .deadline_at
             .is_none());
+    }
+
+    /// `send_account_usage_request` against a fake agent that answers the
+    /// untyped `account/usage_stats` request with the sample payload.
+    #[tokio::test]
+    async fn send_account_usage_request_parses_a_successful_reply() {
+        use agent_client_protocol::Channel;
+        let (client_end, agent_end) = Channel::duplex();
+        let (report_tx, mut report_rx) = tokio::sync::mpsc::channel(1);
+        let agent = tokio::spawn(
+            Agent.builder()
+                .on_receive_request(
+                    async move |req: UntypedMessage,
+                                responder: agent_client_protocol::Responder,
+                                _cx: ConnectionTo<Client>| {
+                        assert_eq!(req.method, "account/usage_stats");
+                        responder.respond(zcode_success_sample())?;
+                        Ok(())
+                    },
+                    on_receive_request!(),
+                )
+                .connect_with(agent_end, async |_cx: ConnectionTo<Client>| {
+                    std::future::pending::<Result<(), agent_client_protocol::Error>>().await
+                }),
+        );
+        let client = tokio::spawn(
+            Client.builder().connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
+                let report = send_account_usage_request(&cx)
+                    .await
+                    .expect("usage request succeeds");
+                report_tx.send(report).await.ok();
+                std::future::pending::<Result<(), agent_client_protocol::Error>>().await
+            }),
+        );
+        let report = tokio::time::timeout(std::time::Duration::from_secs(5), report_rx.recv())
+            .await
+            .expect("the request round-trips inside the timeout")
+            .expect("the client sent its result");
+        client.abort();
+        agent.abort();
+        assert_eq!(report.sections.len(), 2);
+        assert_eq!(report.sections[0].id, "zcode");
+    }
+
+    /// An agent that does not know the method must surface the failure (the
+    /// manager turns it into the permanent "unsupported" verdict).
+    #[tokio::test]
+    async fn send_account_usage_request_surfaces_method_errors() {
+        use agent_client_protocol::Channel;
+        let (client_end, agent_end) = Channel::duplex();
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
+        let agent = tokio::spawn(
+            Agent.builder()
+                .on_receive_request(
+                    async move |_req: UntypedMessage,
+                                responder: agent_client_protocol::Responder,
+                                _cx: ConnectionTo<Client>| {
+                        responder
+                            .respond_with_error(agent_client_protocol::Error::internal_error())?;
+                        Ok(())
+                    },
+                    on_receive_request!(),
+                )
+                .connect_with(agent_end, async |_cx: ConnectionTo<Client>| {
+                    std::future::pending::<Result<(), agent_client_protocol::Error>>().await
+                }),
+        );
+        let client = tokio::spawn(
+            Client.builder().connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
+                let _ = result_tx
+                    .send(send_account_usage_request(&cx).await)
+                    .await
+                    .ok();
+                std::future::pending::<Result<(), agent_client_protocol::Error>>().await
+            }),
+        );
+        let result = tokio::time::timeout(std::time::Duration::from_secs(5), result_rx.recv())
+            .await
+            .expect("the request round-trips inside the timeout")
+            .expect("the client sent its result");
+        client.abort();
+        agent.abort();
+        assert!(result.is_err(), "an agent error reply must surface as Err");
     }
 }
 
