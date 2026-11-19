@@ -255,7 +255,7 @@ const ACCOUNT_USAGE_TTL: chrono::Duration = chrono::Duration::seconds(30);
 
 /// The manager's short-circuit answers from [`SessionState::cached_account_usage`].
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum CachedAccountUsage {
+pub enum CachedAccountUsage {
     Report(crate::acp::types::PlanUsageReport),
     /// The adapter provably does not answer `account/usage_stats` — the
     /// caller returns an empty report without touching the connection.
