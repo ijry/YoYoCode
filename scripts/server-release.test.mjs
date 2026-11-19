@@ -1,7 +1,9 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import {
+  chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -30,7 +32,12 @@ const sherpaPlatforms = [
   ["x86_64-apple-darwin", "macOS", "X64", "osx-x64-static-lib"],
   ["aarch64-apple-darwin", "macOS", "ARM64", "osx-arm64-static-lib"],
   ["x86_64-pc-windows-msvc", "Windows", "X64", "win-x64-static-MT-Release-lib"],
-  ["aarch64-pc-windows-msvc", "Windows", "ARM64", "win-arm64-static-MT-Release-lib"],
+  [
+    "aarch64-pc-windows-msvc",
+    "Windows",
+    "ARM64",
+    "win-arm64-static-MT-Release-lib",
+  ],
 ]
 
 for (const [label, job] of [
@@ -42,8 +49,8 @@ for (const [label, job] of [
     const resolveStep = job.steps.find((entry) =>
       entry.name?.startsWith("Resolve sherpa-onnx native archive")
     )
-    const cacheStep = job.steps.find((entry) =>
-      entry.name === "Cache sherpa-onnx native archive"
+    const cacheStep = job.steps.find(
+      (entry) => entry.name === "Cache sherpa-onnx native archive"
     )
     assert.ok(resolveStep)
     assert.ok(cacheStep)
@@ -52,7 +59,8 @@ for (const [label, job] of [
       if (
         job.strategy.matrix.include?.some((entry) => entry.target) &&
         !job.strategy.matrix.include.some((entry) => entry.target === target)
-      ) continue
+      )
+        continue
 
       const dir = scratch(t)
       const runnerTemp = join(dir, "runner temp").replaceAll("\\", "/")
@@ -64,7 +72,13 @@ for (const [label, job] of [
       writeFileSync(envFile, "")
       run(
         "bash",
-        ["-e", "-o", "pipefail", "-c", resolveStep.run.replaceAll("${{ matrix.target }}", target)],
+        [
+          "-e",
+          "-o",
+          "pipefail",
+          "-c",
+          resolveStep.run.replaceAll("${{ matrix.target }}", target),
+        ],
         dir,
         {
           RUNNER_OS: os,
@@ -75,21 +89,95 @@ for (const [label, job] of [
         }
       )
       const exported = Object.fromEntries(
-        readFileSync(envFile, "utf8").trim().split(/\r?\n/).map((line) => {
-          const equals = line.indexOf("=")
-          return [line.slice(0, equals), line.slice(equals + 1)]
-        })
+        readFileSync(envFile, "utf8")
+          .trim()
+          .split(/\r?\n/)
+          .map((line) => {
+            const equals = line.indexOf("=")
+            return [line.slice(0, equals), line.slice(equals + 1)]
+          })
       )
-      assert.ok(exported.SHERPA_ONNX_ARCHIVE_DIR, `${target}: sherpa cannot see the cached archive`)
+      assert.ok(
+        exported.SHERPA_ONNX_ARCHIVE_DIR,
+        `${target}: sherpa cannot see the cached archive`
+      )
       assert.equal(
-        readFileSync(join(exported.SHERPA_ONNX_ARCHIVE_DIR, archiveName), "utf8"),
+        readFileSync(
+          join(exported.SHERPA_ONNX_ARCHIVE_DIR, archiveName),
+          "utf8"
+        ),
         "cached native library"
       )
       assert.equal(exported.SHERPA_ARCHIVE_NAME, archiveName)
       const cachePath = cacheStep.with.path
         .replaceAll("${{ runner.temp }}", runnerTemp)
         .replace(/\$\{\{ env\.(\w+) \}\}/g, (_, key) => exported[key] ?? "")
-      assert.equal(resolve(cachePath), resolve(exported.SHERPA_ONNX_ARCHIVE_DIR))
+      assert.equal(
+        resolve(cachePath),
+        resolve(exported.SHERPA_ONNX_ARCHIVE_DIR)
+      )
+
+      // The merged macOS release job cross-builds the other architecture on
+      // the same runner, so its cache must carry BOTH archives and the
+      // download must fetch any that are missing. The test-rust job only
+      // builds for its host, so the extra archive is release-desktop-only.
+      if (target === "aarch64-apple-darwin" && label === "desktop release") {
+        const extraName = "sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2"
+        assert.equal(exported.SHERPA_EXTRA_ARCHIVE_NAME, extraName)
+        assert.match(exported.SHERPA_CACHE_KEY, new RegExp(extraName))
+        writeFileSync(join(archiveDir, extraName), "cached native library")
+        const downloadStep = job.steps.find(
+          (entry) =>
+            entry.name === "Download sherpa-onnx native archive on cache miss"
+        )
+        assert.ok(downloadStep)
+        const downloads = join(dir, "downloads")
+        mkdirSync(join(dir, "curl-bin"), { recursive: true })
+        writeFileSync(
+          join(dir, "curl-bin/curl"),
+          [
+            "#!/bin/bash",
+            "for ((i=1; i<=$#; i++)); do",
+            '  if [[ "${!i}" == "-o" ]]; then',
+            '    dest="${!((i+1))}"',
+            '    url="${!((i+2))}"',
+            '    name="$(basename "$url")"',
+            '    mkdir -p "$(dirname "$dest")"',
+            '    cp "' + downloads.replaceAll("\\", "/") + '/$name" "$dest"',
+            "    exit 0",
+            "  fi",
+            "done",
+            "exit 1",
+          ].join("\n")
+        )
+        chmodSync(join(dir, "curl-bin/curl"), 0o755)
+        mkdirSync(downloads, { recursive: true })
+        for (const name of [archiveName, extraName]) {
+          writeFileSync(join(downloads, name), `downloaded ${name}`)
+        }
+        const downloadScript = downloadStep.run.replaceAll(
+          "${{ matrix.target }}",
+          target
+        )
+        const env = { ...exported }
+        delete env.__proto__
+        run("bash", ["-e", "-o", "pipefail", "-c", downloadScript], dir, {
+          ...env,
+          PATH: `${join(dir, "curl-bin")}:${process.env.PATH}`,
+        })
+        for (const name of [archiveName, extraName]) {
+          const expected =
+            existsSync(join(archiveDir, name)) &&
+            readFileSync(join(archiveDir, name), "utf8") !==
+              `downloaded ${name}`
+              ? "cached native library"
+              : `downloaded ${name}`
+          assert.equal(
+            readFileSync(join(exported.SHERPA_ONNX_ARCHIVE_DIR, name), "utf8"),
+            expected
+          )
+        }
+      }
     }
   })
 }
@@ -133,14 +221,23 @@ function identityFixture(t) {
 
 test("desktop identity writes the full PLUS version by default so updaters see iterations", (t) => {
   const dir = identityFixture(t)
-  const args = ["scripts/apply-plus-identity.mjs", "--check", "--iteration", "10"]
+  const args = [
+    "scripts/apply-plus-identity.mjs",
+    "--check",
+    "--iteration",
+    "10",
+  ]
   // --check must not touch disk, so a later real injection still sees a pristine base.
   run(process.execPath, args, dir)
   assert.equal(
     JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
     "0.42.0"
   )
-  run(process.execPath, ["scripts/apply-plus-identity.mjs", "--iteration", "10"], dir)
+  run(
+    process.execPath,
+    ["scripts/apply-plus-identity.mjs", "--iteration", "10"],
+    dir
+  )
   assert.equal(
     JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"))).version,
     "0.42.0-plus.10"
@@ -160,7 +257,13 @@ test("safe mode remains an explicit escape hatch back to a pure three-part versi
   const dir = identityFixture(t)
   run(
     process.execPath,
-    ["scripts/apply-plus-identity.mjs", "--version-mode", "safe", "--iteration", "10"],
+    [
+      "scripts/apply-plus-identity.mjs",
+      "--version-mode",
+      "safe",
+      "--iteration",
+      "10",
+    ],
     dir
   )
   assert.equal(
@@ -171,13 +274,23 @@ test("safe mode remains an explicit escape hatch back to a pure three-part versi
 
 test("server identity uses the full PLUS version and is idempotent only via --check", (t) => {
   const dir = identityFixture(t)
-  const args = ["scripts/apply-plus-identity.mjs", "--server", "--check", "--iteration", "10"]
+  const args = [
+    "scripts/apply-plus-identity.mjs",
+    "--server",
+    "--check",
+    "--iteration",
+    "10",
+  ]
   run(process.execPath, args, dir)
   assert.match(
     readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"),
     /version = "0\.42\.0"/
   )
-  run(process.execPath, ["scripts/apply-plus-identity.mjs", "--server", "--iteration", "10"], dir)
+  run(
+    process.execPath,
+    ["scripts/apply-plus-identity.mjs", "--server", "--iteration", "10"],
+    dir
+  )
   const cargo = readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8")
   assert.match(cargo, /version = "0\.42\.0-plus\.10"/)
   assert.match(cargo, /serde = \{ version = "1" \}/)
@@ -193,48 +306,125 @@ test("macOS release declares microphone use and signs the main app for audio inp
     /<key>NSMicrophoneUsageDescription<\/key>\s*<string>\s*[^<\s][^<]*<\/string>/
   )
 
-  const macosBuild = desktop.steps.find((entry) =>
-    entry.name?.startsWith("Build, sign, and upload to draft release (macOS)")
+  const macosBuilds = desktop.steps.filter((entry) =>
+    entry.name?.startsWith("Build, sign, and upload to draft release (macOS")
   )
-  const configPath = macosBuild?.with.args.match(/--config\s+(\S+)/)?.[1]
-  assert.ok(configPath, "macOS release needs a signing configuration")
-  const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
-  assert.deepEqual(bundle.externalBin, [], "sidecars are signed separately")
-  for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
-    assert.ok(bundle.macOS.files[`MacOS/${name}`], `${name} must remain beside the main executable`)
+  assert.ok(macosBuilds.length >= 1, "macOS release needs its build passes")
+  for (const macosBuild of macosBuilds) {
+    const configPath = macosBuild.with.args.match(/--config\s+(\S+)/)?.[1]
+    assert.ok(configPath, "macOS release needs a signing configuration")
+    const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
+    assert.deepEqual(bundle.externalBin, [], "sidecars are signed separately")
+    for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
+      assert.ok(
+        bundle.macOS.files[`MacOS/${name}`],
+        `${name} must remain beside the main executable`
+      )
+    }
+    const entitlementPlist = readFileSync(
+      join(root, "src-tauri", bundle.macOS.entitlements),
+      "utf8"
+    )
+    assert.match(
+      entitlementPlist,
+      /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/
+    )
+    assert.equal(entitlementPlist.match(/<key>/g)?.length, 1)
   }
-  const entitlementPlist = readFileSync(
-    join(root, "src-tauri", bundle.macOS.entitlements),
-    "utf8"
+})
+
+test("macOS release builds arm64 natively and x64 by cross-compiling on one runner", () => {
+  const appleEntries = desktop.strategy.matrix.include.filter((entry) =>
+    entry.target.includes("apple-darwin")
+  )
+  assert.equal(
+    appleEntries.length,
+    1,
+    "one macOS job: a second macOS runner is what GitHub kept cancelling"
+  )
+  assert.equal(appleEntries[0].target, "aarch64-apple-darwin")
+
+  const toolchain = desktop.steps.find(
+    (entry) => entry.name === "Install Rust stable"
   )
   assert.match(
-    entitlementPlist,
-    /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/
+    toolchain.with.targets,
+    /aarch64-apple-darwin,x86_64-apple-darwin/,
+    "the cross target must be installed alongside the native one"
   )
-  assert.equal(entitlementPlist.match(/<key>/g)?.length, 1)
+
+  const buildPasses = desktop.steps.filter(
+    (entry) =>
+      entry.uses === "tauri-apps/tauri-action@v0.6.1" &&
+      entry.with?.args?.includes(
+        "--config src-tauri/macos/tauri.release.conf.json"
+      )
+  )
+  assert.deepEqual(
+    buildPasses.map((entry) => entry.with.args.match(/--target\s+(\S+)/)?.[1]),
+    ["aarch64-apple-darwin", "x86_64-apple-darwin"],
+    "arm64 builds natively, then x64 cross-builds on the same runner"
+  )
+  const crossPass = buildPasses[1]
+  assert.equal(crossPass.env.CC_x86_64_apple_darwin, "clang")
+  assert.equal(crossPass.env.CXX_x86_64_apple_darwin, "clang++")
+  for (const pass of buildPasses) {
+    assert.equal(pass.env.CODEG_SKIP_SIDECAR, "1")
+  }
 })
 
 test("macOS release stages sidecars at their configured bundle source paths", (t) => {
-  const stage = desktop.steps.find(
+  const armStage = desktop.steps.find(
     (entry) => entry.name === "Stage signed macOS sidecars"
   )
-  assert.ok(stage)
-  const macosBuild = desktop.steps.find((entry) =>
-    entry.name?.startsWith("Build, sign, and upload to draft release (macOS)")
+  const crossStage = desktop.steps.find(
+    (entry) => entry.name === "Stage signed macOS x64 sidecars (cross)"
   )
-  const configPath = macosBuild.with.args.match(/--config\s+(\S+)/)[1]
+  assert.ok(armStage, "native arm64 sidecars are staged and signed")
+  assert.ok(crossStage, "cross x64 sidecars are staged and signed")
+  const macosBuilds = desktop.steps.filter((entry) =>
+    entry.name?.startsWith("Build, sign, and upload to draft release (macOS")
+  )
+  const configPath = macosBuilds[0].with.args.match(/--config\s+(\S+)/)[1]
   const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
 
-  for (const target of ["aarch64-apple-darwin", "x86_64-apple-darwin"]) {
+  // arm64: the shared stage step copies the matrix-target binaries; x64: the
+  // cross stage step first cross-builds them, then copies and signs.
+  const stages = [
+    { step: armStage, target: "aarch64-apple-darwin", prepare: null },
+    {
+      step: crossStage,
+      target: "x86_64-apple-darwin",
+      prepare: "pnpm tauri:prepare-sidecars --target x86_64-apple-darwin",
+    },
+  ]
+  for (const { step, target, prepare } of stages) {
     const dir = scratch(t)
     const bins = join(dir, "src-tauri/binaries")
     mkdirSync(bins, { recursive: true })
-    for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
+    for (const name of ["yoyocode-mcp", "codeg-computer-helper", "yoyo-cli"]) {
       writeFileSync(join(bins, `${name}-${target}`), `${target}:${name}`)
     }
-    // Only replace the unavailable macOS signing binary. Run the actual
-    // workflow copy commands, then inspect the files the bundler will consume.
-    const script = 'codesign() { printf "%s\\n" "$*" >> signatures.log; }\n' + stage.run
+    if (prepare) {
+      assert.match(step.run, /cross_target="x86_64-apple-darwin"/)
+      assert.match(
+        step.run,
+        /pnpm tauri:prepare-sidecars --target "\$cross_target"/
+      )
+      // The cross compiler env rides the step env, not the run script.
+      assert.equal(step.env.CC_x86_64_apple_darwin, "clang")
+      assert.equal(step.env.CXX_x86_64_apple_darwin, "clang++")
+    }
+    // Only replace the unavailable macOS signing/inspection binaries and the
+    // pnpm runner (the scratch dir has no manifest). Run the actual workflow
+    // copy commands, then inspect the files the bundler will consume.
+    const script =
+      [
+        'codesign() { printf "%s\\n" "$*" >> signatures.log; }',
+        'pnpm() { printf "%s\\n" "$*" >> pnpm.log; }',
+        "lipo() { echo x86_64; }",
+        step.run,
+      ].join("\n") + "\n"
     run("bash", ["-e", "-c", script], dir, { BUILD_TARGET: target })
     for (const name of ["yoyocode-mcp", "yoyo-cli"]) {
       const source = bundle.macOS.files[`MacOS/${name}`]
@@ -250,11 +440,34 @@ test("macOS release stages sidecars at their configured bundle source paths", (t
       "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyocode-mcp",
       "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyo-cli",
     ])
+    if (prepare) {
+      assert.deepEqual(
+        readFileSync(join(dir, "pnpm.log"), "utf8").trim().split(/\r?\n/),
+        ["tauri:prepare-sidecars --target x86_64-apple-darwin"]
+      )
+    }
   }
 })
 
+test("macOS bundle gate verifies every architecture, including x64 purity", () => {
+  const gate = desktop.steps.find(
+    (entry) => entry.name === "Verify macOS bundle (ad-hoc)"
+  )
+  assert.ok(gate)
+  // Both bundles are checked, each against its own target triple.
+  assert.match(
+    gate.run,
+    /for gate_target in aarch64-apple-darwin x86_64-apple-darwin/
+  )
+  // Cross-compiled builds prove the executable carries only x86_64 code.
+  assert.match(gate.run, /lipo -archs "\$app\/Contents\/MacOS\/\$BIN"/)
+  assert.match(gate.run, /x86_64-apple-darwin\)\s+want_arch="x86_64"/)
+})
+
 test("desktop CI injects the PLUS version with semver mode", () => {
-  const step = desktop.steps.find((entry) => entry.name === "Apply PLUS identity")
+  const step = desktop.steps.find(
+    (entry) => entry.name === "Apply PLUS identity"
+  )
   assert.ok(step, "desktop build needs the identity injection step")
   assert.match(step.run, /--version-mode semver/)
   assert.match(step.run, /--iteration/)

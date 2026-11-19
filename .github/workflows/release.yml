@@ -181,10 +181,11 @@ jobs:
           # 模式降级运行（见 computer/helper/mod.rs 的 PEER_REQUIREMENT 分支），
           # 主程序由 tauri bundler 默认 ad-hoc 密封，不做公证。备好 Developer
           # ID 证书后，恢复下方被门禁的四个签名步骤并走上游流程。
-          - name: "macOS x64"
-            runner: "macos-latest"
-            target: "x86_64-apple-darwin"
-          - name: "macOS arm64"
+          # 只保留一个 macOS job：GitHub 连续四个 plus.4 run 拒绝为第二个
+          # macOS runner 分配容量（零步骤即取消）。arm64 原生构建之后，同一台
+          # Apple Silicon runner 用 Apple clang 交叉编译 x86_64（otools 的
+          # macos-x64-cross 模式），不再依赖第二个 macOS runner。
+          - name: "macOS (arm64 native + x64 cross)"
             runner: "macos-latest"
             target: "aarch64-apple-darwin"
           - name: "Linux x64"
@@ -219,7 +220,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          # The macOS job cross-builds x64 after its native arm64 build, so
+          # both Apple targets must be installed there.
+          targets: ${{ matrix.target == 'aarch64-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -234,19 +237,24 @@ jobs:
         # target so releases do not re-pull ~120 MB per job. Keep the version
         # in lockstep with the `sherpa-onnx` pin in src-tauri/Cargo.toml —
         # the archive name carries the version, so a bump needs this map
-        # updated.
+        # updated. The macOS job cross-builds the other architecture on the
+        # same runner, so it needs BOTH Apple archives.
         shell: bash
         run: |
+          EXTRA=
           case "${{ matrix.target }}" in
             x86_64-unknown-linux-gnu)  A=sherpa-onnx-v2.0.1-linux-x64-static-lib.tar.bz2 ;;
             aarch64-unknown-linux-gnu) A=sherpa-onnx-v2.0.1-linux-aarch64-static-lib.tar.bz2 ;;
             x86_64-apple-darwin)       A=sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2 ;;
-            aarch64-apple-darwin)      A=sherpa-onnx-v2.0.1-osx-arm64-static-lib.tar.bz2 ;;
+            aarch64-apple-darwin)      A=sherpa-onnx-v2.0.1-osx-arm64-static-lib.tar.bz2
+                                       EXTRA=sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2 ;;
             x86_64-pc-windows-msvc)    A=sherpa-onnx-v2.0.1-win-x64-static-MT-Release-lib.tar.bz2 ;;
             aarch64-pc-windows-msvc)   A=sherpa-onnx-v2.0.1-win-arm64-static-MT-Release-lib.tar.bz2 ;;
             *) echo "FATAL: no sherpa-onnx archive for ${{ matrix.target }}" >&2; exit 1 ;;
           esac
           printf 'SHERPA_ARCHIVE_NAME=%s\n' "$A" >> "$GITHUB_ENV"
+          printf 'SHERPA_EXTRA_ARCHIVE_NAME=%s\n' "$EXTRA" >> "$GITHUB_ENV"
+          printf 'SHERPA_CACHE_KEY=%s\n' "$A${EXTRA:+-$EXTRA}" >> "$GITHUB_ENV"
           printf 'SHERPA_ONNX_ARCHIVE_DIR=%s\n' "$RUNNER_TEMP/sherpa-onnx" >> "$GITHUB_ENV"
 
       - name: Cache sherpa-onnx native archive
@@ -254,16 +262,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/sherpa-onnx
-          key: ${{ env.SHERPA_ARCHIVE_NAME }}
+          key: ${{ env.SHERPA_CACHE_KEY }}
 
       - name: Download sherpa-onnx native archive on cache miss
-        if: steps.sherpa_archive.outputs.cache-hit != 'true'
+        # Runs unconditionally with a per-file guard: the cache covers the
+        # whole directory atomically, and a re-run with a stale cache must
+        # still fetch whichever archive is missing.
         shell: bash
         run: |
           mkdir -p "$SHERPA_ONNX_ARCHIVE_DIR"
-          curl -fL --retry 3 --retry-delay 5 \
-            -o "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$SHERPA_ARCHIVE_NAME"
+          for name in "$SHERPA_ARCHIVE_NAME" $SHERPA_EXTRA_ARCHIVE_NAME; do
+            if [ -s "$SHERPA_ONNX_ARCHIVE_DIR/$name" ]; then
+              echo "$name already present"
+              continue
+            fi
+            curl -fL --retry 3 --retry-delay 5 \
+              -o "$SHERPA_ONNX_ARCHIVE_DIR/$name" \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$name"
+          done
 
       - name: Install Linux x64 dependencies
         if: matrix.target == 'x86_64-unknown-linux-gnu'
@@ -655,7 +671,7 @@ jobs:
 
       # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
       # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
-      - name: Build, sign, and upload to draft release (macOS)
+      - name: Build, sign, and upload to draft release (macOS arm64)
         if: contains(matrix.target, 'apple-darwin')
         uses: tauri-apps/tauri-action@v0.6.1
         env:
@@ -680,7 +696,70 @@ jobs:
           releaseDraft: true
           prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
           tauriScript: pnpm tauri
-          args: --target ${{ matrix.target }} --config src-tauri/macos/tauri.release.conf.json
+          args: --target aarch64-apple-darwin --config src-tauri/macos/tauri.release.conf.json
+          includeUpdaterJson: true
+          retryAttempts: 2
+
+      # 交叉编译 x64：Apple Silicon runner 用自带 clang 出 x86_64 代码
+      # （otools 的 macos-x64-cross 模式）。prepare-sidecars 先交叉构建三个
+      # sidecar（helper.app 一并翻成 x64），再把两个 CLI sidecar 复制到
+      # macos-release 并单独签名，供随后的 x64 bundler pass 使用。上一步的
+      # arm64 bundle 已经打包完成，helper.app 被覆盖不影响它。
+      - name: Stage signed macOS x64 sidecars (cross)
+        if: contains(matrix.target, 'apple-darwin')
+        shell: bash
+        env:
+          CC_x86_64_apple_darwin: clang
+          CXX_x86_64_apple_darwin: clang++
+        run: |
+          set -euo pipefail
+          cross_target="x86_64-apple-darwin"
+          bin_dir="src-tauri/binaries"
+          mkdir -p "$bin_dir/macos-release"
+          pnpm tauri:prepare-sidecars --target "$cross_target"
+          for bin in yoyocode-mcp codeg-computer-helper yoyo-cli; do
+            file="$bin_dir/$bin-$cross_target"
+            if [ ! -s "$file" ]; then
+              echo "FATAL: cross sidecar $file missing or empty"
+              exit 1
+            fi
+          done
+          helper="$bin_dir/codeg-computer-helper.app/Contents/MacOS/codeg-computer-helper"
+          helper_archs="$(lipo -archs "$helper")"
+          if [ "$helper_archs" != "x86_64" ]; then
+            echo "FATAL: cross helper must be x86_64-only, got: $helper_archs"
+            exit 1
+          fi
+          for bin in yoyocode-mcp yoyo-cli; do
+            staged="$bin_dir/macos-release/$bin"
+            install -m 0755 "$bin_dir/$bin-$cross_target" "$staged"
+            codesign --force --options runtime --sign - "$staged"
+          done
+
+      # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
+      # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
+      - name: Build, sign, and upload to draft release (macOS x64 cross)
+        if: contains(matrix.target, 'apple-darwin')
+        uses: tauri-apps/tauri-action@v0.6.1
+        env:
+          # The x64 sidecars are already cross-built, staged and signed above.
+          CODEG_SKIP_SIDECAR: "1"
+          NODE_OPTIONS: --max-old-space-size=4096
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple clang is a universal binary: the same driver emits x86_64
+          # when rustc targets it (otools measured pattern).
+          CC_x86_64_apple_darwin: clang
+          CXX_x86_64_apple_darwin: clang++
+        with:
+          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
+          tagName: ${{ github.ref_name }}
+          releaseBody: ${{ needs.create-draft-release.outputs.release_body }}
+          releaseDraft: true
+          prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
+          tauriScript: pnpm tauri
+          args: --target x86_64-apple-darwin --config src-tauri/macos/tauri.release.conf.json
           includeUpdaterJson: true
           retryAttempts: 2
 
@@ -774,7 +853,9 @@ jobs:
           echo "computer-use signing and symbol checks passed"
 
       # PLUS ad-hoc 版校验：验证成品结构、敏感符号和主程序的麦克风权限。
-      # 命令行 sidecar 与电脑操作 helper 仍须无 entitlements。
+      # 命令行 sidecar 与电脑操作 helper 仍须无 entitlements。同一个 job 出
+      # 两个 bundle：逐架构循环校验，交叉编译的 x64 还要证明主二进制只含
+      # x86_64 代码（otools 的 macos-x64-cross 校验）。
       - name: Verify macOS bundle (ad-hoc)
         if: contains(matrix.target, 'apple-darwin')
         shell: bash
@@ -784,89 +865,106 @@ jobs:
           # MacOS 里的主二进制仍跟 crate 名（Tauri 2 不因 productName 改名），
           # 读 mainBinaryName（上游未设则回退 codeg）。
           BIN="$(node -p "require('./src-tauri/tauri.conf.json').mainBinaryName ?? 'codeg'")"
-          app="src-tauri/target/${{ matrix.target }}/release/bundle/macos/$(node -p "require('./src-tauri/tauri.conf.json').productName").app"
-          if [ ! -d "$app" ]; then
-            echo "FATAL: $app not found"
-            exit 1
-          fi
-          # The updater replaces YoYoCode.app in place and macOS IconServices
-          # caches the Dock tile by path. A stale Resources/*.icns is invisible
-          # to every other check here — it only shows up as "the logo did not
-          # change after upgrading" on the user's Mac. Compare the real bundle
-          # payload with the committed brand art so it cannot leave CI.
-          # Plain shell glob: no find primaries beyond POSIX, so this behaves
-          # the same under macOS's BSD find as it would on Linux runners.
-          icon=""
-          for candidate in "$app/Contents/Resources/"*.icns; do
-            if [ -f "$candidate" ]; then
-              icon="$candidate"
-              break
-            fi
-          done
-          if [ -z "$icon" ]; then
-            echo "FATAL: no .icns in $app/Contents/Resources"
-            exit 1
-          fi
-          if ! cmp -s "$icon" src-tauri/icons/icon.icns; then
-            echo "FATAL: bundled icon $icon differs from src-tauri/icons/icon.icns"
-            /usr/bin/shasum -a 256 "$icon" src-tauri/icons/icon.icns
-            exit 1
-          fi
-          icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist" 2>/dev/null || true)"
-          echo "Dock icon OK: $icon matches src-tauri/icons/icon.icns (CFBundleIconFile=${icon_name:-<unset>})"
-          if ! mic_usage="$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$app/Contents/Info.plist")" || [ -z "$mic_usage" ]; then
-            echo "FATAL: $app is missing a microphone usage description"
-            exit 1
-          fi
-          codesign --verify --strict --deep "$app"
-          codesign -d --entitlements - --xml "$app/Contents/MacOS/$BIN" \
-            | plutil -convert json -o - - \
-            | node -e '
-                const assert = require("node:assert/strict")
-                const { readFileSync } = require("node:fs")
-                assert.deepEqual(JSON.parse(readFileSync(0, "utf8")), {
-                  "com.apple.security.device.audio-input": true,
-                })
-              '
-          helper_app="$app/Contents/Helpers/codeg-computer-helper.app"
-          if [ -e "$app/Contents/MacOS/codeg-computer-helper" ]; then
-            echo "FATAL: helper must not sit in Contents/MacOS"
-            exit 1
-          fi
-          if [ ! -d "$helper_app" ]; then
-            echo "FATAL: $helper_app not found"
-            exit 1
-          fi
-          if [ -e "$app/Contents/MacOS/yoyocode-server" ]; then
-            echo "FATAL: yoyocode-server must not be in the desktop bundle"
-            exit 1
-          fi
-          for sidecar in yoyocode-mcp yoyo-cli; do
-            if otool -L "$app/Contents/MacOS/$sidecar" | grep -q 'WebKit'; then
-              echo "FATAL: $sidecar links WebKit: tauri build's own copy replaced the sidecar"
+          product="$(node -p "require('./src-tauri/tauri.conf.json').productName")"
+          for gate_target in aarch64-apple-darwin x86_64-apple-darwin; do
+            app="src-tauri/target/$gate_target/release/bundle/macos/$product.app"
+            if [ ! -d "$app" ]; then
+              echo "FATAL: $app not found"
               exit 1
             fi
-          done
-          for path in "$app/Contents/MacOS/yoyocode-mcp" \
-            "$app/Contents/MacOS/yoyo-cli" "$helper_app"; do
-            if codesign -d --entitlements - --xml "$path" 2>/dev/null | grep -q '<key>'; then
-              echo "FATAL: $(basename "$path") carries entitlements"
+            # The updater replaces YoYoCode.app in place and macOS IconServices
+            # caches the Dock tile by path. A stale Resources/*.icns is invisible
+            # to every other check here — it only shows up as "the logo did not
+            # change after upgrading" on the user's Mac. Compare the real bundle
+            # payload with the committed brand art so it cannot leave CI.
+            # Plain shell glob: no find primaries beyond POSIX, so this behaves
+            # the same under macOS's BSD find as it would on Linux runners.
+            icon=""
+            for candidate in "$app/Contents/Resources/"*.icns; do
+              if [ -f "$candidate" ]; then
+                icon="$candidate"
+                break
+              fi
+            done
+            if [ -z "$icon" ]; then
+              echo "FATAL: no .icns in $app/Contents/Resources"
               exit 1
             fi
-          done
-          deny='^_(CGEventPost|CGEventPostToPid|CGEventPostToPSN|CGEventTapCreate|CGEventTapCreateForPid|CGEventTapCreateForPSN|CGWindowListCreateImage|CGWindowListCreateImageFromArray|CGDisplayCreateImage|CGDisplayCreateImageForRect|CGDisplayStreamCreate|CGDisplayStreamCreateWithDispatchQueue|CGRequestScreenCaptureAccess|CGRequestPostEventAccess|AXIsProcessTrustedWithOptions|AXUIElement[A-Za-z]*|AXObserver[A-Za-z]*)$|^_OBJC_CLASS_\$_SC(ShareableContent|Stream|ScreenshotManager|ContentFilter|ContentSharingPicker)$'
-          for bin in "$BIN" yoyocode-mcp yoyo-cli; do
-            hits="$(nm -u "$app/Contents/MacOS/$bin" | grep -E "$deny" || true)"
-            if [ "$bin" = "$BIN" ]; then
-              hits="$(printf '%s\n' "$hits" | grep -vx '_CGEventTapCreate' || true)"
-            fi
-            if [ -n "$hits" ]; then
-              echo "FATAL: $bin references APIs only codeg-computer-helper may use:"
-              echo "$hits"
+            if ! cmp -s "$icon" src-tauri/icons/icon.icns; then
+              echo "FATAL: bundled icon $icon differs from src-tauri/icons/icon.icns"
+              /usr/bin/shasum -a 256 "$icon" src-tauri/icons/icon.icns
               exit 1
             fi
+            icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist" 2>/dev/null || true)"
+            echo "Dock icon OK: $icon matches src-tauri/icons/icon.icns (CFBundleIconFile=${icon_name:-<unset>})"
+            if ! mic_usage="$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$app/Contents/Info.plist")" || [ -z "$mic_usage" ]; then
+              echo "FATAL: $app is missing a microphone usage description"
+              exit 1
+            fi
+            codesign --verify --strict --deep "$app"
+            main_archs="$(lipo -archs "$app/Contents/MacOS/$BIN")"
+            case "$gate_target" in
+              aarch64-apple-darwin) want_arch="arm64" ;;
+              x86_64-apple-darwin)  want_arch="x86_64" ;;
+            esac
+            if [ "$main_archs" != "$want_arch" ]; then
+              echo "FATAL: $gate_target bundle must contain only $want_arch code, got: $main_archs"
+              exit 1
+            fi
+            codesign -d --entitlements - --xml "$app/Contents/MacOS/$BIN" \
+              | plutil -convert json -o - - \
+              | node -e '
+                  const assert = require("node:assert/strict")
+                  const { readFileSync } = require("node:fs")
+                  assert.deepEqual(JSON.parse(readFileSync(0, "utf8")), {
+                    "com.apple.security.device.audio-input": true,
+                  })
+                '
+            helper_app="$app/Contents/Helpers/codeg-computer-helper.app"
+            if [ -e "$app/Contents/MacOS/codeg-computer-helper" ]; then
+              echo "FATAL: helper must not sit in Contents/MacOS"
+              exit 1
+            fi
+            if [ ! -d "$helper_app" ]; then
+              echo "FATAL: $helper_app not found"
+              exit 1
+            fi
+            if [ -e "$app/Contents/MacOS/yoyocode-server" ]; then
+              echo "FATAL: yoyocode-server must not be in the desktop bundle"
+              exit 1
+            fi
+            helper_archs="$(lipo -archs "$helper_app/Contents/MacOS/codeg-computer-helper")"
+            if [ "$helper_archs" != "$want_arch" ]; then
+              echo "FATAL: $gate_target helper must contain only $want_arch code, got: $helper_archs"
+              exit 1
+            fi
+            for sidecar in yoyocode-mcp yoyo-cli; do
+              if otool -L "$app/Contents/MacOS/$sidecar" | grep -q 'WebKit'; then
+                echo "FATAL: $sidecar links WebKit: tauri build's own copy replaced the sidecar"
+                exit 1
+              fi
+            done
+            for path in "$app/Contents/MacOS/yoyocode-mcp" \
+              "$app/Contents/MacOS/yoyo-cli" "$helper_app"; do
+              if codesign -d --entitlements - --xml "$path" 2>/dev/null | grep -q '<key>'; then
+                echo "FATAL: $(basename "$path") carries entitlements"
+                exit 1
+              fi
+            done
+            deny='^_(CGEventPost|CGEventPostToPid|CGEventPostToPSN|CGEventTapCreate|CGEventTapCreateForPid|CGEventTapCreateForPSN|CGWindowListCreateImage|CGWindowListCreateImageFromArray|CGDisplayCreateImage|CGDisplayCreateImageForRect|CGDisplayStreamCreate|CGDisplayStreamCreateWithDispatchQueue|CGRequestScreenCaptureAccess|CGRequestPostEventAccess|AXIsProcessTrustedWithOptions|AXUIElement[A-Za-z]*|AXObserver[A-Za-z]*)$|^_OBJC_CLASS_\$_SC(ShareableContent|Stream|ScreenshotManager|ContentFilter|ContentSharingPicker)$'
+            for bin in "$BIN" yoyocode-mcp yoyo-cli; do
+              hits="$(nm -u "$app/Contents/MacOS/$bin" | grep -E "$deny" || true)"
+              if [ "$bin" = "$BIN" ]; then
+                hits="$(printf '%s\n' "$hits" | grep -vx '_CGEventTapCreate' || true)"
+              fi
+              if [ -n "$hits" ]; then
+                echo "FATAL: $bin references APIs only codeg-computer-helper may use:"
+                echo "$hits"
+                exit 1
+              fi
+            done
+            echo "ad-hoc bundle checks passed for $gate_target"
           done
-          echo "ad-hoc bundle checks passed"
 
       - name: Delete Apple signing keychain
         if: always() && contains(matrix.target, 'apple-darwin')
