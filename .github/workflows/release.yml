@@ -182,14 +182,14 @@ jobs:
           # 主程序由 tauri bundler 默认 ad-hoc 密封，不做公证。备好 Developer
           # ID 证书后，恢复下方被门禁的四个签名步骤并走上游流程。
           # 只保留一个 macOS job：plus.4 的 macOS job 反复排队 15 分钟即被
-          # 取消（零步骤、无 runner_name）——GitHub 的 macOS runner 池当时
-          # 无法保证分配，多一个 macOS job 就多一份被饿死的概率。合并成单
-          # job：Apple Silicon 上先原生出 arm64，再用 Apple clang 交叉编译
-          # x86_64（otools 的 macos-x64-cross 模式）。若单 job 仍拿不到
-          # runner，备选是把 runner 换成 macos-15-intel（x64 原生 + arm64
-          # 交叉，交叉方向对调即可）或等容量恢复后重跑。
-          - name: "macOS (arm64 native + x64 cross)"
-            runner: "macos-latest"
+          # 取消（零步骤、无 runner_name）——GitHub 的 macos-latest（ARM）
+          # runner 池长时间拒绝分配，多一个 macOS job 就多一份被饿死的概率。
+          # 两个 bundle 出自同一台 runner，先后打包；runner 用 otools 同款
+          # 的 macos-15-intel：x64 原生、arm64 用 Apple clang 交叉（clang 是
+          # universal 二进制）。若 Intel 池也饱和，可改回 macos-latest（把
+          # 交叉方向对调：arm64 原生、x64 交叉）。
+          - name: "macOS (arm64 cross + x64 native)"
+            runner: "macos-15-intel"
             target: "aarch64-apple-darwin"
           - name: "Linux x64"
             runner: "ubuntu-22.04"
@@ -440,8 +440,18 @@ jobs:
       # permissions to the app bundle it sits in. The Linux arm64 cross env
       # vars set above also apply to this cargo invocation.
       - name: Stage sidecars for Tauri bundle
+        if: matrix.target != 'aarch64-apple-darwin'
         shell: bash
         run: pnpm tauri:prepare-sidecars --target ${{ matrix.target }}
+
+      # On the Intel runner the arm64 sidecars are themselves a cross build.
+      - name: Stage macOS arm64 sidecars (cross)
+        if: matrix.target == 'aarch64-apple-darwin'
+        shell: bash
+        env:
+          CC_aarch64_apple_darwin: clang
+          CXX_aarch64_apple_darwin: clang++
+        run: pnpm tauri:prepare-sidecars --target aarch64-apple-darwin
 
       - name: Verify sidecars landed
         shell: bash
@@ -703,6 +713,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple clang is a universal binary: on the Intel runner the arm64
+          # pass is itself a cross build; the x64 envs are no-ops there and
+          # become live if the job moves back to an arm64 host.
+          CC_aarch64_apple_darwin: clang
+          CXX_aarch64_apple_darwin: clang++
+          CC_x86_64_apple_darwin: clang
+          CXX_x86_64_apple_darwin: clang++
           # PLUS ad-hoc：不传 APPLE_ID/PASSWORD/TEAM_ID —— 这三个 env 只要
           # 存在（哪怕是空串）bundler 就会尝试公证，Team ID 为空直接报错。
           # 有证书后随上游签名流程一起恢复。
@@ -717,15 +734,17 @@ jobs:
           includeUpdaterJson: true
           retryAttempts: 2
 
-      # 交叉编译 x64：Apple Silicon runner 用自带 clang 出 x86_64 代码
-      # （otools 的 macos-x64-cross 模式）。prepare-sidecars 先交叉构建三个
-      # sidecar（helper.app 一并翻成 x64），再把两个 CLI sidecar 复制到
-      # macos-release 并单独签名，供随后的 x64 bundler pass 使用。上一步的
-      # arm64 bundle 已经打包完成，helper.app 被覆盖不影响它。
-      - name: Stage signed macOS x64 sidecars (cross)
+      # 两个 macOS bundle 出自同一台 Intel runner：先交叉出 arm64（上一步），
+      # 再原生出 x64。prepare-sidecars 重建 x64 sidecar 与 helper.app，两个
+      # CLI sidecar 复制到 macos-release 并单独签名，供随后的 x64 bundler
+      # pass 使用。上一步的 arm64 bundle 已经打包完成，helper.app 被覆盖不
+      # 影响它。
+      - name: Stage signed macOS x64 sidecars
         if: contains(matrix.target, 'apple-darwin')
         shell: bash
         env:
+          CC_aarch64_apple_darwin: clang
+          CXX_aarch64_apple_darwin: clang++
           CC_x86_64_apple_darwin: clang
           CXX_x86_64_apple_darwin: clang++
         run: |
@@ -755,18 +774,18 @@ jobs:
 
       # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
       # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
-      - name: Build, sign, and upload to draft release (macOS x64 cross)
+      - name: Build, sign, and upload to draft release (macOS x64)
         if: contains(matrix.target, 'apple-darwin')
         uses: tauri-apps/tauri-action@v0.6.1
         env:
-          # The x64 sidecars are already cross-built, staged and signed above.
+          # The x64 sidecars are already built, staged and signed above.
           CODEG_SKIP_SIDECAR: "1"
           NODE_OPTIONS: --max-old-space-size=4096
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Apple clang is a universal binary: the same driver emits x86_64
-          # when rustc targets it (otools measured pattern).
+          CC_aarch64_apple_darwin: clang
+          CXX_aarch64_apple_darwin: clang++
           CC_x86_64_apple_darwin: clang
           CXX_x86_64_apple_darwin: clang++
         with:

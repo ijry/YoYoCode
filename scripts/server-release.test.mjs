@@ -355,6 +355,11 @@ test("macOS release builds arm64 natively and x64 by cross-compiling on one runn
     "one macOS job: a second macOS runner is what GitHub kept cancelling"
   )
   assert.equal(appleEntries[0].target, "aarch64-apple-darwin")
+  // macos-latest (arm64) sat starved for hours on 2026-11-19/20 while the
+  // Intel pool stayed available (otools ships macos-15-intel natively): run
+  // on Intel, where x64 is native and arm64 becomes the cross build. Both
+  // cross envs ride every rust step so the job is host-agnostic.
+  assert.equal(appleEntries[0].runner, "macos-15-intel")
 
   const toolchain = desktop.steps.find(
     (entry) => entry.name === "Install Rust stable"
@@ -375,13 +380,14 @@ test("macOS release builds arm64 natively and x64 by cross-compiling on one runn
   assert.deepEqual(
     buildPasses.map((entry) => entry.with.args.match(/--target\s+(\S+)/)?.[1]),
     ["aarch64-apple-darwin", "x86_64-apple-darwin"],
-    "arm64 builds natively, then x64 cross-builds on the same runner"
+    "arm64 builds first, then x64, both on the same runner"
   )
-  const crossPass = buildPasses[1]
-  assert.equal(crossPass.env.CC_x86_64_apple_darwin, "clang")
-  assert.equal(crossPass.env.CXX_x86_64_apple_darwin, "clang++")
   for (const pass of buildPasses) {
     assert.equal(pass.env.CODEG_SKIP_SIDECAR, "1")
+    assert.equal(pass.env.CC_aarch64_apple_darwin, "clang")
+    assert.equal(pass.env.CXX_aarch64_apple_darwin, "clang++")
+    assert.equal(pass.env.CC_x86_64_apple_darwin, "clang")
+    assert.equal(pass.env.CXX_x86_64_apple_darwin, "clang++")
   }
 })
 
@@ -390,7 +396,7 @@ test("macOS release stages sidecars at their configured bundle source paths", (t
     (entry) => entry.name === "Stage signed macOS sidecars"
   )
   const crossStage = desktop.steps.find(
-    (entry) => entry.name === "Stage signed macOS x64 sidecars (cross)"
+    (entry) => entry.name === "Stage signed macOS x64 sidecars"
   )
   assert.ok(armStage, "native arm64 sidecars are staged and signed")
   assert.ok(crossStage, "cross x64 sidecars are staged and signed")
