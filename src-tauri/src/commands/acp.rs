@@ -23,7 +23,7 @@ use crate::acp::types::{
     GrokStructuredConfig,
 };
 #[cfg(feature = "tauri-runtime")]
-use crate::acp::types::{ConnectionInfo, ForkResultInfo, PromptInputBlock};
+use crate::acp::types::{ConnectionInfo, ForkResultInfo, PlanUsageReport, PromptInputBlock};
 use crate::db::service::agent_setting_service;
 use crate::db::service::model_provider_service;
 use crate::db::AppDatabase;
@@ -12508,6 +12508,19 @@ pub async fn acp_stop_async_task(
     manager: State<'_, ConnectionManager>,
 ) -> Result<bool, AcpError> {
     manager.stop_async_task(&connection_id, &task_id).await
+}
+
+/// The adapter's plan-quota report (`account/usage_stats`). Never errors for
+/// an adapter that lacks the method — an empty report means "unsupported"
+/// (the verdict is remembered per connection), so the model picker degrades
+/// to not rendering the summary instead of surfacing a failure.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn acp_fetch_account_usage(
+    connection_id: String,
+    manager: State<'_, ConnectionManager>,
+) -> Result<PlanUsageReport, AcpError> {
+    manager.fetch_account_usage(&connection_id).await
 }
 
 #[cfg(feature = "tauri-runtime")]

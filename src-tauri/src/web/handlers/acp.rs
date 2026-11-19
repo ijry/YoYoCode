@@ -11,6 +11,7 @@ use crate::acp::preflight::PreflightResult;
 use crate::acp::types::{
     AcpAgentInfo, AcpAgentStatus, AgentDiagnosticsReport, AgentSkillContent, AgentSkillItem,
     AgentSkillLayout, AgentSkillScope, AgentSkillsListResult, ConnectionInfo, ForkResultInfo,
+    PlanUsageReport,
 };
 use crate::app_error::{AppCommandError, AppErrorCode};
 use crate::app_state::AppState;
@@ -524,6 +525,27 @@ pub async fn acp_stop_async_task(
         .await
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
     Ok(Json(stopped))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpFetchAccountUsageParams {
+    pub connection_id: String,
+}
+
+/// The adapter's plan-quota report. An adapter without the method answers
+/// `200` with an empty report (the "unsupported" verdict is remembered per
+/// connection), so clients render nothing instead of handling errors.
+pub async fn acp_fetch_account_usage(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<AcpFetchAccountUsageParams>,
+) -> Result<Json<PlanUsageReport>, AppCommandError> {
+    let report = state
+        .connection_manager
+        .fetch_account_usage(&params.connection_id)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(report))
 }
 
 #[derive(Deserialize)]
