@@ -158,13 +158,37 @@ jobs:
           key: ${{ env.SHERPA_ARCHIVE_NAME }}
 
       - name: Download sherpa-onnx native archive on cache miss
-        if: steps.sherpa_archive.outputs.cache-hit != 'true'
+        # Runs unconditionally with a per-file guard: the cache covers the
+        # whole directory atomically, and a re-run with a stale cache must
+        # still fetch whichever archive is missing.
         shell: bash
         run: |
           mkdir -p "$SHERPA_ONNX_ARCHIVE_DIR"
-          curl -fL --retry 3 --retry-delay 5 \
-            -o "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$SHERPA_ARCHIVE_NAME"
+          if [ -s "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" ]; then
+            echo "$SHERPA_ARCHIVE_NAME already present"
+          else
+            curl -fL --retry 3 --retry-delay 5 \
+              -o "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
+              "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$SHERPA_ARCHIVE_NAME"
+          fi
+
+      - name: Purge stale sherpa-onnx extraction caches
+        # rust-cache restores `src-tauri/target` pruned by size, and the sys
+        # crate's build script short-circuits when its extraction dir merely
+        # EXISTS (`sherpa-onnx-prebuilt/<stem>`). A partially restored tree
+        # then fails to link ("could not find native static library
+        # sherpa-onnx-c-api"). Drop the extraction + build-script outputs and
+        # let it re-extract from the archive fetched above.
+        shell: bash
+        run: |
+          rm -rf src-tauri/target/release/sherpa-onnx-prebuilt \
+                 src-tauri/target/*/release/sherpa-onnx-prebuilt \
+                 src-tauri/target/debug/sherpa-onnx-prebuilt \
+                 src-tauri/target/*/debug/sherpa-onnx-prebuilt \
+                 src-tauri/target/release/build/sherpa-onnx-sys-* \
+                 src-tauri/target/*/release/build/sherpa-onnx-sys-* \
+                 src-tauri/target/debug/build/sherpa-onnx-sys-* \
+                 src-tauri/target/*/debug/build/sherpa-onnx-sys-*
 
       - name: Install Linux desktop dependencies
         # Only the Linux desktop build needs webkit/appindicator. Windows

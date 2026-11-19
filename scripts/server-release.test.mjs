@@ -45,6 +45,18 @@ for (const [label, job] of [
   ["server release", server],
   ["Rust tests", rustTests],
 ]) {
+  test(`${label} purges stale sherpa extraction caches before building`, () => {
+    const purgeStep = job.steps.find(
+      (entry) => entry.name === "Purge stale sherpa-onnx extraction caches"
+    )
+    assert.ok(
+      purgeStep,
+      "rust-cache restores can be size-pruned; the sys crate must re-extract"
+    )
+    assert.match(purgeStep.run, /sherpa-onnx-prebuilt/)
+    assert.match(purgeStep.run, /sherpa-onnx-sys-\*/)
+  })
+
   test(`${label} exports the cached native archive to the sherpa build script`, (t) => {
     const resolveStep = job.steps.find((entry) =>
       entry.name?.startsWith("Resolve sherpa-onnx native archive")
