@@ -181,10 +181,13 @@ jobs:
           # 模式降级运行（见 computer/helper/mod.rs 的 PEER_REQUIREMENT 分支），
           # 主程序由 tauri bundler 默认 ad-hoc 密封，不做公证。备好 Developer
           # ID 证书后，恢复下方被门禁的四个签名步骤并走上游流程。
-          # 只保留一个 macOS job：GitHub 连续四个 plus.4 run 拒绝为第二个
-          # macOS runner 分配容量（零步骤即取消）。arm64 原生构建之后，同一台
-          # Apple Silicon runner 用 Apple clang 交叉编译 x86_64（otools 的
-          # macos-x64-cross 模式），不再依赖第二个 macOS runner。
+          # 只保留一个 macOS job：plus.4 的 macOS job 反复排队 15 分钟即被
+          # 取消（零步骤、无 runner_name）——GitHub 的 macOS runner 池当时
+          # 无法保证分配，多一个 macOS job 就多一份被饿死的概率。合并成单
+          # job：Apple Silicon 上先原生出 arm64，再用 Apple clang 交叉编译
+          # x86_64（otools 的 macos-x64-cross 模式）。若单 job 仍拿不到
+          # runner，备选是把 runner 换成 macos-15-intel（x64 原生 + arm64
+          # 交叉，交叉方向对调即可）或等容量恢复后重跑。
           - name: "macOS (arm64 native + x64 cross)"
             runner: "macos-latest"
             target: "aarch64-apple-darwin"
