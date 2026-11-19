@@ -3554,6 +3554,13 @@
         "modelListLabel": "モデル",
         "recommendedBadge": "推奨",
         "recommendedValue": "推奨: {value}",
+        "planQuota": {
+            "sectionZcode": "ZCode プラン",
+            "sectionGlm": "GLM Coding プラン",
+            "expiresAt": "{date} まで有効",
+            "resetsIn": "{time}にリセット",
+            "usedOfTotal": "{used} / {total} トークン"
+        },
         "searchOptions": "オプションを検索...",
         "searchOptionsAria": "オプションを検索",
         "noOptions": "オプションが見つかりません",

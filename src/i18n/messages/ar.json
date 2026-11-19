@@ -3554,6 +3554,13 @@
         "modelListLabel": "النماذج",
         "recommendedBadge": "موصى به",
         "recommendedValue": "موصى به: {value}",
+        "planQuota": {
+            "sectionZcode": "خطة ZCode",
+            "sectionGlm": "خطة GLM Coding",
+            "expiresAt": "صالح حتى {date}",
+            "resetsIn": "إعادة التعيين {time}",
+            "usedOfTotal": "{used} / {total} رمز"
+        },
         "searchOptions": "البحث في الخيارات...",
         "searchOptionsAria": "البحث في الخيارات",
         "noOptions": "لم يتم العثور على خيارات",

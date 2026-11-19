@@ -3554,6 +3554,13 @@
         "modelListLabel": "Modelos",
         "recommendedBadge": "Recomendado",
         "recommendedValue": "Recomendado: {value}",
+        "planQuota": {
+            "sectionZcode": "Plan ZCode",
+            "sectionGlm": "Plan GLM Coding",
+            "expiresAt": "Válido hasta {date}",
+            "resetsIn": "Se reinicia {time}",
+            "usedOfTotal": "{used} / {total} tokens"
+        },
         "searchOptions": "Buscar opciones...",
         "searchOptionsAria": "Buscar opciones",
         "noOptions": "No se encontraron opciones",
