@@ -247,22 +247,22 @@ jobs:
             *) echo "FATAL: no sherpa-onnx archive for ${{ matrix.target }}" >&2; exit 1 ;;
           esac
           printf 'SHERPA_ARCHIVE_NAME=%s\n' "$A" >> "$GITHUB_ENV"
-          printf 'SHERPA_ARCHIVE_DIR=%s\n' "$RUNNER_TEMP/sherpa-onnx" >> "$GITHUB_ENV"
+          printf 'SHERPA_ONNX_ARCHIVE_DIR=%s\n' "$RUNNER_TEMP/sherpa-onnx" >> "$GITHUB_ENV"
 
       - name: Cache sherpa-onnx native archive
         id: sherpa_archive
         uses: actions/cache@v4
         with:
-          path: ${{ env.SHERPA_ARCHIVE_DIR }}
+          path: ${{ runner.temp }}/sherpa-onnx
           key: ${{ env.SHERPA_ARCHIVE_NAME }}
 
       - name: Download sherpa-onnx native archive on cache miss
         if: steps.sherpa_archive.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          mkdir -p "$SHERPA_ARCHIVE_DIR"
+          mkdir -p "$SHERPA_ONNX_ARCHIVE_DIR"
           curl -fL --retry 3 --retry-delay 5 \
-            -o "$SHERPA_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
+            -o "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$SHERPA_ARCHIVE_NAME"
 
       - name: Install Linux x64 dependencies
@@ -926,22 +926,22 @@ jobs:
             *) echo "FATAL: no sherpa-onnx archive for ${{ matrix.target }}" >&2; exit 1 ;;
           esac
           printf 'SHERPA_ARCHIVE_NAME=%s\n' "$A" >> "$GITHUB_ENV"
-          printf 'SHERPA_ARCHIVE_DIR=%s\n' "$RUNNER_TEMP/sherpa-onnx" >> "$GITHUB_ENV"
+          printf 'SHERPA_ONNX_ARCHIVE_DIR=%s\n' "$RUNNER_TEMP/sherpa-onnx" >> "$GITHUB_ENV"
 
       - name: Cache sherpa-onnx native archive
         id: sherpa_archive
         uses: actions/cache@v4
         with:
-          path: ${{ env.SHERPA_ARCHIVE_DIR }}
+          path: ${{ runner.temp }}/sherpa-onnx
           key: ${{ env.SHERPA_ARCHIVE_NAME }}
 
       - name: Download sherpa-onnx native archive on cache miss
         if: steps.sherpa_archive.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          mkdir -p "$SHERPA_ARCHIVE_DIR"
+          mkdir -p "$SHERPA_ONNX_ARCHIVE_DIR"
           curl -fL --retry 3 --retry-delay 5 \
-            -o "$SHERPA_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
+            -o "$SHERPA_ONNX_ARCHIVE_DIR/$SHERPA_ARCHIVE_NAME" \
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/$SHERPA_ARCHIVE_NAME"
 
       - name: Install Linux arm64 cross compiler

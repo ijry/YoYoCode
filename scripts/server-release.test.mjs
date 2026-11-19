@@ -20,6 +20,79 @@ const workflow = parse(
 )
 const server = workflow.jobs["build-server"]
 const desktop = workflow.jobs["build-tauri"]
+const rustTests = parse(
+  readFileSync(join(root, ".github/workflows/test.yml"), "utf8")
+).jobs.rust
+
+const sherpaPlatforms = [
+  ["x86_64-unknown-linux-gnu", "Linux", "X64", "linux-x64-static-lib"],
+  ["aarch64-unknown-linux-gnu", "Linux", "ARM64", "linux-aarch64-static-lib"],
+  ["x86_64-apple-darwin", "macOS", "X64", "osx-x64-static-lib"],
+  ["aarch64-apple-darwin", "macOS", "ARM64", "osx-arm64-static-lib"],
+  ["x86_64-pc-windows-msvc", "Windows", "X64", "win-x64-static-MT-Release-lib"],
+  ["aarch64-pc-windows-msvc", "Windows", "ARM64", "win-arm64-static-MT-Release-lib"],
+]
+
+for (const [label, job] of [
+  ["desktop release", desktop],
+  ["server release", server],
+  ["Rust tests", rustTests],
+]) {
+  test(`${label} exports the cached native archive to the sherpa build script`, (t) => {
+    const resolveStep = job.steps.find((entry) =>
+      entry.name?.startsWith("Resolve sherpa-onnx native archive")
+    )
+    const cacheStep = job.steps.find((entry) =>
+      entry.name === "Cache sherpa-onnx native archive"
+    )
+    assert.ok(resolveStep)
+    assert.ok(cacheStep)
+
+    for (const [target, os, arch, archive] of sherpaPlatforms) {
+      if (
+        job.strategy.matrix.include?.some((entry) => entry.target) &&
+        !job.strategy.matrix.include.some((entry) => entry.target === target)
+      ) continue
+
+      const dir = scratch(t)
+      const runnerTemp = join(dir, "runner temp").replaceAll("\\", "/")
+      const envFile = join(dir, "github-env").replaceAll("\\", "/")
+      const archiveDir = `${runnerTemp}/sherpa-onnx`
+      const archiveName = `sherpa-onnx-v2.0.1-${archive}.tar.bz2`
+      mkdirSync(archiveDir, { recursive: true })
+      writeFileSync(join(archiveDir, archiveName), "cached native library")
+      writeFileSync(envFile, "")
+      run(
+        "bash",
+        ["-e", "-o", "pipefail", "-c", resolveStep.run.replaceAll("${{ matrix.target }}", target)],
+        dir,
+        {
+          RUNNER_OS: os,
+          RUNNER_ARCH: arch,
+          RUNNER_TEMP: runnerTemp,
+          GITHUB_ENV: envFile,
+          SHERPA_ONNX_ARCHIVE_DIR: "",
+        }
+      )
+      const exported = Object.fromEntries(
+        readFileSync(envFile, "utf8").trim().split(/\r?\n/).map((line) => {
+          const equals = line.indexOf("=")
+          return [line.slice(0, equals), line.slice(equals + 1)]
+        })
+      )
+      assert.ok(exported.SHERPA_ONNX_ARCHIVE_DIR, `${target}: sherpa cannot see the cached archive`)
+      assert.equal(
+        readFileSync(join(exported.SHERPA_ONNX_ARCHIVE_DIR, archiveName), "utf8"),
+        "cached native library"
+      )
+      assert.equal(exported.SHERPA_ARCHIVE_NAME, archiveName)
+      const cachePath = cacheStep.with.path
+        .replaceAll("${{ runner.temp }}", runnerTemp)
+        .replace(/\$\{\{ env\.(\w+) \}\}/g, (_, key) => exported[key] ?? "")
+      assert.equal(resolve(cachePath), resolve(exported.SHERPA_ONNX_ARCHIVE_DIR))
+    }
+  })
+}
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "yoyocode-server-test-"))
