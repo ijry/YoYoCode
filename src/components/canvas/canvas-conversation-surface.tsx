@@ -897,6 +897,7 @@ export function CanvasConversationSurface({
           onModeChange={handleModeChange}
           onConfigOptionChange={handleSetConfigOption}
           agentType={agentType}
+          connectionId={conn.connectionId}
           availableCommands={connectionCommands ?? []}
           promptSuggestion={connIsForOtherAgent ? null : conn.promptSuggestion}
           draftStorageKey={`canvas-draft:${contextKey}`}

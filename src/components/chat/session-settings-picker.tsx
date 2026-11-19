@@ -21,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { ModelOptionList } from "@/components/chat/model-option-list"
+import { PlanQuotaSummary } from "./plan-quota-summary"
 import { SelectorTooltip } from "@/components/chat/selector-tooltip"
 import { useScrollbarSafeDismiss } from "@/hooks/use-scrollbar-safe-dismiss"
 import { flattenModelGroups } from "@/lib/model-config-groups"
@@ -42,6 +43,9 @@ interface SessionSettingsPickerProps {
   /** While no setting is known yet and they are on their way: the label of
    *  the placeholder held in their place. `null` when nothing is loading. */
   loadingLabel: string | null
+  /** The live connection's id, when there is one — the plan-quota summary
+   *  fetches through it. `null`/absent disables that fetch entirely. */
+  connectionId?: string | null
   onChange: OnChange
 }
 
@@ -65,6 +69,7 @@ export function SessionSettingsPicker({
   agentType,
   settings,
   loadingLabel,
+  connectionId = null,
   onChange,
 }: SessionSettingsPickerProps) {
   const t = useTranslations("Folder.chat.messageInput")
@@ -204,7 +209,12 @@ export function SessionSettingsPicker({
                   ) : setting.kind === "segmented" ? (
                     <SegmentedSetting setting={setting} onChange={onChange} />
                   ) : (
-                    <ListSetting setting={setting} onChange={onChange} />
+                    <ListSetting
+                      setting={setting}
+                      onChange={onChange}
+                      agentType={agentType}
+                      connectionId={connectionId}
+                    />
                   )}
                 </Fragment>
               )
@@ -424,9 +434,13 @@ function SegmentedSetting({
 function ListSetting({
   setting,
   onChange,
+  agentType,
+  connectionId,
 }: {
   setting: SessionChoiceSetting
   onChange: OnChange
+  agentType: AgentType | null
+  connectionId: string | null
 }) {
   const t = useTranslations("Folder.chat.messageInput")
   const headerId = useId()
@@ -441,6 +455,9 @@ function ListSetting({
           title={setting.title}
           description={setting.description}
         />
+        {setting.isModel && agentType === "zcode" && (
+          <PlanQuotaSummary connectionId={connectionId} />
+        )}
         <ModelOptionList
           groups={setting.groups}
           currentValue={setting.currentValue}
@@ -456,6 +473,19 @@ function ListSetting({
           listAriaLabel={setting.title}
           emptyLabel={setting.isModel ? t("noModels") : t("noOptions")}
           maxHeightRem={13}
+        />
+      </div>
+    )
+  }
+  if (setting.isModel && agentType === "zcode") {
+    return (
+      <div className="flex min-h-0 shrink-0 flex-col">
+        <PlanQuotaSummary connectionId={connectionId} />
+        <PlainList
+          setting={setting}
+          headerId={headerId}
+          recommendedLabel={t("recommendedBadge")}
+          onPick={commit}
         />
       </div>
     )

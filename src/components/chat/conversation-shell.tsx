@@ -87,6 +87,8 @@ interface ConversationShellProps {
   onModeChange?: (modeId: string) => void
   onConfigOptionChange?: (configId: string, valueId: string) => void
   agentType?: AgentType | null
+  /** Pass-through: see `MessageInput.connectionId` (plan-quota summary). */
+  connectionId?: string | null
   availableCommands?: AvailableCommandInfo[] | null
   /** The prompt the agent predicts the user will send next; the empty
    *  composer offers it (see `MessageInput.promptSuggestion`). */
@@ -212,6 +214,7 @@ export function ConversationShell({
   onModeChange,
   onConfigOptionChange,
   agentType,
+  connectionId = null,
   availableCommands,
   promptSuggestion,
   attachmentTabId,
@@ -351,6 +354,7 @@ export function ConversationShell({
               onModeChange={onModeChange}
               onConfigOptionChange={onConfigOptionChange}
               agentType={agentType}
+              connectionId={connectionId}
               availableCommands={availableCommands}
               promptSuggestion={promptSuggestion}
               attachmentTabId={attachmentTabId}

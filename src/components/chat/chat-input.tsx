@@ -38,6 +38,8 @@ interface ChatInputProps {
   onModeChange?: (modeId: string) => void
   onConfigOptionChange?: (configId: string, valueId: string) => void
   agentType?: AgentType | null
+  /** Pass-through: see `MessageInput.connectionId` (plan-quota summary). */
+  connectionId?: string | null
   availableCommands?: AvailableCommandInfo[] | null
   /** Pass-through: see `MessageInput.promptSuggestion`. */
   promptSuggestion?: string | null
@@ -142,6 +144,7 @@ export const ChatInput = memo(function ChatInput({
   onModeChange,
   onConfigOptionChange,
   agentType,
+  connectionId = null,
   availableCommands,
   promptSuggestion,
   attachmentTabId,
@@ -261,6 +264,7 @@ export const ChatInput = memo(function ChatInput({
         onModeChange={onModeChange}
         onConfigOptionChange={onConfigOptionChange}
         agentType={agentType}
+        connectionId={connectionId}
         availableCommands={availableCommands}
         promptSuggestion={promptSuggestion}
         commandsLoading={commandsLoading}

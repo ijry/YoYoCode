@@ -20,6 +20,13 @@ vi.mock("@/hooks/use-appearance", async (importOriginal) => ({
   useZoomLevel: () => ({ zoomLevel: 100, setZoomLevel: () => {} }),
 }))
 
+// The plan-quota summary fetches through `@/lib/api`; pin it so tests can
+// assert the fetch gate without a transport.
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  fetchAccountUsage: vi.fn(),
+}))
+
 vi.mock("virtua", () => ({
   Virtualizer: forwardRef(function VirtualizerMock(
     props: { children?: ReactNode },
@@ -135,17 +142,22 @@ function renderPicker({
   modes = [],
   currentModeId = null,
   loadingLabel = null,
+  agentType = "claude_code",
+  connectionId = null,
 }: {
   configOptions?: SessionConfigOptionInfo[]
   modes?: SessionModeInfo[]
   currentModeId?: string | null
   loadingLabel?: string | null
+  agentType?: string
+  connectionId?: string | null
 } = {}) {
   const onChange = vi.fn()
   const tree = (options: SessionConfigOptionInfo[]) => (
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <SessionSettingsPicker
-        agentType="claude_code"
+        agentType={agentType as never}
+        connectionId={connectionId}
         settings={buildSessionSettings({
           configOptions: options,
           modes,
@@ -606,5 +618,61 @@ describe("SessionSettingsPicker — the popover", () => {
     expect(trigger()).toHaveAccessibleName(
       `${MSGS.agentSettings}: Model DeepSeek Flash`
     )
+  })
+})
+
+describe("SessionSettingsPicker — plan quota summary", () => {
+  afterEach(async () => {
+    const { fetchAccountUsage } = await import("@/lib/api")
+    vi.mocked(fetchAccountUsage).mockReset()
+  })
+
+  const zcodeModel = [
+    select("model", "Model", "model", "glm-4.7", [
+      { value: "glm-4.7", name: "GLM 4.7", description: null },
+      { value: "glm-4.6", name: "GLM 4.6", description: null },
+    ]),
+  ]
+  const ZCODE_REPORT = {
+    sections: [
+      {
+        id: "zcode",
+        title: "Start Plan",
+        entries: [
+          {
+            label: "5-hour window",
+            used_percent: 68.5,
+            used_units: 685000,
+            total_units: 1000000,
+            deadline_at: Date.parse("2026-12-01T00:00:00Z"),
+            deadline_kind: "expires",
+          },
+        ],
+      },
+    ],
+  }
+
+  it("fetches and renders the summary above the model list for zcode", async () => {
+    const user = userEvent.setup()
+    const { fetchAccountUsage } = await import("@/lib/api")
+    vi.mocked(fetchAccountUsage).mockResolvedValue(ZCODE_REPORT as never)
+    renderPicker({
+      configOptions: zcodeModel,
+      agentType: "zcode",
+      connectionId: "conn-1",
+    })
+    await openPopover(user)
+    expect(await screen.findByText("Start Plan")).toBeInTheDocument()
+    expect(fetchAccountUsage).toHaveBeenCalledTimes(1)
+    expect(fetchAccountUsage).toHaveBeenCalledWith("conn-1")
+  })
+
+  it("does not fetch for a non-zcode agent or without a connection", async () => {
+    const user = userEvent.setup()
+    const { fetchAccountUsage } = await import("@/lib/api")
+    renderPicker({ configOptions: zcodeModel, agentType: "claude_code" })
+    await openPopover(user)
+    expect(screen.queryByText("Start Plan")).not.toBeInTheDocument()
+    expect(fetchAccountUsage).not.toHaveBeenCalled()
   })
 })

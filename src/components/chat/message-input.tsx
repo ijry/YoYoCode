@@ -195,6 +195,9 @@ interface MessageInputProps {
   onModeChange?: (modeId: string) => void
   onConfigOptionChange?: (configId: string, valueId: string) => void
   agentType?: AgentType | null
+  /** The live ACP connection's id — the plan-quota summary in the model
+   *  picker fetches through it; absent means no fetch. */
+  connectionId?: string | null
   availableCommands?: AvailableCommandInfo[] | null
   /**
    * The prompt the agent predicts the user will send next (claude-agent-acp
@@ -362,6 +365,7 @@ export function MessageInput({
   onModeChange,
   onConfigOptionChange,
   agentType,
+  connectionId,
   availableCommands,
   promptSuggestion,
   commandsLoading = false,
@@ -2420,6 +2424,7 @@ export function MessageInput({
                   {hasAnySelector && (
                     <SessionSettingsPicker
                       agentType={agentType ?? null}
+                      connectionId={connectionId ?? null}
                       settings={sessionSettings}
                       loadingLabel={
                         showSelectorsLoading

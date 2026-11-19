@@ -915,7 +915,14 @@ const ConversationTabView = memo(function ConversationTabView({
     // double send. The direct-send tail-routing in `handleSend` and the
     // TurnBusy bounce re-queue below STAY: direct sends still belong at the
     // tail, and a client racing the backend can still bounce.
-    if (!canFlushClientQueue(dbConversationId != null, conn.messageQueueBackendDrain, messageQueue.backendDrain)) return
+    if (
+      !canFlushClientQueue(
+        dbConversationId != null,
+        conn.messageQueueBackendDrain,
+        messageQueue.backendDrain
+      )
+    )
+      return
     // The SAME readiness predicate `handleSend` gates on — deliberately the one
     // variable, not a re-spelling of it. This effect DEQUEUES before handing the
     // message over, so any gate weaker than the send's own check takes a message
@@ -2411,6 +2418,7 @@ const ConversationTabView = memo(function ConversationTabView({
       onModeChange={handleModeChange}
       onConfigOptionChange={handleSetConfigOption}
       agentType={selectedAgent}
+      connectionId={conn.connectionId}
       availableCommands={connectionCommands}
       // The previous agent's prediction is no use to the one just picked.
       promptSuggestion={connIsForOtherAgent ? null : conn.promptSuggestion}
@@ -2439,16 +2447,32 @@ const ConversationTabView = memo(function ConversationTabView({
       showActiveFlow={showActiveFlow}
       queue={msgQueue}
       queueControl={messageQueue.control}
-      onQueueContinue={async () => { try { await messageQueue.continueTask() } catch (error) { toast.error(toErrorMessage(error)) } }}
-      onQueueReleaseHold={async () => { try { await messageQueue.releaseHold() } catch (error) { toast.error(toErrorMessage(error)) } }}
-      onQueueSendNow={async (id) => { try { await messageQueue.sendNow(id) } catch (error) { toast.error(toErrorMessage(error)) } }}
+      onQueueContinue={async () => {
+        try {
+          await messageQueue.continueTask()
+        } catch (error) {
+          toast.error(toErrorMessage(error))
+        }
+      }}
+      onQueueReleaseHold={async () => {
+        try {
+          await messageQueue.releaseHold()
+        } catch (error) {
+          toast.error(toErrorMessage(error))
+        }
+      }}
+      onQueueSendNow={async (id) => {
+        try {
+          await messageQueue.sendNow(id)
+        } catch (error) {
+          toast.error(toErrorMessage(error))
+        }
+      }}
       onEnqueue={mqEnqueue}
       onEnqueueScheduled={
         // The composer owns the failure UX (toast + keep draft); passing the
         // hook's async action straight through keeps that contract.
-        messageQueue.scheduledSend
-          ? messageQueue.enqueueScheduled
-          : undefined
+        messageQueue.scheduledSend ? messageQueue.enqueueScheduled : undefined
       }
       onQueueSchedule={
         // The queue display owns the failure UX (toast + keep the dialog).
@@ -2470,10 +2494,17 @@ const ConversationTabView = memo(function ConversationTabView({
             }
           : mqRemove
       }
-      onQueueRetry={messageQueue.backendDrain === true ? async (id) => {
-        try { await messageQueue.retryItem(id) }
-        catch (error) { toast.error(toErrorMessage(error)) }
-      } : undefined}
+      onQueueRetry={
+        messageQueue.backendDrain === true
+          ? async (id) => {
+              try {
+                await messageQueue.retryItem(id)
+              } catch (error) {
+                toast.error(toErrorMessage(error))
+              }
+            }
+          : undefined
+      }
       onQueueSteer={
         // Same gate as the composer's mid-turn send, plus a turn actually in
         // flight: a queued row can only be inserted into a RUNNING turn —
