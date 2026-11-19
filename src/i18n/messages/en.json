@@ -3595,6 +3595,13 @@
         "modelListLabel": "Models",
         "recommendedBadge": "Recommended",
         "recommendedValue": "Recommended: {value}",
+        "planQuota": {
+            "sectionZcode": "ZCode Plan",
+            "sectionGlm": "GLM Coding Plan",
+            "expiresAt": "Valid until {date}",
+            "resetsIn": "Resets {time}",
+            "usedOfTotal": "{used} / {total} tokens"
+        },
         "searchOptions": "Search options...",
         "searchOptionsAria": "Search options",
         "noOptions": "No options found",

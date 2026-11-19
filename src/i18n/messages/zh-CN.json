@@ -3595,6 +3595,13 @@
         "modelListLabel": "模型",
         "recommendedBadge": "推荐",
         "recommendedValue": "推荐：{value}",
+        "planQuota": {
+            "sectionZcode": "ZCode 计划",
+            "sectionGlm": "GLM Coding 计划",
+            "expiresAt": "有效期至 {date}",
+            "resetsIn": "{time}重置",
+            "usedOfTotal": "已用 {used} / {total}"
+        },
         "searchOptions": "搜索选项...",
         "searchOptionsAria": "搜索选项",
         "noOptions": "未找到选项",
