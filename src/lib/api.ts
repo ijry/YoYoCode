@@ -91,6 +91,7 @@ import type {
   AcpAgentInfo,
   AcpAgentStatus,
   ZcodeProviderOption,
+  PlanUsageReport,
   AgentLatestRelease,
   AgentDiagnosticsReport,
   GrokStructuredConfig,
@@ -541,6 +542,19 @@ export async function acpListAgents(): Promise<AcpAgentInfo[]> {
  */
 export async function acpZcodeListProviders(): Promise<ZcodeProviderOption[]> {
   return getTransport().call("acp_zcode_list_providers", {})
+}
+
+/**
+ * The adapter's plan-quota report (`account/usage_stats`, proposal 0002). An
+ * adapter without the method answers an empty report (the backend remembers
+ * the verdict per connection), so callers render nothing — never an error.
+ */
+export async function fetchAccountUsage(
+  connectionId: string
+): Promise<PlanUsageReport> {
+  return getTransport().call("acp_fetch_account_usage", { connectionId }, {
+    timeoutMs: 10_000,
+  })
 }
 
 export async function acpGetAgentStatus(

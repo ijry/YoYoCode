@@ -1802,6 +1802,39 @@ export interface ZcodeProviderInfo {
   default_model?: string | null
 }
 
+/** Mirrors src-tauri/src/acp/types.rs (snake_case on the wire): the
+ *  normalized `account/usage_stats` plan-quota report. Sections the adapter
+ *  answered unsuccessfully, or with no rows, are absent entirely. */
+export interface PlanUsageReport {
+  sections: PlanUsageSection[]
+}
+
+export interface PlanUsageSection {
+  /** Adapter section key: `zcode` (Start Plan) or `glm` (GLM Coding Plan). */
+  id: string
+  /** The adapter's own plan name / level; empty string falls back to the
+   *  frontend's i18n label keyed by `id`. */
+  title: string
+  entries: PlanUsageEntry[]
+}
+
+export interface PlanUsageEntry {
+  label: string
+  /** 0..=100, derived from the unit counters when the adapter omits it. */
+  used_percent: number
+  /** Absolute token counters (zcode section). The glm section's request
+   *  counts are NOT mapped here — percent only — so the UI never labels
+   *  counts as tokens. */
+  used_units?: number | null
+  total_units?: number | null
+  unit?: string | null
+  /** Epoch millis of the deadline. */
+  deadline_at?: number | null
+  /** `expires` = the granted quota's end (rendered "valid until");
+   *  `resets` = a periodic window reset. */
+  deadline_kind?: "expires" | "resets" | null
+}
+
 export interface AgentOptionsSnapshot {
   modes: SessionModeStateInfo | null
   config_options: SessionConfigOptionInfo[]

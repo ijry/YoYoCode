@@ -32,3 +32,21 @@ export function formatTimeAgo(at: number, now: number, locale: string): string {
   }
   return formatter.format(0, "second")
 }
+
+/**
+ * How long until `at`, in the locale's words and its largest whole unit
+ * ("in 3 hours", "3小时后") — the future counterpart of [`formatTimeAgo`],
+ * for deadlines like a quota window's reset. A sub-minute wait rounds up to
+ * a minute (there is no useful "in 0 seconds"), and a time already behind
+ * `now` — clock skew, a just-passed deadline — reads as an imminent minute
+ * rather than negative anything.
+ */
+export function formatTimeIn(at: number, now: number, locale: string): string {
+  const formatter = formatterFor(locale)
+  const remaining = Math.max(0, at - now)
+  for (const [unit, size] of UNITS) {
+    if (remaining >= size)
+      return formatter.format(Math.floor(remaining / size), unit)
+  }
+  return formatter.format(1, "minute")
+}
