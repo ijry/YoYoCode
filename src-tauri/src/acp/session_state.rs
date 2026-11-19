@@ -248,6 +248,20 @@ pub struct PendingUserMessage {
     pub blocks: Vec<crate::acp::types::UserMessageBlock>,
 }
 
+/// How fresh a stored plan-quota report stays: repeated dialog opens inside
+/// this window cost no agent round-trip (the adapter caches for 10s on its
+/// side, so a longer TTL would only serve staleness anyway).
+const ACCOUNT_USAGE_TTL: chrono::Duration = chrono::Duration::seconds(30);
+
+/// The manager's short-circuit answers from [`SessionState::cached_account_usage`].
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum CachedAccountUsage {
+    Report(crate::acp::types::PlanUsageReport),
+    /// The adapter provably does not answer `account/usage_stats` — the
+    /// caller returns an empty report without touching the connection.
+    Unsupported,
+}
+
 /// 后端权威的会话状态。每个 AgentConnection 持有一个 Arc<RwLock<SessionState>>。
 ///
 /// 字段范围：仅当前 turn 的 in-flight 数据 + 元信息 + 协商出的能力。
@@ -729,6 +743,15 @@ pub struct SessionState {
     /// [`Self::has_live_async_task`].
     pub async_task_activity_at: Option<DateTime<Utc>>,
 
+    /// Last successful `account/usage_stats` report (plan quota) with its
+    /// fetch time — the manager's 30s TTL cache, per connection. Backend-internal.
+    pub account_usage: Option<crate::acp::types::PlanUsageReport>,
+    pub account_usage_fetched_at: Option<DateTime<Utc>>,
+    /// Permanent negative verdict: the adapter does not answer
+    /// `account/usage_stats` (proposal 0002 is zcode-acp 0.87+; a bridge
+    /// without it cannot grow it mid-run), so no retry burns an RTT.
+    pub account_usage_unsupported: bool,
+
     /// Concatenated text content of the just-completed turn's assistant
     /// message. Captured at TurnComplete (just before live_message is
     /// cleared) so the lifecycle subscriber can surface it as the
@@ -1039,6 +1062,9 @@ impl SessionState {
             session_failures: BTreeMap::new(),
             async_tasks: BTreeMap::new(),
             async_task_activity_at: None,
+            account_usage: None,
+            account_usage_fetched_at: None,
+            account_usage_unsupported: false,
             last_assistant_text: None,
             last_turn_completed_at: None,
             last_turn_progress: None,
@@ -2108,6 +2134,39 @@ impl SessionState {
         }
     }
 
+    /// What the manager can short-circuit a plan-quota fetch with: a cached
+    /// report inside the TTL, or the permanent unsupported verdict. `None`
+    /// means the connection loop has to be asked.
+    pub fn cached_account_usage(&self, now: DateTime<Utc>) -> Option<CachedAccountUsage> {
+        if self.account_usage_unsupported {
+            return Some(CachedAccountUsage::Unsupported);
+        }
+        match (self.account_usage.as_ref(), self.account_usage_fetched_at) {
+            (Some(report), Some(at))
+                if now.signed_duration_since(at) < ACCOUNT_USAGE_TTL =>
+            {
+                Some(CachedAccountUsage::Report(report.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Record a fresh report as the TTL-cache hit for this connection.
+    pub fn store_account_usage(
+        &mut self,
+        report: crate::acp::types::PlanUsageReport,
+        now: DateTime<Utc>,
+    ) {
+        self.account_usage = Some(report);
+        self.account_usage_fetched_at = Some(now);
+    }
+
+    /// Pin the "adapter does not answer `account/usage_stats`" verdict for
+    /// this connection's lifetime.
+    pub fn mark_account_usage_unsupported(&mut self) {
+        self.account_usage_unsupported = true;
+    }
+
     /// Claim the next turn for one the agent is starting on its own, unless a
     /// prompt the manager admitted already owns it. On `true` the caller
     /// announces the turn (`StatusChanged(Prompting)`); on `false` the admitted
@@ -3105,8 +3164,9 @@ mod tests {
     use super::*;
     use crate::acp::types::{
         AcpEvent, AsyncTaskDelta, AsyncTaskUsage, ConnectionStatus, DelegationResultSummary,
-        EventEnvelope, PromptCapabilitiesInfo, SessionConfigKindInfo, SessionConfigOptionInfo,
-        SessionConfigSelectInfo, SessionModeInfo, SessionModeStateInfo, UserMessageBlock,
+        EventEnvelope, PlanUsageReport, PromptCapabilitiesInfo, SessionConfigKindInfo,
+        SessionConfigOptionInfo, SessionConfigSelectInfo, SessionModeInfo, SessionModeStateInfo,
+        UserMessageBlock,
     };
 
     fn fresh_state() -> SessionState {
@@ -3117,6 +3177,40 @@ mod tests {
             "win-test".to_string(),
             None,
         )
+    }
+
+    /// The plan-quota cache: fresh state starts empty, a stored report is a
+    /// TTL hit within 30s and a miss past it, and the unsupported verdict
+    /// short-circuits forever (the adapter cannot grow the method mid-run).
+    #[test]
+    fn account_usage_cache_respects_ttl_and_unsupported() {
+        let now = Utc::now();
+        let mut s = fresh_state();
+        assert_eq!(s.cached_account_usage(now), None);
+
+        s.store_account_usage(
+            PlanUsageReport {
+                sections: Vec::new(),
+            },
+            now,
+        );
+        assert_eq!(
+            s.cached_account_usage(now + chrono::Duration::seconds(29)),
+            Some(CachedAccountUsage::Report(PlanUsageReport {
+                sections: Vec::new()
+            }))
+        );
+        assert_eq!(s.cached_account_usage(now + chrono::Duration::seconds(31)), None);
+
+        s.mark_account_usage_unsupported();
+        assert_eq!(
+            s.cached_account_usage(now),
+            Some(CachedAccountUsage::Unsupported)
+        );
+        assert_eq!(
+            s.cached_account_usage(now + chrono::Duration::seconds(31)),
+            Some(CachedAccountUsage::Unsupported)
+        );
     }
 
     /// `ConversationLinked` must forget the live-title skip-cache.

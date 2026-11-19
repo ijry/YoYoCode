@@ -30,7 +30,8 @@ use crate::acp::question::{
 use crate::acp::terminal_runtime::TerminalShellRuntimeConfig;
 use crate::acp::types::{
     AcpEvent, AgentOptionsSnapshot, ConfigStaleKind, ConnectionInfo, ConnectionStatus,
-    ForkResultInfo, PermissionAnswerOrigin, PromptCapabilitiesInfo, PromptInputBlock,
+    ForkResultInfo, PermissionAnswerOrigin, PlanUsageReport, PromptCapabilitiesInfo,
+    PromptInputBlock,
 };
 use crate::db::entities::conversation::{self, ConversationKind, ConversationStatus};
 use crate::db::service::conversation_service;
@@ -2496,6 +2497,56 @@ impl ConnectionManager {
         reply_rx
             .await
             .map_err(|_| AcpError::protocol("Async task stop reply channel closed".to_string()))?
+    }
+
+    /// The adapter's plan-quota report (`account/usage_stats`), served from
+    /// the connection's cache when possible. NEVER returns an error for an
+    /// adapter that lacks the method: the first failure pins the permanent
+    /// "unsupported" verdict in the session state and an empty report comes
+    /// back, so the frontend can degrade silently instead of handling errors.
+    /// Only a missing connection itself errors (the caller asked about
+    /// something that no longer exists).
+    pub async fn fetch_account_usage(&self, conn_id: &str) -> Result<PlanUsageReport, AcpError> {
+        let (cmd_tx, state) = {
+            let connections = self.connections.lock().await;
+            let conn = connections
+                .get(conn_id)
+                .ok_or_else(|| AcpError::ConnectionNotFound(conn_id.into()))?;
+            (conn.cmd_tx.clone(), conn.state.clone())
+        };
+        let empty = || Ok(PlanUsageReport::default());
+        let cached = state
+            .read()
+            .await
+            .cached_account_usage(chrono::Utc::now());
+        match cached {
+            Some(crate::acp::session_state::CachedAccountUsage::Report(report)) => Ok(report),
+            Some(crate::acp::session_state::CachedAccountUsage::Unsupported) => empty(),
+            None => {
+                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                cmd_tx
+                    .send(ConnectionCommand::FetchAccountUsage { reply: reply_tx })
+                    .await
+                    .map_err(|_| AcpError::ProcessExited)?;
+                match reply_rx
+                    .await
+                    .map_err(|_| AcpError::protocol("Account usage reply channel closed".to_string()))?
+                {
+                    Ok(report) => {
+                        state
+                            .write()
+                            .await
+                            .store_account_usage(report.clone(), chrono::Utc::now());
+                        Ok(report)
+                    }
+                    Err(error) => {
+                        tracing::debug!(conn_id, %error, "account/usage_stats unsupported");
+                        state.write().await.mark_account_usage_unsupported();
+                        empty()
+                    }
+                }
+            }
+        }
     }
 
     /// Stop the running turn. `by_user` marks a person pressing Stop — the
