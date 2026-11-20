@@ -160,17 +160,17 @@ mod tests {
 
     // Made with a throwaway key by the Tauri CLI the release workflow uses:
     // `tauri signer sign [--app-version 1.2.3]` over `PAYLOAD`.
-    const TEST_PUBKEY: &str = "untrusted comment: minisign public key: A79AF58C1271B5FA\n\
-        RWT6tXESjPWap6H6d3WSjNHFG4qB37Na10QmYP2+TN5DghQqBI2iIYzg\n";
+    const TEST_PUBKEY: &str = "untrusted comment: minisign public key: F77257E2305BB657\n\
+        RWRXtlsw4ldy91V90LuQVfBpNzVECPFew9CT6WRJphRj0sn2mFP3i271\n";
     const PAYLOAD: &[u8] = b"codeg release payload";
     const SIGNED_FOR_1_2_3: &str = "untrusted comment: signature from tauri secret key\n\
-        RUT6tXESjPWap9e0BMiOsY2EtpW0O59HcNiDZ1LR1PT/T28QTZFOL25XM3JTHRifgZxesxUmVgD5AoXc+QPOTKiVllA1HDmiwQc=\n\
-        trusted comment: timestamp:1792063972\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\tversion:1.2.3\n\
-        z3vufMYf/CuVl47mBcYK/Q9g4B7YdXxoDSronvaM0/sVycxIhy3xYja5ZpEfx4IKUo8IyGzlMUpYuS8BY0NDBg==\n";
+        RURXtlsw4ldy985HHl2QFII+VtXhxEuWqu9+m2cT4dUzcHJMwTWxH1kROvvLdYZSA0dx7dwmhgGbEPR3+Ov3rsfZMm3xFQz5JwE=\n\
+        trusted comment: timestamp:1795180998\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\tversion:1.2.3\n\
+        +eUMjBzmx35wI59jkSbl60Awh9rM4ui6wVJlaAoj3g4X+LOGLhg47542o0ZHBid3E+b421Y30Zjn4z0pAwpLAg==\n";
     const SIGNED_FOR_NO_VERSION: &str = "untrusted comment: signature from tauri secret key\n\
-        RUT6tXESjPWapxohXyYsHgc5hjgoHYZAnpt+HWB8vOWwEeU/RZJvg8nzTt3At6MQPIdAC2/B3ZKlDvymtXcdoK/v+HZw3zYxgA4=\n\
-        trusted comment: timestamp:1792063972\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\n\
-        MfCKBGgrJEzgiR5HKWQdatdyrplwU57s+UJWo/1rxlJRyTzxqd7fpVLAsdfesEj0kICi2Hx1cgNNjgPIlUAACQ==\n";
+        RURXtlsw4ldy916yUacqV+pidouBFm9PNSPt9PFYsjGHx6Y8cziDOgY51VrlU+PUFYB24CBR2yVIX8WnLl6WM/6zXk45kPEpeAM=\n\
+        trusted comment: timestamp:1795181000\tfile:yoyocode-server-x86_64-unknown-linux-gnu.tar.gz\n\
+        GSgqKkAKYX3Zd5MYzCXOzyYoi4O9i2QJIeCT6suoyuuh7HCBe0YRLb6JhGWEgoCfL8ZVj3/rWpYkdvmk+LneCg==\n";
 
     fn test_key() -> PublicKey {
         parse_public_key(TEST_PUBKEY).unwrap()

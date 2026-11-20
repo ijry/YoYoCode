@@ -349,11 +349,10 @@ readline.createInterface({input:process.stdin}).on('line', line => {
         .collect();
     assert_eq!(prompts[0]["prompt"][0]["text"], "A");
     assert_eq!(prompts[1]["prompt"][0]["text"], "B");
+    let reported_cwd = Path::new(prompts[0]["cwd"].as_str().unwrap());
     assert_eq!(
-        prompts[0]["cwd"],
-        data.path()
-            .to_string_lossy()
-            .replace('/', std::path::MAIN_SEPARATOR_STR)
+        std::fs::canonicalize(reported_cwd).unwrap(),
+        std::fs::canonicalize(data.path()).unwrap()
     );
 }
 

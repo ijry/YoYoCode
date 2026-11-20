@@ -1042,8 +1042,10 @@ mod tests {
         assert!(decoded.status.success());
         let loud = decoded
             .stdout
-            .chunks_exact(2)
-            .any(|sample| i16::from_le_bytes([sample[0], sample[1]]).unsigned_abs() > 1000);
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .any(|sample| i16::from_le_bytes(*sample).unsigned_abs() > 1000);
         assert!(loud, "the export must use the bound speech, not anullsrc");
     }
 
