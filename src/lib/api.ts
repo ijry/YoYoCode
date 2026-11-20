@@ -552,9 +552,13 @@ export async function acpZcodeListProviders(): Promise<ZcodeProviderOption[]> {
 export async function fetchAccountUsage(
   connectionId: string
 ): Promise<PlanUsageReport> {
-  return getTransport().call("acp_fetch_account_usage", { connectionId }, {
-    timeoutMs: 10_000,
-  })
+  return getTransport().call(
+    "acp_fetch_account_usage",
+    { connectionId },
+    {
+      timeoutMs: 10_000,
+    }
+  )
 }
 
 export async function acpGetAgentStatus(
