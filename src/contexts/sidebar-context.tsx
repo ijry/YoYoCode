@@ -20,17 +20,20 @@ import { MAC_TRAFFIC_LIGHT_INSET } from "@/lib/window-chrome"
 const STORAGE_KEY = "workspace:left-sidebar"
 
 const DEFAULT_WIDTH = 320
-// The sidebar header is the window's top-left edge: its top-left is reserved
-// for the fixed window-chrome overlay (sidebar toggle + search) and its
-// top-right holds the view controls, so it needs more room than the old 200.
-const BASE_MIN_WIDTH = 224
+// The narrowest the sidebar may be dragged. The header's top-left is reserved
+// for the fixed window-chrome overlay (sidebar toggle + search: 80px at 100%
+// zoom, + the fixed 76px traffic-light clearance on the macOS desktop app) and
+// its top-right holds the three view-control buttons (~84px), so 192 still
+// leaves ~28px of drag filler between them; anything narrower pinches the
+// header and the list rows.
+const BASE_MIN_WIDTH = 192
 const MAX_WIDTH = 900
 const DEFAULT_IS_OPEN = true
 
 /**
  * The narrowest the sidebar may be dragged. On the macOS desktop app the native
  * traffic lights sit at the header's far left, ahead of the chrome overlay, so
- * only there does the minimum add their inset (224 + 76 = 300). Windows, Linux
+ * only there does the minimum add their inset (192 + 76 = 268). Windows, Linux
  * and the browser have no traffic lights: sized for them anyway, the column
  * bottomed out 76px wider than anything in it needs, which is why it read as
  * so much wider than on macOS. Both minimums leave the header the same room
