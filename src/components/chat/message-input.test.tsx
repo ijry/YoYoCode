@@ -29,6 +29,7 @@ import {
   emitAttachFileToSession,
   emitAttachPageToSession,
   emitAttachSessionToSession,
+  queuePendingSessionAttachments,
 } from "@/lib/session-attachment-events"
 import type { DbConversationSummary } from "@/lib/types"
 
@@ -1368,6 +1369,22 @@ describe("MessageInput session-mention attach", () => {
     })
     const text = serializeDocToText(editor.state.doc)
     expect(text.indexOf(link)).toBe(text.lastIndexOf(link))
+  })
+
+  it("drains attachments queued before the composer mounted", async () => {
+    // The continue-in-new-session flow queues these for a tab whose composer
+    // does not exist yet; the drain runs the moment this composer is ready.
+    queuePendingSessionAttachments("tab-1", [
+      { kind: "session", conversation: summary(42, "Fix auth") },
+      { kind: "text", text: "请继续上面会话的工作。" },
+    ])
+    const editor = await mountWithEditor()
+
+    await waitFor(() => {
+      const text = serializeDocToText(editor.state.doc)
+      expect(text).toContain("[Fix auth](codeg://session/42)")
+      expect(text).toContain("请继续上面会话的工作。")
+    })
   })
 })
 

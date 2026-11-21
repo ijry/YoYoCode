@@ -37,6 +37,8 @@ export interface AttachSessionToSessionDetail {
    * uri / agent + status + branch meta.
    */
   conversation: DbConversationSummary
+  /** Set by the composer that took the event (see the pending queue below). */
+  consumed?: boolean
 }
 
 export function emitAttachSessionToSession(
@@ -101,6 +103,8 @@ export const APPEND_TEXT_TO_SESSION_EVENT = "codeg:append-text-to-session"
 export interface AppendTextToSessionDetail {
   tabId: string
   text: string
+  /** Set by the composer that took the event (see the pending queue below). */
+  consumed?: boolean
 }
 
 export function emitAppendTextToSession(
@@ -112,4 +116,92 @@ export function emitAppendTextToSession(
       detail,
     })
   )
+}
+
+// ─── Pending attachments: prefill a composer that isn't mounted yet ───
+
+export type PendingSessionAttachment =
+  | { kind: "session"; conversation: DbConversationSummary }
+  | { kind: "text"; text: string }
+
+/** How long a queued prefill may wait for its composer before it is dropped. */
+export const PENDING_SESSION_ATTACHMENTS_TTL_MS = 3000
+const PENDING_RETRY_INTERVAL_MS = 150
+
+const pendingAttachments = new Map<string, PendingSessionAttachment[]>()
+const warnedDropTabs = new Set<string>()
+
+/** Queue composer content for a tab whose composer does not exist yet. */
+export function queuePendingSessionAttachments(
+  tabId: string,
+  items: PendingSessionAttachment[]
+): void {
+  if (items.length === 0) return
+  const queue = pendingAttachments.get(tabId) ?? []
+  queue.push(...items)
+  pendingAttachments.set(tabId, queue)
+}
+
+/**
+ * One drain pass over a tab's queue: dispatch each item as its ordinary
+ * attachment event and drop only the ones a composer actually consumed
+ * (`detail.consumed`). Events nobody took stay queued for the next pass.
+ */
+export function drainPendingSessionAttachments(tabId: string): void {
+  if (typeof window === "undefined") return
+  const queue = pendingAttachments.get(tabId)
+  if (!queue?.length) return
+  for (const item of [...queue]) {
+    const consumed =
+      item.kind === "session"
+        ? dispatchUntilConsumed<AttachSessionToSessionDetail>(
+            ATTACH_SESSION_TO_SESSION_EVENT,
+            { tabId, conversation: item.conversation }
+          )
+        : dispatchUntilConsumed<AppendTextToSessionDetail>(
+            APPEND_TEXT_TO_SESSION_EVENT,
+            { tabId, text: item.text }
+          )
+    if (consumed) queue.splice(queue.indexOf(item), 1)
+  }
+  if (queue.length === 0) pendingAttachments.delete(tabId)
+}
+
+function dispatchUntilConsumed<T extends { consumed?: boolean }>(
+  eventType: string,
+  detail: T
+): boolean {
+  const event = new CustomEvent<T>(eventType, { detail })
+  window.dispatchEvent(event)
+  return event.detail.consumed === true
+}
+
+/**
+ * Prefill right after opening the tab: drain immediately, then keep retrying
+ * until the composer consumed everything. A tab whose composer never mounts
+ * drops its queue after `PENDING_SESSION_ATTACHMENTS_TTL_MS` (warned once) so
+ * a dead tab cannot hold prefill forever.
+ */
+export function flushPendingSessionAttachments(tabId: string): void {
+  if (typeof window === "undefined") return
+  drainPendingSessionAttachments(tabId)
+  if (!pendingAttachments.get(tabId)?.length) return
+  const startedAt = Date.now()
+  const retry = setInterval(() => {
+    drainPendingSessionAttachments(tabId)
+    if (!pendingAttachments.get(tabId)?.length) {
+      clearInterval(retry)
+      return
+    }
+    if (Date.now() - startedAt >= PENDING_SESSION_ATTACHMENTS_TTL_MS) {
+      clearInterval(retry)
+      pendingAttachments.delete(tabId)
+      if (!warnedDropTabs.has(tabId)) {
+        warnedDropTabs.add(tabId)
+        console.warn(
+          `[session-attachment] dropped pending prefill for tab ${tabId}: composer never became ready`
+        )
+      }
+    }
+  }, PENDING_RETRY_INTERVAL_MS)
 }

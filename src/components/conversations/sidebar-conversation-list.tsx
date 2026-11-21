@@ -53,6 +53,7 @@ import { useSortedAvailableAgents } from "@/hooks/use-sorted-available-agents"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { OpenInSubContent } from "@/components/layout/open-in-menu"
 import {
+  acpCancel,
   openImportSessionsWindow,
   openInCode,
   openProjectBootWindow,
@@ -66,6 +67,16 @@ import {
   listChildConversations,
 } from "@/lib/api"
 import { isDesktop, revealItemInDir } from "@/lib/platform"
+import { useOptionalConnectionStore } from "@/contexts/acp-connections-context"
+import {
+  flushPendingSessionAttachments,
+  queuePendingSessionAttachments,
+} from "@/lib/session-attachment-events"
+import {
+  resolveRunningConnectionId,
+  runContinueInNewSession,
+  type ContinueDeps,
+} from "./continue-in-new-session"
 import type {
   AgentType,
   ConversationStatus,
@@ -972,6 +983,7 @@ export function SidebarConversationList({
 }) {
   const t = useTranslations("Folder.sidebar")
   const tCommon = useTranslations("Folder.common")
+  const tCard = useTranslations("Folder.conversationCard")
   const tTags = useTranslations("ConversationTags")
   const tFolderDropdown = useTranslations("Folder.folderNameDropdown")
   const tFileTree = useTranslations("Folder.fileTreeTab")
@@ -2345,6 +2357,84 @@ export function SidebarConversationList({
     [folderIndex, openNewConversationTab, openConversations]
   )
 
+  // "Continue in a new session" — the row's menu entry; the flow (stop a still
+  // running session, mark it completed, open a new conversation prefilled with
+  // an @-mention of it) lives in continue-in-new-session.ts behind these deps.
+  // The confirm dialog is THIS list's (like move-to-folder): one instance for
+  // every row, so the card memo keeps bailing out.
+  const connectionStore = useOptionalConnectionStore()
+  const [continueConfirm, setContinueConfirm] =
+    useState<DbConversationSummary | null>(null)
+  const continueDeps = useMemo<ContinueDeps>(
+    () => ({
+      findTabForConversation: (conversation) =>
+        useTabStore
+          .getState()
+          .tabs.find(
+            (tab) =>
+              tab.conversationId === conversation.id &&
+              tab.folderId === conversation.folder_id &&
+              tab.agentType === conversation.agent_type
+          ) ?? null,
+      getConnection: (tabId) => {
+        const conn = connectionStore?.getConnection(tabId)
+        return conn
+          ? { status: conn.status, connectionId: conn.connectionId }
+          : null
+      },
+      cancelConnection: (connectionId) => acpCancel(connectionId),
+      markCompleted: (conversationId) => {
+        void handleStatusChange(conversationId, "completed")
+      },
+      getFolderPath: (folderId) => folderIndex.get(folderId)?.path ?? null,
+      openNewConversation: (folderId, path, agentType) =>
+        openNewConversationTab(folderId, path, {
+          forceAgent: agentType as AgentType,
+        }).tabId,
+      queuePrefill: (tabId, conversation, promptText) =>
+        queuePendingSessionAttachments(tabId, [
+          { kind: "session", conversation },
+          { kind: "text", text: promptText },
+        ]),
+      flushPrefill: flushPendingSessionAttachments,
+    }),
+    [connectionStore, folderIndex, handleStatusChange, openNewConversationTab]
+  )
+  const startContinue = useCallback(
+    (conversation: DbConversationSummary) => {
+      // Return to the conversations workbench FIRST, or the new tab lands
+      // unseen beneath a workbench route overlay (every sibling opener pairs
+      // the two calls for exactly that reason).
+      openConversations()
+      void runContinueInNewSession(
+        conversation,
+        continueDeps,
+        tCard("continuePromptText")
+      ).then((started) => {
+        // The flow aborts only when the folder is gone — say so instead of a
+        // silent nothing after a (possibly confirmed) click.
+        if (!started) toast.error(t("toasts.continueFolderMissing"))
+      })
+    },
+    [continueDeps, openConversations, t, tCard]
+  )
+  const handleContinueInNewSession = useCallback(
+    (conversation: DbConversationSummary) => {
+      // Still generating → confirm before stopping; idle or unopened → the
+      // completed mark needs no permission.
+      const connectionId = resolveRunningConnectionId(
+        conversation,
+        continueDeps
+      )
+      if (connectionId != null) {
+        setContinueConfirm(conversation)
+        return
+      }
+      startContinue(conversation)
+    },
+    [continueDeps, startContinue]
+  )
+
   // "Import local sessions" now lives in a dedicated picker window (scan →
   // folder-grouped multi-select → batch import). The folder context-menu entry
   // anchors the picker to its own folder; sidebar refresh arrives via the
@@ -3341,6 +3431,7 @@ export function SidebarConversationList({
         onDelete={handleDelete}
         onStatusChange={handleStatusChange}
         onNewConversation={handleNewConversationForFolder}
+        onContinueInNewSession={handleContinueInNewSession}
         onTogglePin={handleTogglePin}
         onMoveToFolder={handleMoveToFolder}
         onManageConversations={handleManageConversationsFor}
@@ -3705,6 +3796,34 @@ export function SidebarConversationList({
             <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveFolderConfirm}>
               {tCommon("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* "Continue in a new session" on a still-generating conversation: one
+          confirm for the whole list, so the row handler stays memo-stable. */}
+      <AlertDialog
+        open={continueConfirm !== null}
+        onOpenChange={(open) => !open && setContinueConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tCard("continueRunningTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tCard("continueRunningDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const conversation = continueConfirm
+                setContinueConfirm(null)
+                if (conversation) startContinue(conversation)
+              }}
+            >
+              {tCard("continueStopAndContinue")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

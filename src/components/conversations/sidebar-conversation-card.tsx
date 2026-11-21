@@ -196,6 +196,9 @@ interface SidebarConversationCardProps {
   onDelete: (id: number, agentType: string, folderId: number) => Promise<void>
   onStatusChange: (id: number, status: ConversationStatus) => Promise<void>
   onNewConversation?: (folderId: number) => void
+  /** "Continue in a new session": the list runs the stop → mark-completed →
+   *  open-and-prefill flow; absent (tests, non-list surfaces) hides the item. */
+  onContinueInNewSession?: (conversation: DbConversationSummary) => void
   onTogglePin?: (id: number, nextPinned: boolean) => void
   /** A folder was picked in the "Move to folder" submenu — the caller asks for
    *  confirmation. Offered on root regular and chat conversations only (a
@@ -230,6 +233,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   onDelete,
   onStatusChange,
   onNewConversation,
+  onContinueInNewSession,
   onTogglePin,
   onMoveToFolder,
   onManageConversations,
@@ -737,6 +741,22 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
               <AtSign className="h-4 w-4" />
               {t("attachToCurrentSession")}
             </ContextMenuItem>
+            {/* "Continue in a new session": settles this session (stop if it is
+                still running, mark it completed) and opens a new conversation
+                prefilled with an @-mention of it. The whole flow lives in the
+                list (it owns the folder paths and the status write); the card
+                only offers the entry. Sub-sessions opt out like they do of the
+                status menu: a delegate child has no bound tab, so the stop
+                path can never fire and "continue" would just mark a still-
+                running run completed. */}
+            {onContinueInNewSession && !isSubsession && (
+              <ContextMenuItem
+                onSelect={() => onContinueInNewSession(conversation)}
+              >
+                <SquarePen className="h-4 w-4" />
+                {t("continueInNewSession")}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             {/* Sub-sessions opt out like they do of pinning: a sub-agent run
                 is not a conversation the user files away, and the sidebar
