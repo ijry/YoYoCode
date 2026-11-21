@@ -454,6 +454,8 @@ export function MessageInput({
     ? t("promptSuggestion", { suggestion: offeredSuggestion })
     : resolvedPlaceholder
   const editorRef = useRef<RichComposerHandle>(null)
+  const [voicePreviewContainer, setVoicePreviewContainer] =
+    useState<HTMLDivElement | null>(null)
   // Prompt-history navigation. `historyRef` is seeded from `getSentHistory`
   // lazily, the first time the user steps into history, so a session that never
   // uses it pays nothing.
@@ -2372,6 +2374,10 @@ export function MessageInput({
                   />
                 }
               />
+              <div
+                ref={setVoicePreviewContainer}
+                className="min-w-0 shrink-0"
+              />
               <RichComposer
                 ref={editorRef}
                 placeholder={shownPlaceholder}
@@ -2419,6 +2425,7 @@ export function MessageInput({
                   <ComposerScreenshotButton disabled={disabled} />
                   <ComposerVoiceButton
                     disabled={disabled}
+                    previewContainer={voicePreviewContainer}
                     onTranscript={handleVoiceTranscript}
                   />
                   {hasAnySelector && (
