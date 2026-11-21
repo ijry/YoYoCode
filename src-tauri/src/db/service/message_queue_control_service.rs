@@ -27,6 +27,81 @@ pub struct MessageQueueState {
 /// The hold value written on a user stop.
 pub const HOLD_MANUAL_STOP: &str = "manual_stop";
 
+/// 队首消息算不算一条「继续」指令（报错自动放行的判定，见 `complete_attempt`）。
+///
+/// 规则刻意保守：去掉首尾空白后**非空、单行、≤120 字符**，且以应用 10 种语言的
+/// 任一「继续」关键词**开头**（拉丁文不区分大小写）。开头贴合关键词的长说明
+/// （>120 字符或换行）更可能是任务说明书而不是一句「接着干」，宁可不放行 ——
+/// 放错了就是把一条被暂停保护的队列悄悄排空。
+const CONTINUE_INSTRUCTION_PREFIXES: [&str; 25] = [
+    "继续", "繼續", "接着", "接著",
+    "continue", "resume", "carry on", "go on",
+    "続行", "続け", "続き",
+    "계속", "이어서",
+    "continúa", "continuar", "sigue",
+    "fortsetzen", "weiter",
+    "continuez", "reprend",
+    "continua", "retoma",
+    "متابعة", "تابع", "استمر",
+];
+
+pub(crate) fn is_continue_instruction(raw: &str) -> bool {
+    let text = raw.trim();
+    if text.is_empty() || text.contains('\n') || text.chars().count() > 120 {
+        return false;
+    }
+    let lowered = text.to_lowercase();
+    CONTINUE_INSTRUCTION_PREFIXES
+        .iter()
+        .any(|prefix| lowered.starts_with(prefix))
+}
+
+/// 从持久化草稿 JSON 里取展示文本（`displayText` 优先，文本块拼接兜底）。
+fn draft_prompt_text(draft_json: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(draft_json).ok()?;
+    if let Some(text) = value.get("displayText").and_then(|v| v.as_str()) {
+        return Some(text.to_string());
+    }
+    let blocks = value.get("blocks")?.as_array()?;
+    let mut text = String::new();
+    for block in blocks {
+        if block.get("type").and_then(|v| v.as_str()) == Some("text") {
+            if let Some(piece) = block.get("text").and_then(|v| v.as_str()) {
+                if !text.is_empty() {
+                    text.push('\n');
+                }
+                text.push_str(piece);
+            }
+        }
+    }
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+/// 队首 pending 行是不是一条「继续」指令。排序与定时透明规则和 `claim_next`
+/// 的队首选择完全一致（sort_order, id；未到时间的定时行不算队首）。
+async fn next_pending_is_continue<C: ConnectionTrait>(
+    conn: &C,
+    owner: &str,
+) -> Result<bool, DbError> {
+    let row = conn
+        .query_one(statement(
+            "SELECT draft_json FROM message_queue_item WHERE owner_id=? AND delivery_state='pending' AND (scheduled_at IS NULL OR scheduled_at<=?) ORDER BY sort_order ASC, id ASC LIMIT 1",
+            vec![owner.into(), Utc::now().to_rfc3339().into()],
+        ))
+        .await?;
+    let Some(row) = row else {
+        return Ok(false);
+    };
+    let draft: String = row.try_get("", "draft_json")?;
+    Ok(draft_prompt_text(&draft)
+        .map(|text| is_continue_instruction(&text))
+        .unwrap_or(false))
+}
+
 #[derive(Debug, Clone)]
 pub struct QueueTurnAttempt {
     pub id: String,
@@ -212,6 +287,17 @@ pub async fn complete_attempt(
     } else {
         state.hold.clone()
     };
+    // 报错（非用户停止、也非恢复尝试被取消）且**队首本身就是一条「继续」指令**
+    // 时不落 paused：那条队列消息就是用户的恢复决定 —— 和「继续未完成任务」按钮
+    // 表达的是同一个意图，只是用的是自己的话。保持 open 让 drainer 把它发出去；
+    // 它出队后如果再次报错，队首就是普通消息，队列照旧停下来等人。
+    let auto_resumed = !open
+        && result_status == "failed"
+        && next_pending_is_continue(&txn, &completion.owner_id)
+            .await
+            .unwrap_or(false);
+    let open = open || auto_resumed;
+    let hold = if auto_resumed { None } else { hold };
     txn.execute(statement(
         "UPDATE message_queue_state SET status=?,active_attempt_id=NULL,failed_attempt_id=?,error=?,hold=?,revision=revision+1,updated_at=? WHERE owner_id=? AND active_attempt_id=?",
         vec![(if open { "open" } else { "paused" }).into(),

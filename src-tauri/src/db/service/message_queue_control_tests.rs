@@ -84,6 +84,146 @@ async fn a_failed_turn_blocks_later_queue_even_after_save_and_reload() {
     assert_eq!(state.error.as_deref(), Some("provider error"));
 }
 
+async fn save_draft(db: &DatabaseConnection, id: &str, draft_json: &str) {
+    message_queue_service::save(
+        db,
+        "42",
+        vec![QueueItemInput {
+            id: id.into(),
+            draft_json: draft_json.into(),
+            mode_id: None,
+            adopt_send_time_mode: false,
+        }],
+    )
+    .await
+    .unwrap();
+}
+
+fn draft_with_text(text: &str) -> String {
+    serde_json::json!({"blocks":[{"type":"text","text":text}],"displayText":text})
+        .to_string()
+}
+
+#[tokio::test]
+async fn a_failed_turn_auto_resumes_when_the_queued_head_is_a_continue_instruction() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save_draft(
+        &db.conn,
+        "B",
+        &draft_with_text("继续之前因错误中断的任务。从中断处接着完成尚未完成的部分。"),
+    )
+    .await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &completed(&attempt, false, false))
+        .await
+        .unwrap();
+
+    // 队首就是一条「继续」指令：报错不 pause，队列照常排空（发的是这条队列消息，
+    // 不是宿主的固定续跑话术）。
+    assert_eq!(state.status, "open");
+    assert!(state.failed_attempt_id.is_none());
+    assert!(state.error.is_none());
+    assert!(state.hold.is_none());
+    let claim = message_queue_service::claim_next(&db.conn, "42", "claim-C")
+        .await
+        .unwrap()
+        .expect("continue head must keep draining");
+    assert!(claim.item.draft_json.contains("继续之前"));
+}
+
+#[tokio::test]
+async fn a_failed_turn_keeps_the_queue_paused_for_a_plain_head() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save_draft(&db.conn, "B", &draft_with_text("task A")).await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &completed(&attempt, false, false))
+        .await
+        .unwrap();
+
+    assert_eq!(state.status, "paused");
+    assert!(message_queue_service::claim_next(&db.conn, "42", "claim-B")
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn a_failed_turn_with_an_empty_queue_stays_paused() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &completed(&attempt, false, false))
+        .await
+        .unwrap();
+    assert_eq!(state.status, "paused");
+}
+
+#[tokio::test]
+async fn a_future_scheduled_head_is_transparent_to_the_continue_check() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    // 队首是一条未到时间的定时消息（普通文本）：按 claim 的透明规则跳过它，
+    // 看下一条 —— 下一条是继续指令，照样自动放行。
+    message_queue_service::save(
+        &db.conn,
+        "42",
+        vec![QueueItemInput {
+            id: "S".into(),
+            draft_json: draft_with_text("task A"),
+            mode_id: None,
+            adopt_send_time_mode: false,
+        }],
+    )
+    .await
+    .unwrap();
+    message_queue_service::set_schedule(
+        &db.conn,
+        "42",
+        "S",
+        Some(Utc::now() + chrono::Duration::hours(1)),
+    )
+    .await
+    .unwrap();
+    save_draft(&db.conn, "B", &draft_with_text("继续。")).await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &completed(&attempt, false, false))
+        .await
+        .unwrap();
+
+    assert_eq!(state.status, "open");
+    let claim = message_queue_service::claim_next(&db.conn, "42", "claim-B")
+        .await
+        .unwrap()
+        .expect("scheduled head is transparent");
+    assert!(claim.item.draft_json.contains("继续。"));
+}
+
+#[tokio::test]
+async fn a_user_stop_still_holds_the_queue_even_with_a_continue_head() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save_draft(&db.conn, "B", &draft_with_text("继续。")).await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &user_cancelled(&attempt))
+        .await
+        .unwrap();
+
+    assert_eq!(state.status, "open");
+    assert_eq!(state.hold.as_deref(), Some(HOLD_MANUAL_STOP));
+    assert!(message_queue_service::claim_next(&db.conn, "42", "claim-B")
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn a_broken_draft_json_is_treated_as_not_a_continue_instruction() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save_draft(&db.conn, "B", "{not json").await;
+    let attempt = begin(&db.conn, None).await;
+    let state = complete_attempt(&db.conn, &completed(&attempt, false, false))
+        .await
+        .unwrap();
+    assert_eq!(state.status, "paused");
+}
+
 #[tokio::test]
 async fn only_a_successful_continuation_releases_the_paused_queue() {
     let db = test_helpers::fresh_in_memory_db().await;
@@ -349,4 +489,66 @@ async fn unfinished_attempts_remain_paused_across_host_restart() {
         Some(attempt.id.as_str())
     );
     assert!(state.active_attempt_id.is_none());
+}
+
+#[test]
+fn continue_instructions_recognize_the_ten_ui_languages() {
+    // 精确 / 带句尾标点 / 短语开头，全部算「继续」指令。
+    for text in [
+        "继续",
+        "继续。",
+        "继续吧",
+        "繼續之前的任務",
+        "接着完成任务",
+        "接著做",
+        // 桌面端「继续未完成任务」按钮发出的固定话术也在队列里出现过。
+        "继续之前因错误中断的任务。从中断处接着完成尚未完成的部分，不要重新执行已完成操作，也不要开始待发送队列中的后续任务。",
+        "continue",
+        "Continue.",
+        "continue the task from where it stopped",
+        "resume the task",
+        "carry on with the work",
+        "go on",
+        "続行します",
+        "続けてください",
+        "続きをお願い",
+        "계속 진행하세요",
+        "이어서 진행해 주세요",
+        "continúa con la tarea",
+        "continuar el trabajo",
+        "sigue adelante",
+        "fortsetzen",
+        "Weitermachen",
+        "continuez la tâche",
+        "reprends le travail",
+        "continuar a tarefa",
+        "retoma o trabalho",
+        "متابعة المهمة",
+        "تابع العمل",
+        "استمر من حيث توقفت",
+    ] {
+        assert!(is_continue_instruction(text), "should match: {text}");
+    }
+}
+
+#[test]
+fn continue_instructions_reject_everything_else() {
+    for text in [
+        "",                // 空
+        "      ",          // 纯空白
+        "task A",          // 普通任务
+        "完成登录模块的重构",       // 没有「继续」关键词
+        "先写文档，然后继续其他任务", // 关键词不在开头
+        "继续阅读并总结这本书的每一章内容，整理出核心观点、论证结构和可执行的改进建议，同时对比作者在不同章节中的论述方式，最后给出一份完整的读书报告，包括引言、正文和结论三个部分，并附上每章的关键引文和页码，方便后续核对原始材料，另外请把所有引用的术语都翻译成英文并保留原文对照，方便跨语言的读者理解这些概念在不同语境下的含义差异。", // 超过 120 字符的长任务说明（开头贴关键词也不放行）
+        "继续\n然后清点剩余工作",    // 多行
+        "。。。",
+    ] {
+        assert!(!is_continue_instruction(text), "should NOT match: {text}");
+    }
+}
+
+#[test]
+fn continue_instructions_are_case_insensitive_for_latin_scripts() {
+    assert!(is_continue_instruction("  CONTINUE.  "));
+    assert!(is_continue_instruction("Resume"));
 }

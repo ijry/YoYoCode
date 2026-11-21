@@ -15,3 +15,9 @@
 ## 验证
 
 SQLite暂停/恢复6例、SessionState结果捕获4例、manager+bus+lifecycle+drainer A失败→B不发→继续→success→B闭环已跑；UI空队列提示/恢复禁按钮已跑；App Jest与Web编译成功，准确数量以实际测试日志为准；全部状态保存/继续均宿主控制。
+
+## 报错自动放行：队首是「继续」指令时不再暂停
+
+- 报错（`failed`，非用户停止、也非恢复轮取消）结算时，`complete_attempt` 解析**队首 pending 行**（与 `claim_next` 同序 sort_order,id；未到时间的定时行按透明规则跳过）的展示文本：命中「继续指令」判定则**不写 paused**，状态保持 `open`（failed_attempt_id/error/hold 全清），drainer 照常把这条队列消息发进原会话 —— 用户自己排队的「继续」就是恢复决定，用的是他的原话而不是宿主的固定话术。
+- 「继续指令」判定（`is_continue_instruction`，纯函数）：去首尾空白后非空、**单行**、≤120 字符，且以 10 种 UI 语言的任一继续关键词**开头**（拉丁文不区分大小写）：继续/繼續/接着/接著、continue/resume/carry on/go on、続行/続け/続き、계속/이어서、continúa/continuar/sigue、fortsetzen/weiter、continuez/reprend、continua/retoma、متابعة/تابع/استمر。规则保守可调：开头贴合关键词的超长说明（>120 字符）或多行文本按普通任务处理（不放行）。
+- 它出队后再次报错 → 队首已是普通消息 → 队列照旧 paused 等人，收敛。用户停止的 hold、恢复轮取消的 paused、空队列/无队首/草稿损坏 → 全部维持原有暂停行为。
