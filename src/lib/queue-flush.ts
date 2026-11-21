@@ -111,3 +111,112 @@ export function shouldRejectDuplicateCreate(
 ): boolean {
   return !hasPersistedId && createPending
 }
+
+// ─── +1 折叠：相同 pending 消息折叠为一条 xN 组，「继续」行支持 +1 ─────────
+
+/**
+ * 队首消息算不算一条「继续」指令 —— Rust 侧
+ * `message_queue_control_service.rs::is_continue_instruction` 的 TS 镜像：
+ * 报错自动放行（宿主）与 +1 按钮的显隐（客户端）必须用同一张判定表。
+ *
+ * 规则：去首尾空白后非空、单行、≤120 字符，且以 10 种 UI 语言的任一「继续」
+ * 关键词开头（拉丁文不区分大小写）。与 Rust 侧任一侧增删关键词时，另一侧
+ * `CONTINUE_INSTRUCTION_PREFIXES` 必须同步（queue-flush.test.ts 有长度断言提醒）。
+ */
+const CONTINUE_INSTRUCTION_PREFIXES: readonly string[] = [
+  "继续",
+  "繼續",
+  "接着",
+  "接著",
+  "continue",
+  "resume",
+  "carry on",
+  "go on",
+  "続行",
+  "続け",
+  "続き",
+  "계속",
+  "이어서",
+  "continúa",
+  "continuar",
+  "sigue",
+  "fortsetzen",
+  "weiter",
+  "continuez",
+  "reprend",
+  "continua",
+  "retoma",
+  "متابعة",
+  "تابع",
+  "استمر",
+]
+
+export { CONTINUE_INSTRUCTION_PREFIXES }
+
+export function isContinueInstruction(raw: string): boolean {
+  const text = raw.trim()
+  if (!text || text.includes("\n") || [...text].length > 120) return false
+  const lowered = text.toLowerCase()
+  return CONTINUE_INSTRUCTION_PREFIXES.some((prefix) =>
+    lowered.startsWith(prefix)
+  )
+}
+
+/**
+ * 折叠候选行的最小结构（不直接依赖 hooks 层的 QueuedMessage 类型，保持 lib
+ * 层不反向依赖 hooks）。
+ */
+export interface QueueFoldRow {
+  id: string
+  draft: { displayText: string }
+  /** 有值即非 pending：claimed/sending/failed/uncertain 都不参与折叠。 */
+  deliveryState?: string | null
+  /** 定时行带自己的时间 UI，不折叠。 */
+  scheduledAt?: string | null
+}
+
+/** 折叠后的一个展示组：`item` 是组代表行（行内操作落在它身上），`copies` 是
+ *  它名下的全部真实队列拷贝 —— 计数就是 `copies.length`。 */
+export interface FoldedQueueGroup<T extends QueueFoldRow = QueueFoldRow> {
+  item: T
+  copies: T[]
+}
+
+/**
+ * 把队列折叠成展示组：相同 displayText 的 pending 行（未定时、非编辑中）并成
+ * 一组，按首现位置排列；其余行（带状态 UI / 定时 / 编辑中）独立成单元素组，
+ * 任何行都不会消失。组的计数随拷贝发出自然减一（drain 后 pending 拷贝变少）。
+ */
+export function foldQueueForDisplay<T extends QueueFoldRow>(
+  queue: T[],
+  editingId: string | null
+): FoldedQueueGroup<T>[] {
+  const groups: FoldedQueueGroup<T>[] = []
+  const byText = new Map<string, FoldedQueueGroup<T>>()
+  for (const item of queue) {
+    const foldable =
+      item.id !== editingId && item.deliveryState == null && !item.scheduledAt
+    if (!foldable) {
+      groups.push({ item, copies: [item] })
+      continue
+    }
+    const key = item.draft.displayText
+    const existing = byText.get(key)
+    if (existing) {
+      existing.copies.push(item)
+    } else {
+      const group: FoldedQueueGroup<T> = { item, copies: [item] }
+      byText.set(key, group)
+      groups.push(group)
+    }
+  }
+  return groups
+}
+
+/** 拖拽排序发生在组级别：展开回真实行序交给既有 onReorder，拷贝不丢、组内
+ *  相对顺序不变。 */
+export function expandFoldedGroups<T extends QueueFoldRow>(
+  groups: FoldedQueueGroup<T>[]
+): T[] {
+  return groups.flatMap((group) => group.copies)
+}

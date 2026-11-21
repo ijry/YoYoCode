@@ -86,6 +86,9 @@ interface ChatInputProps {
    *  Threaded straight through; present only while a turn is in flight and
    *  the session has a working channel. */
   onQueueSteer?: (id: string) => Promise<void> | void
+  /** Queue one more identical copy of a pending row (the row's +1 button;
+   *  see `MessageQueueDisplayProps.onQueuePlusOne`). */
+  onQueuePlusOne?: (item: QueuedMessage) => void
   editingItemId?: string | null
   editingDraftText?: string | null
   editingDraftBlocks?: PromptInputBlock[] | null
@@ -166,6 +169,7 @@ export const ChatInput = memo(function ChatInput({
   onQueueDelete,
   onQueueRetry,
   onQueueSteer,
+  onQueuePlusOne,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -239,6 +243,7 @@ export const ChatInput = memo(function ChatInput({
             onDelete={onQueueDelete}
             onRetry={onQueueRetry}
             onScheduleItem={onQueueSchedule}
+            onQueuePlusOne={onQueuePlusOne}
             editingItemId={editingItemId ?? null}
             onSteerItem={onQueueSteer}
             steerChannel={steerChannel}

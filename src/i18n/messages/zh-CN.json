@@ -3707,6 +3707,7 @@
         "resumeQueue": "恢复自动发送",
         "sendNow": "立即发送",
         "sendNowResume": "发送此消息并继续会话",
+        "plusOne": "再排一条相同消息",
         "steerItemNow": "插入当前回合",
         "steerItemAsNote": "作为留言，供下次检查时读取",
         "scheduledSend": "定时发送",

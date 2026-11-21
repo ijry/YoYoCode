@@ -2468,6 +2468,7 @@ const ConversationTabView = memo(function ConversationTabView({
           toast.error(toErrorMessage(error))
         }
       }}
+      onQueuePlusOne={(item) => mqEnqueue(item.draft, item.modeId)}
       onEnqueue={mqEnqueue}
       onEnqueueScheduled={
         // The composer owns the failure UX (toast + keep draft); passing the

@@ -3707,6 +3707,7 @@
         "resumeQueue": "Resume auto-send",
         "sendNow": "Send now",
         "sendNowResume": "Send this message and resume the session",
+        "plusOne": "Queue one more copy of this message",
         "steerItemNow": "Insert into current turn",
         "steerItemAsNote": "Send as note for next check",
         "scheduledSend": "Send later",

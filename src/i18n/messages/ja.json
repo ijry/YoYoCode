@@ -3668,6 +3668,7 @@
         "resumeQueue": "自動送信を再開",
         "sendNow": "今すぐ送信",
         "sendNowResume": "このメッセージを送信してセッションを再開",
+        "plusOne": "同じメッセージをもう1件予約",
         "steerItemNow": "現在のターンに挿入",
         "steerItemAsNote": "メモとして送信し次回チェック時に読ませる",
         "scheduledSend": "予約送信",

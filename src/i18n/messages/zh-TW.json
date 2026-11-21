@@ -3668,6 +3668,7 @@
         "resumeQueue": "恢復自動發送",
         "sendNow": "立即發送",
         "sendNowResume": "傳送此訊息並繼續工作階段",
+        "plusOne": "再排一則相同訊息",
         "steerItemNow": "插入目前回合",
         "steerItemAsNote": "作為留言，供下次檢查時讀取",
         "scheduledSend": "定時傳送",

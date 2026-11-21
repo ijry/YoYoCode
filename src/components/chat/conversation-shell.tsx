@@ -148,6 +148,9 @@ interface ConversationShellProps {
    *  live-feedback channel; threaded straight through to the composer's
    *  queue list. See `ChatInputProps.onQueueSteer`. */
   onQueueSteer?: (id: string) => Promise<void> | void
+  /** Queue one more identical copy of a pending row (the row's +1 button;
+   *  see `ChatInputProps.onQueuePlusOne`). */
+  onQueuePlusOne?: (item: QueuedMessage) => void
   editingItemId?: string | null
   editingDraftText?: string | null
   editingDraftBlocks?: PromptInputBlock[] | null
@@ -241,6 +244,7 @@ export function ConversationShell({
   onQueueDelete,
   onQueueRetry,
   onQueueSteer,
+  onQueuePlusOne,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -376,6 +380,7 @@ export function ConversationShell({
               onQueueDelete={onQueueDelete}
               onQueueRetry={onQueueRetry}
               onQueueSteer={onQueueSteer}
+              onQueuePlusOne={onQueuePlusOne}
               editingItemId={editingItemId}
               editingDraftText={editingDraftText}
               editingDraftBlocks={editingDraftBlocks}

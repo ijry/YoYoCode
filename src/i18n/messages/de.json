@@ -3668,6 +3668,7 @@
         "resumeQueue": "Automatisches Senden fortsetzen",
         "sendNow": "Jetzt senden",
         "sendNowResume": "Diese Nachricht senden und Sitzung fortsetzen",
+        "plusOne": "Weitere Kopie dieser Nachricht einreihen",
         "steerItemNow": "In aktuellen Turn einfügen",
         "steerItemAsNote": "Als Notiz für die nächste Abfrage senden",
         "scheduledSend": "Später senden",

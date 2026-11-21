@@ -3668,6 +3668,7 @@
         "resumeQueue": "자동 전송 재개",
         "sendNow": "지금 보내기",
         "sendNowResume": "이 메시지를 보내고 세션 재개",
+        "plusOne": "같은 메시지 하나 더 줄세우기",
         "steerItemNow": "현재 턴에 삽입",
         "steerItemAsNote": "메모로 보내 다음 점검 때 읽도록 함",
         "scheduledSend": "예약 전송",

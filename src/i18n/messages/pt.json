@@ -3668,6 +3668,7 @@
         "resumeQueue": "Retomar envio automático",
         "sendNow": "Enviar agora",
         "sendNowResume": "Enviar esta mensagem e retomar a sessão",
+        "plusOne": "Enfileirar outra cópia desta mensagem",
         "steerItemNow": "Inserir na vez atual",
         "steerItemAsNote": "Enviar como nota para a próxima verificação",
         "scheduledSend": "Enviar mais tarde",
