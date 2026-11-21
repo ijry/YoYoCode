@@ -175,7 +175,21 @@ function SidebarNavButton({
   )
 }
 
-export function Sidebar() {
+export interface SidebarProps {
+  /**
+   * "panel" (default) is the resizable-panel column: it unmounts when the
+   * sidebar is collapsed. "flyout" is the hover preview's overlay instance: it
+   * mounts ONLY while the sidebar is collapsed AND the hover preview is open.
+   */
+  variant?: "panel" | "flyout"
+  /** Whether the hover preview (see `useSidebarHoverFlyout`) is open. */
+  flyoutOpen?: boolean
+}
+
+export function Sidebar({
+  variant = "panel",
+  flyoutOpen = false,
+}: SidebarProps) {
   const t = useTranslations("Folder.sidebar")
   const { isOpen, toggle } = useSidebarContext()
   const { activeFolder } = useActiveFolder()
@@ -346,7 +360,14 @@ export function Sidebar() {
     toggle,
   ])
 
-  if (!isOpen) return null
+  // The panel column unmounts on collapse (the shrink wrapper keeps painting
+  // `bg-sidebar` through the 240ms slide); the flyout instance instead mounts
+  // only while collapsed AND the hover preview is open (see SidebarFlyout).
+  if (variant === "panel") {
+    if (!isOpen) return null
+  } else if (isOpen || !flyoutOpen) {
+    return null
+  }
 
   return (
     <aside className="@container/sidebar flex h-full min-h-0 flex-col overflow-hidden text-sidebar-foreground select-none">

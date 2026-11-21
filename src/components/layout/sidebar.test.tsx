@@ -53,6 +53,9 @@ const spies = vi.hoisted(() => ({
 }))
 const mockState = vi.hoisted(() => ({
   activeFolder: { id: 7, path: "/x" } as { id: number; path: string } | null,
+  // Sidebar context fields the flyout-variant tests flip per case.
+  sidebarOpen: true,
+  flyoutOpen: false,
 }))
 
 // The conversation list is irrelevant here — stub it so the test exercises only
@@ -88,7 +91,16 @@ vi.mock("@/components/conversations/conversation-tags-manager", () => ({
   openConversationTagsManager: spies.openConversationTagsManager,
 }))
 vi.mock("@/contexts/sidebar-context", () => ({
-  useSidebarContext: () => ({ isOpen: true, toggle: vi.fn() }),
+  useSidebarContext: () => ({
+    isOpen: mockState.sidebarOpen,
+    flyoutOpen: mockState.flyoutOpen,
+    width: 320,
+    minWidth: 192,
+    maxWidth: 900,
+    restored: true,
+    toggle: vi.fn(),
+    setWidth: vi.fn(),
+  }),
 }))
 vi.mock("@/contexts/active-folder-context", () => ({
   useActiveFolder: () => ({ activeFolder: mockState.activeFolder }),
@@ -739,5 +751,61 @@ describe("Sidebar — Section order control", () => {
       "chats",
     ])
     expect(spies.listProps?.showRecent).toBe(false)
+  })
+})
+
+describe("Sidebar — flyout variant", () => {
+  beforeEach(() => {
+    mockState.sidebarOpen = true
+    mockState.flyoutOpen = false
+  })
+
+  it("renders the full sidebar as the hover preview when collapsed and open", () => {
+    mockState.sidebarOpen = false
+    mockState.flyoutOpen = true
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <Sidebar variant="flyout" flyoutOpen />
+      </NextIntlClientProvider>
+    )
+
+    expect(document.querySelector("aside")).not.toBeNull()
+  })
+
+  it("renders nothing while the sidebar is formally open", () => {
+    mockState.sidebarOpen = true
+    mockState.flyoutOpen = true
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <Sidebar variant="flyout" flyoutOpen />
+      </NextIntlClientProvider>
+    )
+
+    expect(document.querySelector("aside")).toBeNull()
+  })
+
+  it("renders nothing while the hover preview is closed", () => {
+    mockState.sidebarOpen = false
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <Sidebar variant="flyout" flyoutOpen={false} />
+      </NextIntlClientProvider>
+    )
+
+    expect(document.querySelector("aside")).toBeNull()
+  })
+
+  it("keeps the panel variant collapsed to nothing", () => {
+    mockState.sidebarOpen = false
+    mockState.flyoutOpen = true
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <Sidebar />
+      </NextIntlClientProvider>
+    )
+
+    // The in-panel instance still unmounts on collapse — the flyout is a
+    // separate overlay instance, never a re-opened panel column.
+    expect(document.querySelector("aside")).toBeNull()
   })
 })
