@@ -19,13 +19,11 @@ import {
   getVoiceStatus,
   getVoiceStreamStatus,
   listenVoicePartial,
-  listenVoicePrepare,
   prepareVoiceStream,
   sendVoiceStreamChunk,
   startVoiceStream,
   stopVoiceStream,
   transcribeVoice,
-  type VoicePrepareProgress,
   type VoiceStatus,
 } from "@/lib/api"
 import { extractAppCommandError } from "@/lib/app-error"
@@ -96,8 +94,6 @@ export function ComposerVoiceButton({
   const phaseRef = useRef<VoicePhase>("idle")
   const engineRef = useRef<VoiceEngine>(engine)
   const localStatusRef = useRef<VoiceStatus | null>(null)
-  const prepareUnsubRef = useRef<(() => void) | null>(null)
-  const prepareToastIdRef = useRef("codeg-voice-prepare")
   const mountedRef = useRef(true)
   // Streaming session state. `chunkChain` serializes the ~100 ms uploads so
   // the recognizer hears audio in capture order; stop waits for the chain.
@@ -109,18 +105,6 @@ export function ComposerVoiceButton({
     phaseRef.current = next
     if (mountedRef.current) setPhase(next)
   }, [])
-
-  const progressText = useCallback(
-    (progress: VoicePrepareProgress) => {
-      if (progress.stage === "done") return t("voiceReady")
-      if (progress.stage === "extracting") return t("voicePreparingExtracting")
-      if (progress.percent >= 0) {
-        return t("voicePreparingProgress", { percent: progress.percent })
-      }
-      return t("voicePreparing")
-    },
-    [t]
-  )
 
   useEffect(() => {
     mountedRef.current = true
@@ -151,28 +135,6 @@ export function ComposerVoiceButton({
       active = false
     }
   }, [])
-
-  // The prepare command streams `voice://prepare`; show real progress instead
-  // of a frozen spinner while the decoder + model are downloaded.
-  useEffect(() => {
-    let active = true
-    void listenVoicePrepare((progress) => {
-      if (!active || progress.stage === "done") return
-      toast.loading(progressText(progress), {
-        id: prepareToastIdRef.current,
-      })
-    })
-      .then((unsub) => {
-        if (active) prepareUnsubRef.current = unsub
-        else unsub()
-      })
-      .catch(() => {})
-    return () => {
-      active = false
-      prepareUnsubRef.current?.()
-      prepareUnsubRef.current = null
-    }
-  }, [progressText])
 
   // Live partials for the streaming engine. The session filter drops events
   // from stale sessions (e.g. an aborted recording whose last chunk raced
@@ -222,26 +184,24 @@ export function ComposerVoiceButton({
     }
 
     setPhaseSafe("preparing")
-    toast.loading(t("voicePreparing"), { id: prepareToastIdRef.current })
+    // 下载进度在状态栏常驻显示（StatusBarVoicePrepare）；这里不再叠加 loading
+    // toast —— 几分钟的下载用它表示既挡聊天又像卡死。成功提示保留。
     try {
       const status = await ensureVoiceReady()
       localStatusRef.current = status
       setManualInstall(status.needsManualInstall)
       if (!status.available) {
-        toast.error(t("voiceManualInstallRequired"), {
-          id: prepareToastIdRef.current,
-        })
+        toast.error(t("voiceManualInstallRequired"))
         return false
       }
-      toast.success(t("voiceReady"), { id: prepareToastIdRef.current })
+      toast.success(t("voiceReady"))
       return true
     } catch (error) {
       const appError = extractAppCommandError(error)
       toast.error(
         appError?.code === "dependency_missing"
           ? t("voiceManualInstallRequired")
-          : t("voicePrepareFailed"),
-        { id: prepareToastIdRef.current }
+          : t("voicePrepareFailed")
       )
       return false
     } finally {
@@ -304,19 +264,17 @@ export function ComposerVoiceButton({
 
   const startStreaming = useCallback(async () => {
     setPhaseSafe("preparing")
+    // 下载进度在状态栏常驻显示（StatusBarVoicePrepare），不再叠加 loading toast。
     try {
       const status = await getVoiceStreamStatus()
       if (!status.loaded) {
-        toast.loading(t("voicePreparing"), { id: prepareToastIdRef.current })
         await prepareVoiceStream()
-        toast.success(t("voiceReady"), { id: prepareToastIdRef.current })
+        toast.success(t("voiceReady"))
       }
     } catch {
       // Dependency missing is impossible here (sherpa-onnx is compiled in);
       // the realistic failures are download/load errors.
-      toast.error(t("voicePrepareFailed"), {
-        id: prepareToastIdRef.current,
-      })
+      toast.error(t("voicePrepareFailed"))
       setPhaseSafe("idle")
       return
     }
