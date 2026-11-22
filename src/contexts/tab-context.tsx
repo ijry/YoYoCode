@@ -30,7 +30,11 @@ import {
 } from "@/lib/types"
 
 export type { OpenedDraftTarget, TabItem }
-export { useTabStore, useTabActions } from "@/stores/tab-store"
+export {
+  useTabStore,
+  useTabActions,
+  closeTabsForConversations,
+} from "@/stores/tab-store"
 
 interface TabProviderProps {
   children: ReactNode

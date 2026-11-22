@@ -83,7 +83,10 @@ import {
 } from "@/components/shared/folder-select"
 import { FolderAliasLabel } from "@/components/conversations/folder-alias-label"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
-import { useTabActions } from "@/contexts/tab-context"
+import {
+  closeTabsForConversations,
+  useTabActions,
+} from "@/contexts/tab-context"
 import { useAcpAgents } from "@/hooks/use-acp-agents"
 import {
   deleteConversation,
@@ -810,6 +813,9 @@ export function ConversationManageDialog({
             updateConversationStatus(conv.id, status)
           )
         )
+        if (status === "completed") {
+          closeTabsForConversations(selectedConversations.map((conv) => conv.id))
+        }
         toast.success(
           t("toastStatusUpdated", { count: selectedConversations.length })
         )

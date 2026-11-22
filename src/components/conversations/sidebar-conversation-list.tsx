@@ -45,7 +45,11 @@ import {
 } from "lucide-react"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
-import { useTabActions, useTabStore } from "@/contexts/tab-context"
+import {
+  closeTabsForConversations,
+  useTabActions,
+  useTabStore,
+} from "@/contexts/tab-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useTerminalContext } from "@/contexts/terminal-context"
 import { useThemeColor, useZoomLevel } from "@/hooks/use-appearance"
@@ -2296,6 +2300,7 @@ export function SidebarConversationList({
   const handleStatusChange = useCallback(
     async (id: number, status: ConversationStatus) => {
       updateConversationLocal(id, { status })
+      if (status === "completed") closeTabsForConversations([id])
       await updateConversationStatus(id, status)
     },
     [updateConversationLocal]

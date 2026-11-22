@@ -3459,6 +3459,32 @@ export function useTabActions() {
 }
 
 /**
+ * Close the open tabs bound to conversations the user just marked completed.
+ *
+ * A completed conversation stays in the sidebar and can be reopened from
+ * there, so the tab is deliberately NOT offered to "reopen last closed tab".
+ * That stack is for tabs the user closed by hand. Every mark-completed entry
+ * point (sidebar card, conversation detail header, bulk manage dialog) calls
+ * this so the behaviour is identical wherever the status write happens.
+ */
+export function closeTabsForConversations(
+  conversationIds: Iterable<number>
+): void {
+  const ids = new Set(conversationIds)
+  if (ids.size === 0) return
+  // Re-read the store for each close: closing can focus a neighbour or spawn a
+  // replacement draft, but tab ids are stable and still identify our targets.
+  const targets = useTabStore
+    .getState()
+    .tabs.filter(
+      (tab) => tab.conversationId != null && ids.has(tab.conversationId)
+    )
+  for (const tab of targets) {
+    useTabStore.getState().closeTab(tab.id, { recordForReopen: false })
+  }
+}
+
+/**
  * Restore pristine state (store + module coordination vars + injected runtime).
  * Used by tests, and by the backend-scoped reset registry if a realm's backend
  * identity ever changes (an invariant-violating transition that does not occur

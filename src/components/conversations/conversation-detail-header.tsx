@@ -23,7 +23,10 @@ import {
 import { formatConversationTitle } from "@/lib/conversation-title"
 import { ConversationHeaderFolderPicker } from "@/components/chat/conversation-context-bar"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
-import { useTabActions } from "@/contexts/tab-context"
+import {
+  closeTabsForConversations,
+  useTabActions,
+} from "@/contexts/tab-context"
 import { getRuntimeSession } from "@/stores/conversation-runtime-store"
 import type { ConversationStatus } from "@/lib/types"
 import { STATUS_ORDER } from "@/lib/types"
@@ -219,6 +222,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       updateConversationStatus(conversationId, next).catch((err) => {
         console.error("[ConversationDetailHeader] status change:", err)
       })
+      if (next === "completed") closeTabsForConversations([conversationId])
     },
     [conversationId, updateConversationLocal]
   )
