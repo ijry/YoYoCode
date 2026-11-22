@@ -1007,7 +1007,9 @@ describe("Antigravity MCP dispatch naming", () => {
       "get_delegation_status"
     )
     expect(normalizeToolName("yoyocode-mcp_ask_user_question")).toBe("question")
-    expect(normalizeToolName("yoyocode-mcp_task_progress")).toBe("task_progress")
+    expect(normalizeToolName("yoyocode-mcp_task_progress")).toBe(
+      "task_progress"
+    )
   })
 })
 
@@ -1662,7 +1664,9 @@ describe("inferLiveToolName meta.opencode.toolName override", () => {
       })
     ).toBe("get_delegation_status")
     expect(
-      call("yoyocode-mcp_ask_user_question", "asked", "other", { questions: [] })
+      call("yoyocode-mcp_ask_user_question", "asked", "other", {
+        questions: [],
+      })
     ).toBe("question")
   })
 

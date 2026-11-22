@@ -31,18 +31,26 @@ const dirty = git(["status", "--porcelain"])
 if (dirty) fail(`工作区不干净，先提交或 stash：\n${dirty}`)
 
 if (!git(["remote"]).split("\n").includes(UPSTREAM))
-  fail(`缺少 ${UPSTREAM} remote：\n  git remote add ${UPSTREAM} ${UPSTREAM_URL}`)
+  fail(
+    `缺少 ${UPSTREAM} remote：\n  git remote add ${UPSTREAM} ${UPSTREAM_URL}`
+  )
 
 // ── 拉取上游 ───────────────────────────────────────────────────────────────
 console.log(`▶ git fetch ${UPSTREAM} --prune`)
 git(["fetch", UPSTREAM, "--prune"], { stdio: "inherit" })
 
 const tip = git(["rev-parse", "--short", `${UPSTREAM}/${BRANCH}`])
-const behind = Number(git(["rev-list", "--count", `HEAD..${UPSTREAM}/${BRANCH}`]))
-const ahead = Number(git(["rev-list", "--count", `${UPSTREAM}/${BRANCH}..HEAD`]))
+const behind = Number(
+  git(["rev-list", "--count", `HEAD..${UPSTREAM}/${BRANCH}`])
+)
+const ahead = Number(
+  git(["rev-list", "--count", `${UPSTREAM}/${BRANCH}..HEAD`])
+)
 
 if (behind === 0) {
-  console.log(`✓ 已是最新（upstream/main = ${tip}，本地 ${ahead} 个自有 commit）`)
+  console.log(
+    `✓ 已是最新（upstream/main = ${tip}，本地 ${ahead} 个自有 commit）`
+  )
   process.exit(0)
 }
 

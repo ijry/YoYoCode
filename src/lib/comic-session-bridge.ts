@@ -5,7 +5,10 @@ import { parkAskSelectionPrompt } from "@/lib/ask-selection-handoff"
  *  reason to open a second session. The existing handoff buffers requests for
  *  draft tabs and their normal message queue sends them when ready. */
 export function requestComicConversationTask(
-  tab: Pick<TabItem, "id" | "kind" | "folderId" | "agentType" | "isChat"> | null,
+  tab: Pick<
+    TabItem,
+    "id" | "kind" | "folderId" | "agentType" | "isChat"
+  > | null,
   folderId: number,
   text: string
 ): boolean {

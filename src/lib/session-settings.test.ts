@@ -368,4 +368,3 @@ it("shows a filtered current model without offering it again", () => {
     )
   ).toEqual(["relay/allowed"])
 })
-

@@ -67,17 +67,15 @@ beforeEach(() => {
   wire.list.mockReset().mockResolvedValue([])
   wire.save.mockReset().mockResolvedValue(null)
   wire.retry.mockReset().mockResolvedValue(null)
-  wire.state
-    .mockReset()
-    .mockResolvedValue({
-      owner_id: "42",
-      status: "open",
-      active_attempt_id: null,
-      failed_attempt_id: null,
-      error: null,
-      hold: null,
-      revision: 0,
-    })
+  wire.state.mockReset().mockResolvedValue({
+    owner_id: "42",
+    status: "open",
+    active_attempt_id: null,
+    failed_attempt_id: null,
+    error: null,
+    hold: null,
+    revision: 0,
+  })
   wire.continue.mockReset().mockResolvedValue(undefined)
   wire.releaseHold.mockReset().mockResolvedValue(undefined)
   wire.sendNow.mockReset().mockResolvedValue(undefined)
@@ -145,7 +143,9 @@ describe("owned queues never race the host drainer", () => {
       revision,
     }))
     const { result } = renderHook(() => useMessageQueue("42"))
-    await waitFor(() => expect(result.current.control?.hold).toBe("manual_stop"))
+    await waitFor(() =>
+      expect(result.current.control?.hold).toBe("manual_stop")
+    )
 
     // The release command bumps the revision; the hook re-reads and adopts it
     // (a stale read must not clobber a newer broadcast).
@@ -193,7 +193,9 @@ describe("owned queues never race the host drainer", () => {
       revision: 4,
     })
     const { result } = renderHook(() => useMessageQueue("42"))
-    await waitFor(() => expect(result.current.control?.hold).toBe("manual_stop"))
+    await waitFor(() =>
+      expect(result.current.control?.hold).toBe("manual_stop")
+    )
 
     await act(async () => result.current.sendNow("row-B"))
     expect(wire.sendNow).toHaveBeenCalledWith("42", "row-B")

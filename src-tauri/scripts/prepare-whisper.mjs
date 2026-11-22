@@ -80,7 +80,8 @@ function voiceDir() {
     )
   }
   return join(
-    process.env.XDG_DATA_HOME || join(process.env.HOME || tmpdir(), ".local", "share"),
+    process.env.XDG_DATA_HOME ||
+      join(process.env.HOME || tmpdir(), ".local", "share"),
     "codeg",
     "voice"
   )
@@ -91,7 +92,9 @@ function binaryAsset() {
   const arm = process.arch === "arm64"
   if (win) return arm ? "whisper-bin-win-cpu-arm64.zip" : "whisper-bin-x64.zip"
   if (process.platform === "linux") {
-    return arm ? "whisper-bin-ubuntu-arm64.tar.gz" : "whisper-bin-ubuntu-x64.tar.gz"
+    return arm
+      ? "whisper-bin-ubuntu-arm64.tar.gz"
+      : "whisper-bin-ubuntu-x64.tar.gz"
   }
   // macOS ships no prebuilt CLI in these releases; users install via brew or
   // build from source, then point CODEG_WHISPER_BIN at it.
@@ -134,7 +137,8 @@ function extract(archive, into) {
 }
 
 function findCli(root) {
-  const wanted = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"
+  const wanted =
+    process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"
   const stack = [root]
   while (stack.length) {
     const dir = stack.pop()
@@ -159,7 +163,8 @@ async function main() {
   const force = process.argv.includes("--force")
   const dir = voiceDir()
   mkdirSync(dir, { recursive: true })
-  const cliName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"
+  const cliName =
+    process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"
   const cliDest = join(dir, cliName)
   const modelDest = join(dir, MODEL_NAME)
 
@@ -171,15 +176,19 @@ async function main() {
   } else {
     const asset = binaryAsset()
     if (!asset) {
-      log("no prebuilt CLI for this platform; set CODEG_WHISPER_BIN to your whisper-cli")
+      log(
+        "no prebuilt CLI for this platform; set CODEG_WHISPER_BIN to your whisper-cli"
+      )
     } else {
       const meta = await fetch(BIN_API, {
         headers: { "user-agent": "codeg-prepare-whisper" },
       })
-      if (!meta.ok) throw new Error(`release lookup returned HTTP ${meta.status}`)
+      if (!meta.ok)
+        throw new Error(`release lookup returned HTTP ${meta.status}`)
       const release = await meta.json()
       const found = (release.assets || []).find((a) => a.name === asset)
-      if (!found) throw new Error(`asset ${asset} missing from ${WHISPER_RELEASE}`)
+      if (!found)
+        throw new Error(`asset ${asset} missing from ${WHISPER_RELEASE}`)
       const tmp = join(tmpdir(), `codeg-whisper-${Date.now()}`)
       mkdirSync(tmp, { recursive: true })
       const archive = join(tmp, basename(found.name))
