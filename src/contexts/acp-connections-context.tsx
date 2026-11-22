@@ -159,6 +159,7 @@ import {
 } from "@/lib/window-attention"
 import {
   getSavedPrefsForConnect,
+  mergeConnectConfigValues,
   saveModePreference,
   saveConfigPreference,
 } from "@/lib/selector-prefs-storage"
@@ -592,13 +593,20 @@ type ConnectRequest = {
   // (sessionId already distinguishes), but carried so a re-fired pending
   // request still runs discovery.
   conversationId?: number
+  /** One-shot preferred config values (a dialog pick, e.g. the model chosen
+   *  by "continue in a new session"), merged over `getSavedPrefsForConnect`'s
+   *  persisted per-agent values at connect time. Compared by REFERENCE in
+   *  `sameConnectRequest` — callers pass stable objects (store state). */
+  preferredConfigValuesOverride?: Record<string, string> | null
 }
 
 function sameConnectRequest(a: ConnectRequest, b: ConnectRequest) {
   return (
     a.agentType === b.agentType &&
     (a.workingDir ?? null) === (b.workingDir ?? null) &&
-    (a.sessionId ?? null) === (b.sessionId ?? null)
+    (a.sessionId ?? null) === (b.sessionId ?? null) &&
+    (a.preferredConfigValuesOverride ?? null) ===
+      (b.preferredConfigValuesOverride ?? null)
   )
 }
 
@@ -3584,7 +3592,10 @@ export interface AcpActionsValue {
     agentType: AgentType,
     workingDir?: string,
     sessionId?: string,
-    conversationId?: number
+    conversationId?: number,
+    /** One-shot preferred config values (see `ConnectRequest`), merged over
+     *  the agent's saved prefs at connect time. */
+    preferredConfigValuesOverride?: Record<string, string> | null
   ): Promise<void>
   /**
    * Release the connection for `contextKey`. The LOCAL entry always goes away
@@ -7421,13 +7432,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       agentType: AgentType,
       workingDir?: string,
       sessionId?: string,
-      conversationId?: number
+      conversationId?: number,
+      preferredConfigValuesOverride?: Record<string, string> | null
     ) => {
       const request: ConnectRequest = {
         agentType,
         workingDir,
         sessionId,
         conversationId,
+        preferredConfigValuesOverride,
       }
       // Remember BEFORE the in-flight early return and before the preflight can
       // throw: a connect that never produced a store entry is precisely when
@@ -7781,12 +7794,19 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // re-open (the snapshot frame doesn't carry a `session_modes` event,
         // so the apply-on-event hook never fired).
         const savedPrefs = getSavedPrefsForConnect(agentType)
+        // A one-shot override (the "continue in a new session" dialog's model
+        // pick) wins per key over the agent's persisted picks; everything else
+        // the user saved still ships.
+        const configValues = mergeConnectConfigValues(
+          savedPrefs.configValues,
+          request.preferredConfigValuesOverride ?? null
+        )
         const connectionId = await acpConnect(
           agentType,
           workingDir,
           sessionId,
           savedPrefs.modeId,
-          savedPrefs.configValues
+          configValues
         )
 
         // If disconnect was requested while connect was in flight, tear down
