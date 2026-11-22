@@ -20,8 +20,15 @@ export interface ContinueDeps {
   markCompleted(conversationId: number): void
   /** The folder's working dir, or null when the folder no longer resolves. */
   getFolderPath(folderId: number): string | null
-  /** Opens (and activates) the new conversation draft; returns its tab id. */
-  openNewConversation(folderId: number, path: string, agentType: string): string
+  /** Opens (and activates) the new conversation draft; returns its tab id.
+   *  `preferredConfigValues` is the caller's one-shot model pick (or null:
+   *  the agent's defaults), applied by the draft's connect. */
+  openNewConversation(
+    folderId: number,
+    path: string,
+    agentType: string,
+    preferredConfigValues: Record<string, string> | null
+  ): string
   queuePrefill(
     tabId: string,
     conversation: DbConversationSummary,
@@ -45,6 +52,15 @@ export function resolveRunningConnectionId(
   return conn?.status === "prompting" ? conn.connectionId : null
 }
 
+/** Caller's choices from the continue dialog: the agent to continue on
+ *  (default: the old session's own) and the model pinned one-shot on the new
+ *  draft (default: none — the agent's own defaults apply). The @-mention
+ *  attachment always carries the OLD conversation, whatever the choice. */
+export interface ContinueOverrides {
+  agentType?: string
+  preferredConfigValues?: Record<string, string> | null
+}
+
 /**
  * "Continue in a new session": settle the old session, then hand off. The
  * folder path resolves FIRST so a folder that no longer exists aborts the
@@ -57,7 +73,8 @@ export function resolveRunningConnectionId(
 export async function runContinueInNewSession(
   conversation: DbConversationSummary,
   deps: ContinueDeps,
-  promptText: string
+  promptText: string,
+  options?: ContinueOverrides
 ): Promise<boolean> {
   const folderPath = deps.getFolderPath(conversation.folder_id)
   if (!folderPath) return false
@@ -75,7 +92,8 @@ export async function runContinueInNewSession(
   const tabId = deps.openNewConversation(
     conversation.folder_id,
     folderPath,
-    conversation.agent_type
+    options?.agentType ?? conversation.agent_type,
+    options?.preferredConfigValues ?? null
   )
   deps.queuePrefill(tabId, conversation, promptText)
   deps.flushPrefill(tabId)

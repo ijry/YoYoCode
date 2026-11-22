@@ -72,7 +72,8 @@ describe("runContinueInNewSession", () => {
     expect(deps.openNewConversation).toHaveBeenCalledWith(
       1,
       "/p/1",
-      "claude_code"
+      "claude_code",
+      null
     )
     expect(deps.queuePrefill).toHaveBeenCalledWith(
       "new-tab-1",
@@ -80,6 +81,42 @@ describe("runContinueInNewSession", () => {
       "请继续"
     )
     expect(deps.flushPrefill).toHaveBeenCalledWith("new-tab-1")
+  })
+
+  it("opens the new tab on the chosen agent when overridden", async () => {
+    const deps = makeDeps()
+    await runContinueInNewSession(conversation, deps, "请继续", {
+      agentType: "codex",
+    })
+
+    // The @-mention attachment still carries the OLD conversation; only the
+    // tab's agent is the caller's choice.
+    expect(deps.openNewConversation).toHaveBeenCalledWith(
+      1,
+      "/p/1",
+      "codex",
+      null
+    )
+    expect(deps.queuePrefill).toHaveBeenCalledWith(
+      "new-tab-1",
+      conversation,
+      "请继续"
+    )
+  })
+
+  it("passes the one-shot preferred config values to the new tab", async () => {
+    const deps = makeDeps()
+    const preferredConfigValues = { model: "dialog-model" }
+    await runContinueInNewSession(conversation, deps, "请继续", {
+      preferredConfigValues,
+    })
+
+    expect(deps.openNewConversation).toHaveBeenCalledWith(
+      1,
+      "/p/1",
+      "claude_code",
+      preferredConfigValues
+    )
   })
 
   it("cancels the running connection before marking completed", async () => {
