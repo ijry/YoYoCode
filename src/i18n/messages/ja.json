@@ -2420,7 +2420,6 @@
       "restore": "元に戻す",
       "attachToCurrentSession": "セッションに追加",
       "continueInNewSession": "新しいセッションで続行",
-      "continueRunningTitle": "セッションが実行中です",
       "continueRunningDescription": "新しいセッションで続行する前に実行中のセッションを停止し、完了としてマークします。",
       "continueStopAndContinue": "停止して続行",
       "continuePromptText": "上のセッションの作業を続けてください。",

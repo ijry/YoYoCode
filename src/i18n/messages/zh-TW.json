@@ -2420,7 +2420,6 @@
       "restore": "還原",
       "attachToCurrentSession": "添加到會話",
       "continueInNewSession": "在新工作階段中繼續",
-      "continueRunningTitle": "原工作階段仍在執行",
       "continueRunningDescription": "將停止該工作階段並在新工作階段中繼續，原工作階段會標記為已完成。",
       "continueStopAndContinue": "停止並繼續",
       "continuePromptText": "請接續上面工作階段的進度。",

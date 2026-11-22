@@ -2459,7 +2459,6 @@
       "restore": "Restore",
       "attachToCurrentSession": "Add to session",
       "continueInNewSession": "Continue in a new session",
-      "continueRunningTitle": "Session still running",
       "continueRunningDescription": "The running session will be stopped before continuing in a new session, and marked as completed.",
       "continueStopAndContinue": "Stop and continue",
       "continuePromptText": "Please continue the work from the session above.",

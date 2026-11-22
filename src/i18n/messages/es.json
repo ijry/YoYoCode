@@ -2420,7 +2420,6 @@
       "restore": "Restaurar",
       "attachToCurrentSession": "Agregar a la sesión",
       "continueInNewSession": "Continuar en una sesión nueva",
-      "continueRunningTitle": "La sesión sigue en ejecución",
       "continueRunningDescription": "La sesión en ejecución se detendrá antes de continuar en una nueva y se marcará como completada.",
       "continueStopAndContinue": "Detener y continuar",
       "continuePromptText": "Continúa el trabajo de la sesión anterior.",
