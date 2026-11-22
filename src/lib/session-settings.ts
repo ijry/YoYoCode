@@ -265,7 +265,11 @@ export function zcodeProviderMetaSetting(
     groups: [{ key: "__zcode_providers__", name: null, options }],
     recommendedValue: null,
     searchable: options.length > SESSION_SETTING_SEARCH_THRESHOLD,
-    summary: current?.name || currentId || null,
+    // 不上胶囊：模型行的摘要已经命名了运行中的「套餐 › 模型」，这里再带一个
+    // `current_provider_id` 的名字上去，那个值可能落后于模型切换 —— 胶囊就会
+    // 同时出现两个供应商名，读成显示错误（Start Plan 与 Z.AI Individual
+    // Coding Plan 本就是两个供应商）。供应商行是切换入口，留在弹窗里。
+    summary: null,
   }
 }
 
