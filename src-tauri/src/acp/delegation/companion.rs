@@ -102,6 +102,18 @@ async fn send_broker_cancel(socket_path: &str, req: &BrokerCancelRequest) {
 /// Static MCP tool schema. Lives next to this module so yoyocode-mcp ships
 /// a single embedded copy — no runtime file IO, no version skew with the
 /// broker's [`super::types::DelegationRequest`].
+/// The embedded `tools/list` payload: every tool the companion can carry,
+/// gated per launch by `--features`.
+///
+/// Tools that park on a human or long-poll by design carry
+/// `_meta: { "timeoutMs": N }` — ZCode honors it as the per-tool deadline
+/// (default 30 s, floor 1 s, cap 30 min, `MCP_TOOL_META_TIMEOUT_*` in the
+/// zcode-cli contracts); other MCP clients ignore the field. Without it,
+/// `ask_user_question` dies after 30 s — long before a human answers the
+/// card. 1_800_000 (the cap) covers `ask_user_question`,
+/// `comic_present_candidates`, `browser_eval` (approval wait), and
+/// `get_delegation_status` (blocking `wait_ms: 0`); the two comic poll
+/// tools declare 90_000 so their documented 60 s `wait_ms` fits.
 pub const TOOL_SCHEMA_JSON: &str = include_str!("tool_schema.json");
 
 #[derive(Debug, Deserialize)]
