@@ -21,7 +21,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO = SCRIPT_DIR.parent
-SVG = REPO / "src-tauri/icons/icon.svg"
+SVG = REPO / "src-tauri/icons/icon-legacy.svg"
 ASSETS = REPO / "public/logo/animation"
 TMP = Path(tempfile.gettempdir())
 OUT = TMP / "jellyfish-breathe.gif"
