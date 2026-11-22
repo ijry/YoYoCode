@@ -69,9 +69,7 @@ describe("AboutSettings", () => {
     )
 
     await user.click(screen.getByRole("button", { name: "Documentation" }))
-    expect(openUrl).toHaveBeenCalledWith(
-      "https://ijry.github.io/yoyocode-docs"
-    )
+    expect(openUrl).toHaveBeenCalledWith("https://ijry.github.io/yoyocode-docs")
   })
 
   it("exposes the mobile app download and Web Service settings", async () => {

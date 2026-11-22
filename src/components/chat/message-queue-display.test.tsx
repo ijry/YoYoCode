@@ -446,9 +446,7 @@ describe("MessageQueueDisplay scheduled sends", () => {
 
     await userEvent.click(screen.getAllByTitle(TQ.scheduleItem)[0])
     const dialog = screen.getByRole("dialog")
-    expect(
-      within(dialog).getByText(TQ.scheduleTitle)
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText(TQ.scheduleTitle)).toBeInTheDocument()
     // Nothing picked yet — no instant, no confirm.
     expect(
       within(dialog).getByRole("button", { name: TQ.scheduleConfirm })
@@ -468,7 +466,9 @@ describe("MessageQueueDisplay scheduled sends", () => {
   it("shows a scheduled row's time and can put it back into the ordinary queue", async () => {
     const onScheduleItem = vi.fn(async () => {})
     renderDisplay({
-      queue: [{ ...item("q1", "later"), scheduledAt: "2026-11-08T09:00:00+00:00" }],
+      queue: [
+        { ...item("q1", "later"), scheduledAt: "2026-11-08T09:00:00+00:00" },
+      ],
       onScheduleItem,
     })
     expect(screen.getByTitle("2026-11-08T09:00:00+00:00")).toBeInTheDocument()
@@ -511,5 +511,106 @@ describe("MessageQueueDisplay scheduled sends", () => {
       onScheduleItem: vi.fn(async () => {}),
     })
     expect(screen.queryByTitle(TQ.scheduleItem)).toBeNull()
+  })
+})
+
+describe("MessageQueueDisplay +1 fold", () => {
+  const plusOne = vi.fn()
+
+  afterEach(() => {
+    plusOne.mockClear()
+  })
+
+  it("folds identical pending rows into one row with an xN badge", () => {
+    renderDisplay({
+      queue: [
+        item("q1", "继续"),
+        item("q2", "use pnpm"),
+        item("q3", "继续"),
+        item("q4", "继续"),
+      ],
+    })
+
+    // 三份相同 pending 折叠成一行，按首现位置展示计数徽标。
+    expect(screen.getByText("x3")).toBeInTheDocument()
+    expect(screen.queryByText("x2")).not.toBeInTheDocument()
+    expect(screen.getAllByText("继续")).toHaveLength(1)
+    expect(screen.getByText("use pnpm")).toBeInTheDocument()
+  })
+
+  it("offers +1 only on continue-type pending rows and enqueues a copy", async () => {
+    renderDisplay({
+      queue: [item("q1", "继续"), item("q2", "use pnpm")],
+      onQueuePlusOne: plusOne,
+    })
+
+    const plusButtons = screen.getAllByRole("button", { name: TQ.plusOne })
+    expect(plusButtons).toHaveLength(1)
+    await userEvent.click(plusButtons[0])
+    expect(plusOne).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "q1" })
+    )
+  })
+
+  it("keeps the count honest after one copy drains", () => {
+    const { rerender } = renderDisplay({
+      queue: [item("q1", "继续"), item("q3", "继续"), item("q4", "继续")],
+      onQueuePlusOne: plusOne,
+    })
+    expect(screen.getByText("x3")).toBeInTheDocument()
+
+    // q1 被 claim 发出（离开 pending 集合）：x3 → x2，组仍在。
+    rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageQueueDisplay
+          queue={[item("q3", "继续"), item("q4", "继续")]}
+          onQueuePlusOne={plusOne}
+          onReorder={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          editingItemId={null}
+        />
+      </NextIntlClientProvider>
+    )
+    expect(screen.getByText("x2")).toBeInTheDocument()
+    expect(screen.queryByText("x3")).not.toBeInTheDocument()
+  })
+
+  it("does not fold rows that carry their own state UI", () => {
+    const failedRow = {
+      ...item("qf", "继续"),
+      deliveryState: "failed" as const,
+    }
+    const scheduledRow = {
+      ...item("qs", "继续"),
+      scheduledAt: "2026-12-01T00:00:00Z",
+    }
+    renderDisplay({
+      queue: [item("q1", "继续"), failedRow, scheduledRow],
+      onQueuePlusOne: plusOne,
+    })
+
+    // pending 的那行折叠成 x1（无徽标）；failed / 定时行各自独立渲染。
+    expect(screen.getAllByText("继续")).toHaveLength(3)
+    expect(screen.queryByText("x2")).not.toBeInTheDocument()
+    expect(screen.getByTitle("2026-12-01T00:00:00Z")).toBeInTheDocument()
+  })
+
+  it("hides +1 when the handler is absent or the text is not a continue instruction", () => {
+    renderDisplay({ queue: [item("q1", "继续"), item("q2", "use pnpm")] })
+    expect(
+      screen.queryByRole("button", { name: TQ.plusOne })
+    ).not.toBeInTheDocument()
+  })
+
+  it("leaves the row under edit unfolded so its edit UI stays visible", () => {
+    renderDisplay({
+      queue: [item("q1", "继续"), item("q2", "继续")],
+      editingItemId: "q1",
+      onQueuePlusOne: plusOne,
+    })
+
+    expect(screen.getAllByText("继续")).toHaveLength(2)
+    expect(screen.queryByText("x2")).not.toBeInTheDocument()
   })
 })

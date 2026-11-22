@@ -13,7 +13,9 @@ describe("isAgentLikeToolName", () => {
   it("matches delegate_to_agent across host naming conventions", () => {
     expect(isAgentLikeToolName("delegate_to_agent")).toBe(true)
     // Claude Code style (current + legacy server names)
-    expect(isAgentLikeToolName("mcp__yoyocode-mcp__delegate_to_agent")).toBe(true)
+    expect(isAgentLikeToolName("mcp__yoyocode-mcp__delegate_to_agent")).toBe(
+      true
+    )
     expect(isAgentLikeToolName("mcp__codeg-delegate__delegate_to_agent")).toBe(
       true
     )
@@ -83,7 +85,9 @@ describe("isAgentLikeToolName", () => {
   it("matches ask_user_question across host naming conventions", () => {
     expect(isAgentLikeToolName("question")).toBe(true)
     expect(isAgentLikeToolName("ask_user_question")).toBe(true)
-    expect(isAgentLikeToolName("mcp__yoyocode-mcp__ask_user_question")).toBe(true)
+    expect(isAgentLikeToolName("mcp__yoyocode-mcp__ask_user_question")).toBe(
+      true
+    )
     expect(isAgentLikeToolName("yoyocode-mcp/ask_user_question")).toBe(true)
     expect(isAgentLikeToolName("yoyocode-mcp.ask_user_question")).toBe(true)
     expect(isAgentLikeToolName("yoyocode-mcp:ask_user_question")).toBe(true)

@@ -195,3 +195,23 @@ export function saveConfigPreference(
     configValues: { ...prefs.configValues, [configId]: valueId },
   }))
 }
+
+// ── One-shot override ──
+
+/**
+ * Merge a one-shot override (e.g. the model picked in the "continue in a new
+ * session" dialog) over the agent's saved connect prefs: the override wins per
+ * key, every other saved pick survives. Empty on both sides collapses to null
+ * so the call site can keep passing `null` through to `acp_connect`.
+ */
+export function mergeConnectConfigValues(
+  saved: Record<string, string> | null,
+  override: Record<string, string> | null
+): Record<string, string> | null {
+  const savedKeys = saved ? Object.keys(saved).length : 0
+  if (!override || Object.keys(override).length === 0) {
+    return savedKeys > 0 ? saved : null
+  }
+  const merged = { ...saved, ...override }
+  return Object.keys(merged).length > 0 ? merged : null
+}

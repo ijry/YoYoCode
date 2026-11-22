@@ -55,6 +55,20 @@ interface UseConnectionLifecycleOptions {
    * connection under the same contextKey.
    */
   isTransientUnmount?: () => boolean
+  /**
+   * One-shot preferred config values (e.g. the model a "continue in a new
+   * session" dialog pinned on the draft tab), merged over the agent's saved
+   * prefs by the connect layer. REACTIVE on purpose: landing a value on an
+   * ALREADY-connected draft must reconnect it (a same-agent draft reuse never
+   * re-fires the effect through agent/workingDir), and the connect layer's
+   * dedup treats a changed override as a changed request. The value must be
+   * reference-stable while it means the same pick — the caller passes it
+   * straight from the tab store. Retained after bind (NOT cleared): a later
+   * reconnect re-applies the same model the conversation started with; an
+   * agent switch clears it (confirmDraftAgent) so the old agent's values die
+   * with the switch.
+   */
+  preferredConfigValues?: Record<string, string> | null
 }
 
 export interface UseConnectionLifecycleReturn {
@@ -142,6 +156,7 @@ export function useConnectionLifecycle({
   conversationId,
   preparing = false,
   isTransientUnmount,
+  preferredConfigValues,
 }: UseConnectionLifecycleOptions): UseConnectionLifecycleReturn {
   const t = useTranslations("Folder.chat.connectionLifecycle")
   const { setActiveKey, releaseActiveKey, touchActivity } = useAcpActions()
@@ -253,13 +268,14 @@ export function useConnectionLifecycle({
   }, [isActive, contextKey, setActiveKey, touchActivity])
 
   // Auto-connect when tab becomes active and workingDir is available.
-  // Depends on isActive + workingDir + agentType so that connections wait
-  // for folder info to load (workingDir transitions from undefined →
-  // folder.path), and so that changing folders or agents on an already-
-  // connected tab triggers a reconnect. The context's connect() dedups
-  // same-param calls and disconnects+reconnects when workingDir or
-  // agentType differs. Status changes must NOT re-trigger this to avoid
-  // infinite reconnect loops on transient errors.
+  // Depends on isActive + workingDir + agentType + preferredConfigValues so
+  // that connections wait for folder info to load (workingDir transitions from
+  // undefined → folder.path), and so that changing folders, agents, or the
+  // one-shot values on an already-connected tab triggers a reconnect — the
+  // context's connect() dedups same-param calls (override compared by
+  // reference) and disconnects+reconnects when the request differs. Status
+  // changes must NOT re-trigger this to avoid infinite reconnect loops on
+  // transient errors.
   useEffect(() => {
     if (!isActive) return
     if (!workingDir) return
@@ -269,7 +285,8 @@ export function useConnectionLifecycle({
         agentType,
         workingDir,
         sessionIdRef.current,
-        conversationIdRef.current
+        conversationIdRef.current,
+        preferredConfigValues ?? null
       )
       .then(() => {
         if (!cancelled) {
@@ -291,7 +308,7 @@ export function useConnectionLifecycle({
     return () => {
       cancelled = true
     }
-  }, [isActive, workingDir, agentType])
+  }, [isActive, workingDir, agentType, preferredConfigValues])
 
   // Status-bar task for the two legs that precede a usable session:
   //   "preparing"  — the caller is resolving what to connect to (see `preparing`)

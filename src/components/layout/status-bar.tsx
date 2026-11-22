@@ -6,6 +6,7 @@ import { StatusBarAlerts } from "@/components/layout/status-bar-alerts"
 import { StatusBarMcp } from "@/components/layout/status-bar-mcp"
 import { StatusBarComputer } from "@/components/layout/status-bar-computer"
 import { StatusBarUpdate } from "@/components/layout/status-bar-update"
+import { StatusBarVoicePrepare } from "@/components/layout/status-bar-voice-prepare"
 import { StatusBarWebService } from "@/components/layout/status-bar-web-service"
 import { CommandDropdown } from "@/components/layout/command-dropdown"
 import { QuickActionsDropdown } from "@/components/layout/quick-actions-dropdown"
@@ -27,6 +28,7 @@ export function StatusBar() {
         </div>
         <div className="flex items-center gap-3">
           <StatusBarUpdate />
+          <StatusBarVoicePrepare />
           <CommandDropdown />
           {/* Narrow is a viewport width, not a browser: a desktop window
               shrunk below the breakpoint must still say the web service is
@@ -66,6 +68,7 @@ export function StatusBar() {
       </div>
       <div className="flex items-center gap-4">
         <StatusBarUpdate />
+        <StatusBarVoicePrepare />
         <StatusBarTasks />
         {/* Command launcher (moved from the aux "session details" tab), taking
             the slot the old static branch label (StatusBarSessionInfo) held. */}

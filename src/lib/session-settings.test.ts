@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { MODEL_CONFIG_OPTION_ID } from "@/lib/model-config-groups"
 import {
   buildSessionSettings,
   type SessionChoiceSetting,
@@ -369,3 +370,75 @@ it("shows a filtered current model without offering it again", () => {
   ).toEqual(["relay/allowed"])
 })
 
+describe("buildSessionSettings — zcode provider row", () => {
+  // 供应商行是切换入口，不是状态显示：模型行的摘要已经命名了运行中的
+  // 「套餐 › 模型」。供应商行再带一个 current_provider_id 的名字上胶囊 ——
+  // 那个值可能落后于模型切换 —— 胶囊就会同时出现两个供应商名，读成显示错误。
+  const modelOption: SessionConfigOptionInfo = {
+    id: MODEL_CONFIG_OPTION_ID,
+    name: "Model",
+    description: null,
+    category: null,
+    kind: {
+      type: "select",
+      current_value: "start-plan\glm-5.3-flash",
+      options: [
+        {
+          value: "start-plan\glm-5.3-flash",
+          name: "Start Plan › GLM-5.3-Flash",
+          description: null,
+        },
+        {
+          value: "z-ai\glm-5",
+          name: "Z.AI Individual Coding Plan › GLM-5",
+          description: null,
+        },
+      ],
+      groups: [],
+    },
+    recommended_value: null,
+    zcode: {
+      providers: [
+        {
+          id: "start-plan",
+          name: "Start Plan",
+          selectable: true,
+          default_model: "glm-5.3-flash",
+        },
+        {
+          id: "z-ai",
+          name: "Z.AI Individual Coding Plan",
+          selectable: true,
+          default_model: "glm-5",
+        },
+      ],
+      // 桥接的滞后值：会话实际运行在 Start Plan 的模型上。
+      current_provider_id: "z-ai",
+    },
+  }
+
+  function buildWithProvider() {
+    return buildSessionSettings({
+      configOptions: [modelOption],
+      modes: [],
+      currentModeId: null,
+      modeTitle: "Mode",
+      zcodeProviderTitle: "Provider",
+    })
+  }
+
+  it("never puts the provider name on the pill summary", () => {
+    const provider = buildWithProvider().find(
+      (setting) => setting.key === "zcode-provider-meta"
+    ) as SessionChoiceSetting
+    expect(provider.summary).toBeNull()
+  })
+
+  it("keeps the popup label and highlight on the bridged current provider", () => {
+    const provider = buildWithProvider().find(
+      (setting) => setting.key === "zcode-provider-meta"
+    ) as SessionChoiceSetting
+    expect(provider.currentLabel).toBe("Z.AI Individual Coding Plan")
+    expect(provider.currentValue).toBe("start-plan\glm-5.3-flash")
+  })
+})

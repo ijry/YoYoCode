@@ -32,9 +32,7 @@ describe("formatTimeIn", () => {
     expect(formatTimeIn(NOW + 3 * 60 * MIN + 20_000, NOW, "en")).toBe(
       "in 3 hours"
     )
-    expect(formatTimeIn(NOW + 25 * 24 * 60 * MIN, NOW, "en")).toBe(
-      "in 3 weeks"
-    )
+    expect(formatTimeIn(NOW + 25 * 24 * 60 * MIN, NOW, "en")).toBe("in 3 weeks")
   })
 
   it("rounds a sub-minute wait up to a minute", () => {

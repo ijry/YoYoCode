@@ -59,11 +59,11 @@ describe("sidebar minimum width", () => {
   // only. Sizing every platform's minimum for them is what made the column
   // bottom out 76px wider on Windows than on macOS.
   it.each([
-    ["the macOS desktop app", true, "macos", 300],
-    ["the Windows desktop app", true, "windows", 224],
-    ["the Linux desktop app", true, "linux", 224],
-    ["a browser on macOS", false, "macos", 224],
-    ["a browser on Windows", false, "windows", 224],
+    ["the macOS desktop app", true, "macos", 268],
+    ["the Windows desktop app", true, "windows", 192],
+    ["the Linux desktop app", true, "linux", 192],
+    ["a browser on macOS", false, "macos", 192],
+    ["a browser on Windows", false, "windows", 192],
   ] as const)("is %s's own", (_label, desktop, platform, expected) => {
     env.desktop = desktop
     env.platform = platform
@@ -81,7 +81,7 @@ describe("sidebar minimum width", () => {
     expect(probe.width()).toBe(250)
 
     fireEvent.click(screen.getByRole("button", { name: "narrow" }))
-    expect(probe.width()).toBe(224)
+    expect(probe.width()).toBe(192)
   })
 
   it("still clamps a macOS sidebar to the traffic-light minimum", () => {
@@ -90,7 +90,7 @@ describe("sidebar minimum width", () => {
       JSON.stringify({ isOpen: true, width: 250 })
     )
     const probe = renderProvider()
-    expect(probe.width()).toBe(300)
+    expect(probe.width()).toBe(268)
 
     fireEvent.click(screen.getByRole("button", { name: "wide" }))
     expect(probe.width()).toBe(900)

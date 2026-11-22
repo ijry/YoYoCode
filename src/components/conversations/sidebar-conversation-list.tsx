@@ -53,6 +53,7 @@ import { useSortedAvailableAgents } from "@/hooks/use-sorted-available-agents"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { OpenInSubContent } from "@/components/layout/open-in-menu"
 import {
+  acpCancel,
   openImportSessionsWindow,
   openInCode,
   openProjectBootWindow,
@@ -66,6 +67,20 @@ import {
   listChildConversations,
 } from "@/lib/api"
 import { isDesktop, revealItemInDir } from "@/lib/platform"
+import { useOptionalConnectionStore } from "@/contexts/acp-connections-context"
+import {
+  flushPendingSessionAttachments,
+  queuePendingSessionAttachments,
+} from "@/lib/session-attachment-events"
+import {
+  resolveRunningConnectionId,
+  runContinueInNewSession,
+  type ContinueDeps,
+} from "./continue-in-new-session"
+import {
+  ContinueInNewSessionDialog,
+  type ContinueSessionChoice,
+} from "./continue-in-new-session-dialog"
 import type {
   AgentType,
   ConversationStatus,
@@ -2345,6 +2360,83 @@ export function SidebarConversationList({
     [folderIndex, openNewConversationTab, openConversations]
   )
 
+  // "Continue in a new session" — the row's menu entry; the flow (stop a still
+  // running session, mark it completed, open a new conversation prefilled with
+  // an @-mention of it) lives in continue-in-new-session.ts behind these deps.
+  // The choice dialog is THIS list's (like move-to-folder): one instance for
+  // every row, so the card memo keeps bailing out. `running` is the open-time
+  // snapshot that relabels the confirm button inside the dialog.
+  const connectionStore = useOptionalConnectionStore()
+  const [continueConfirm, setContinueConfirm] = useState<{
+    conversation: DbConversationSummary
+    running: boolean
+  } | null>(null)
+  const continueDeps = useMemo<ContinueDeps>(
+    () => ({
+      findTabForConversation: (conversation) =>
+        useTabStore
+          .getState()
+          .tabs.find(
+            (tab) =>
+              tab.conversationId === conversation.id &&
+              tab.folderId === conversation.folder_id &&
+              tab.agentType === conversation.agent_type
+          ) ?? null,
+      getConnection: (tabId) => {
+        const conn = connectionStore?.getConnection(tabId)
+        return conn
+          ? { status: conn.status, connectionId: conn.connectionId }
+          : null
+      },
+      cancelConnection: (connectionId) => acpCancel(connectionId),
+      markCompleted: (conversationId) => {
+        void handleStatusChange(conversationId, "completed")
+      },
+      getFolderPath: (folderId) => folderIndex.get(folderId)?.path ?? null,
+      openNewConversation: (folderId, path, agentType, preferredConfigValues) =>
+        openNewConversationTab(folderId, path, {
+          forceAgent: agentType as AgentType,
+          preferredConfigValues,
+        }).tabId,
+      queuePrefill: (tabId, conversation, promptText) =>
+        queuePendingSessionAttachments(tabId, [
+          { kind: "session", conversation },
+          { kind: "text", text: promptText },
+        ]),
+      flushPrefill: flushPendingSessionAttachments,
+    }),
+    [connectionStore, folderIndex, handleStatusChange, openNewConversationTab]
+  )
+  const startContinue = useCallback(
+    (conversation: DbConversationSummary, choice: ContinueSessionChoice) => {
+      // Return to the conversations workbench FIRST, or the new tab lands
+      // unseen beneath a workbench route overlay (every sibling opener pairs
+      // the two calls for exactly that reason).
+      openConversations()
+      void runContinueInNewSession(conversation, continueDeps, choice.promptText, {
+        agentType: choice.agentType,
+        preferredConfigValues: choice.preferredConfigValues,
+      }).then((started) => {
+        // The flow aborts only when the folder is gone — say so instead of a
+        // silent nothing after a (possibly confirmed) click.
+        if (!started) toast.error(t("toasts.continueFolderMissing"))
+      })
+    },
+    [continueDeps, openConversations, t]
+  )
+  const handleContinueInNewSession = useCallback(
+    (conversation: DbConversationSummary) => {
+      // ALWAYS the dialog now: it is the agent/model/prompt chooser, with the
+      // running warning (and its confirm label) as an open-time snapshot.
+      setContinueConfirm({
+        conversation,
+        running:
+          resolveRunningConnectionId(conversation, continueDeps) != null,
+      })
+    },
+    [continueDeps]
+  )
+
   // "Import local sessions" now lives in a dedicated picker window (scan →
   // folder-grouped multi-select → batch import). The folder context-menu entry
   // anchors the picker to its own folder; sidebar refresh arrives via the
@@ -3341,6 +3433,7 @@ export function SidebarConversationList({
         onDelete={handleDelete}
         onStatusChange={handleStatusChange}
         onNewConversation={handleNewConversationForFolder}
+        onContinueInNewSession={handleContinueInNewSession}
         onTogglePin={handleTogglePin}
         onMoveToFolder={handleMoveToFolder}
         onManageConversations={handleManageConversationsFor}
@@ -3709,6 +3802,25 @@ export function SidebarConversationList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* "Continue in a new session" — the agent/model/prompt chooser, one
+          instance for the whole list so the row handler stays memo-stable. */}
+      <ContinueInNewSessionDialog
+        conversation={continueConfirm?.conversation ?? null}
+        folderPath={
+          continueConfirm
+            ? (folderIndex.get(continueConfirm.conversation.folder_id)?.path ??
+              null)
+            : null
+        }
+        running={continueConfirm?.running ?? false}
+        onOpenChange={(open) => !open && setContinueConfirm(null)}
+        onConfirm={(choice) => {
+          const confirmed = continueConfirm
+          setContinueConfirm(null)
+          if (confirmed) startContinue(confirmed.conversation, choice)
+        }}
+      />
 
       {/* Naming a group up front, rather than dropping an "Untitled" band into
           the list and relying on a follow-up rename that an interrupted user

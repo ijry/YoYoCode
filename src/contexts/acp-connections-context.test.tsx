@@ -143,6 +143,10 @@ vi.mock("@/lib/advertised-commands-store", () => ({
 
 vi.mock("@/lib/selector-prefs-storage", () => ({
   getSavedPrefsForConnect: () => ({ modeId: undefined, configValues: {} }),
+  mergeConnectConfigValues: (saved: Record<string, string> | null, override: Record<string, string> | null) =>
+    override && Object.keys(override).length > 0
+      ? { ...saved, ...override }
+      : (saved ?? null),
   saveModePreference: vi.fn(),
   saveConfigPreference: vi.fn(),
 }))

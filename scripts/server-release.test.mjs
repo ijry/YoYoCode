@@ -194,6 +194,37 @@ for (const [label, job] of [
   })
 }
 
+test("Rust media tests provision a subtitle-capable FFmpeg on every test OS", () => {
+  const macosTools = rustTests.steps.find(
+    (entry) => entry.name === "Setup macOS FFmpeg media environment"
+  )
+  assert.ok(macosTools, "macOS media tests need a libass-enabled FFmpeg")
+  assert.equal(
+    macosTools.uses,
+    "mamba-org/setup-micromamba@v3",
+    "macOS media tests must use the conda-forge build"
+  )
+  assert.match(macosTools.with?.["create-args"] ?? "", /ffmpeg/)
+
+  const mediaChecks = rustTests.steps.filter(
+    (entry) => entry.name?.includes("FFmpeg") && entry.run
+  )
+  assert.ok(mediaChecks.length >= 2, "each media runner needs a tool check")
+  for (const step of mediaChecks) {
+    assert.match(
+      step.run ?? "",
+      /(?:ffmpeg -version|& \$ffmpeg\.FullName -version)/
+    )
+    assert.match(
+      step.run ?? "",
+      /(?:ffprobe -version|& \$ffprobe\.FullName -version)/
+    )
+
+    assert.match(step.run ?? "", /(?:-filters|subtitles)/)
+    assert.match(step.run ?? "", /subtitles/)
+  }
+})
+
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "yoyocode-server-test-"))
   t.after(() => rmSync(dir, { recursive: true, force: true }))

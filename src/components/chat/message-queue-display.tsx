@@ -1,6 +1,12 @@
 "use client"
 
-import { useCallback, useRef, useState, type PointerEvent } from "react"
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react"
 import { Reorder, useDragControls } from "motion/react"
 import {
   CalendarClock,
@@ -28,6 +34,12 @@ import { cn } from "@/lib/utils"
 import { toErrorMessage } from "@/lib/app-error"
 import { formatScheduleShort } from "@/lib/task-schedule"
 import { draftRidesBlocks } from "@/lib/prompt-draft"
+import {
+  expandFoldedGroups,
+  foldQueueForDisplay,
+  isContinueInstruction,
+  type FoldedQueueGroup,
+} from "@/lib/queue-flush"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
 import type { MessageQueueState } from "@/lib/types"
 import { MessageScheduleDialog } from "./message-schedule-dialog"
@@ -75,6 +87,13 @@ interface MessageQueueDisplayProps {
    *  mirroring the composer's split-button (`Zap` = instant insert,
    *  `Clock` = note the agent reads on its next check). */
   steerChannel?: "native" | "pull"
+  /**
+   * Queue ONE more identical copy of a pending row (the row's own +1 button).
+   * Offered on continue-type rows only — the fold keeps the copies collapsed
+   * as one `继续 xN` row until each copy drains (N-1 per send). Absent on
+   * hosts/rows where it cannot apply.
+   */
+  onQueuePlusOne?: (item: QueuedMessage) => void
 }
 
 interface QueueItemProps {
@@ -84,7 +103,10 @@ interface QueueItemProps {
   onEdit: (id: string) => void
   onDelete: (id: string) => void
   onRetry?: (id: string) => void
-  onScheduleItem?: (id: string, scheduledAt: string | null) => Promise<void> | void
+  onScheduleItem?: (
+    id: string,
+    scheduledAt: string | null
+  ) => Promise<void> | void
   onSteerItem?: (id: string) => Promise<void> | void
   steerChannel: "native" | "pull"
   /** Whether an insert from ANY row is in flight — every row's button is
@@ -101,6 +123,10 @@ interface QueueItemProps {
    *  for the duration, mirroring the insert's single-flight. */
   sendNowId: string | null
   onSendNowStart: (id: string) => Promise<void>
+  /** 折叠组内相同拷贝数（>1 时渲染 xN 徽标）；未折叠行不传。 */
+  count?: number
+  /** 该行文本是「继续」指令且宿主可用：渲染 +1（再排一份相同消息）。 */
+  onPlusOne?: () => void
 }
 
 function QueueItem({
@@ -120,6 +146,8 @@ function QueueItem({
   resumeOnSend,
   sendNowId,
   onSendNowStart,
+  count,
+  onPlusOne,
 }: QueueItemProps) {
   const t = useTranslations("Folder.chat.messageQueue")
   const dragControls = useDragControls()
@@ -146,10 +174,7 @@ function QueueItem({
   // failed/uncertain rows belong to the retry flow and claimed/sending rows
   // are already going.
   const canSendNow =
-    Boolean(onSendNow) &&
-    !claimed &&
-    !isEditing &&
-    item.deliveryState == null
+    Boolean(onSendNow) && !claimed && !isEditing && item.deliveryState == null
 
   const startDrag = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
@@ -186,6 +211,15 @@ function QueueItem({
       <span className="min-w-0 flex-1 truncate text-3xs text-foreground/80">
         {item.draft.displayText}
       </span>
+      {count != null && count > 1 && (
+        // 相同 pending 拷贝的折叠计数：每发出一份 -1，最后一份发出后整组消失。
+        <span
+          className="shrink-0 font-mono text-3xs text-muted-foreground"
+          title={item.draft.displayText}
+        >
+          x{count}
+        </span>
+      )}
       {item.scheduledAt && (
         // The raw ISO rides as the title: the short text is locale-rendered,
         // the tooltip is the exact instant the host will honor.
@@ -202,7 +236,20 @@ function QueueItem({
         </span>
       )}
       {claimed && <Clock className="h-2.5 w-2.5 text-muted-foreground" />}
-      {onScheduleItem && !claimed && !isEditing &&
+      {onPlusOne && (
+        <button
+          type="button"
+          onClick={onPlusOne}
+          title={t("plusOne")}
+          aria-label={t("plusOne")}
+          className="shrink-0 rounded-sm px-0.5 font-mono text-3xs leading-none hover:bg-muted-foreground/15 text-muted-foreground"
+        >
+          +1
+        </button>
+      )}
+      {onScheduleItem &&
+        !claimed &&
+        !isEditing &&
         item.deliveryState !== "failed" &&
         item.deliveryState !== "uncertain" && (
           <button
@@ -285,6 +332,7 @@ export function MessageQueueDisplay({
   onContinue,
   onReleaseHold,
   onSendNow,
+  onQueuePlusOne,
   onReorder,
   onEdit,
   onDelete,
@@ -449,6 +497,20 @@ export function MessageQueueDisplay({
     }
   }, [scheduleTarget, onScheduleItem])
 
+  // 折叠是展示透镜：相同 pending 文本的行并成一组（xN 徽标），任何行都不消失。
+  // 拖拽在组级别进行，展开回真实行序交给既有 onReorder。useMemo 保持组对象
+  // 引用稳定 —— Reorder 依赖 values 的引用一致性。
+  const displayGroups = useMemo(
+    () => foldQueueForDisplay(queue, editingItemId),
+    [queue, editingItemId]
+  )
+  const handleGroupReorder = useCallback(
+    (groups: FoldedQueueGroup<QueuedMessage>[]) => {
+      onReorder(expandFoldedGroups(groups))
+    },
+    [onReorder]
+  )
+
   if (queue.length === 0 && !paused && !held) return null
 
   return (
@@ -498,37 +560,51 @@ export function MessageQueueDisplay({
       <Reorder.Group
         as="div"
         axis="y"
-        values={queue}
-        onReorder={onReorder}
+        values={displayGroups}
+        onReorder={handleGroupReorder}
         className="flex flex-col gap-0.5"
       >
-        {queue.map((item, index) => (
-          <QueueItem
-            key={item.id}
-            item={item}
-            index={index}
-            isEditing={editingItemId === item.id}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onRetry={onRetry ? setRetryId : undefined}
-            onScheduleItem={onScheduleItem}
-            onScheduleOpen={(id) =>
-              setScheduleTarget({
-                id,
-                initialAt:
-                  queue.find((entry) => entry.id === id)?.scheduledAt ?? null,
-              })
-            }
-            onSteerItem={onSteerItem}
-            steerChannel={steerChannel}
-            steering={steeringId !== null}
-            onSteerStart={handleSteerStart}
-            onSendNow={manualSend ? onSendNow : undefined}
-            resumeOnSend={errorPaused}
-            sendNowId={sendNowId}
-            onSendNowStart={handleSendNowStart}
-          />
-        ))}
+        {displayGroups.map((group, index) => {
+          // +1 只属于「继续」类 pending 行（判定与 Rust 侧报错自动放行同表）。
+          const canPlusOne =
+            Boolean(onQueuePlusOne) &&
+            group.item.deliveryState == null &&
+            !group.item.scheduledAt &&
+            isContinueInstruction(group.item.draft.displayText)
+          return (
+            <QueueItem
+              key={group.item.id}
+              item={group.item}
+              index={index}
+              count={group.copies.length}
+              onPlusOne={
+                canPlusOne && onQueuePlusOne
+                  ? () => onQueuePlusOne(group.item)
+                  : undefined
+              }
+              isEditing={editingItemId === group.item.id}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onRetry={onRetry ? setRetryId : undefined}
+              onScheduleItem={onScheduleItem}
+              onScheduleOpen={(id) =>
+                setScheduleTarget({
+                  id,
+                  initialAt:
+                    queue.find((entry) => entry.id === id)?.scheduledAt ?? null,
+                })
+              }
+              onSteerItem={onSteerItem}
+              steerChannel={steerChannel}
+              steering={steeringId !== null}
+              onSteerStart={handleSteerStart}
+              onSendNow={manualSend ? onSendNow : undefined}
+              resumeOnSend={errorPaused}
+              sendNowId={sendNowId}
+              onSendNowStart={handleSendNowStart}
+            />
+          )
+        })}
       </Reorder.Group>
       <MessageScheduleDialog
         open={scheduleTarget !== null}

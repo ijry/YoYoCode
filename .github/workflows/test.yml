@@ -201,6 +201,49 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Setup macOS FFmpeg media environment
+        if: matrix.os == 'macos-latest' && (matrix.mode == 'desktop' || matrix.mode == 'server')
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-name: codeg-media
+          create-args: >-
+            --channel conda-forge
+            ffmpeg
+
+      - name: Install FFmpeg for Linux media tests
+        if: matrix.os == 'ubuntu-22.04' && (matrix.mode == 'desktop' || matrix.mode == 'server')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version
+          ffprobe -version
+          ffmpeg -hide_banner -filters | grep -F 'subtitles'
+
+      - name: Install FFmpeg for Windows media tests
+        if: matrix.os == 'windows-latest' && matrix.mode == 'server'
+        shell: pwsh
+        run: |
+          choco install ffmpeg --no-progress -y
+          $ffmpeg = Get-ChildItem "$env:ChocolateyInstall\lib\ffmpeg" -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          if ($null -eq $ffmpeg) { throw "ffmpeg.exe was not installed" }
+          $ffprobe = Join-Path $ffmpeg.DirectoryName "ffprobe.exe"
+          if (!(Test-Path $ffprobe)) { throw "ffprobe.exe was not installed" }
+          $ffmpeg.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $ffmpeg.FullName -version
+          & $ffprobe -version
+          $filters = & $ffmpeg.FullName -hide_banner -filters 2>&1
+          if (-not ($filters -match '\bsubtitles\b')) { throw "FFmpeg subtitles filter is unavailable" }
+
+      - name: Verify macOS FFmpeg media tools
+        if: matrix.os == 'macos-latest' && (matrix.mode == 'desktop' || matrix.mode == 'server')
+        shell: bash -leo pipefail {0}
+        run: |
+          ffmpeg -version
+          ffprobe -version
+          ffmpeg -hide_banner -filters | grep -F 'subtitles'
+          printf '%s/bin\n' "$CONDA_PREFIX" >> "$GITHUB_PATH"
+
       - name: Prepare Tauri frontendDist placeholder
         # Tauri's build script validates `frontendDist` and bundled resource
         # paths during Rust compilation. The frontend job owns the real static

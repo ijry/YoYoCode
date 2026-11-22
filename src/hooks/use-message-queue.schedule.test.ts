@@ -133,9 +133,7 @@ describe("scheduled send", () => {
     const { result } = renderHook(() => useMessageQueue("42"))
     await waitFor(() => expect(result.current.scheduledSend).toBe(false))
     await act(async () => {
-      await expect(
-        result.current.scheduleItem("a", null)
-      ).rejects.toThrow()
+      await expect(result.current.scheduleItem("a", null)).rejects.toThrow()
       await expect(
         result.current.enqueueScheduled(
           { blocks: [], displayText: "x" },

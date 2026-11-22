@@ -700,6 +700,12 @@ const ConversationTabView = memo(function ConversationTabView({
       () => isReparentUnmount(useTabStore.getState(), tabId, groupId),
       [tabId, groupId]
     ),
+    // One-shot values the draft was opened with (the "continue in a new
+    // session" dialog's model pick), passed REACTIVELY: landing a value on an
+    // already-connected draft must reconnect it with the override. Read off
+    // the tab's own reactive selector (`ownTab` above) so the value is
+    // reference-stable while it means the same pick.
+    preferredConfigValues: ownTab?.pendingPreferredConfigValues ?? null,
   })
   const { status: connStatus, sessionId: connSessionId } = conn
   const messageQueue = useMessageQueue(
@@ -2468,6 +2474,7 @@ const ConversationTabView = memo(function ConversationTabView({
           toast.error(toErrorMessage(error))
         }
       }}
+      onQueuePlusOne={(item) => mqEnqueue(item.draft, item.modeId)}
       onEnqueue={mqEnqueue}
       onEnqueueScheduled={
         // The composer owns the failure UX (toast + keep draft); passing the

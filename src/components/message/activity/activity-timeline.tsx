@@ -21,7 +21,10 @@ import type {
 import { ActivityRenderProvider, useActivityRender } from "./activity-context"
 import { GOAL_ICON, IMAGE_ICON, toolIcon } from "./step-visuals"
 import { AskQuestionResultCard } from "../ask-question-result-card"
-import { CODEG_MCP_TOOL_ICONS, CodegMcpToolCard } from "../yoyocode-mcp-tool-card"
+import {
+  CODEG_MCP_TOOL_ICONS,
+  CodegMcpToolCard,
+} from "../yoyocode-mcp-tool-card"
 import { GoalRunPart, GoalToolCallPart } from "../goal-tool-call"
 import { isCodegMcpWorkbenchTool } from "@/lib/yoyocode-mcp-tool"
 import { AgentRow } from "./rows/agent-row"

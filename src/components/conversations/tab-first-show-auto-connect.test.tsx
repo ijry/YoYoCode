@@ -186,7 +186,8 @@ describe("a hidden tab's first show", () => {
       "claude_code",
       "/repo",
       STORED_SESSION,
-      CID
+      CID,
+      null
     )
   })
 
@@ -218,7 +219,8 @@ describe("a hidden tab's first show", () => {
       "claude_code",
       "/repo",
       STORED_SESSION,
-      CID
+      CID,
+      null
     )
   })
 })

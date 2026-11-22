@@ -116,6 +116,17 @@ export interface TabItemInternal {
    * the "no-folder" chip.
    */
   isChat?: boolean
+  /**
+   * One-shot preferred config values (e.g. the model picked in the
+   * "continue in a new session" dialog) applied at this draft's connect time.
+   * Internal-only and never persisted (drafts never reach
+   * `buildPersistItems`). Landing a value on an already-connected draft
+   * RECONNECTS it with the override (the lifecycle hook takes the field
+   * reactively); retained after bind so a later reconnect re-applies the
+   * model the conversation started with; cleared by `confirmDraftAgent` (an
+   * agent switch invalidates the old agent's values).
+   */
+  pendingPreferredConfigValues?: Record<string, string> | null
 }
 
 export type TabItem = TabItemInternal
@@ -288,6 +299,10 @@ export interface TabStoreState {
        *  since the per-group singleton may hand it the group's EXISTING draft
        *  instead of a new tab, that draft is moved to the slot. */
       index?: number
+      /** One-shot preferred config values (see
+       *  `TabItemInternal.pendingPreferredConfigValues`). Omitted leaves any
+       *  existing value alone; present (even null) overwrites it. */
+      preferredConfigValues?: Record<string, string> | null
       /** Move THIS unbound draft to the folder (the composer's folder picker)
        *  rather than resolving the target group's draft. Matters while tabs
        *  follow the folder, where the target folder may have a draft of its
@@ -301,6 +316,8 @@ export interface TabStoreState {
     forceAgent?: AgentType
     /** See `openNewConversationTab`'s `retargetTabId`. */
     retargetTabId?: string
+    /** See `openNewConversationTab`'s `preferredConfigValues`. */
+    preferredConfigValues?: Record<string, string> | null
   }) => OpenedDraftTarget
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: AgentType) => void
@@ -2270,6 +2287,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         ...(options?.forceAgent != null
           ? { forceAgent: options.forceAgent }
           : {}),
+        ...(options?.preferredConfigValues !== undefined
+          ? { preferredConfigValues: options.preferredConfigValues }
+          : {}),
       })
     }
     // Read before any folder scope switch: "inherit from active" means the
@@ -2337,6 +2357,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         isPinned: true,
         workingDir,
         agentTypeProvisional: provisional,
+        ...(options?.preferredConfigValues !== undefined
+          ? { pendingPreferredConfigValues: options.preferredConfigValues }
+          : {}),
       }
       set({
         rawTabs: insertTab(prevState.rawTabs, newTab, options?.index),
@@ -2399,6 +2422,22 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       focusTab(existingTab.id)
     }
     runtime.activateConversationPane()
+    // The reused draft got its agent/folder/workingDir settled by the branches
+    // above; the one-shot values ride along regardless of which branch ran.
+    if (options?.preferredConfigValues !== undefined) {
+      set({
+        rawTabs: get().rawTabs.map((tab) =>
+          tab.id === existingTab.id
+            ? {
+                ...tab,
+                pendingPreferredConfigValues:
+                  options.preferredConfigValues ?? null,
+              }
+            : tab
+        ),
+      })
+      recomputeTabs()
+    }
     // Every branch above leaves the tab on `targetAgent` in `folderId` — either
     // already there, or once its queued retarget lands.
     return { tabId: existingTab.id, agentType: targetAgent, folderId }
@@ -2529,6 +2568,24 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       }
     }
 
+    // Same one-shot semantics as openNewConversationTab's reuse path: whatever
+    // branch settled this draft, an explicit value lands on it.
+    if (options?.preferredConfigValues !== undefined) {
+      const patchedId = existingTab ? existingTab.id : tabId
+      set({
+        rawTabs: get().rawTabs.map((tab) =>
+          tab.id === patchedId
+            ? {
+                ...tab,
+                pendingPreferredConfigValues:
+                  options.preferredConfigValues ?? null,
+              }
+            : tab
+        ),
+      })
+      recomputeTabs()
+    }
+
     if (needsDisconnect && existingDraft) {
       void runtime.acpDisconnect(existingDraft.id).catch((err) => {
         console.error("[TabStore] disconnect chat-mode draft:", err)
@@ -2577,7 +2634,14 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       if (t.id !== tabId) return t
       if (t.conversationId != null) return t // not a draft
       if (t.agentType === agentType && !t.agentTypeProvisional) return t
-      return { ...t, agentType, agentTypeProvisional: false }
+      // A real user pick invalidates any one-shot values the draft was opened
+      // with: they belonged to the previous agent.
+      return {
+        ...t,
+        agentType,
+        agentTypeProvisional: false,
+        pendingPreferredConfigValues: null,
+      }
     })
     if (next.every((t, i) => t === prev[i])) return
     set({ rawTabs: next })
@@ -2616,6 +2680,10 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
           title: formatConversationTitle(title) || tab.title,
           runtimeConversationId,
           agentTypeProvisional: false,
+          // The one-shot values are RETAINED after bind: the connect this
+          // binding follows already applied them, and a later reconnect of
+          // this conversation should re-apply the model it started with.
+          // Cleared only by an agent switch (confirmDraftAgent).
           ...(folderId != null ? { folderId } : {}),
           ...(workingDir != null ? { workingDir } : {}),
         }

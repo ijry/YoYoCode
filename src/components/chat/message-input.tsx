@@ -68,6 +68,7 @@ import {
   type AttachPageToSessionDetail,
   type AttachSessionToSessionDetail,
   type AppendTextToSessionDetail,
+  drainPendingSessionAttachments,
 } from "@/lib/session-attachment-events"
 import {
   ConversationContextBar,
@@ -454,6 +455,8 @@ export function MessageInput({
     ? t("promptSuggestion", { suggestion: offeredSuggestion })
     : resolvedPlaceholder
   const editorRef = useRef<RichComposerHandle>(null)
+  const [voicePreviewContainer, setVoicePreviewContainer] =
+    useState<HTMLDivElement | null>(null)
   // Prompt-history navigation. `historyRef` is seeded from `getSentHistory`
   // lazily, the first time the user steps into history, so a session that never
   // uses it pays nothing.
@@ -1458,6 +1461,8 @@ export function MessageInput({
       if (customEvent.detail.tabId !== attachmentTabId) return
       const editor = editorRef.current?.getEditor()
       if (!editor) return
+      // The pending-attachment queue keys retry decisions on this stamp.
+      customEvent.detail.consumed = true
       const { reference } = sessionToSuggestion(customEvent.detail.conversation)
       if (
         reference.uri &&
@@ -1555,6 +1560,8 @@ export function MessageInput({
       const appendText = customEvent.detail.text
       const editor = editorRef.current?.getEditor()
       if (!editor) return
+      // The pending-attachment queue keys retry decisions on this stamp.
+      customEvent.detail.consumed = true
       // Append at the very end, separated by a space when the document isn't
       // empty (and doesn't already end in whitespace).
       const ed = editorRef.current
@@ -1571,6 +1578,14 @@ export function MessageInput({
       window.removeEventListener(APPEND_TEXT_TO_SESSION_EVENT, handleAppendText)
     }
   }, [attachmentTabId])
+
+  // Content queued for this tab BEFORE its composer existed (the sidebar's
+  // continue-in-new-session prefill) drains the moment the editor is ready —
+  // earlier dispatches bounced off the missing editor and stayed queued.
+  useEffect(() => {
+    if (!composerReady || !attachmentTabId) return
+    drainPendingSessionAttachments(attachmentTabId)
+  }, [composerReady, attachmentTabId])
 
   // Voice input: the transcript is appended at the end as LITERAL text and
   // left for review. `insertContent` treats a plain string as HTML, so route
@@ -2372,6 +2387,10 @@ export function MessageInput({
                   />
                 }
               />
+              <div
+                ref={setVoicePreviewContainer}
+                className="min-w-0 shrink-0"
+              />
               <RichComposer
                 ref={editorRef}
                 placeholder={shownPlaceholder}
@@ -2419,6 +2438,7 @@ export function MessageInput({
                   <ComposerScreenshotButton disabled={disabled} />
                   <ComposerVoiceButton
                     disabled={disabled}
+                    previewContainer={voicePreviewContainer}
                     onTranscript={handleVoiceTranscript}
                   />
                   {hasAnySelector && (

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import {
   getSavedModeId,
   getSavedPrefsForConnect,
+  mergeConnectConfigValues,
   saveConfigPreference,
   saveModePreference,
 } from "./selector-prefs-storage"
@@ -187,5 +188,34 @@ describe("selector-prefs-storage", () => {
       modeId: null,
       configValues: { model: "claude-sonnet-5" },
     })
+  })
+})
+
+describe("mergeConnectConfigValues", () => {
+  it("overrides per key while keeping the rest of the saved prefs", () => {
+    expect(
+      mergeConnectConfigValues(
+        { model: "saved-model", effort: "high" },
+        { model: "dialog-model" }
+      )
+    ).toEqual({ model: "dialog-model", effort: "high" })
+  })
+
+  it("passes saved values through untouched when there is no override", () => {
+    const saved = { model: "saved-model" }
+    expect(mergeConnectConfigValues(saved, null)).toBe(saved)
+    expect(mergeConnectConfigValues(saved, {})).toBe(saved)
+  })
+
+  it("normalizes a lone override to a copy", () => {
+    const override = { model: "dialog-model" }
+    const merged = mergeConnectConfigValues(null, override)
+    expect(merged).toEqual({ model: "dialog-model" })
+    expect(merged).not.toBe(override)
+  })
+
+  it("collapses two empty sides to null", () => {
+    expect(mergeConnectConfigValues(null, null)).toBeNull()
+    expect(mergeConnectConfigValues({}, {})).toBeNull()
   })
 })

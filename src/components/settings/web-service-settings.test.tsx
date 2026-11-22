@@ -293,9 +293,7 @@ describe("one-click public access setup", () => {
       token: "saved-token",
     })
     expect(api.enableTailscaleFunnel).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole("button", { name: "Processing..." })
-    ).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Processing..." })).toBeDisabled()
     api.getTailscaleFunnelStatus.mockResolvedValue(disabled)
     await act(async () =>
       start.resolve({
@@ -606,9 +604,7 @@ describe("Web service Funnel addresses", () => {
     await user.click(
       screen.getByRole("button", { name: "Refresh Tailscale status" })
     )
-    expect(lastAddressCombobox()).toHaveTextContent(
-      "http://192.168.1.2:3080"
-    )
+    expect(lastAddressCombobox()).toHaveTextContent("http://192.168.1.2:3080")
     await user.click(lastAddressCombobox())
     expect(screen.getAllByRole("option")[0]).toHaveTextContent(PUBLIC_URL)
   })
@@ -628,9 +624,7 @@ describe("Web service Funnel addresses", () => {
       screen.getByRole("option", { name: "http://192.168.1.2:3080" })
     )
     await act(async () => pending.resolve(enabled))
-    expect(lastAddressCombobox()).toHaveTextContent(
-      "http://192.168.1.2:3080"
-    )
+    expect(lastAddressCombobox()).toHaveTextContent("http://192.168.1.2:3080")
   })
 
   it("selects the new public URL on enable and falls back on disable", async () => {
@@ -690,9 +684,7 @@ describe("Web service Funnel addresses", () => {
     await user.click(
       screen.getByRole("button", { name: "Refresh Tailscale status" })
     )
-    expect(lastAddressCombobox()).toHaveTextContent(
-      "http://192.168.1.2:3080"
-    )
+    expect(lastAddressCombobox()).toHaveTextContent("http://192.168.1.2:3080")
   })
 
   it("loads local controls even while the initial Funnel request is pending", async () => {
@@ -855,9 +847,7 @@ describe("Web service Funnel addresses", () => {
     await screen.findByRole("button", { name: "Disable public access" })
     api.getWebServerStatus.mockResolvedValue(null)
     await user.click(screen.getByRole("button", { name: "Stop" }))
-    expect(
-      await screen.findByRole("button", { name: "Start" })
-    ).toBeEnabled()
+    expect(await screen.findByRole("button", { name: "Start" })).toBeEnabled()
     expect(
       await screen.findByText(/Could not remove public access/)
     ).toBeInTheDocument()

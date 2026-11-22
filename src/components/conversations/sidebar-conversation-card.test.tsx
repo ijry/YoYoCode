@@ -598,6 +598,68 @@ describe("SidebarConversationCard add to session", () => {
   })
 })
 
+describe("SidebarConversationCard continue in new session", () => {
+  const onContinue = vi.fn()
+
+  beforeEach(() => {
+    onContinue.mockClear()
+  })
+
+  function renderCard(c: DbConversationSummary) {
+    return renderWithIntl(
+      <SidebarConversationCard
+        conversation={c}
+        isSelected={false}
+        timeLabel="5m"
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+        onContinueInNewSession={onContinue}
+      />
+    )
+  }
+
+  it("hands the whole conversation to the handler", () => {
+    const target = conv(3)
+    const { getByText } = renderCard(target)
+    fireEvent.contextMenu(getByText("conv-3"))
+    fireEvent.click(getByText("Continue in a new session"))
+    expect(onContinue).toHaveBeenCalledExactlyOnceWith(target)
+  })
+
+  it("hides the item when no handler is provided", () => {
+    const { getByText, queryByText } = renderWithIntl(
+      <SidebarConversationCard
+        conversation={conv(3)}
+        isSelected={false}
+        timeLabel="5m"
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    fireEvent.contextMenu(getByText("conv-3"))
+    expect(queryByText("Continue in a new session")).toBeNull()
+  })
+
+  it("hides the item for a delegation sub-session", () => {
+    // A sub-session has no bound tab, so the stop-and-confirm path can never
+    // fire — "continue" would silently mark a still-running child completed.
+    const child: DbConversationSummary = {
+      ...conv(3),
+      kind: "delegate",
+      parent_id: 1,
+    }
+    const { getByText, queryByText } = renderCard(child)
+    fireEvent.contextMenu(getByText("conv-3"))
+    expect(queryByText("Continue in a new session")).toBeNull()
+  })
+})
+
 describe("SidebarConversationCard sub-session chevron", () => {
   const onToggleExpand = vi.fn()
   beforeEach(() => {

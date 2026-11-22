@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useLocale, useTranslations } from "next-intl"
-import { Mic, MicOff } from "lucide-react"
+import { Loader2, Mic, Square } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -18,13 +19,11 @@ import {
   getVoiceStatus,
   getVoiceStreamStatus,
   listenVoicePartial,
-  listenVoicePrepare,
   prepareVoiceStream,
   sendVoiceStreamChunk,
   startVoiceStream,
   stopVoiceStream,
   transcribeVoice,
-  type VoicePrepareProgress,
   type VoiceStatus,
 } from "@/lib/api"
 import { extractAppCommandError } from "@/lib/app-error"
@@ -44,8 +43,12 @@ import {
 
 type VoicePhase = "idle" | "listening" | "transcribing" | "preparing"
 
+const WAVEFORM_WEIGHTS = [0.25, 0.5, 0.75, 0.5, 1, 0.5, 0.75, 0.5, 0.25]
+
 export interface ComposerVoiceButtonProps {
   disabled?: boolean
+  /** A normal-flow slot above the editor, outside the narrow toolbar controls. */
+  previewContainer?: HTMLElement | null
   /** The transcript lands in the editor for review — never sent automatically. */
   onTranscript: (text: string) => void
 }
@@ -66,6 +69,7 @@ export interface ComposerVoiceButtonProps {
  */
 export function ComposerVoiceButton({
   disabled = false,
+  previewContainer,
   onTranscript,
 }: ComposerVoiceButtonProps) {
   const t = useTranslations("Folder.chat.messageInput")
@@ -78,14 +82,18 @@ export function ComposerVoiceButton({
   const [levels, setLevels] = useState<number[]>([])
   // Live partial transcript while a streaming session is recording.
   const [partialText, setPartialText] = useState<string | null>(null)
+  const previewRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const preview = previewRef.current
+    if (preview) preview.scrollTop = preview.scrollHeight
+  }, [partialText, previewContainer])
 
   const recorderRef = useRef<LocalPcmRecorder | null>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const phaseRef = useRef<VoicePhase>("idle")
   const engineRef = useRef<VoiceEngine>(engine)
   const localStatusRef = useRef<VoiceStatus | null>(null)
-  const prepareUnsubRef = useRef<(() => void) | null>(null)
-  const prepareToastIdRef = useRef("codeg-voice-prepare")
   const mountedRef = useRef(true)
   // Streaming session state. `chunkChain` serializes the ~100 ms uploads so
   // the recognizer hears audio in capture order; stop waits for the chain.
@@ -97,18 +105,6 @@ export function ComposerVoiceButton({
     phaseRef.current = next
     if (mountedRef.current) setPhase(next)
   }, [])
-
-  const progressText = useCallback(
-    (progress: VoicePrepareProgress) => {
-      if (progress.stage === "done") return t("voiceReady")
-      if (progress.stage === "extracting") return t("voicePreparingExtracting")
-      if (progress.percent >= 0) {
-        return t("voicePreparingProgress", { percent: progress.percent })
-      }
-      return t("voicePreparing")
-    },
-    [t]
-  )
 
   useEffect(() => {
     mountedRef.current = true
@@ -139,28 +135,6 @@ export function ComposerVoiceButton({
       active = false
     }
   }, [])
-
-  // The prepare command streams `voice://prepare`; show real progress instead
-  // of a frozen spinner while the decoder + model are downloaded.
-  useEffect(() => {
-    let active = true
-    void listenVoicePrepare((progress) => {
-      if (!active || progress.stage === "done") return
-      toast.loading(progressText(progress), {
-        id: prepareToastIdRef.current,
-      })
-    })
-      .then((unsub) => {
-        if (active) prepareUnsubRef.current = unsub
-        else unsub()
-      })
-      .catch(() => {})
-    return () => {
-      active = false
-      prepareUnsubRef.current?.()
-      prepareUnsubRef.current = null
-    }
-  }, [progressText])
 
   // Live partials for the streaming engine. The session filter drops events
   // from stale sessions (e.g. an aborted recording whose last chunk raced
@@ -210,26 +184,24 @@ export function ComposerVoiceButton({
     }
 
     setPhaseSafe("preparing")
-    toast.loading(t("voicePreparing"), { id: prepareToastIdRef.current })
+    // 下载进度在状态栏常驻显示（StatusBarVoicePrepare）；这里不再叠加 loading
+    // toast —— 几分钟的下载用它表示既挡聊天又像卡死。成功提示保留。
     try {
       const status = await ensureVoiceReady()
       localStatusRef.current = status
       setManualInstall(status.needsManualInstall)
       if (!status.available) {
-        toast.error(t("voiceManualInstallRequired"), {
-          id: prepareToastIdRef.current,
-        })
+        toast.error(t("voiceManualInstallRequired"))
         return false
       }
-      toast.success(t("voiceReady"), { id: prepareToastIdRef.current })
+      toast.success(t("voiceReady"))
       return true
     } catch (error) {
       const appError = extractAppCommandError(error)
       toast.error(
         appError?.code === "dependency_missing"
           ? t("voiceManualInstallRequired")
-          : t("voicePrepareFailed"),
-        { id: prepareToastIdRef.current }
+          : t("voicePrepareFailed")
       )
       return false
     } finally {
@@ -292,19 +264,17 @@ export function ComposerVoiceButton({
 
   const startStreaming = useCallback(async () => {
     setPhaseSafe("preparing")
+    // 下载进度在状态栏常驻显示（StatusBarVoicePrepare），不再叠加 loading toast。
     try {
       const status = await getVoiceStreamStatus()
       if (!status.loaded) {
-        toast.loading(t("voicePreparing"), { id: prepareToastIdRef.current })
         await prepareVoiceStream()
-        toast.success(t("voiceReady"), { id: prepareToastIdRef.current })
+        toast.success(t("voiceReady"))
       }
     } catch {
       // Dependency missing is impossible here (sherpa-onnx is compiled in);
       // the realistic failures are download/load errors.
-      toast.error(t("voicePrepareFailed"), {
-        id: prepareToastIdRef.current,
-      })
+      toast.error(t("voicePrepareFailed"))
       setPhaseSafe("idle")
       return
     }
@@ -495,21 +465,32 @@ export function ComposerVoiceButton({
           ? t("voiceStop")
           : t("voiceStart")
 
+  // Non-editable content owns selection and scrolling instead of the
+  // composer's click-the-chrome-to-type handler.
+  const preview = partialText ? (
+    <div
+      contentEditable={false}
+      className="mx-3 mt-3 flex min-w-0 items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-muted-foreground"
+    >
+      <Mic
+        className="mt-0.5 size-3.5 shrink-0 text-destructive"
+        aria-hidden="true"
+      />
+      <div
+        ref={previewRef}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="max-h-24 min-w-0 flex-1 overflow-y-auto overscroll-contain whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]"
+      >
+        {partialText}
+      </div>
+    </div>
+  ) : null
+
   return (
-    <div className="relative flex items-center gap-0.5">
-      {partialText && (
-        <div
-          aria-live="polite"
-          className="pointer-events-none absolute bottom-full left-0 z-10 mb-1 max-h-24 max-w-72 overflow-hidden break-words rounded-md border bg-popover px-2 py-1.5 text-xs leading-snug text-popover-foreground shadow-md"
-        >
-          {/* The tail is what is being said right now; head-truncation keeps
-              long sentences legible in a one-bubble preview, and the max-h
-              keeps the preview inside the composer box's overflow clip. */}
-          {partialText.length > 180
-            ? `…${partialText.slice(-180)}`
-            : partialText}
-        </div>
-      )}
+    <div className="flex shrink-0 items-center gap-0.5">
+      {preview && previewContainer && createPortal(preview, previewContainer)}
       <Button
         type="button"
         disabled={
@@ -522,7 +503,7 @@ export function ComposerVoiceButton({
         size="icon-xs"
         className={
           phase === "listening"
-            ? "shrink-0 text-destructive"
+            ? "h-6 w-auto shrink-0 gap-2 bg-destructive/10 px-2 text-destructive hover:bg-destructive/15 hover:text-destructive"
             : "shrink-0 text-muted-foreground"
         }
         title={label}
@@ -531,22 +512,34 @@ export function ComposerVoiceButton({
         onClick={toggle}
       >
         {phase === "listening" ? (
-          <MicOff className="size-4" />
+          <>
+            <Square className="size-3 fill-current" aria-hidden="true" />
+            <span
+              className="pointer-events-none flex h-5 items-center gap-0.5"
+              aria-hidden="true"
+            >
+              {WAVEFORM_WEIGHTS.map((weight, index) => {
+                const level =
+                  levels[levels.length - 1 - index] ??
+                  levels[levels.length - 1] ??
+                  0
+                const amplitude = Math.min(1, Math.sqrt(Math.max(0, level)) * 4)
+                return (
+                  <span
+                    key={index}
+                    className="w-0.5 rounded-full bg-current transition-[height] duration-100 ease-out motion-reduce:transition-none"
+                    style={{ height: `${4 + weight * (4 + amplitude * 12)}px` }}
+                  />
+                )
+              })}
+            </span>
+          </>
+        ) : phase === "preparing" || phase === "transcribing" ? (
+          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
         ) : (
           <Mic className="size-4" />
         )}
       </Button>
-      {phase === "listening" && levels.length > 0 && (
-        <span className="flex h-4 items-end gap-px" aria-hidden="true">
-          {levels.slice(-12).map((level, index) => (
-            <span
-              key={index}
-              className="w-0.5 rounded-sm bg-current"
-              style={{ height: `${Math.max(2, Math.min(16, level * 400))}px` }}
-            />
-          ))}
-        </span>
-      )}
       {!manualInstall && engine === "web-speech" && !busy && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

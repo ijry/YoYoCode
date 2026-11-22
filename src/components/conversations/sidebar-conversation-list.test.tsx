@@ -6,7 +6,7 @@ import {
   useImperativeHandle,
   useState,
 } from "react"
-import { act, fireEvent, render, within } from "@testing-library/react"
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { toast } from "sonner"
 import {
@@ -222,22 +222,26 @@ vi.mock("@/contexts/active-folder-context", () => ({
   useActiveFolder: () => ({ activeFolder: null }),
 }))
 
-vi.mock("@/contexts/tab-context", () => ({
-  useTabActions: () => stableTabFns,
-  useTabStore: (
+vi.mock("@/contexts/tab-context", () => {
+  // The real export is the zustand store (selector hook + .getState()); the
+  // card's menu open path calls `useTabStore.getState()`, so the mock carries
+  // both faces over the same mutable backing data.
+  const snapshot = () => ({
+    activeTabId: store.activeTabId,
+    // Fresh array + fresh objects every render → worst-case churn, exactly
+    // what the list's reuseSelected/reuseSet must absorb to keep folders
+    // memoized.
+    tabs: store.tabSpec.map((t) => ({ ...t })),
+  })
+  const useTabStore = (
     selector: (s: {
       activeTabId: string | null
       tabs: Array<Record<string, unknown>>
     }) => unknown
-  ) =>
-    selector({
-      activeTabId: store.activeTabId,
-      // Fresh array + fresh objects every render → worst-case churn, exactly
-      // what the list's reuseSelected/reuseSet must absorb to keep folders
-      // memoized.
-      tabs: store.tabSpec.map((t) => ({ ...t })),
-    }),
-}))
+  ) => selector(snapshot())
+  useTabStore.getState = snapshot
+  return { useTabActions: () => stableTabFns, useTabStore }
+})
 vi.mock("@/contexts/workbench-route-context", () => {
   // Stable singleton — the real provider memoizes these (useCallback([])), so a
   // fresh object per render would break the list's callback-identity memoization
@@ -246,7 +250,7 @@ vi.mock("@/contexts/workbench-route-context", () => {
     routeId: "conversations",
     isConversations: true,
     setRoute: () => {},
-    openConversations: () => {},
+    openConversations: routeSpies.openConversations,
   }
   return { useWorkbenchRoute: () => value }
 })
@@ -2509,5 +2513,150 @@ describe("SidebarConversationList — folder header and folder-tabs mode", () =>
       before === "true" ? "false" : "true"
     )
     expect(useFolderTabsStore.getState().scope).toBe(1)
+  })
+})
+
+// ── Continue in new session ───────────────────────────────────────────────
+// The flow itself (stop → mark completed → open + prefill) is unit-covered in
+// continue-in-new-session.test.ts; these cases pin the list's gating: the
+// choice dialog opens for EVERY continue (idle or running), confirming runs
+// the flow with the dialog's choices, cancelling leaves everything untouched.
+const continueFlow = vi.hoisted(() => ({
+  resolveRunningConnectionId: vi.fn(() => null as string | null),
+  runContinueInNewSession: vi.fn(async () => true),
+}))
+vi.mock("./continue-in-new-session", () => continueFlow)
+
+// The choice dialog renders for real; stub its agent catalog + probe so the
+// dialog confirms with the fixture conversation's own agent and no model.
+const agentStubs = vi.hoisted(() => {
+  const stubs = {
+    useAcpAgents: vi.fn(() => ({
+      agents: [
+        {
+          agent_type: "claude_code",
+          name: "Claude Code",
+          enabled: true,
+          available: true,
+          sort_order: 0,
+        },
+      ],
+      fresh: true,
+      refresh: vi.fn(),
+    })),
+    useAgentOptions: vi.fn(() => ({
+      snapshot: null,
+      snapshotAgentType: null,
+      snapshotModel: null,
+      current: false,
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+      ensure: vi.fn(async () => null),
+    })),
+    reset() {
+      stubs.useAcpAgents.mockClear()
+      stubs.useAgentOptions.mockClear()
+    },
+  }
+  return stubs
+})
+vi.mock("@/hooks/use-acp-agents", () => ({
+  useAcpAgents: agentStubs.useAcpAgents,
+}))
+vi.mock("@/components/automations/use-agent-options", () => ({
+  useAgentOptions: agentStubs.useAgentOptions,
+}))
+
+// The route must come back to the conversations workbench or the new tab opens
+// unseen under a route overlay (every sibling opener pairs the two calls).
+const routeSpies = vi.hoisted(() => ({ openConversations: vi.fn() }))
+
+describe("SidebarConversationList — continue in new session", () => {
+  beforeEach(() => {
+    const folders = [folder(1, "Folder 1")]
+    useAppWorkspaceStore.setState({
+      folders,
+      allFolders: folders,
+      conversations: [conv(11, 1)],
+    })
+    continueFlow.resolveRunningConnectionId.mockClear()
+    continueFlow.runContinueInNewSession.mockClear()
+    routeSpies.openConversations.mockClear()
+    agentStubs.reset()
+    continueFlow.resolveRunningConnectionId.mockReturnValue(null)
+    continueFlow.runContinueInNewSession.mockResolvedValue(true)
+  })
+
+  it("opens the choice dialog on an idle session; confirming runs the flow with its choices", () => {
+    const { getByRole, getByText, queryByRole } = render(tree())
+    fireEvent.contextMenu(getByText("conv-11"))
+    fireEvent.click(getByText("Continue in a new session"))
+
+    // The dialog is the gate now: nothing runs until it is confirmed.
+    expect(continueFlow.runContinueInNewSession).not.toHaveBeenCalled()
+    const dialog = getByRole("dialog")
+    fireEvent.click(within(dialog).getByText("Continue"))
+    expect(
+      continueFlow.runContinueInNewSession
+    ).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: 11 }),
+      expect.anything(),
+      "Please continue the work from the session above.",
+      { agentType: "claude_code", preferredConfigValues: null }
+    )
+    // ...and the conversations workbench takes over, or the opened tab would
+    // sit unseen beneath a route overlay.
+    expect(routeSpies.openConversations).toHaveBeenCalledTimes(1)
+    expect(queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("warns and relabels the confirm while the session is still running", () => {
+    continueFlow.resolveRunningConnectionId.mockReturnValue("conn-55")
+    const { getByRole, getByText } = render(tree())
+    fireEvent.contextMenu(getByText("conv-11"))
+    fireEvent.click(getByText("Continue in a new session"))
+
+    const dialog = getByRole("dialog")
+    expect(
+      within(dialog).getByText(
+        enMessages.Folder.conversationCard.continueRunningDescription
+      )
+    ).toBeTruthy()
+    fireEvent.click(within(dialog).getByText("Stop and continue"))
+    expect(continueFlow.runContinueInNewSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps everything untouched when the confirmation is cancelled", () => {
+    continueFlow.resolveRunningConnectionId.mockReturnValue("conn-55")
+    const { getByRole, getByText } = render(tree())
+    fireEvent.contextMenu(getByText("conv-11"))
+    fireEvent.click(getByText("Continue in a new session"))
+    fireEvent.click(
+      within(getByRole("dialog")).getByText(
+        enMessages.Folder.conversationCard.cancel
+      )
+    )
+
+    expect(continueFlow.runContinueInNewSession).not.toHaveBeenCalled()
+    fireEvent.contextMenu(getByText("conv-11"))
+    expect(getByText("Continue in a new session")).toBeTruthy()
+  })
+
+  it("tells the user when the conversation's folder no longer resolves", async () => {
+    // The flow aborts BEFORE stopping or marking anything; the only honest
+    // signal is a toast — silent nothing after a confirm is worse.
+    continueFlow.runContinueInNewSession.mockResolvedValue(false)
+    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => {})
+    try {
+      const { getByRole, getByText } = render(tree())
+      fireEvent.contextMenu(getByText("conv-11"))
+      fireEvent.click(getByText("Continue in a new session"))
+      fireEvent.click(within(getByRole("dialog")).getByText("Continue"))
+
+      await waitFor(() => expect(errorToast).toHaveBeenCalledTimes(1))
+    } finally {
+      errorToast.mockRestore()
+    }
   })
 })

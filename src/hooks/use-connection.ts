@@ -150,7 +150,10 @@ export interface UseConnectionReturn {
     agentType: AgentType,
     workingDir?: string,
     sessionId?: string,
-    conversationId?: number
+    conversationId?: number,
+    /** One-shot preferred config values merged over the agent's saved picks
+     *  at connect time (see `ConnectRequest.preferredConfigValuesOverride`). */
+    preferredConfigValuesOverride?: Record<string, string> | null
   ) => Promise<void>
   disconnect: () => Promise<void>
   /** Restart the session (disconnect + resume same sessionId) so it picks up
@@ -340,14 +343,16 @@ export function useConnection(contextKey: string): UseConnectionReturn {
       agentType: AgentType,
       workingDir?: string,
       sessionId?: string,
-      conversationId?: number
+      conversationId?: number,
+      preferredConfigValuesOverride?: Record<string, string> | null
     ) =>
       actions.connect(
         contextKey,
         agentType,
         workingDir,
         sessionId,
-        conversationId
+        conversationId,
+        preferredConfigValuesOverride
       ),
     [actions, contextKey]
   )

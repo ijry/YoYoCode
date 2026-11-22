@@ -52,6 +52,9 @@ const eslintConfig = defineConfig([
     // copy rather than a merge (browser-agent/vendor/playwright/VENDOR.md).
     // It is written against Playwright's lint and compiler settings, not ours.
     "browser-agent/vendor/**",
+    // Lottie is a third-party minified bundle; formatting it creates huge
+    // diagnostics and does not provide useful source-level lint coverage.
+    "public/logo/animation/lottie-web-5.12.2.min.js",
     // esbuild's output, committed so a cargo build needs no node.
     "src-tauri/src/browser/js/**",
   ]),

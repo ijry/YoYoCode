@@ -630,21 +630,24 @@ export function useMessageQueue(
     }
   }, [])
 
-  const sendNow = useCallback(async (id: string) => {
-    const owner = ownerIdRef.current
-    if (!owner) return
-    await messageQueueSendNow(owner, id)
-    const [items, next] = await Promise.all([
-      messageQueueList(owner),
-      messageQueueState(owner),
-    ])
-    if (ownerIdRef.current !== owner) return
-    adoptServerItems(items)
-    if (next.revision >= (controlRef.current?.revision ?? -1)) {
-      controlRef.current = next
-      setControl(next)
-    }
-  }, [adoptServerItems])
+  const sendNow = useCallback(
+    async (id: string) => {
+      const owner = ownerIdRef.current
+      if (!owner) return
+      await messageQueueSendNow(owner, id)
+      const [items, next] = await Promise.all([
+        messageQueueList(owner),
+        messageQueueState(owner),
+      ])
+      if (ownerIdRef.current !== owner) return
+      adoptServerItems(items)
+      if (next.revision >= (controlRef.current?.revision ?? -1)) {
+        controlRef.current = next
+        setControl(next)
+      }
+    },
+    [adoptServerItems]
+  )
 
   const requireScheduleCapability = useCallback(() => {
     const owner = ownerIdRef.current
@@ -669,10 +672,7 @@ export function useMessageQueue(
         scheduledAt,
         clientIdRef.current
       )
-      if (
-        ownerIdRef.current !== owner ||
-        revision !== queueRevision.current
-      )
+      if (ownerIdRef.current !== owner || revision !== queueRevision.current)
         return
       adoptServerItems(items)
     },
@@ -684,10 +684,7 @@ export function useMessageQueue(
       const owner = requireScheduleCapability()
       const revision = queueRevision.current
       const items = await messageQueueSetSchedule(owner, id, scheduledAt)
-      if (
-        ownerIdRef.current !== owner ||
-        revision !== queueRevision.current
-      )
+      if (ownerIdRef.current !== owner || revision !== queueRevision.current)
         return
       adoptServerItems(items)
     },
@@ -703,10 +700,7 @@ export function useMessageQueue(
       const owner = requireScheduleCapability()
       const revision = queueRevision.current
       const items = await messageQueueRemove(owner, id)
-      if (
-        ownerIdRef.current !== owner ||
-        revision !== queueRevision.current
-      )
+      if (ownerIdRef.current !== owner || revision !== queueRevision.current)
         return
       adoptServerItems(items)
     },

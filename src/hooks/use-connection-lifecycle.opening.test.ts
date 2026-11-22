@@ -74,13 +74,23 @@ const conn = vi.hoisted(() => ({
   hasCachedSelectors: false,
 }))
 
+const connFns = vi.hoisted(() => {
+  const fns = {
+    connect: vi.fn().mockResolvedValue(undefined),
+    reset() {
+      fns.connect.mockClear()
+    },
+  }
+  return fns
+})
+
 vi.mock("@/hooks/use-connection", () => ({
   useConnection: () => ({
     status: conn.status,
     agentType: conn.agentType,
     selectorsReady: conn.selectorsReady,
     hasCachedSelectors: conn.hasCachedSelectors,
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: connFns.connect,
     disconnect: vi.fn().mockResolvedValue(undefined),
     sendPrompt: vi.fn().mockResolvedValue(undefined),
     setMode: vi.fn().mockResolvedValue(undefined),
@@ -220,5 +230,74 @@ describe("useConnectionLifecycle opening legs", () => {
     // The status-bar row is independent of the cache — the session itself is
     // still not up.
     expect(tasks.live()).toHaveLength(1)
+  })
+})
+
+describe("useConnectionLifecycle one-shot preferred config values", () => {
+  beforeEach(() => {
+    tasks.reset()
+    connFns.reset()
+  })
+
+  function renderWithValues(
+    preferredConfigValues: Record<string, string> | null
+  ) {
+    return renderHook(
+      (props: { preferredConfigValues: Record<string, string> | null }) =>
+        useConnectionLifecycle({
+          contextKey: "ctx-1",
+          agentType: "claude_code",
+          isActive: true,
+          workingDir: "/repo1",
+          preferredConfigValues: props.preferredConfigValues,
+        }),
+      { initialProps: { preferredConfigValues } }
+    )
+  }
+
+  it("hands the values to connect as the fifth argument", () => {
+    renderWithValues({ model: "dialog-model" })
+    expect(connFns.connect).toHaveBeenCalledTimes(1)
+    expect(connFns.connect).toHaveBeenCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      { model: "dialog-model" }
+    )
+  })
+
+  it("passes null when nothing is pinned", () => {
+    renderWithValues(null)
+    expect(connFns.connect).toHaveBeenCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      null
+    )
+  })
+
+  it("reconnects with the new values when they land on a live tab", () => {
+    // A same-agent draft reuse never re-fires the effect through agent/
+    // workingDir — the REACTIVE value is what forces the reconnect, and the
+    // connect layer's dedup (override compared by reference) sees it as a
+    // changed request.
+    const picked = { model: "dialog-model" }
+    const { rerender } = renderWithValues(null)
+    expect(connFns.connect).toHaveBeenCalledTimes(1)
+    rerender({ preferredConfigValues: picked })
+    expect(connFns.connect).toHaveBeenCalledTimes(2)
+    expect(connFns.connect).toHaveBeenLastCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      picked
+    )
+    // The same reference again is a no-op (dedup handles it at the context
+    // layer; the effect itself doesn't re-fire for an unchanged dep).
+    rerender({ preferredConfigValues: picked })
+    expect(connFns.connect).toHaveBeenCalledTimes(2)
   })
 })

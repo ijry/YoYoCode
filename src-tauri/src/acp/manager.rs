@@ -2501,9 +2501,12 @@ impl ConnectionManager {
 
     /// The adapter's plan-quota report (`account/usage_stats`), served from
     /// the connection's cache when possible. NEVER returns an error for an
-    /// adapter that lacks the method: the first failure pins the permanent
-    /// "unsupported" verdict in the session state and an empty report comes
-    /// back, so the frontend can degrade silently instead of handling errors.
+    /// adapter that lacks the method: a DEFINITIVE "unknown method" reply
+    /// pins the permanent "unsupported" verdict in the session state and an
+    /// empty report comes back, so the frontend can degrade silently instead
+    /// of handling errors. Transient failures (timeouts, adapter busy mid-turn,
+    /// transport hiccups) are NOT pinned — the next popup open retries —
+    /// because one mistimed open must not permanently hide the quota summary.
     /// Only a missing connection itself errors (the caller asked about
     /// something that no longer exists).
     pub async fn fetch_account_usage(&self, conn_id: &str) -> Result<PlanUsageReport, AcpError> {
@@ -2540,8 +2543,20 @@ impl ConnectionManager {
                         Ok(report)
                     }
                     Err(error) => {
-                        tracing::debug!(conn_id, %error, "account/usage_stats unsupported");
-                        state.write().await.mark_account_usage_unsupported();
+                        // 只有适配器明确回答「未知方法」才钉终身的"不支持"
+                        // 裁决；回合进行中的 8s 超时、hub 拒绝、瞬时错误都算
+                        // 暂态 —— 钉死它们等于一次弹窗的时序就永久关掉余量
+                        // 摘要（用户在回合里打开弹窗是常态）。
+                        if is_definitive_account_usage_unsupported_error(&error.to_string()) {
+                            tracing::debug!(conn_id, %error, "account/usage_stats unsupported");
+                            state.write().await.mark_account_usage_unsupported();
+                        } else {
+                            tracing::debug!(
+                                conn_id,
+                                %error,
+                                "account/usage_stats transient failure; will retry"
+                            );
+                        }
                         empty()
                     }
                 }
@@ -5490,6 +5505,16 @@ fn report_agent_chosen_values(
             SessionConfigKindInfo::Boolean(boolean) => boolean.current_value = chosen == "true",
         }
     }
+}
+
+/// 适配器这条错误是否是「不支持 `account/usage_stats`」的**确定**回答 —— 只有
+/// 它才允许钉终身的 unsupported 裁决。JSON-RPC 对未知方法的标准回答是
+/// `-32601 Method not found`；zcode-acp 的措辞是 "unknown method"。
+pub(crate) fn is_definitive_account_usage_unsupported_error(error: &str) -> bool {
+    let lowered = error.to_lowercase();
+    ["unknown method", "method not found", "-32601"]
+        .iter()
+        .any(|needle| lowered.contains(needle))
 }
 
 #[cfg(test)]
@@ -11921,4 +11946,30 @@ mod tests {
         mgr.commit_feedback_delivered("nope", vec!["x".into()]).await;
     }
 
+}
+
+#[test]
+fn only_a_definitive_unknown_method_pins_the_unsupported_verdict() {
+    for error in [
+        "Method not found",
+        "Account usage request failed: unknown method: account/usage_stats",
+        "Account usage request failed: -32601 method not found",
+        "UNKNOWN METHOD: account/usage_stats",
+    ] {
+        assert!(
+            is_definitive_account_usage_unsupported_error(error),
+            "should pin: {error}"
+        );
+    }
+    for error in [
+        "Account usage request timed out",
+        "Account usage request failed: hub busy, try later",
+        "Failed to build account usage request: (nothing)",
+        "adapter process exited unexpectedly",
+    ] {
+        assert!(
+            !is_definitive_account_usage_unsupported_error(error),
+            "must NOT pin (transient): {error}"
+        );
+    }
 }

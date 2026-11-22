@@ -739,7 +739,8 @@ describe("buildAcpAdapterCheck", () => {
       native_label: "Claude Code CLI",
       native_path: "/opt/homebrew/bin/claude",
       shared_config_dir: "~/.claude",
-      docs_url: "https://ijry.github.io/yoyocode-docs/guide/supported-agents#acp-adapters",
+      docs_url:
+        "https://ijry.github.io/yoyocode-docs/guide/supported-agents#acp-adapters",
       ...overrides,
     }
   }

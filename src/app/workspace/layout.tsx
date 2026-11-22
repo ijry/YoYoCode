@@ -81,6 +81,8 @@ import { AuxPanel } from "@/components/layout/aux-panel"
 import { ChromeReserve } from "@/components/layout/chrome-reserve"
 import { LeftEdgeChrome } from "@/components/layout/left-edge-chrome"
 import { RightEdgeChrome } from "@/components/layout/right-edge-chrome"
+import { SidebarFlyout } from "@/components/layout/sidebar-flyout"
+import { useSidebarHoverFlyout } from "@/components/layout/use-sidebar-hover-flyout"
 import { WorkspaceChromeController } from "@/components/layout/workspace-chrome-controller"
 import { MobileWorkspacePanes } from "@/components/layout/mobile-workspace-panes"
 import { WindowControls } from "@/components/layout/window-controls"
@@ -1390,6 +1392,10 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
   const { isWindows, isLinux } = usePlatform()
   const winLinuxControls = isDesktop() && (isWindows || isLinux)
+  // The collapsed sidebar's hover preview. Desktop only — the mobile sidebar is
+  // a touch Drawer, where hover does not exist.
+  const { isOpen: sidebarOpen } = useSidebarContext()
+  const hoverFlyout = useSidebarHoverFlyout(sidebarOpen)
   const {
     workspaceBgEnabled,
     workspaceBgImageUrl,
@@ -1454,9 +1460,19 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
           beneath these (see leftChromeReserve / rightChromeReserve). */}
       {!isMobile && (
         <>
-          <div className="absolute left-0 top-0 z-50 h-10">
+          {/* Hovering this strip while the sidebar is collapsed floats the full
+              sidebar over the content (SidebarFlyout); the toggle click inside
+              still does the formal panel expand. The data attribute marks the
+              strip as part of the preview's hover keep zone. */}
+          <div
+            data-sidebar-flyout-trigger=""
+            className="absolute left-0 top-0 z-50 h-10"
+            onMouseEnter={hoverFlyout.onTriggerEnter}
+            onMouseLeave={hoverFlyout.onTriggerLeave}
+          >
             <LeftEdgeChrome />
           </div>
+          <SidebarFlyout flyout={hoverFlyout} />
           <div
             className="absolute top-0 z-50 h-10"
             style={{ right: winLinuxControls ? WINDOW_CAPTION_WIDTH : 0 }}

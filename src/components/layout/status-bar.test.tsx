@@ -21,6 +21,9 @@ vi.mock("@/components/layout/status-bar-computer", () => ({
 vi.mock("@/components/layout/status-bar-update", () => ({
   StatusBarUpdate: () => null,
 }))
+vi.mock("@/components/layout/status-bar-voice-prepare", () => ({
+  StatusBarVoicePrepare: () => null,
+}))
 vi.mock("@/components/layout/command-dropdown", () => ({
   CommandDropdown: () => null,
 }))

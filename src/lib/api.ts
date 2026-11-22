@@ -552,9 +552,13 @@ export async function acpZcodeListProviders(): Promise<ZcodeProviderOption[]> {
 export async function fetchAccountUsage(
   connectionId: string
 ): Promise<PlanUsageReport> {
-  return getTransport().call("acp_fetch_account_usage", { connectionId }, {
-    timeoutMs: 10_000,
-  })
+  return getTransport().call(
+    "acp_fetch_account_usage",
+    { connectionId },
+    {
+      timeoutMs: 10_000,
+    }
+  )
 }
 
 export async function acpGetAgentStatus(
@@ -4049,12 +4053,20 @@ export async function messageQueueSave(
   return getTransport().call("message_queue_save", { ownerId, items, origin })
 }
 
-export async function messageQueueState(ownerId: string): Promise<import("@/lib/types").MessageQueueState> {
+export async function messageQueueState(
+  ownerId: string
+): Promise<import("@/lib/types").MessageQueueState> {
   return getTransport().call("message_queue_state", { ownerId })
 }
 
-export async function messageQueueContinue(ownerId: string, failedAttemptId: string): Promise<void> {
-  return getTransport().call("message_queue_continue", { ownerId, failedAttemptId })
+export async function messageQueueContinue(
+  ownerId: string,
+  failedAttemptId: string
+): Promise<void> {
+  return getTransport().call("message_queue_continue", {
+    ownerId,
+    failedAttemptId,
+  })
 }
 
 // Lift the user-stop hold so the queue drains again (`hold = "manual_stop"`).
@@ -4065,11 +4077,17 @@ export async function messageQueueReleaseHold(ownerId: string): Promise<void> {
 // Send ONE queued item right now at the user's explicit request — the manual
 // override for a held queue. Fire-and-forget like retry: the worker owns the
 // delivery and broadcasts the row's state, so a failure lands on the row.
-export async function messageQueueSendNow(ownerId: string, itemId: string): Promise<void> {
+export async function messageQueueSendNow(
+  ownerId: string,
+  itemId: string
+): Promise<void> {
   return getTransport().call("message_queue_send_now", { ownerId, itemId })
 }
 
-export async function messageQueueRetry(ownerId: string, itemId: string): Promise<void> {
+export async function messageQueueRetry(
+  ownerId: string,
+  itemId: string
+): Promise<void> {
   return getTransport().call("message_queue_retry", { ownerId, itemId })
 }
 
@@ -4083,7 +4101,12 @@ export async function messageQueueEnqueue(
   scheduledAt: string | null,
   origin: string
 ): Promise<PersistedQueueItem[]> {
-  return getTransport().call("message_queue_enqueue", { ownerId, item, scheduledAt, origin })
+  return getTransport().call("message_queue_enqueue", {
+    ownerId,
+    item,
+    scheduledAt,
+    origin,
+  })
 }
 
 export async function messageQueueSetSchedule(
@@ -4091,7 +4114,11 @@ export async function messageQueueSetSchedule(
   itemId: string,
   scheduledAt: string | null
 ): Promise<PersistedQueueItem[]> {
-  return getTransport().call("message_queue_set_schedule", { ownerId, itemId, scheduledAt })
+  return getTransport().call("message_queue_set_schedule", {
+    ownerId,
+    itemId,
+    scheduledAt,
+  })
 }
 
 export async function messageQueueRemove(

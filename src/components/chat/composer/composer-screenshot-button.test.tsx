@@ -131,7 +131,9 @@ describe("ComposerScreenshotButton", () => {
       throw new Error("permission toast has no action")
     }
     render(<button onClick={action.onClick}>Grant permission</button>)
-    await userEvent.click(screen.getByRole("button", { name: "Grant permission" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Grant permission" })
+    )
     await waitFor(() =>
       expect(tauri.screenshotRequestPermission).toHaveBeenCalledTimes(1)
     )
@@ -158,7 +160,9 @@ describe("ComposerScreenshotButton", () => {
       throw new Error("permission toast has no action")
     }
     render(<button onClick={action.onClick}>Grant permission</button>)
-    await userEvent.click(screen.getByRole("button", { name: "Grant permission" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Grant permission" })
+    )
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(SE.failed))
   })
 
