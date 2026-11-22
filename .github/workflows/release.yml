@@ -181,16 +181,18 @@ jobs:
           # 模式降级运行（见 computer/helper/mod.rs 的 PEER_REQUIREMENT 分支），
           # 主程序由 tauri bundler 默认 ad-hoc 密封，不做公证。备好 Developer
           # ID 证书后，恢复下方被门禁的四个签名步骤并走上游流程。
-          # 只保留一个 macOS job：plus.4 的 macOS job 反复排队 15 分钟即被
-          # 取消（零步骤、无 runner_name）——GitHub 的 macos-latest（ARM）
-          # runner 池长时间拒绝分配，多一个 macOS job 就多一份被饿死的概率。
-          # 两个 bundle 出自同一台 runner，先后打包；runner 用 otools 同款
-          # 的 macos-15-intel：x64 原生、arm64 用 Apple clang 交叉（clang 是
-          # universal 二进制）。若 Intel 池也饱和，可改回 macos-latest（把
-          # 交叉方向对调：arm64 原生、x64 交叉）。
-          - name: "macOS (arm64 cross + x64 native)"
+          # 两个架构拆成两个并行 job（plus.9 之前是单 job 串行 arm64→x64，
+          # macOS job 独占 4h18m，其余 job 都在 1h 内完成）。每个 job 各自
+          # checkout、各自 stage 本架构的 sidecar，互不污染。runner 仍沿用
+          # macos-15-intel：x64 原生、arm64 用 Apple clang 交叉（clang 是
+          # universal 二进制），不碰 macos-latest，避免 plus.4 出现过的 ARM
+          # runner 池排队 15 分钟被取消（零步骤、无 runner_name）的问题。
+          - name: "macOS arm64 (cross)"
             runner: "macos-15-intel"
             target: "aarch64-apple-darwin"
+          - name: "macOS x64"
+            runner: "macos-15-intel"
+            target: "x86_64-apple-darwin"
           - name: "Linux x64"
             runner: "ubuntu-22.04"
             target: "x86_64-unknown-linux-gnu"
@@ -223,9 +225,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # The macOS job cross-builds x64 after its native arm64 build, so
-          # both Apple targets must be installed there.
-          targets: ${{ matrix.target == 'aarch64-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+          # Each macOS job builds only its own arch (the two arches are now
+          # separate parallel jobs), so every job needs just its matrix target.
+          targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -240,8 +242,8 @@ jobs:
         # target so releases do not re-pull ~120 MB per job. Keep the version
         # in lockstep with the `sherpa-onnx` pin in src-tauri/Cargo.toml —
         # the archive name carries the version, so a bump needs this map
-        # updated. The macOS job cross-builds the other architecture on the
-        # same runner, so it needs BOTH Apple archives.
+        # updated. Each macOS job builds one arch, so it needs only that
+        # arch's archive (the two arches are separate parallel jobs).
         shell: bash
         run: |
           EXTRA=
@@ -249,8 +251,7 @@ jobs:
             x86_64-unknown-linux-gnu)  A=sherpa-onnx-v2.0.1-linux-x64-static-lib.tar.bz2 ;;
             aarch64-unknown-linux-gnu) A=sherpa-onnx-v2.0.1-linux-aarch64-static-lib.tar.bz2 ;;
             x86_64-apple-darwin)       A=sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2 ;;
-            aarch64-apple-darwin)      A=sherpa-onnx-v2.0.1-osx-arm64-static-lib.tar.bz2
-                                       EXTRA=sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2 ;;
+            aarch64-apple-darwin)      A=sherpa-onnx-v2.0.1-osx-arm64-static-lib.tar.bz2 ;;
             x86_64-pc-windows-msvc)    A=sherpa-onnx-v2.0.1-win-x64-static-MT-Release-lib.tar.bz2 ;;
             aarch64-pc-windows-msvc)   A=sherpa-onnx-v2.0.1-win-arm64-static-MT-Release-lib.tar.bz2 ;;
             *) echo "FATAL: no sherpa-onnx archive for ${{ matrix.target }}" >&2; exit 1 ;;
@@ -699,7 +700,7 @@ jobs:
       # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
       # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
       - name: Build, sign, and upload to draft release (macOS arm64)
-        if: contains(matrix.target, 'apple-darwin')
+        if: matrix.target == 'aarch64-apple-darwin'
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           # The matrix-target sidecar is already staged and verified above.
@@ -734,48 +735,15 @@ jobs:
           includeUpdaterJson: true
           retryAttempts: 2
 
-      # 两个 macOS bundle 出自同一台 Intel runner：先交叉出 arm64（上一步），
-      # 再原生出 x64。prepare-sidecars 重建 x64 sidecar 与 helper.app，两个
-      # CLI sidecar 复制到 macos-release 并单独签名，供随后的 x64 bundler
-      # pass 使用。上一步的 arm64 bundle 已经打包完成，helper.app 被覆盖不
-      # 影响它。
-      - name: Stage signed macOS x64 sidecars
-        if: contains(matrix.target, 'apple-darwin')
-        shell: bash
-        env:
-          CC_aarch64_apple_darwin: clang
-          CXX_aarch64_apple_darwin: clang++
-          CC_x86_64_apple_darwin: clang
-          CXX_x86_64_apple_darwin: clang++
-        run: |
-          set -euo pipefail
-          cross_target="x86_64-apple-darwin"
-          bin_dir="src-tauri/binaries"
-          mkdir -p "$bin_dir/macos-release"
-          pnpm tauri:prepare-sidecars --target "$cross_target"
-          for bin in yoyocode-mcp codeg-computer-helper yoyo-cli; do
-            file="$bin_dir/$bin-$cross_target"
-            if [ ! -s "$file" ]; then
-              echo "FATAL: cross sidecar $file missing or empty"
-              exit 1
-            fi
-          done
-          helper="$bin_dir/codeg-computer-helper.app/Contents/MacOS/codeg-computer-helper"
-          helper_archs="$(lipo -archs "$helper")"
-          if [ "$helper_archs" != "x86_64" ]; then
-            echo "FATAL: cross helper must be x86_64-only, got: $helper_archs"
-            exit 1
-          fi
-          for bin in yoyocode-mcp yoyo-cli; do
-            staged="$bin_dir/macos-release/$bin"
-            install -m 0755 "$bin_dir/$bin-$cross_target" "$staged"
-            codesign --force --options runtime --sign - "$staged"
-          done
+      # x64 sidecars are staged by "Stage sidecars for Tauri bundle" and
+      # signed by "Stage signed macOS sidecars" inside the x64 job itself.
+      # The old in-job "Stage signed macOS x64 sidecars" pass is gone now that
+      # each arch has its own runner and workspace.
 
       # PLUS ad-hoc：无 Developer ID —— bundler 默认 ad-hoc 密封主程序与
       # helper，不做公证（APPLE_ID/PASSWORD/TEAM_ID 为空时 tauri 跳过）。
       - name: Build, sign, and upload to draft release (macOS x64)
-        if: contains(matrix.target, 'apple-darwin')
+        if: matrix.target == 'x86_64-apple-darwin'
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           # The x64 sidecars are already built, staged and signed above.
@@ -889,9 +857,9 @@ jobs:
           echo "computer-use signing and symbol checks passed"
 
       # PLUS ad-hoc 版校验：验证成品结构、敏感符号和主程序的麦克风权限。
-      # 命令行 sidecar 与电脑操作 helper 仍须无 entitlements。同一个 job 出
-      # 两个 bundle：逐架构循环校验，交叉编译的 x64 还要证明主二进制只含
-      # x86_64 代码（otools 的 macos-x64-cross 校验）。
+      # 命令行 sidecar 与电脑操作 helper 仍须无 entitlements。两个架构现在
+      # 各在一个 job，各自只校验本架构的 bundle；主二进制必须只含本架构
+      # 代码（otools 的 macos-x64-cross 校验思路）。
       - name: Verify macOS bundle (ad-hoc)
         if: contains(matrix.target, 'apple-darwin')
         shell: bash
@@ -902,7 +870,7 @@ jobs:
           # 读 mainBinaryName（上游未设则回退 codeg）。
           BIN="$(node -p "require('./src-tauri/tauri.conf.json').mainBinaryName ?? 'codeg'")"
           product="$(node -p "require('./src-tauri/tauri.conf.json').productName")"
-          for gate_target in aarch64-apple-darwin x86_64-apple-darwin; do
+          for gate_target in ${{ matrix.target }}; do
             app="src-tauri/target/$gate_target/release/bundle/macos/$product.app"
             if [ ! -d "$app" ]; then
               echo "FATAL: $app not found"
