@@ -235,6 +235,7 @@ export const ChatInput = memo(function ChatInput({
           <MessageQueueDisplay
             queue={queue}
             queueControl={queueControl}
+            sessionRunning={isPrompting}
             onContinue={onQueueContinue}
             onReleaseHold={onQueueReleaseHold}
             onSendNow={onQueueSendNow}

@@ -200,6 +200,69 @@ describe("MessageQueueDisplay click-to-insert", () => {
     expect(onReleaseHold).toHaveBeenCalledTimes(1)
   })
 
+  it("hides the held notice once a fresh turn is running, without touching the queue", () => {
+    renderDisplay({
+      sessionRunning: true,
+      queueControl: {
+        owner_id: "42",
+        status: "open",
+        failed_attempt_id: null,
+        active_attempt_id: null,
+        error: null,
+        hold: "manual_stop",
+        revision: 3,
+      },
+      onReleaseHold: vi.fn(async () => {}),
+      onSendNow: vi.fn(async () => {}),
+    })
+    // The conversation itself shows the running turn — no stale "stopped" banner.
+    expect(screen.queryByText(TQ.heldNotice)).toBeNull()
+    expect(screen.queryByRole("button", { name: TQ.resumeQueue })).toBeNull()
+    // The hold still applies: the rows remain and keep their manual send.
+    expect(screen.getAllByTitle(TQ.sendNow)).toHaveLength(2)
+  })
+
+  it("lets the held notice be closed by hand and re-arms on a NEW hold", async () => {
+    const control = {
+      owner_id: "42",
+      status: "open" as const,
+      failed_attempt_id: null,
+      active_attempt_id: null,
+      error: null,
+      hold: "manual_stop" as string | null,
+      revision: 3,
+    }
+    const Harness = ({ state }: { state: typeof control }) => (
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageQueueDisplay
+          queue={[item("q1", "use pnpm")]}
+          queueControl={state}
+          onReleaseHold={vi.fn()}
+          onSendNow={vi.fn(async () => {})}
+          onReorder={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          editingItemId={null}
+        />
+      </NextIntlClientProvider>
+    )
+    const view = render(<Harness state={control} />)
+    expect(screen.getByText(TQ.heldNotice)).toBeInTheDocument()
+    // Closing only hides the notice: the queue is still held, so its row keeps
+    // the manual send and no auto-drain was silently resumed.
+    await userEvent.click(
+      screen.getByRole("button", { name: TQ.dismissNotice })
+    )
+    expect(screen.queryByText(TQ.heldNotice)).toBeNull()
+    expect(screen.getByTitle(TQ.sendNow)).toBeInTheDocument()
+
+    // The hold clears on a successful turn, then a NEW stop raises it again.
+    view.rerender(<Harness state={{ ...control, hold: null, revision: 4 }} />)
+    expect(screen.queryByText(TQ.heldNotice)).toBeNull()
+    view.rerender(<Harness state={{ ...control, revision: 5 }} />)
+    expect(screen.getByText(TQ.heldNotice)).toBeInTheDocument()
+  })
+
   it("lets an error-paused queue resume from ANY pending row, even with the notice closed", async () => {
     const onSendNow = vi.fn(async () => {})
     renderDisplay({

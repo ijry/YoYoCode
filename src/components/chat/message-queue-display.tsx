@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -52,6 +53,14 @@ interface MessageQueueDisplayProps {
    *  Present only on hosts with the hold command; the banner renders when it
    *  can be acted on. */
   onReleaseHold?: () => Promise<void> | void
+  /**
+   * True while a turn is in flight for this session. A user-stop hold parks
+   * the queue but is not a live problem: once a fresh prompt is sent the
+   * conversation itself shows the running turn, so the hold notice is as
+   * stale as the error-pause banner is during `resuming`. The hold and the
+   * queue rows are untouched — only the notice is hidden.
+   */
+  sessionRunning?: boolean
   /**
    * Send ONE queued row immediately at the user's explicit request. A manual
    * override for a queue parked by a user stop OR by an error pause: in the
@@ -331,6 +340,7 @@ export function MessageQueueDisplay({
   queueControl,
   onContinue,
   onReleaseHold,
+  sessionRunning = false,
   onSendNow,
   onQueuePlusOne,
   onReorder,
@@ -376,9 +386,24 @@ export function MessageQueueDisplay({
     queueControl.status !== "open" &&
     queueControl.status !== "resuming" &&
     !noticeDismissed
-  // A user-stop hold: the queue is "open" but parked. The banner is neutral
-  // (nothing failed) and the rows gain a manual send.
-  const held = queueControl?.status === "open" && queueControl.hold != null
+  // A user-stop hold: the queue is "open" but parked. The rows gain a manual
+  // send; the notice is a client-local interruption, not a gate (the same
+  // shape as dismissedFailure below for an error pause).
+  const holdKey =
+    queueControl?.status === "open" ? (queueControl.hold ?? null) : null
+  const held = holdKey != null
+  // Dismissing only hides the notice: the queue stays parked until a turn
+  // succeeds or the user resumes, so no parked row is silently sent. A NEW
+  // hold — one that appears after hold cleared — raises it again.
+  const [dismissedHold, setDismissedHold] = useState<string | null>(null)
+  useEffect(() => {
+    if (holdKey == null) setDismissedHold(null)
+  }, [holdKey])
+  // Once a fresh prompt is admitted the conversation itself shows the running
+  // turn; announcing "the queue is holding" over it is the same stale notice
+  // the error banner used to leave behind (see `resuming` above). The hold
+  // and the rows' manual sends are untouched — only the notice is hidden.
+  const showHeldNotice = held && !sessionRunning && dismissedHold !== holdKey
   // An error pause gets the same manual override as a user-stop hold: each
   // PENDING row can be sent on its own, and that exact prompt lifts the
   // pause. Raw status, not `paused` — dismissing the notice must not take
@@ -515,9 +540,18 @@ export function MessageQueueDisplay({
 
   return (
     <div className="max-h-40 overflow-y-auto pb-1">
-      {held && (
-        <div className="mb-1 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
-          <p>{t("heldNotice")}</p>
+      {showHeldNotice && (
+        <div className="relative mb-1 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setDismissedHold(holdKey)}
+            className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
+            aria-label={t("dismissNotice")}
+            title={t("dismissNotice")}
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <p className="pr-5">{t("heldNotice")}</p>
           {onReleaseHold && (
             <button
               type="button"
