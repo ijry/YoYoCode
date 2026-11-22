@@ -42,6 +42,12 @@
   font-weight: 400;
 
   font-synthesis: none;
+  /* 只放开斜体合成，faux bold 仍被上一行禁止。界面字体全是仅 normal 轴的
+     variable 字体（@fontsource-variable/inter 等，未引 italic 面），中文回退
+     （雅黑/苹方）也没有真斜体面：none 会把 italic/oblique 合成一并关掉，
+     刻意用斜体表意的地方全部退化为直立 —— 预览 TAB 标题、任务进行中行、
+     composer 提示、代码高亮的 italic token。 */
+  font-synthesis-style: auto;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
