@@ -231,7 +231,7 @@ git diff | yoyo-cli -a codex \
 - **[Notifications](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — desktop notifications, sounds, and a flashing taskbar button or bouncing Dock icon when a turn ends or an agent needs you
 - **[Make It Yours](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — twelve themes you can recolor token by token, wallpapers, corner radius, chat width, custom CSS, and a desktop pet — in any of ten interface languages
 - **[Backup & Sync](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — encrypted backups, and configuration sync between machines through a file or your own WebDAV server
-- **[URL Scheme](./docs/url-scheme.md)** — `codeg://session/<id>` opens a conversation from another app (desktop)
+- **[URL Scheme](./docs/url-scheme.md)** — `yoyocode://session/<id>` opens a conversation from another app (desktop)
 - **And more** — nearly every release adds something; the [release notes](https://github.com/ijry/YoYoCode/releases) are the full list
 
 ## 🤖 Supported Agents

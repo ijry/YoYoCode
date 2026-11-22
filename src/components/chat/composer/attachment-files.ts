@@ -10,6 +10,8 @@
 
 import type { Editor } from "@tiptap/core"
 
+import { referenceUriKey } from "./reference-uri"
+
 const MIME_BY_EXT: Record<string, string> = {
   txt: "text/plain",
   md: "text/markdown",
@@ -147,19 +149,23 @@ export function getFilePath(file: File): string | null {
   return null
 }
 
-/** Whether the document already holds a `refType` reference badge for `uri`. */
+/** Whether the document already holds a `refType` reference badge for `uri`.
+ *  Compared scheme-insensitively, so a pre-rename `codeg://session/42` badge
+ *  still dedupes against the `yoyocode://session/42` the menus insert now. */
 export function editorHasReference(
   editor: Editor,
   refType: string,
   uri: string
 ): boolean {
+  const key = referenceUriKey(uri)
   let found = false
   editor.state.doc.descendants((node) => {
     if (found) return false
     if (
       node.type.name === "reference" &&
       node.attrs?.refType === refType &&
-      node.attrs?.uri === uri
+      typeof node.attrs?.uri === "string" &&
+      referenceUriKey(node.attrs.uri) === key
     ) {
       found = true
       return false

@@ -179,7 +179,7 @@ mod tests {
         let state = state_of(run_info(AutomationRunStatus::Succeeded, Some("all good")));
         assert_eq!(state.status, "succeeded");
         assert!(state.is_over());
-        assert_eq!(state.link.as_deref(), Some("codeg://session/214"));
+        assert_eq!(state.link.as_deref(), Some("yoyocode://session/214"));
         assert_eq!(state.task_id, None);
         let json = serde_json::to_value(&state).unwrap();
         assert_eq!(json["type"], "automation_run");

@@ -857,18 +857,19 @@ async fn fetch_assistant_roster(ctx: &CompanionContext) -> Option<Vec<AssistantR
 /// Sentence appended to `delegate_to_agent`'s description: how an assistant
 /// mention looks, and what to do with one.
 pub(crate) const ASSISTANT_MENTION_SENTENCE: &str = " A user-defined ASSISTANT is named the \
-same way — `@AssistantName` or `[@AssistantName](codeg://assistant/<number>)` — and that \
+same way — `@AssistantName` or `[@AssistantName](yoyocode://assistant/<number>)` — and that \
 mention is likewise an explicit instruction to delegate to it: pass `assistant_id` set to that \
 number and leave `agent_type` out. An assistant brings its own agent, options and standing \
-instructions.";
+instructions. Older transcripts may still name one with a `codeg://assistant/<number>` link — \
+same meaning.";
 
 /// Prefix put on `agent_type`'s description once `assistant_id` exists.
 pub(crate) const AGENT_TYPE_UNLESS_ASSISTANT: &str = "Required unless `assistant_id` is given. ";
 
 /// `assistant_id`'s description, before the roster sentence.
 pub(crate) const ASSISTANT_ID_DESCRIPTION: &str = "Delegate to a user-defined assistant instead \
-of picking an agent yourself. Take the number from a `codeg://assistant/<number>` link in the \
-user's message (e.g. `codeg://assistant/3` means 3). When set, `agent_type` is ignored: the \
+of picking an agent yourself. Take the number from a `yoyocode://assistant/<number>` link in the \
+user's message (e.g. `yoyocode://assistant/3` means 3). When set, `agent_type` is ignored: the \
 assistant decides which agent runs, with which options and instructions.";
 
 /// Rewrite `delegate_to_agent` to take `assistant_id`: `task` becomes the only
@@ -1146,7 +1147,8 @@ async fn build_tools_call_spawn(
         }
         "get_session_info" => {
             // `session_id` is the codeg conversation id the agent read out of a
-            // `codeg://session/<id>` reference. Accept a JSON number or a numeric
+            // `yoyocode://session/<id>` reference (legacy `codeg://session/<id>`
+            // carries the same number). Accept a JSON number or a numeric
             // string (some hosts stringify integer args); reject anything else
             // synchronously so the LLM can fix it.
             let session_id = match parse_session_id(&arguments) {
@@ -1156,7 +1158,7 @@ async fn build_tools_call_spawn(
                         id,
                         -32602,
                         "get_session_info requires an integer `session_id` \
-                         (the number in the codeg://session/<id> reference)",
+                         (the number in the yoyocode://session/<id> reference)",
                     ));
                 }
             };

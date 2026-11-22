@@ -41,7 +41,7 @@ describe("fileToSuggestion", () => {
 })
 
 describe("agentToSuggestion", () => {
-  it("maps to an agent reference with a codeg://agent routing uri", () => {
+  it("maps to an agent reference with a yoyocode://agent routing uri", () => {
     const agent = {
       agent_type: "claude_code",
       name: "Claude Code",
@@ -53,7 +53,7 @@ describe("agentToSuggestion", () => {
       refType: "agent",
       id: "claude_code",
       label: "Claude Code",
-      uri: "codeg://agent/claude_code",
+      uri: "yoyocode://agent/claude_code",
       meta: { agentType: "claude_code", available: true },
     })
   })
@@ -78,14 +78,14 @@ describe("sessionToSuggestion", () => {
       label: "Login refactor",
       // Always the internal numeric id now — get_session_info resolves it
       // server-side via the row's bound external_id + agent_type.
-      uri: "codeg://session/123",
+      uri: "yoyocode://session/123",
       // meta.agentType still set, so the @-panel option row shows the agent icon.
       meta: { agentType: "codex", status: "in_progress", branch: "main" },
     })
   })
   it("uses the numeric id even when there is no external_id", () => {
     expect(sessionToSuggestion({ ...base, title: "x" }).reference.uri).toBe(
-      "codeg://session/123"
+      "yoyocode://session/123"
     )
   })
   it("falls back to #id when the title is empty", () => {
@@ -126,7 +126,7 @@ describe("commitToSuggestion", () => {
       refType: "commit",
       id: "abc1234def5678",
       label: "abc1234",
-      uri: "codeg://commit/%2Frepo%20with%20space@abc1234def5678",
+      uri: "yoyocode://commit/%2Frepo%20with%20space@abc1234def5678",
       meta: { shortHash: "abc1234", message: "fix login", pushed: true },
     })
   })

@@ -51,7 +51,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["codeg"]
+        "schemes": ["yoyocode"]
       }
     },
     "updater": {

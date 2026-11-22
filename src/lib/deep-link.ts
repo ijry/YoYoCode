@@ -1,7 +1,7 @@
 import { getTransport, isDesktop, isRemoteDesktopMode } from "@/lib/transport"
 import type { AgentType } from "@/lib/types"
 
-/** A `codeg://` link the backend resolved before the workspace was listening. */
+/** A resolved deep link (`yoyocode://`; legacy `codeg://` parses too) the backend parked before the workspace was listening. */
 export interface PendingDeepLink {
   folderId: number
   conversationId: number
@@ -12,7 +12,7 @@ export interface PendingDeepLink {
  * Drain the deep link the desktop app was opened with.
  *
  * `workspace://focus-conversation` reaches only webviews that have already
- * subscribed, so a cold-start `codeg://session/<id>` — resolved in Rust while
+ * subscribed, so a cold-start `yoyocode://session/<id>` — resolved in Rust while
  * the window is still loading — would otherwise be dropped. The backend parks
  * the resolved target; this takes it (once) when `PetFocusBridge` is ready.
  *

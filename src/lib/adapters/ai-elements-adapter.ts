@@ -51,6 +51,7 @@ import {
 import { referenceToMarkdown } from "@/components/chat/composer/reference-text"
 import {
   embeddedReferenceUriFor,
+  isEmbeddedReferenceUri,
   refOfEmbeddedReferenceUri,
 } from "@/components/chat/composer/reference-uri"
 
@@ -1073,18 +1074,18 @@ function handleMarkdownLink(
   // the real path, not `file:///C:\\dir`. `match` (returned for inline-kept
   // refs) keeps the original bracketed form untouched.
   const normalizedUri = unwrapReferenceDestination(uri)
-  // A `codeg://` reference (session / commit / agent) renders as an inline badge
-  // in the transcript (markdown-link → ReferenceBadge); never lift it to the
-  // bottom resource-chip row. The guard mirrors markdown-link's interception
-  // (`href.startsWith("codeg:")`): an unrecognized codeg path is parsed back to
-  // null there and degrades to a plain inline link — still in-flow, never a chip.
-  // (The `@`-prefixed agent link `[@label](codeg://agent/…)` would otherwise be
-  // caught by `hasMentionLabel` below.)
-  if (normalizedUri.toLowerCase().startsWith("codeg:")) {
-    // A `codeg://embedded/…` ref is a path-less pasted attachment — still an
+  // A reference-scheme uri (`yoyocode://`, legacy `codeg://`; session / commit
+  // / agent) renders as an inline badge in the transcript (markdown-link →
+  // ReferenceBadge); never lift it to the bottom resource-chip row. The guard
+  // mirrors markdown-link's interception: an unrecognized path is parsed back
+  // to null there and degrades to a plain inline link — still in-flow, never a
+  // chip. (The `@`-prefixed agent link `[@label](yoyocode://agent/…)` would
+  // otherwise be caught by `hasMentionLabel` below.)
+  if (/^(?:codeg|yoyocode):/i.test(normalizedUri)) {
+    // An `embedded/…` ref is a path-less pasted attachment — still an
     // attached file, so it is COPIED to the row too (kept inline as its inert
-    // badge). Other codeg refs are not attachments: inline only.
-    if (normalizedUri.toLowerCase().startsWith("codeg://embedded/")) {
+    // badge). Other reference uris are not attachments: inline only.
+    if (isEmbeddedReferenceUri(normalizedUri)) {
       // One whose uri carries the ref of the block behind it — a page the
       // built-in browser handed over — is listed by that ref, as the page it
       // came from: the badge in the prose already says what it is, and this is
@@ -1262,7 +1263,7 @@ function webSiteOf(uri: string): { host: string; origin: string } | null {
  * The badge the composer showed in place of an embedded attachment, written
  * back as the inline token the transcript parses into one.
  *
- * Its uri is the same `codeg://embedded/…` shape the composer mints for one
+ * Its uri is the same embedded display-uri shape the composer mints for one
  * (`buildEmbeddedReferenceUri`), carrying the ref the way the composer's own
  * badge for a page does, so the transcript renders the rebuilt badge through
  * exactly the same branch: an inert file badge, never a link to anywhere.

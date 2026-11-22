@@ -231,7 +231,7 @@ git diff | yoyo-cli -a codex \
 - **[通知與提醒](https://ijry.github.io/yoyocode-docs/zh/reference/settings/general#desktop-notifications)** — 回合結束或智慧體需要你時，發出桌面通知與提示音，並讓工作列按鈕閃爍、Dock 圖示跳動
 - **[外觀自訂](https://ijry.github.io/yoyocode-docs/zh/reference/settings/appearance)** — 十二套主題都能逐個色彩 token 重新調色，還有桌布、圓角、聊天區域寬度、自訂 CSS 與桌面寵物——介面支援十種語言
 - **[備份與同步](https://ijry.github.io/yoyocode-docs/zh/reference/settings/system#backup-restore)** — 加密備份，以及透過檔案或你自己的 WebDAV 伺服器在多台機器之間同步設定
-- **[URL Scheme](../../docs/url-scheme.md)** — 用 `codeg://session/<id>` 從其他應用程式開啟對話（桌面端）
+- **[URL Scheme](../../docs/url-scheme.md)** — 用 `yoyocode://session/<id>` 從其他應用程式開啟對話（桌面端）
 - **還有更多** — 幾乎每個版本都會加入新東西；完整清單見 [發行說明](https://github.com/ijry/YoYoCode/releases)
 
 ## 🤖 支援的智慧體

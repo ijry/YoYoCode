@@ -14,21 +14,23 @@ type SanitizeSchema = {
 }
 
 /**
- * Re-derive Streamdown's default rehype pipeline so the app-internal `codeg`
- * scheme survives sanitization and reaches `MarkdownLink` → `ReferenceBadge`.
+ * Re-derive Streamdown's default rehype pipeline so the app-internal reference
+ * schemes (`yoyocode`, legacy `codeg`) survive sanitization and reach
+ * `MarkdownLink` → `ReferenceBadge`.
  *
  * Streamdown's default pipeline is `[raw, [rehypeSanitize, schema], harden]`
  * (run in that order). The sanitize schema's `protocols.href` allow-list omits
- * `codeg`, so it strips the href off our `[label](codeg://…)` reference links;
+ * both, so it strips the href off our `[label](yoyocode://…)` reference links;
  * rehype-harden then sees a hrefless `<a>`, can't transform it, and replaces it
  * with a `… [blocked]` span — all at the rehype stage, *before* react-markdown
- * maps `<a>` to `MarkdownLink` (which turns a `codeg:` href into an inline
+ * maps `<a>` to `MarkdownLink` (which turns a reference href into an inline
  * badge). The net effect was `@Codex CLI [blocked]` in the transcript.
  *
- * Adding `codeg` to the sanitize allow-list lets the href survive. harden is
+ * Adding both schemes to the sanitize allow-list lets the href survive (the
+ * legacy `codeg` form still surfaces from pre-rename transcripts). harden is
  * left untouched: it already permits every protocol via its `*` default and
  * still hard-blocks `javascript:` / `data:` / `file:` / `vbscript:`, so widening
- * sanitize by one inert app scheme adds no XSS surface. `file://` links are
+ * sanitize by two inert app schemes adds no XSS surface. `file://` links are
  * unaffected — they are rewritten to local paths at the remark layer (see
  * {@link "./remark-file-uri-links"}) before sanitize runs.
  *
@@ -74,7 +76,7 @@ export function rehypePluginsAllowingCodeg(
       },
       protocols: {
         ...schema?.protocols,
-        href: href.includes("codeg") ? href : [...href, "codeg"],
+        href: [...new Set([...href, "codeg", "yoyocode"])],
       },
     }
     return [sanitizePlugin, next] as RehypePlugin

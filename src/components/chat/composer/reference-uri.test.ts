@@ -256,3 +256,61 @@ it("preserves MiniMax Code agent and session references", () => {
     meta: { agentType: "minimax_code" },
   })
 })
+
+// The scheme was renamed from `codeg://` to `yoyocode://`. Everything above
+// exercises the legacy form (it still parses — stored conversations, saved
+// drafts and model context carry it); these twins pin that the renamed scheme
+// parses identically for every branch, and that minting uses the new prefix.
+describe("the renamed scheme parses like the legacy one", () => {
+  it("parses agent / assistant / session / commit / skill uris", () => {
+    // Same fields as the legacy parse — except `uri`, which carries the
+    // scheme it was written in.
+    expect(parseCodegReferenceUri("yoyocode://agent/codex", "@Codex")).toEqual({
+      ...parseCodegReferenceUri("codeg://agent/codex", "@Codex"),
+      uri: "yoyocode://agent/codex",
+    })
+    expect(
+      parseCodegReferenceUri("yoyocode://assistant/3", "@Code Reviewer")
+    ).toEqual({
+      ...parseCodegReferenceUri("codeg://assistant/3", "@Code Reviewer"),
+      uri: "yoyocode://assistant/3",
+    })
+    expect(
+      parseCodegReferenceUri("yoyocode://session/214", "")
+    ).toMatchObject({ refType: "session", id: "214" })
+    expect(
+      parseCodegReferenceUri("yoyocode://commit/r%2Frepo@abc1234def5678", "")
+    ).toMatchObject({ refType: "commit", meta: { shortHash: "abc1234" } })
+    expect(parseCodegReferenceUri("yoyocode://skill/deploy", "$deploy"))
+      .toMatchObject({ refType: "skill", id: "deploy" })
+  })
+
+  it("rejects the same shapes the legacy scheme rejects", () => {
+    expect(parseCodegReferenceUri("yoyocode://unknown/1", "x")).toBeNull()
+    expect(parseCodegReferenceUri("yoyocode://assistant/0", "@x")).toBeNull()
+    expect(parseCodegReferenceUri("yoyocode://assistant/03", "@x")).toBeNull()
+  })
+
+  it("is case-insensitive on the scheme", () => {
+    expect(parseCodegReferenceUri("YoYoCode://agent/codex", "@Codex"))
+      .toMatchObject({ refType: "agent", id: "codex" })
+  })
+
+  it("mints embedded uris with the new prefix and reads both", () => {
+    expect(buildEmbeddedReferenceUri().startsWith("yoyocode://embedded/")).toBe(
+      true
+    )
+    expect(embeddedReferenceUriFor("https://x.test/a")).toMatch(
+      /^yoyocode:\/\/embedded\/https%3A%2F%2Fx.test%2Fa/
+    )
+    expect(isEmbeddedReferenceUri("yoyocode://embedded/uuid")).toBe(true)
+    expect(isEmbeddedReferenceUri("codeg://embedded/uuid")).toBe(true)
+    expect(isEmbeddedReferenceUri("yoyocode://session/1")).toBe(false)
+    expect(refOfEmbeddedReferenceUri("codeg://embedded/https%3A%2F%2Fx")).toBe(
+      "https://x"
+    )
+    expect(refOfEmbeddedReferenceUri("yoyocode://embedded/https%3A%2F%2Fx")).toBe(
+      "https://x"
+    )
+  })
+})

@@ -68,7 +68,7 @@ PLUS 指本仓库相对上游 [spacering-net/codeg](https://github.com/spacering
 - 本仓库内全部 `https://docs.codeg.app` 链接（14 文件 / 415 处匹配，含 10 个 README 徽章）统一替换为 `https://ijry.github.io/yoyocode-docs`，路径与锚点原样保留。冲突面：README×11、`src-tauri/src/acp/registry.rs`、`src-tauri/src/web/handlers/files.rs`、`about-settings.tsx`、`acp-agent-settings.test.tsx`；上游动这些文件时需手动合并。
 - 「关于」页把「文档」按钮从上游分组移回本仓库分组（`UPSTREAM_DOCUMENTATION` → `DOCUMENTATION`），上游分组只留 `spacering-net/codeg` 仓库链接与致谢；10 语言 `openDocumentation` 恢复中性文案。
 - 页面部署在 Pages 子路径，VitePress 需要 `base: '/yoyocode-docs/'`：`sitemap.hostname` 必须含 base（VitePress 不会二次补），raw HTML 里的根路径 **链接** 要手工加前缀、**public 图片** 必须保留 `/images/` 交给 Vite 补前缀（手写前缀会被当模块导入而构建失败）。
-- 品牌替换会让英文自动标题 slug 从 `codeg` 变 `yoyocode`，中文文档用 `{#slug}` 固定旧名 → 必须同步 8 个 slug 及全部站内锚点，否则 `check-anchors.py` / `check-parity.py` 会失败。`codeg-server`、`CODEG_*`、`.codeg`、`codeg://`、`codeg-computer-helper` 等技术标识保留。
+- 品牌替换会让英文自动标题 slug 从 `codeg` 变 `yoyocode`，中文文档用 `{#slug}` 固定旧名 → 必须同步 8 个 slug 及全部站内锚点，否则 `check-anchors.py` / `check-parity.py` 会失败。`codeg-server`、`CODEG_*`、`.codeg`、`codeg://`、`codeg-computer-helper` 等技术标识保留。（`codeg://` 的保留状态已于 2026-11-22 修订，见下文「URL scheme 迁移到 yoyocode://」。）
 
 ### Web 公网访问与 MCode 配置（v0.42.0-plus.4）
 
@@ -237,7 +237,7 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 
 - 承接「连二进制一起改名」：`codeg-server` 全量统一为 `yoyocode-server`。Cargo `[[bin]]` 名与 `src/bin/codeg_server.rs` → `yoyocode_server.rs`、压缩包内可执行文件名、Release 资产名、安装目录名、Docker / PATH 命令名、更新器查找名、i18n 文案、文档与测试夹具全部同步；下划线形式 `codeg_server` 的注释引用一并更新。
 - `.github/workflows/release.yml` 删除 matrix `legacy_artifact` 与双份复制 / 签名 / 上传循环，每个平台只产一套 `yoyocode-server-*` 资产；`install.sh` / `install.ps1` 删除「新名 404 回退旧名」逻辑；`scripts/server-release.test.mjs`、`scripts/server-install-download.test.mjs` 断言同步改为单资产 / 不重试。
-- **保留**：`CODEG_*` 环境变量、`CODEG_STATIC_DIR`、`.codeg` 数据目录、`codeg://` URL scheme、桌面端安装包文件名前缀等协议与兼容标识；`.workbuddy/memory/`、`.zcode/plans/`、`docs/releasing/v*.md`、`docs/model-switch-history.md` 等历史归档保留原文，避免篡改历史记录。
+- **保留**：`CODEG_*` 环境变量、`CODEG_STATIC_DIR`、`.codeg` 数据目录、`codeg://` URL scheme、桌面端安装包文件名前缀等协议与兼容标识（`codeg://` 的保留状态已于 2026-11-22 修订，见下文「URL scheme 迁移到 yoyocode://」）；`.workbuddy/memory/`、`.zcode/plans/`、`docs/releasing/v*.md`、`docs/model-switch-history.md` 等历史归档保留原文，避免篡改历史记录。
 - **升级风险**：plus.1 / plus.2 已发布的内置更新器会在新包内查找旧名 `codeg-server`，从这些版本直接走「软件更新」到下一版会失败，需手动重装或由发版时额外提供兼容副本。旧 Release 中已存在的 `codeg-server-*` 资产是否删除、是否发 plus.3 另行决定。
 - 上游同步冲突面进一步扩大：Cargo.toml、release.yml、两份 install 脚本、Dockerfile*、AGENTS.md / CLAUDE.md、README×11、docs/cli.md 等均属 fork 自有改动，上游动这些文件时需手动合并。
 
@@ -265,3 +265,22 @@ manifest 里没有任何 identifier / app 身份字段，兼容门禁只有两�
 - 文档：`docs/agents/zcode.md` 的 pin 版本由过期的 `0.82.0` 更正为 `0.88.1`，并补上供应商选择器的行为说明。
 - 不兼容说明（有意为之，不做降级）：供应商选择器只认 `_meta.zcode`。桥接 < 0.88.0（内置 registry 已 pin 0.88.1；仅自建/自定义 agent 才可能指向旧版）不显示该选择器，也没有磁盘扫描兜底；需要连接前钉供应商时，在 agent 的 env 里显式设 `ZCODE_PROVIDER`（设置页仍然支持）。`session/new` 响应**顶层**的 `_meta.zcode`（启动快照）也未取 —— model 选项上的那份在同一响应里就有，取两份只会多一条需要对齐的状态。
 - 验证边界：桌面与 server-bin 两端 `cargo check`、前端 `tsc --noEmit` + vitest、mcode-app 服务层 jest 均通过；`mcode-app` 的 `.uvue` 不在任何 tsc/jest 覆盖面内（需 HBuilderX 编译），该页签改动为静态复核（esbuild 语法校验）+ 逻辑对齐既有 `selectDetailConfigValue` 通道，未做真机验证。
+
+### URL scheme 迁移到 yoyocode://（2026-11-22）
+
+- 修订此前「`codeg://` 保留」的决策：OS 深链注册从 `codeg` 改为 `yoyocode`（`tauri.conf.json` 的
+  `plugins.deep-link.desktop.schemes` 是唯一声明源，macOS plist / Windows NSIS / Linux desktop 全部跟随），
+  **不再注册 `codeg://`** —— PLUS 与上游官方 Codeg 不再抢同一个 scheme（后者后装者也赢，之前是谁后装谁赢）。
+- **解析层双认**：新写入统一 `yoyocode://`（Rust `url_scheme::SCHEME` / 前端 `REFERENCE_SCHEME`），
+  存量 DB 消息、磁盘会话文件、旧草稿、LLM 上下文里的 `codeg://` 依旧解析渲染路由
+  （Rust `strip_scheme_prefix` + `SCHEME_ALT` 正则；前端 `reference-uri.ts` 的 `SCHEME_ALT` 正则 + 双 embedded 前缀）。
+  不迁移存量数据。`docs/url-scheme.md` 的「Legacy `codeg://` links」一节记录了后果：外部脚本/浏览器里的
+  旧 `codeg://` 深链从此不再唤起本 app。
+- 落点：Rust `deep_link.rs` / `agent_mentions.rs`（解析）、`cli_run/wire.rs` `session_link()`、
+  `cli/commands.rs` `open`、`delegation/tool_schema.json` + `companion.rs` + `assistants.rs`（子智能体可见格式）；前端
+  `reference-uri.ts` 五个解析正则与 `EMBEDDED_URI_PREFIX`、`suggestion/adapters.ts` 四个模板串、
+  `rehype-allow-codeg.ts` sanitize 白名单（`codeg` 与 `yoyocode` 都放行）、markdown 链接/adapter/粘贴白名单等散落前缀判断、
+  `attachment-files.ts` 引用去重改 scheme 无关比较。
+- 依旧**保留**：`CODEG_*` 环境变量、`.codeg` 数据目录、`codeg-computer-helper`、产品名命名
+  （`parseCodegReferenceUri`、`rehype-allow-codeg.ts` 文件名、CSS 类、`codeg:*` 存储 key）等兼容标识；
+  历史归档原文不动。

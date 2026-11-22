@@ -1,4 +1,5 @@
 import type { FlatFileEntry } from "@/hooks/use-file-tree"
+import { REFERENCE_SCHEME } from "@/components/chat/composer/reference-uri"
 import { formatConversationTitle } from "@/lib/conversation-title"
 import { buildFileUri } from "@/lib/reference-link"
 import {
@@ -36,9 +37,9 @@ export function fileToSuggestion(
 }
 
 /**
- * ACP agent → agent reference. Carries a `codeg://agent/<agent_type>` uri as a
- * routing anchor: it serializes inline as `[@label](codeg://agent/…)` and
- * renders as a badge in the transcript. The readable link IS the routing
+ * ACP agent → agent reference. Carries a `yoyocode://agent/<agent_type>` uri
+ * as a routing anchor: it serializes inline as `[@label](yoyocode://agent/…)`
+ * and renders as a badge in the transcript. The readable link IS the routing
  * anchor: the backend derives the delegation reminder from it at send time, so
  * nothing has to travel out-of-band alongside the prompt.
  */
@@ -48,7 +49,7 @@ export function agentToSuggestion(agent: AcpAgentInfo): SuggestionItem {
       refType: "agent",
       id: agent.agent_type,
       label: agent.name || getAgentLabel(agent.agent_type),
-      uri: `codeg://agent/${agent.agent_type}`,
+      uri: `${REFERENCE_SCHEME}://agent/${agent.agent_type}`,
       meta: { agentType: agent.agent_type, available: agent.available },
     },
     detail: agent.description || null,
@@ -58,7 +59,7 @@ export function agentToSuggestion(agent: AcpAgentInfo): SuggestionItem {
 
 /**
  * Assistant → assistant reference, routed like an agent: it serializes inline
- * as `[@name](codeg://assistant/<id>)`, from which the backend derives the
+ * as `[@name](yoyocode://assistant/<id>)`, from which the backend derives the
  * delegation reminder at send time. The second line is the description the
  * delegating agent also reads, or the agent it runs on when there is none; the
  * agent's name and slug are searchable too.
@@ -72,7 +73,7 @@ export function assistantToSuggestion(
       refType: "assistant",
       id: String(assistant.id),
       label: assistant.name,
-      uri: `codeg://assistant/${assistant.id}`,
+      uri: `${REFERENCE_SCHEME}://assistant/${assistant.id}`,
       meta: { assistantId: assistant.id },
     },
     detail: assistant.description || agentLabel,
@@ -81,8 +82,8 @@ export function assistantToSuggestion(
 }
 
 /**
- * Conversation → session reference. The serialization uri encodes codeg's
- * internal numeric conversation id as `codeg://session/<conversation_id>` — the
+ * Conversation → session reference. The serialization uri encodes the app's
+ * internal numeric conversation id as `yoyocode://session/<conversation_id>` — the
  * stable key the `get_session_info` MCP tool resolves directly (it then reads the
  * row's bound `external_id` + `agent_type` server-side). The `@`-panel option row
  * still shows the owning agent's icon via `meta.agentType`; the inline session
@@ -98,7 +99,7 @@ export function sessionToSuggestion(
   // whitespace-only title (folding can't turn blank into non-blank).
   const label =
     formatConversationTitle(conversation.title).trim() || `#${conversation.id}`
-  const uri = `codeg://session/${conversation.id}`
+  const uri = `${REFERENCE_SCHEME}://session/${conversation.id}`
   return {
     reference: {
       refType: "session",
@@ -117,7 +118,7 @@ export function sessionToSuggestion(
 }
 
 /**
- * Git commit → commit reference (`codeg://commit/<repoKey>@<fullHash>`).
+ * Git commit → commit reference (`yoyocode://commit/<repoKey>@<fullHash>`).
  * `repoKey` identifies the repository (e.g. its path) and is URI-encoded.
  */
 export function commitToSuggestion(
@@ -129,7 +130,7 @@ export function commitToSuggestion(
       refType: "commit",
       id: entry.full_hash,
       label: entry.hash,
-      uri: `codeg://commit/${encodeURIComponent(repoKey)}@${entry.full_hash}`,
+      uri: `${REFERENCE_SCHEME}://commit/${encodeURIComponent(repoKey)}@${entry.full_hash}`,
       meta: {
         shortHash: entry.hash,
         message: entry.message,

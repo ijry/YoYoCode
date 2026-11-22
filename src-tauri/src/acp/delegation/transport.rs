@@ -191,13 +191,13 @@ pub struct BrokerAskRequest {
 /// Resolve a session the user referenced (`codeg://session/<id>`) into its
 /// metadata + stats, optionally with its recent messages. Backs the
 /// `get_session_info` MCP tool. Authenticated by the same per-launch `token`; the
-/// lookup is by codeg's internal conversation id (the number in the reference),
+/// lookup is by the app's internal conversation id (the number in the reference),
 /// so — unlike the delegation arms — it is NOT scoped to the parent connection
 /// (any non-deleted session the user references can be read).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrokerSessionRequest {
     pub token: String,
-    /// codeg's internal conversation PK (the number in `codeg://session/<id>`).
+    /// The app's internal conversation PK (the number in `yoyocode://session/<id>`).
     pub session_id: i32,
     /// How many of the most recent turns to include as compacted text. `None` /
     /// `0` → metadata only (no transcript parse); a positive value is clamped to

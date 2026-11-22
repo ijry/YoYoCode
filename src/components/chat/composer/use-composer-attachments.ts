@@ -89,7 +89,7 @@ import {
  *   exactly like an `@`-file mention, carrying a real file's `file://` uri. A
  *   desktop paste of copied files is paired back to their paths on the OS
  *   clipboard; bytes with no file behind them are uploaded first. Restored
- *   blocks that carry their bytes get an inert `codeg://embedded/…` display uri
+ *   blocks that carry their bytes get an inert `yoyocode://embedded/…` display uri
  *   whose real block is held in `embeddedPayloadsRef` until send.
  *
  * Every entry point funnels through the same classifier, so paste, OS drop,
@@ -297,7 +297,7 @@ export function useComposerAttachments({
   // Insert one inline file reference badge per item, matching `@`-file mentions.
   // A genuine `file://` item uses its uri directly (deduped against the document);
   // an item carrying a `realBlock` (embedded bytes / `data:` link) gets an inert
-  // `codeg://embedded/…` display uri (carrying the item's `ref`, when it has
+  // `yoyocode://embedded/…` display uri (carrying the item's `ref`, when it has
   // one) and its block is stashed in `embeddedPayloadsRef` for send-time
   // reconciliation. Badges append at the doc
   // end by default; pass `atCaret` to drop them at the composer's current caret

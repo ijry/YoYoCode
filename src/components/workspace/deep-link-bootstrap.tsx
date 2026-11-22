@@ -11,7 +11,7 @@ import type { AgentType } from "@/lib/types"
  * Handles `/workspace?folderId=X&conversationId=Y&agent=Z` URLs. Runs once,
  * after the workspace has loaded everything the link is checked against.
  *
- * On Windows and Linux this is also where a cold-start `codeg://session/<id>`
+ * On Windows and Linux this is also where a cold-start `yoyocode://session/<id>`
  * arrives: the URL comes in on argv, so the backend can resolve it and point
  * the window straight at this query string before the webview exists. (macOS
  * learns about the link too late for that and uses {@link PetFocusBridge}'s
@@ -119,7 +119,7 @@ type FocusRequest = {
  * command after bringing the main window forward) and opens the conversation
  * via `openTab` — no URL reload, so in-memory tab/session state survives.
  *
- * Also where an OS `codeg://session/<id>` deep link lands. That one does NOT
+ * Also where an OS `yoyocode://session/<id>` deep link lands. That one does NOT
  * travel in an event payload: Tauri delivers an event only to webviews that
  * already registered a listener, so the emit for a cold-start link is dropped
  * on the floor. The backend parks the resolved target and sends a payload-less

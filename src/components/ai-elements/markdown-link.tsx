@@ -106,13 +106,13 @@ export function MarkdownLink({
     )
   }
 
-  // A codeg:// reference link renders as an inline badge, mirroring the
-  // composer's reference chips: session / commit / agent links, plus the inert
-  // `codeg://embedded/…` badge a path-less pasted attachment serializes to (its
-  // bytes travel out of band, so it has no openable target). The same parser the
-  // editor uses on draft restore recovers refType/id/meta from the uri; the link
-  // text is the label.
-  if (href.toLowerCase().startsWith("codeg:")) {
+  // A reference-scheme link (`yoyocode://`, legacy `codeg://`) renders as an
+  // inline badge, mirroring the composer's reference chips: session / commit /
+  // agent links, plus the inert `embedded/…` badge a path-less pasted
+  // attachment serializes to (its bytes travel out of band, so it has no
+  // openable target). The same parser the editor uses on draft restore
+  // recovers refType/id/meta from the uri; the link text is the label.
+  if (/^(?:codeg|yoyocode):/i.test(href)) {
     const reference = parseCodegReferenceUri(href, nodeText(children))
     if (reference) return <ReferenceBadge data={reference} />
   }

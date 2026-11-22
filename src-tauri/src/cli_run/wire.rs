@@ -53,7 +53,7 @@ pub const STILL_RUNNING_EXIT_CODE: i32 = 6;
 
 /// The deep link a run's conversation opens at.
 pub fn session_link(conversation_id: i32) -> String {
-    format!("codeg://session/{conversation_id}")
+    format!("{}://session/{conversation_id}", crate::url_scheme::SCHEME)
 }
 
 // ── hello ────────────────────────────────────────────────────────────────────
@@ -822,7 +822,7 @@ mod tests {
         assert_eq!(json["subtype"], "success");
         assert_eq!(json["is_error"], false);
         assert_eq!(json["result"], "done");
-        assert_eq!(json["link"], "codeg://session/4");
+        assert_eq!(json["link"], "yoyocode://session/4");
         assert_eq!(serde_json::from_value::<RunEvent>(json).unwrap(), event);
     }
 

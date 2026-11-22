@@ -20,10 +20,12 @@ function parseRefType(raw: string | null): ReferenceKind {
     : "file"
 }
 
-// Only schemes the composer itself emits. Reference URIs parsed from pasted
-// HTML are an untrusted input, so anything else (javascript:, data:, http:, …)
-// is dropped to null rather than carried into a ResourceLink on send.
-const ALLOWED_URI_SCHEMES = ["file:", "codeg:"]
+// Only schemes the composer itself emits (plus the legacy scheme it used to
+// emit — pasted HTML from an older draft still carries it). Reference URIs
+// parsed from pasted HTML are an untrusted input, so anything else
+// (javascript:, data:, http:, …) is dropped to null rather than carried into a
+// ResourceLink on send.
+const ALLOWED_URI_SCHEMES = ["file:", "yoyocode:", "codeg:"]
 
 /** Keep a parsed reference URI only if it uses a scheme the composer emits. */
 function parseUri(raw: string | null): string | null {

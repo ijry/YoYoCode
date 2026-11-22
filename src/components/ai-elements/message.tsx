@@ -487,7 +487,7 @@ const remarkPlugins = [
   remarkTrimCjkAutolinkTail,
 ]
 
-// Streamdown's default rehype pipeline strips `codeg://` reference hrefs in
+// Streamdown's default rehype pipeline strips reference-scheme hrefs (`yoyocode`, legacy `codeg`) in
 // sanitization (rendering them as "[blocked]"); re-derive it so they survive to
 // MarkdownLink → ReferenceBadge. See rehype-allow-codeg for the full rationale.
 // …and relative local links (`./a.md`, `src/a.md`, `~/a.md`) keep their href

@@ -264,7 +264,9 @@ pub async fn open(global: &GlobalArgs, args: &OpenArgs, env: &Env) -> i32 {
             ),
         );
     }
-    if let Err(message) = open_url("codeg://open", global.verbose, &out, deadline).await {
+    if let Err(message) =
+        open_url(&format!("{}://open", crate::url_scheme::SCHEME), global.verbose, &out, deadline).await
+    {
         return fail(
             &out,
             Failure::new(Subtype::ErrorRuntimeUnavailable, "open_failed", message),
@@ -286,7 +288,7 @@ pub async fn open(global: &GlobalArgs, args: &OpenArgs, env: &Env) -> i32 {
                     "open_timeout",
                     format!(
                         "no desktop answered within {}s. On Linux this machine may have no \
-                         codeg:// handler registered (only yoyocode-server installed, or an \
+                         yoyocode:// handler registered (only yoyocode-server installed, or an \
                          AppImage that was never started): open the desktop app once by hand.",
                         args.wait.as_secs()
                     ),
@@ -375,7 +377,10 @@ async fn open_url(url: &str, verbose: bool, out: &Output, deadline: Instant) -> 
         let opener = tokio::task::spawn_blocking(move || windows_open(&url));
         match tokio::time::timeout_at(deadline, opener).await {
             Err(_) => Ok(()),
-            Ok(Err(e)) => Err(format!("cannot open codeg://open: {e}")),
+            Ok(Err(e)) => Err(format!(
+                "cannot open {}://open: {e}",
+                crate::url_scheme::SCHEME
+            )),
             Ok(Ok(result)) => result,
         }
     }

@@ -614,7 +614,7 @@ describe("MessageInput attach-to-chat insertion position", () => {
     // which is what the sent message lists under the bubble.
     expect(text).not.toContain("Captured from a web page")
     expect(text).toMatch(
-      /\[button#export]\(codeg:\/\/embedded\/https%3A%2F%2Fexample\.com%2Forders#[^)\s]+\)/
+      /\[button#export]\(yoyocode:\/\/embedded\/https%3A%2F%2Fexample\.com%2Forders#[^)\s]+\)/
     )
   })
 
@@ -730,6 +730,9 @@ describe("MessageInput attach-to-chat insertion position", () => {
       expect(serializeDocToText(editor.state.doc)).toContain(
         "Captured from a web page"
       )
+    )
+    expect(serializeDocToText(editor.state.doc)).not.toContain(
+      "yoyocode://embedded/"
     )
     expect(serializeDocToText(editor.state.doc)).not.toContain(
       "codeg://embedded/"
@@ -954,7 +957,7 @@ describe("MessageInput injectContent", () => {
     view.rerender(tree({ injectContent: { handBack: [notesFile] } }))
     await waitFor(() =>
       expect(serializeDocToDisplayText(editor.state.doc)).toMatch(
-        /^and another thing\n\n\[notes\.md-1]\(codeg:\/\/embedded\//
+        /^and another thing\n\n\[notes\.md-1]\(yoyocode:\/\/embedded\//
       )
     )
   })
@@ -1316,7 +1319,7 @@ describe("MessageInput session-mention attach", () => {
         conversation: summary(42, "Fix auth"),
       })
     })
-    const link = "[Fix auth](codeg://session/42)"
+    const link = "[Fix auth](yoyocode://session/42)"
     await waitFor(() =>
       expect(serializeDocToText(editor.state.doc)).toContain(link)
     )
@@ -1336,7 +1339,7 @@ describe("MessageInput session-mention attach", () => {
     })
     await waitFor(() =>
       expect(serializeDocToText(editor.state.doc)).toContain(
-        "[#7](codeg://session/7)"
+        "[#7](yoyocode://session/7)"
       )
     )
   })
@@ -1350,7 +1353,7 @@ describe("MessageInput session-mention attach", () => {
       })
     })
     expect(serializeDocToText(editor.state.doc)).not.toContain(
-      "codeg://session/42"
+      "yoyocode://session/42"
     )
   })
 
@@ -1360,7 +1363,7 @@ describe("MessageInput session-mention attach", () => {
     act(() => {
       emitAttachSessionToSession({ tabId: "tab-1", conversation })
     })
-    const link = "[Fix auth](codeg://session/42)"
+    const link = "[Fix auth](yoyocode://session/42)"
     await waitFor(() =>
       expect(serializeDocToText(editor.state.doc)).toContain(link)
     )
@@ -1382,7 +1385,7 @@ describe("MessageInput session-mention attach", () => {
 
     await waitFor(() => {
       const text = serializeDocToText(editor.state.doc)
-      expect(text).toContain("[Fix auth](codeg://session/42)")
+      expect(text).toContain("[Fix auth](yoyocode://session/42)")
       expect(text).toContain("请继续上面会话的工作。")
     })
   })
@@ -2573,10 +2576,10 @@ describe("MessageInput queue-edit restore vs. a late command list", () => {
     const text = serializeDocToDisplayText(editor.state.doc)
     // Named by what it is, and carrying the page for the chip it gets once sent.
     expect(text).toMatch(
-      /\[Marked-up screenshot]\(codeg:\/\/embedded\/https%3A%2F%2Fshop\.test%2Forders%2F42#[^)\s]+\)/
+      /\[Marked-up screenshot]\(yoyocode:\/\/embedded\/https%3A%2F%2Fshop\.test%2Forders%2F42#[^)\s]+\)/
     )
     // Anything that is not a page keeps the name its uri gives it.
-    expect(text).toMatch(/\[notes\.md-1]\(codeg:\/\/embedded\/[^)\s#]+\)/)
+    expect(text).toMatch(/\[notes\.md-1]\(yoyocode:\/\/embedded\/[^)\s#]+\)/)
   })
 })
 

@@ -257,7 +257,7 @@ describe("buildReferenceGroups", () => {
     expect(agents[0].reference.id).toBe("codex")
   })
 
-  it("adapts assistants into codeg://assistant references", () => {
+  it("adapts assistants into yoyocode://assistant references", () => {
     const groups = buildReferenceGroups(
       "",
       emptySources({
@@ -274,14 +274,14 @@ describe("buildReferenceGroups", () => {
         refType: "assistant",
         id: "3",
         label: "Reviewer",
-        uri: "codeg://assistant/3",
+        uri: "yoyocode://assistant/3",
         meta: { assistantId: 3 },
       },
       {
         refType: "assistant",
         id: "4",
         label: "Planner",
-        uri: "codeg://assistant/4",
+        uri: "yoyocode://assistant/4",
         meta: { assistantId: 4 },
       },
     ])
@@ -328,7 +328,7 @@ describe("buildReferenceGroups", () => {
     expect(labels("open_code")).toEqual(["Planner"])
   })
 
-  it("adapts sessions into codeg://session references", () => {
+  it("adapts sessions into yoyocode://session references", () => {
     const groups = buildReferenceGroups(
       "login",
       emptySources({
@@ -340,7 +340,7 @@ describe("buildReferenceGroups", () => {
     )
     const sessions = itemsOf(groups, "session")
     expect(sessions).toHaveLength(1)
-    expect(sessions[0].reference.uri).toBe("codeg://session/7")
+    expect(sessions[0].reference.uri).toBe("yoyocode://session/7")
   })
 
   it("omits the commit group when there is no repoKey (R8)", () => {
@@ -364,7 +364,7 @@ describe("buildReferenceGroups", () => {
     )
     const commits = itemsOf(groups, "commit")
     expect(commits).toHaveLength(1)
-    expect(commits[0].reference.uri).toBe("codeg://commit/%2Frepo@abc12340000")
+    expect(commits[0].reference.uri).toBe("yoyocode://commit/%2Frepo@abc12340000")
   })
 
   it("caps each group at 50 items and flags the overflow as truncated", () => {

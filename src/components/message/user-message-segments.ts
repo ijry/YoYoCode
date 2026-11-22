@@ -1,4 +1,7 @@
-import { parseCodegReferenceUri } from "@/components/chat/composer/reference-uri"
+import {
+  parseCodegReferenceUri,
+  REFERENCE_SCHEME,
+} from "@/components/chat/composer/reference-uri"
 import type { ReferenceAttrs } from "@/components/chat/composer/types"
 import {
   INVOCATION_TOKEN_RE,
@@ -21,9 +24,10 @@ export type UserMessageSegment =
 /**
  * Only these schemes become badges. A `[label](https://…)` a user typed is NOT a
  * reference — it stays literal text (the composer is plain-text; genuine badges
- * are always inserted via the `@`·`/`·`$` menus and serialize to `file:`/`codeg:`).
+ * are always inserted via the `@`·`/`·`$` menus and serialize to `file:` and
+ * the reference scheme; the legacy `codeg:` form still renders).
  */
-const REFERENCE_SCHEME = /^(?:file:|codeg:)/i
+const REFERENCE_SCHEME_RE = /^(?:file:|codeg:|yoyocode:)/i
 
 /**
  * Split a plain-prose run into literal text and bare `/slug`·`$slug` skill
@@ -59,7 +63,7 @@ function pushProseSegments(
     // `/`·`$` so the badge label is the bare slug (`build`, `deploy`) — matching
     // the composer's inline command/skill badge.
     const attrs = parseCodegReferenceUri(
-      `codeg://skill/${encodeURIComponent(slug)}`,
+      `${REFERENCE_SCHEME}://skill/${encodeURIComponent(slug)}`,
       token
     )
     out.push(
@@ -100,7 +104,7 @@ export interface UserMessageSegmentOptions {
  * literal, matching the plain-text composer.
  *
  * {@link UserMessageSegmentOptions.knownInvocations} narrows pass 2. Pass 1 is
- * unaffected either way — a `file:`/`codeg:` link is unambiguous.
+ * unaffected either way — a `file:`/reference-scheme link is unambiguous.
  */
 export function parseUserMessageSegments(
   text: string,
@@ -111,7 +115,7 @@ export function parseUserMessageSegments(
   for (const token of tokenizeReferenceLinks(text)) {
     if (token.type === "link") {
       const destination = unwrapReferenceDestination(token.destination)
-      if (REFERENCE_SCHEME.test(destination)) {
+      if (REFERENCE_SCHEME_RE.test(destination)) {
         const attrs = parseCodegReferenceUri(
           destination,
           unescapeReferenceLabel(token.label)

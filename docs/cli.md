@@ -301,7 +301,7 @@ names it, and the task's own work is no part of the run. `--json` prints the
 run:
 
 ```json
-{"v": 1, "type": "automation_run", "automation_id": 3, "run_id": 41, "status": "succeeded", "conversation_id": 214, "link": "codeg://session/214", "summary": "…", "error": null}
+{"v": 1, "type": "automation_run", "automation_id": 3, "run_id": 41, "status": "succeeded", "conversation_id": 214, "link": "yoyocode://session/214", "summary": "…", "error": null}
 ```
 
 Of the Codegs that share a data directory, only the first to start runs
@@ -358,7 +358,7 @@ yoyo-cli result "$run" --wait 30m -o review.md
   instead of a result:
 
   ```json
-  {"v": 1, "type": "status", "run_id": "8d0c7c2e-…", "state": "running", "subtype": "still_running", "conversation_id": 214, "link": "codeg://session/214"}
+  {"v": 1, "type": "status", "run_id": "8d0c7c2e-…", "state": "running", "subtype": "still_running", "conversation_id": 214, "link": "yoyocode://session/214"}
   ```
 
   `result` never cancels a run, not even when interrupted.
@@ -626,7 +626,7 @@ Each carries:
 
 | `type` | Fields | |
 | --- | --- | --- |
-| `init` | `conversation_id`, `folder_id`, `agent`, `assistant?` (`{id, name}`), `workspace`, `link`, `worktree?` (`{path, branch}`) | The conversation exists. `link` opens it: `codeg://session/<id>`. `workspace` is where the agent works |
+| `init` | `conversation_id`, `folder_id`, `agent`, `assistant?` (`{id, name}`), `workspace`, `link`, `worktree?` (`{path, branch}`) | The conversation exists. `link` opens it: `yoyocode://session/<id>`. `workspace` is where the agent works |
 | `session` | `session_id`, `launch` | The agent started. `session_id` is the agent's own id for the session |
 | `message_delta` | `text` | Reply text. Consecutive pieces arrive merged |
 | `tool_call` | `id`, `title`, `kind`, `status` | The agent called a tool |
@@ -668,7 +668,7 @@ them reads it too.
     "effective": {"model": "opus", "mode": "default"}
   },
   "conversation_id": 214,
-  "link": "codeg://session/214"
+  "link": "yoyocode://session/214"
 }
 ```
 

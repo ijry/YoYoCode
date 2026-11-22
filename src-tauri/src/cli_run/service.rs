@@ -3519,7 +3519,7 @@ mod tests {
         let started = h.start(PermissionPolicy::Deny).await;
         assert_eq!(
             started.link,
-            format!("codeg://session/{}", started.conversation_id)
+            format!("yoyocode://session/{}", started.conversation_id)
         );
         h.until_command(&started.connection_id, "prompt:review it")
             .await;

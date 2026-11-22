@@ -231,7 +231,7 @@ git diff | yoyo-cli -a codex \
 - **[通知](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — ターンが終わったときやエージェントに呼ばれたときに、デスクトップ通知と通知音、タスクバーボタンの点滅や Dock アイコンのバウンドで知らせます
 - **[自分好みに](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — カラートークン単位で塗り替えられる 12 のテーマ、壁紙、角丸、チャット幅、カスタム CSS、デスクトップペット — インターフェースは 10 言語に対応
 - **[バックアップと同期](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — 暗号化バックアップと、ファイルまたは自分の WebDAV サーバーを介したマシン間の設定同期
-- **[URL スキーム](../../docs/url-scheme.md)** — `codeg://session/<id>` で別のアプリから会話を開けます（デスクトップ）
+- **[URL スキーム](../../docs/url-scheme.md)** — `yoyocode://session/<id>` で別のアプリから会話を開けます（デスクトップ）
 - **まだまだあります** — ほぼすべてのリリースで何かが加わります。全リストは [リリースノート](https://github.com/ijry/YoYoCode/releases) で確認できます
 
 ## 🤖 対応エージェント

@@ -231,7 +231,7 @@ git diff | yoyo-cli -a codex \
 - **[الإشعارات](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — إشعارات سطح المكتب، وأصوات التنبيه، وزر شريط مهام يومض أو أيقونة Dock تقفز عندما ينتهي دورٌ أو يحتاجك وكيل
 - **[اجعله على ذوقك](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — اثنتا عشرة سمة يمكنك إعادة تلوينها رمزًا لونيًا تلو الآخر، وخلفيات، واستدارة الزوايا، وعرض المحادثة، وCSS مخصّص، وحيوان أليف على سطح المكتب — بأيٍّ من لغات الواجهة العشر
 - **[النسخ الاحتياطي والمزامنة](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — نسخ احتياطية مشفّرة، ومزامنة الإعدادات بين الأجهزة عبر ملف أو خادم WebDAV الخاص بك
-- **[مخطط URL](../../docs/url-scheme.md)** — يفتح `codeg://session/<id>` محادثةً من تطبيق آخر (سطح المكتب)
+- **[مخطط URL](../../docs/url-scheme.md)** — يفتح `yoyocode://session/<id>` محادثةً من تطبيق آخر (سطح المكتب)
 - **والمزيد** — يضيف كل إصدار تقريبًا شيئًا جديدًا؛ و[ملاحظات الإصدار](https://github.com/ijry/YoYoCode/releases) هي القائمة الكاملة
 
 ## 🤖 الوكلاء المدعومون

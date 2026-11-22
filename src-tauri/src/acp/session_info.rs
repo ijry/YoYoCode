@@ -1,7 +1,7 @@
 //! Session-info lookup domain types — backing the `get_session_info` MCP tool.
 //!
 //! When the user references a session in the composer it serializes into the
-//! agent's prompt as `[title](codeg://session/<conversation_id>)`. The agent
+//! agent's prompt as `[title](yoyocode://session/<conversation_id>)`. The agent
 //! reads the numeric id out of that link and calls `get_session_info`, which
 //! resolves it to the session's metadata + token-usage stats and, on demand, a
 //! bounded compacted view of its recent messages.

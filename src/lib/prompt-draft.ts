@@ -80,7 +80,7 @@ export function getPromptDraftDisplayText(
  * Folded BEFORE it is cut. A badge's link can be long — the one for a page the
  * built-in browser handed over carries the page's address — and a cut inside
  * one leaves a link that no longer folds, so the tab and the sidebar showed
- * raw `[Page screenshot](codeg://embedded/…` until the real title arrived.
+ * raw `[Page screenshot](yoyocode://embedded/…` until the real title arrived.
  */
 export function promptDraftTitleSeed(
   draft: PromptDraft,

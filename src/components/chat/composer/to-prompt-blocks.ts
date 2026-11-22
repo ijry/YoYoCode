@@ -25,7 +25,7 @@ import type { ReferenceAttrs } from "./types"
  *   and reload adapter expect — so nothing downstream (or already persisted)
  *   changes. Kept **inline, in place** so a cold reload reparses each badge at
  *   its original position.
- * - **embedded** references (a `codeg://embedded/…` display uri for path-less
+ * - **embedded** references (a `yoyocode://embedded/…` display uri for path-less
  *   pasted bytes) are dropped: their real bytes-bearing block is appended
  *   separately by the host's `buildDraft`, so emitting their synthetic display
  *   link here would leak a uri the agent shouldn't see.
@@ -45,7 +45,7 @@ export function docToPromptBlocks(editor: Editor): PromptInputBlock[] {
  * so a copied selection reads back exactly like what is sent.
  *
  * - `reference` → {@link referenceToMarkdown}, except an embedded-attachment
- *   reference (its synthetic `codeg://embedded/…` uri must never surface on the
+ *   reference (its synthetic `yoyocode://embedded/…` uri must never surface on the
  *   SEND path), which contributes nothing — unless `keepEmbedded` is set, the
  *   DISPLAY path, which keeps it inline so the sender sees the attached badge.
  * - `hardBreak` → a newline.
@@ -85,7 +85,7 @@ export function serializeDocToText(doc: ProseMirrorNode): string {
 
 /**
  * Like {@link serializeDocToText} but KEEPS embedded-attachment references inline
- * (as their `[label](codeg://embedded/…)` link). This is the DISPLAY form for
+ * (as their `[label](yoyocode://embedded/…)` link). This is the DISPLAY form for
  * the queue chip / optimistic bubble: the sender must see the file they attached
  * (the transcript renders that link back into an inert file badge), even though
  * the SEND path drops it because its bytes travel as a separate block and the

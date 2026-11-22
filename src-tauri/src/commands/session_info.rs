@@ -4,7 +4,7 @@
 //!
 //!   * [`DbSessionInfoLookup`] — the production [`SessionInfoAccess`] impl the
 //!     delegation listener calls to resolve a referenced session
-//!     (`codeg://session/<id>`) into metadata + token stats and, on demand, a
+//!     (`yoyocode://session/<id>`) into metadata + token stats and, on demand, a
 //!     bounded compacted view of its recent messages. It reuses
 //!     [`get_folder_conversation_core`] (which reads the conversation row, uses
 //!     its bound `external_id` + `agent_type` to pick the right parser, and parses

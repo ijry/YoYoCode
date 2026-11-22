@@ -5,28 +5,42 @@ import type { ReferenceAttrs } from "./types"
 
 // The reference uri grammar, shared by two consumers: editor draft restore
 // (from-prompt-blocks.ts) and transcript badge rendering
-// (ai-elements/markdown-link.tsx). Mirrors the schemes the adapters emit
+// (ai-elements/markdown-link.tsx). Mirrors the scheme the adapters emit
 // (suggestion/adapters.ts) and the node's allow-list (nodes/reference-node.ts).
-const AGENT_URI = /^codeg:\/\/agent\/(.+)$/i
+
+// The scheme new references are written with. The pre-rename `codeg://` form
+// still appears in stored conversations, saved drafts and model context, so
+// every parse regex below accepts both; see src-tauri/src/url_scheme.rs for
+// the Rust twin of this pair.
+export const REFERENCE_SCHEME = "yoyocode"
+const SCHEME_ALT = "(?:yoyocode|codeg)"
+
+const AGENT_URI = new RegExp(`^${SCHEME_ALT}://agent/(.+)$`, "i")
 // Assistant ids are positive integers, never zero-padded — the shape the
 // backend's routing scan (`agent_mentions.rs`) accepts, and the adapter writes.
-const ASSISTANT_URI = /^codeg:\/\/assistant\/([1-9]\d{0,9})$/i
-const SESSION_URI = /^codeg:\/\/session\/(.+)$/i
-const COMMIT_URI = /^codeg:\/\/commit\/.*@(.+)$/i
+const ASSISTANT_URI = new RegExp(
+  `^${SCHEME_ALT}://assistant/([1-9]\\d{0,9})$`,
+  "i"
+)
+const SESSION_URI = new RegExp(`^${SCHEME_ALT}://session/(.+)$`, "i")
+const COMMIT_URI = new RegExp(`^${SCHEME_ALT}://commit/.*@(.+)$`, "i")
 // command / skill / expert tokens, surfaced as badges in transcript user messages
 // (message/user-message-segments.ts). The label arrives with the literal `/`·`$`
 // prefix, which the skill branch strips so the badge reads the bare name.
-const SKILL_URI = /^codeg:\/\/skill\/(.+)$/i
+const SKILL_URI = new RegExp(`^${SCHEME_ALT}://skill/(.+)$`, "i")
 
 // A path-less attached file (local-desktop paste/drop of inline bytes — an
 // embedded `resource` or a `data:` link) can't live in the doc by its real uri,
 // so its inline badge carries this synthetic display uri while the real
 // bytes-bearing block is held in a send-time map keyed by it (see
-// message-input's `embeddedPayloadsRef`). `codeg://` (not `file://`) is used on
-// purpose: it is never a real filesystem path (so it can't collide with a
-// genuine attachment) and it survives Streamdown's sanitize/harden pipeline, so
-// the transcript renders it as an inert file badge rather than a blocked link.
-const EMBEDDED_URI_PREFIX = "codeg://embedded/"
+// message-input's `embeddedPayloadsRef`). A reference scheme (not `file://`) is
+// used on purpose: it is never a real filesystem path (so it can't collide
+// with a genuine attachment) and it survives Streamdown's sanitize/harden
+// pipeline, so the transcript renders it as an inert file badge rather than a
+// blocked link.
+const EMBEDDED_URI_PREFIX = `${REFERENCE_SCHEME}://embedded/`
+// Parsing accepts the legacy prefix too — badges minted before the rename.
+const EMBEDDED_PREFIXES = [EMBEDDED_URI_PREFIX, "codeg://embedded/"]
 
 /**
  * Mint a fresh inert display uri for a path-less embedded attachment badge.
@@ -46,7 +60,17 @@ export function buildEmbeddedReferenceUri(ref?: string): string {
 
 /** Whether `uri` is an embedded-attachment display uri (see {@link buildEmbeddedReferenceUri}). */
 export function isEmbeddedReferenceUri(uri: string): boolean {
-  return uri.toLowerCase().startsWith(EMBEDDED_URI_PREFIX)
+  return embeddedPrefixLength(uri) !== null
+}
+
+/** Length of the embedded display-uri prefix `uri` starts with (either scheme),
+ *  or null when it starts with none. */
+function embeddedPrefixLength(uri: string): number | null {
+  const lower = uri.toLowerCase()
+  for (const prefix of EMBEDDED_PREFIXES) {
+    if (lower.startsWith(prefix)) return prefix.length
+  }
+  return null
 }
 
 /** The display uri for an embedded attachment by its ref alone — what a
@@ -59,8 +83,9 @@ export function embeddedReferenceUriFor(ref: string): string {
 /** The ref an embedded display uri carries, or null when it carries none: the
  *  path of a badge minted without one is a bare random id, never a uri. */
 export function refOfEmbeddedReferenceUri(uri: string): string | null {
-  if (!isEmbeddedReferenceUri(uri)) return null
-  const path = uri.slice(EMBEDDED_URI_PREFIX.length).split("#", 1)[0]
+  const prefixLength = embeddedPrefixLength(uri)
+  if (prefixLength === null) return null
+  const path = uri.slice(prefixLength).split("#", 1)[0]
   let ref: string
   try {
     ref = decodeURIComponent(path)
@@ -70,8 +95,18 @@ export function refOfEmbeddedReferenceUri(uri: string): string | null {
   return /^[a-z][a-z0-9+.-]*:/i.test(ref) ? ref : null
 }
 
+/** Scheme-insensitive identity of a reference uri: two uris that differ only in
+ *  scheme (`yoyocode://…` vs the legacy `codeg://…`) name the same thing, so
+ *  duplicate detection keys on what follows the scheme. */
+export function referenceUriKey(uri: string): string {
+  const i = uri.indexOf("://")
+  if (i < 0) return uri
+  return `${uri.slice(0, i).toLowerCase()}${uri.slice(i)}`.slice(i + 3)
+}
+
 /**
- * Parse a composer reference uri (`file://` / `codeg://…`) back into
+ * Parse a composer reference uri (`file://` / `yoyocode://…`; the legacy
+ * `codeg://…` form parses identically) back into
  * {@link ReferenceAttrs}, or null when it isn't a recognized reference scheme
  * (in which case the caller treats it as a plain link / attachment).
  *
@@ -127,12 +162,13 @@ export function parseCodegReferenceUri(
   const session = uri.match(SESSION_URI)
   if (session) {
     const id = session[1]
-    // Current format is `codeg://session/<conversation_id>` (a bare numeric id),
-    // which matches no agent-type prefix and so degrades to a session badge
-    // without an agent icon — fine, since the live-inserted badge carries the
-    // agent via `meta` and get_session_info resolves the agent server-side.
-    // LEGACY links `codeg://session/<agent_type>_<external_id>` (still present in
-    // historical transcripts) keep their agent icon: the type is recovered by
+    // Current format is `yoyocode://session/<conversation_id>` (a bare numeric
+    // id), which matches no agent-type prefix and so degrades to a session
+    // badge without an agent icon — fine, since the live-inserted badge
+    // carries the agent via `meta` and get_session_info resolves the agent
+    // server-side. LEGACY links `session/<agent_type>_<external_id>` (still
+    // present in historical transcripts, in either scheme) keep their agent
+    // icon: the type is recovered by
     // prefix match against the known set — never by splitting on the first `_`,
     // since agent types themselves contain underscores (claude_code, open_code,
     // open_claw).

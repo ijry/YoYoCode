@@ -50,7 +50,7 @@ export interface FileReferencePaths {
  * forms.
  *
  * Returns null when the target isn't a local file at all (a web link, an
- * embedded `codeg://` attachment badge) or when a relative target can't be made
+ * embedded reference attachment badge) or when a relative target can't be made
  * absolute for lack of an active folder — in those cases the badge shows no
  * action button, since none of the three actions could do anything.
  *

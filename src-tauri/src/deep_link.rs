@@ -1,32 +1,36 @@
-//! OS-level `codeg://` URL scheme.
+//! OS-level `yoyocode://` URL scheme (legacy `codeg://` still parses).
 //!
-//! In-app markdown already uses `codeg://session/<id>` and `codeg://agent/<type>`
+//! In-app markdown uses `yoyocode://session/<id>` and `yoyocode://agent/<type>`
 //! as reference links. Those stay in-process badges. This module is the
-//! **system** handler: a click in another app, `open codeg://…`, or a browser
+//! **system** handler: a click in another app, `open yoyocode://…`, or a browser
 //! custom-scheme navigation should bring the desktop workspace forward and
-//! focus the named conversation.
+//! focus the named conversation. The OS only ever sees `yoyocode://` — the
+//! pre-rename `codeg://` scheme is no longer registered so it cannot collide
+//! with the upstream app — but the parser below still accepts it, since old
+//! scripts, docs and shells may hand one over on argv.
 //!
-//! Supported forms:
+//! Supported forms (`yoyocode://`, legacy `codeg://` accepted too):
 //!
-//! - `codeg://session/<id>` — Codeg's numeric conversation PK, or an agent's
-//!   `external_id` (Grok UUID, Codex thread id, …)
-//! - `codeg://workspace?conversationId=<id>` — same lookup; `folderId` and
+//! - `yoyocode://session/<id>` — the app's numeric conversation PK, or an
+//!   agent's `external_id` (Grok UUID, Codex thread id, …)
+//! - `yoyocode://workspace?conversationId=<id>` — same lookup; `folderId` and
 //!   `agent` are optional and filled from the row when omitted
-//! - `codeg://open` / `codeg://` — just show the main window
+//! - `yoyocode://open` / `yoyocode://` — just show the main window
 //!
-//! `codeg://agent/…`, `codeg://commit/…`, and `codeg://embedded/…` are
-//! in-app mention badges, not OS navigation, and are ignored here.
+//! `agent/…`, `commit/…`, and `embedded/…` paths are in-app mention badges,
+//! not OS navigation, and are ignored here.
 
 use crate::db::service::conversation_service;
 use crate::db::AppDatabase;
 use crate::models::DbConversationSummary;
 
-/// What a parsed `codeg://` URL wants the desktop app to do.
+/// What a parsed deep-link URL (`yoyocode://`, legacy `codeg://`) wants the
+/// desktop app to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeepLink {
     /// Bring the workspace forward without targeting a conversation.
     Open,
-    /// Focus a conversation looked up by `codeg://session/<ref>`.
+    /// Focus a conversation looked up by `yoyocode://session/<ref>`.
     Session { session_ref: String },
     /// Explicit workspace query. `conversation_id` is required; folder and
     /// agent are filled from the database when omitted.
@@ -37,7 +41,7 @@ pub enum DeepLink {
     },
 }
 
-/// A `codeg://` link resolved to a conversation the workspace can open.
+/// A resolved deep link that named a conversation the workspace can open.
 ///
 /// Serializes as the payload of [`take_pending_deep_link`], in the same
 /// camelCase shape as the `workspace://focus-conversation` event so both
@@ -71,13 +75,13 @@ impl FocusTarget {
     }
 }
 
-/// Parse a `codeg:` / `codeg://` URL. Returns `None` for a different scheme
-/// or for in-app mention badges that must not navigate the workspace.
+/// Parse a `yoyocode:` / `yoyocode://` URL; the legacy `codeg:` / `codeg://`
+/// form parses identically (see [`crate::url_scheme`]). Returns `None` for a
+/// different scheme or for in-app mention badges that must not navigate the
+/// workspace.
 pub fn parse_deep_link(raw: &str) -> Option<DeepLink> {
     let raw = raw.trim();
-    let rest = raw
-        .strip_prefix("codeg://")
-        .or_else(|| raw.strip_prefix("codeg:"))?;
+    let rest = crate::url_scheme::strip_scheme_prefix(raw)?;
     let rest = rest.trim_start_matches('/');
     if rest.is_empty() {
         return Some(DeepLink::Open);
@@ -207,7 +211,7 @@ pub async fn resolve_deep_link(
 #[cfg(feature = "tauri-runtime")]
 pub const PENDING_EVENT: &str = "workspace://deep-link-pending";
 
-/// The one channel a resolved `codeg://` target travels on.
+/// The one channel a resolved deep-link target travels on.
 ///
 /// The obvious design — emit the target like the pet panel does — cannot work
 /// here, in both directions. An emit reaches only webviews that *already*
@@ -244,7 +248,8 @@ pub fn take_pending_deep_link() -> Option<FocusTarget> {
     PENDING_FOCUS.lock().ok().and_then(|mut slot| slot.take())
 }
 
-/// Collect `codeg:` URLs from a process argv (Windows / Linux second launch).
+/// Collect deep-link URLs (`yoyocode:` / legacy `codeg:`) from a process argv
+/// (Windows / Linux second launch).
 pub fn urls_from_argv(argv: &[impl AsRef<str>]) -> Vec<String> {
     argv.iter()
         .map(|arg| arg.as_ref().to_string())
@@ -438,14 +443,58 @@ mod tests {
         assert_eq!(parse_deep_link("codeg://workspace"), None);
     }
 
+    /// The `codeg://` tests above double as legacy coverage — links minted
+    /// before the rename. The renamed scheme must parse identically, for
+    /// every form.
     #[test]
-    fn argv_keeps_only_codeg_urls() {
+    fn parses_the_renamed_scheme_like_the_legacy_one() {
+        assert_eq!(
+            parse_deep_link("yoyocode://session/214"),
+            parse_deep_link("codeg://session/214")
+        );
+        assert_eq!(
+            parse_deep_link("yoyocode:session/codex_abc%20123"),
+            parse_deep_link("codeg:session/codex_abc%20123")
+        );
+        assert_eq!(parse_deep_link("yoyocode://"), Some(DeepLink::Open));
+        assert_eq!(parse_deep_link("yoyocode://open"), Some(DeepLink::Open));
+        assert_eq!(
+            parse_deep_link("yoyocode://workspace?conversationId=9&folderId=3&agent=grok"),
+            Some(DeepLink::Workspace {
+                folder_id: Some(3),
+                conversation_id: 9,
+                agent: Some("grok".into()),
+            })
+        );
+        assert_eq!(
+            parse_deep_link("yoyocode://workspace?conversationId=9"),
+            Some(DeepLink::Workspace {
+                folder_id: None,
+                conversation_id: 9,
+                agent: None,
+            })
+        );
+        assert_eq!(parse_deep_link("yoyocode://workspace"), None);
+        assert_eq!(parse_deep_link("yoyocode://agent/grok"), None);
+        assert_eq!(parse_deep_link("yoyocode://commit/abc"), None);
+        assert_eq!(parse_deep_link("yoyocode://session/../etc/passwd"), None);
+    }
+
+    #[test]
+    fn argv_keeps_only_scheme_urls() {
         let argv = [
             "/Applications/codeg.app/Contents/MacOS/codeg",
-            "codeg://session/12",
+            "yoyocode://session/12",
+            "codeg://session/13",
             "--flag",
         ];
-        assert_eq!(urls_from_argv(&argv), vec!["codeg://session/12".to_string()]);
+        assert_eq!(
+            urls_from_argv(&argv),
+            vec![
+                "yoyocode://session/12".to_string(),
+                "codeg://session/13".to_string()
+            ]
+        );
     }
 
     #[tokio::test]

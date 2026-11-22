@@ -71,6 +71,7 @@ pub mod supervise;
 mod terminal;
 pub mod turn_timings;
 pub mod update;
+pub mod url_scheme;
 pub mod web;
 pub mod work_task;
 pub mod workspace_state;
@@ -193,7 +194,7 @@ mod tauri_app {
 
     /// `--open` on the desktop: the conversation opens in THIS process, by the
     /// same in-process path a deep link takes — never through the OS, which
-    /// would hand `codeg://session/<id>` to whichever desktop registered the
+    /// would hand `yoyocode://session/<id>` to whichever desktop registered the
     /// scheme (a debug build's id means another conversation in release).
     struct DesktopSessionOpener(tauri::AppHandle);
 
@@ -646,7 +647,7 @@ mod tauri_app {
         // they still share other `app.codeg` data-dir artifacts with release.
         #[cfg(not(debug_assertions))]
         let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // Second launches on Windows/Linux carry `codeg://…` on argv.
+            // Second launches on Windows/Linux carry `yoyocode://…` on argv.
             // macOS delivers the same URL via the deep-link plugin instead.
             crate::deep_link::handle_argv(app, &argv);
         }));
@@ -1626,7 +1627,7 @@ mod tauri_app {
                     }
                 }
 
-                // OS `codeg://` URLs. Register the listener after the DB is
+                // OS `yoyocode://` URLs (legacy `codeg://` parses too). Register the listener after the DB is
                 // live so a warm-start click can look the conversation up.
                 // Cold-start URLs are also read here and baked into the main
                 // window path — an event emitted before the webview subscribes
@@ -1689,7 +1690,7 @@ mod tauri_app {
 
                 // The workspace windows open at the last quit come back: the
                 // local one (`main`) and every remote workspace window (see
-                // `workspace_windows`). A `codeg://` link on the command line
+                // `workspace_windows`). A `yoyocode://` link on the command line
                 // asks for the local workspace, which then opens in front
                 // whatever the last session left.
                 let restore = tauri::async_runtime::block_on(workspace_windows::load_restore(
@@ -1705,7 +1706,7 @@ mod tauri_app {
                 // `list_open_folder_details` / `list_opened_tabs` inside it. It
                 // starts hidden only when it was hidden to the tray at quit and
                 // other workspace windows are coming back in its place; the
-                // tray, a `codeg://` link and the other explicit local-workspace
+                // tray, a `yoyocode://` link and the other explicit local-workspace
                 // actions still bring it up, and so do the Dock and a second
                 // launch once no other workspace is open or on its way back.
                 if app.get_webview_window("main").is_none() {

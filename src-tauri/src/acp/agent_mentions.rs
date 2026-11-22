@@ -77,10 +77,15 @@ struct InternalAgentRoutes {
 fn agent_reference_regex() -> &'static Regex {
     // Agent wire slugs are built-ins or `custom:<slug>`, where the slug is
     // limited to ASCII alphanumeric, `-`, `_`, and `.`. Requiring a visible
-    // label keeps this in lockstep with the frontend reference tokenizer.
+    // label keeps this in lockstep with the frontend reference tokenizer. Both
+    // schemes match: transcripts predating the `yoyocode` rename still carry
+    // `codeg://agent/…` links.
     static PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"\[(?:\\.|[^\]\\\r\n])+\]\(codeg://agent/([A-Za-z0-9][A-Za-z0-9._:-]{0,127})\)")
-            .expect("agent reference regex is valid")
+        Regex::new(&format!(
+            r"\[(?:\\.|[^\]\\\r\n])+\]\({}://agent/([A-Za-z0-9][A-Za-z0-9._:-]{{0,127}})\)",
+            crate::url_scheme::SCHEME_ALT
+        ))
+        .expect("agent reference regex is valid")
     });
     &PATTERN
 }
@@ -286,10 +291,13 @@ struct AssistantRoute {
 fn assistant_reference_regex() -> &'static Regex {
     // Assistant ids are positive integers, never zero-padded — the same shape
     // the frontend serializer writes and its URI parser accepts. A visible
-    // label is required, as for agents.
+    // label is required, as for agents. Both schemes match, as for agents.
     static PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"\[(?:\\.|[^\]\\\r\n])+\]\(codeg://assistant/([1-9][0-9]{0,9})\)")
-            .expect("assistant reference regex is valid")
+        Regex::new(&format!(
+            r"\[(?:\\.|[^\]\\\r\n])+\]\({}://assistant/([1-9][0-9]{{0,9}})\)",
+            crate::url_scheme::SCHEME_ALT
+        ))
+        .expect("assistant reference regex is valid")
     });
     &PATTERN
 }
@@ -871,6 +879,48 @@ mod tests {
         let routing = text(&blocks[1]);
         assert!(routing.contains(r#"[{"agentType":"antigravity"},{"agentType":"claude_code"}]"#));
         assert_eq!(routing.matches(r#"agentType":"antigravity"#).count(), 1);
+    }
+
+    /// The rename from `codeg://` to `yoyocode://` must not change routing:
+    /// transcripts predating it still carry the old scheme, and the two forms
+    /// route identically — even mixed in one prompt.
+    #[test]
+    fn the_renamed_scheme_routes_like_the_legacy_one() {
+        for scheme in ["yoyocode", "codeg"] {
+            let mut blocks = vec![PromptInputBlock::Text {
+                text: format!("ask [@Codex]({scheme}://agent/codex)").into(),
+            }];
+            append_agent_routes(&mut blocks, true);
+            assert_eq!(blocks.len(), 2, "{scheme}");
+            assert!(
+                text(&blocks[1]).contains(r#"{"agentType":"codex"}"#),
+                "{scheme}"
+            );
+        }
+        let mut mixed = vec![PromptInputBlock::Text {
+            text: "old [@A](codeg://agent/codex) and new [@B](yoyocode://agent/grok)".into(),
+        }];
+        append_agent_routes(&mut mixed, true);
+        assert_eq!(mixed.len(), 2);
+        let routing = text(&mixed[1]);
+        assert!(routing.contains(r#"{"agentType":"codex"}"#));
+        assert!(routing.contains(r#"{"agentType":"grok"}"#));
+    }
+
+    /// Assistants route through the renamed scheme exactly like agents do.
+    #[test]
+    fn the_renamed_assistant_scheme_routes_like_the_legacy_one() {
+        for scheme in ["yoyocode", "codeg"] {
+            let mut blocks = vec![PromptInputBlock::Text {
+                text: format!("ask [@Reviewer]({scheme}://assistant/3)").into(),
+            }];
+            append_assistant_routes(&mut blocks, true);
+            assert_eq!(blocks.len(), 2, "{scheme}");
+            assert!(
+                text(&blocks[1]).contains(r#"{"assistantId":3}"#),
+                "{scheme}"
+            );
+        }
     }
 
     #[test]

@@ -231,7 +231,7 @@ git diff | yoyo-cli -a codex \
 - **[알림](https://ijry.github.io/yoyocode-docs/reference/settings/general#desktop-notifications)** — 턴이 끝나거나 에이전트가 나를 필요로 할 때 데스크톱 알림과 알림음, 깜박이는 작업 표시줄 버튼, 튀어 오르는 Dock 아이콘으로 알려 줍니다
 - **[내 취향대로](https://ijry.github.io/yoyocode-docs/reference/settings/appearance)** — 토큰 단위로 색을 바꿀 수 있는 열두 가지 테마, 배경화면, 모서리 둥글기, 채팅 너비, 사용자 지정 CSS, 데스크톱 펫 — 열 가지 인터페이스 언어 중 어느 언어로든
 - **[백업과 동기화](https://ijry.github.io/yoyocode-docs/reference/settings/system#backup-restore)** — 암호화된 백업, 그리고 파일이나 직접 운영하는 WebDAV 서버를 통한 컴퓨터 간 설정 동기화
-- **[URL 스킴](../../docs/url-scheme.md)** — `codeg://session/<id>`로 다른 앱에서 대화를 엽니다(데스크톱)
+- **[URL 스킴](../../docs/url-scheme.md)** — `yoyocode://session/<id>`로 다른 앱에서 대화를 엽니다(데스크톱)
 - **그 밖에도** — 거의 모든 릴리스마다 새로운 것이 더해집니다. 전체 목록은 [릴리스 노트](https://github.com/ijry/YoYoCode/releases)에 있습니다
 
 ## 🤖 지원 에이전트

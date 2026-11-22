@@ -155,7 +155,7 @@ struct RestorePlan {
 
 /// `remembered` is the stored list; `connection_exists` weeds out the remote
 /// connections deleted since. `local_requested` is a launch that asked for the
-/// local workspace itself (a `codeg://` link on the command line), and
+/// local workspace itself (a `yoyocode://` link on the command line), and
 /// `local_can_hide` whether `main` can be hidden at all this launch — where it
 /// cannot, a hidden `main` would have nothing to bring it back.
 fn plan_restore(

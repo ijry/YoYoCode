@@ -2161,12 +2161,12 @@ const MARKED_SCREENSHOT_BLOCK = [
 ].join("\n")
 
 /** The display uri a badge for a hand-off from google.com carries… */
-const GOOGLE_URI = "codeg://embedded/https%3A%2F%2Fwww.google.com%2F"
+const GOOGLE_URI = "yoyocode://embedded/https%3A%2F%2Fwww.google.com%2F"
 /** …and the one the chip for the site it came from is keyed by. */
-const GOOGLE_SITE = "codeg://embedded/https%3A%2F%2Fwww.google.com"
+const GOOGLE_SITE = "yoyocode://embedded/https%3A%2F%2Fwww.google.com"
 /** The same pair for linux.do. */
-const LINUX_DO_URI = "codeg://embedded/https%3A%2F%2Flinux.do%2F"
-const LINUX_DO_SITE = "codeg://embedded/https%3A%2F%2Flinux.do"
+const LINUX_DO_URI = "yoyocode://embedded/https%3A%2F%2Flinux.do%2F"
+const LINUX_DO_SITE = "yoyocode://embedded/https%3A%2F%2Flinux.do"
 
 describe("extractUserResourcesFromText — codeg references stay inline", () => {
   it("keeps a codeg://agent link inline (the @-prefixed label no longer lifts it to a chip)", () => {
@@ -2363,8 +2363,8 @@ describe("extractUserResourcesFromText — codeg references stay inline", () => 
   // The chip is the site, so two pages of one site are one chip — two chips
   // reading "linux.do" would look like the same thing listed twice.
   it("lists two pages of one site under it once", () => {
-    const topic = "codeg://embedded/https%3A%2F%2Flinux.do%2Ft%2Ftopic%2F1"
-    const latest = "codeg://embedded/https%3A%2F%2Flinux.do%2Flatest%3Fpage%3D2"
+    const topic = "yoyocode://embedded/https%3A%2F%2Flinux.do%2Ft%2Ftopic%2F1"
+    const latest = "yoyocode://embedded/https%3A%2F%2Flinux.do%2Flatest%3Fpage%3D2"
     const { resources } = extractUserResourcesFromText(
       `[Page screenshot](${topic}#a) [a.title](${latest}#b)`
     )
@@ -2445,7 +2445,7 @@ describe("extractUserResourcesFromText — codeg references stay inline", () => 
     expect(resources).toEqual([
       {
         name: "shop.test",
-        uri: "codeg://embedded/https%3A%2F%2Fshop.test",
+        uri: "yoyocode://embedded/https%3A%2F%2Fshop.test",
         mime_type: null,
       },
     ])
@@ -2463,7 +2463,7 @@ describe("extractUserResourcesFromText — codeg references stay inline", () => 
     expect(resources).toEqual([
       {
         name: "notes.md-2f8c",
-        uri: "codeg://embedded/clipboard%3A%2F%2Fnotes.md-2f8c",
+        uri: "yoyocode://embedded/clipboard%3A%2F%2Fnotes.md-2f8c",
         mime_type: null,
       },
     ])
@@ -2601,7 +2601,7 @@ describe("adaptMessageTurn — user reference resources", () => {
     expect(adapted.content).toEqual([
       {
         type: "text",
-        text: "[a.title.raw-link.raw-topic-link](codeg://embedded/https%3A%2F%2Flinux.do%2F) what is this post",
+        text: "[a.title.raw-link.raw-topic-link](yoyocode://embedded/https%3A%2F%2Flinux.do%2F) what is this post",
       },
     ])
   })
@@ -2656,7 +2656,7 @@ describe("adaptMessageTurn — user reference resources", () => {
       msgText
     )
 
-    const uri = "codeg://embedded/https%3A%2F%2Flinux.do%2Ft%2Ftopic%2F1"
+    const uri = "yoyocode://embedded/https%3A%2F%2Flinux.do%2Ft%2Ftopic%2F1"
     // The site alone: the path is on the page, not what the chip is for.
     expect(adapted.userResources).toEqual([
       { name: "linux.do", uri: LINUX_DO_SITE, mime_type: null },
@@ -2726,7 +2726,7 @@ describe("adaptMessageTurn — user reference resources", () => {
       msgText
     )
 
-    const uri = "codeg://embedded/http%3A%2F%2F127.0.0.1%3A3000%2F"
+    const uri = "yoyocode://embedded/http%3A%2F%2F127.0.0.1%3A3000%2F"
     expect(adapted.content).toEqual([
       { type: "text", text: `[2 console errors](${uri}) why` },
     ])
@@ -2734,7 +2734,7 @@ describe("adaptMessageTurn — user reference resources", () => {
     expect(adapted.userResources).toEqual([
       {
         name: "127.0.0.1:3000",
-        uri: "codeg://embedded/http%3A%2F%2F127.0.0.1%3A3000",
+        uri: "yoyocode://embedded/http%3A%2F%2F127.0.0.1%3A3000",
         mime_type: null,
       },
     ])
@@ -2884,13 +2884,13 @@ describe("adaptMessageTurn — user reference resources", () => {
     expect(adapted.content).toEqual([
       {
         type: "text",
-        text: "[Page screenshot](codeg://embedded/http%3A%2F%2Fx.test%2F)",
+        text: "[Page screenshot](yoyocode://embedded/http%3A%2F%2Fx.test%2F)",
       },
     ])
     expect(adapted.userResources).toEqual([
       {
         name: "x.test",
-        uri: "codeg://embedded/http%3A%2F%2Fx.test",
+        uri: "yoyocode://embedded/http%3A%2F%2Fx.test",
         mime_type: null,
       },
     ])
@@ -2914,7 +2914,7 @@ describe("adaptMessageTurn — user reference resources", () => {
     expect(adapted.content).toEqual([
       {
         type: "text",
-        text: "[a.title.raw-link.raw-topic-link](codeg://embedded/https%3A%2F%2Flinux.do%2F) https://linux.do/",
+        text: "[a.title.raw-link.raw-topic-link](yoyocode://embedded/https%3A%2F%2Flinux.do%2F) https://linux.do/",
       },
     ])
   })

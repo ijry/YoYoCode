@@ -1092,7 +1092,7 @@ mod tests {
             connection_id: "c".into(),
             agent: "codex".into(),
             assistant: None,
-            link: "codeg://session/7".into(),
+            link: "yoyocode://session/7".into(),
             workspace: Some("/srv/repo".into()),
             worktree: None,
         };

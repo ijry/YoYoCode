@@ -1,40 +1,54 @@
 # URL scheme
 
-The desktop app registers the custom URL scheme `codeg://` so another program
-can bring Codeg forward and open a specific conversation.
+The desktop app registers the custom URL scheme `yoyocode://` so another program
+can bring YoYoCode forward and open a specific conversation.
 
-This is the OS handler for the same `codeg://session/<id>` form already used
-as an in-app markdown mention. Mention badges (`codeg://agent/…`,
-`codeg://assistant/…`, `codeg://commit/…`, `codeg://embedded/…`) stay
+This is the OS handler for the same `yoyocode://session/<id>` form already used
+as an in-app markdown mention. Mention badges (`yoyocode://agent/…`,
+`yoyocode://assistant/…`, `yoyocode://commit/…`, `yoyocode://embedded/…`) stay
 in-process and are **not** OS navigation.
 
 ## Forms
 
 | URL | Effect |
 | --- | --- |
-| `codeg://session/214` | Open conversation **214** (Codeg's numeric id) |
-| `codeg://session/<external-id>` | Open by the agent's own session id (Grok UUID, Codex thread id, …) |
-| `codeg://workspace?conversationId=214` | Same lookup. `folderId` and `agent` are optional; when omitted they are read from the row |
-| `codeg://workspace?folderId=3&conversationId=214&agent=grok` | Same, but rejected if folder or agent do not match the row |
-| `codeg://open` / `codeg://` | Show the workspace, no tab change |
+| `yoyocode://session/214` | Open conversation **214** (the app's numeric id) |
+| `yoyocode://session/<external-id>` | Open by the agent's own session id (Grok UUID, Codex thread id, …) |
+| `yoyocode://workspace?conversationId=214` | Same lookup. `folderId` and `agent` are optional; when omitted they are read from the row |
+| `yoyocode://workspace?folderId=3&conversationId=214&agent=grok` | Same, but rejected if folder or agent do not match the row |
+| `yoyocode://open` / `yoyocode://` | Show the workspace, no tab change |
 
 A missing or deleted conversation is a no-op besides showing the workspace.
+
+## Legacy `codeg://` links
+
+Before the rename, every link above was written as `codeg://…`. The rename is
+parse-only compatible: stored conversations, saved drafts and agent transcripts
+still carry `codeg://` links and they keep rendering and routing in-app — every
+parser accepts both schemes (see `src-tauri/src/url_scheme.rs`).
+
+The OS, however, registers **only** `yoyocode`. The old `codeg://` scheme is
+deliberately not registered, so a `codeg://` link clicked in a browser or
+handed to `open`/`start` no longer opens the app: registering both would fight
+the upstream Codeg desktop app for the same handler, and the later-installed
+app always wins. Scripts and integrations written against `codeg://` need to
+switch to `yoyocode://`.
 
 ## Examples
 
 ```bash
 # macOS / Linux
-open "codeg://session/214"
-xdg-open "codeg://session/214"
+open "yoyocode://session/214"
+xdg-open "yoyocode://session/214"
 
 # Windows
-start codeg://session/214
+start yoyocode://session/214
 ```
 
 From a local web app (the custom scheme cannot be `fetch`'d; assign it):
 
 ```js
-window.location.href = "codeg://session/214"
+window.location.href = "yoyocode://session/214"
 ```
 
 ## Cold start vs already running
@@ -64,8 +78,8 @@ once on mount, right after subscribing.
 ## Scheme registration
 
 The desktop installer registers the scheme — `CFBundleURLTypes` on macOS,
-protocol handler on Windows, `x-scheme-handler/codeg` on Linux — but the Linux
-half needs two extra pieces, because Tauri's bundler renders the `.desktop`
+protocol handler on Windows, `x-scheme-handler/yoyocode` on Linux — but the
+Linux half needs two extra pieces, because Tauri's bundler renders the `.desktop`
 `Exec` line with no field code ([tauri#15928], [tauri#16014]). Without one, the
 freedesktop spec says the launcher passes no URL, so the app is advertised as
 the scheme owner and then started empty.
@@ -80,7 +94,11 @@ the scheme owner and then started empty.
   portals skip `NoDisplay` entries, which is why the packaged entry above still
   has to be right. On Windows it adds the `HKCU` class key a portable/zip copy
   never gets from the installer. Debug builds are skipped so a dev run cannot
-  take the scheme away from an installed Codeg.
+  take the scheme away from an installed YoYoCode.
+
+The registered scheme is declared once, in `src-tauri/tauri.conf.json`
+(`plugins.deep-link.desktop.schemes`); the macOS plist, Windows installer and
+Linux desktop file all derive from it.
 
 Not available in `yoyocode-server` / browser-only mode — use the
 `/workspace?folderId=&conversationId=&agent=` query string there.

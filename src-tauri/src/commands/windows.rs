@@ -1791,7 +1791,7 @@ pub async fn resize_pet_panel(app: AppHandle, height: f64) -> Result<(), AppComm
 /// conversation. Uses an event (not a URL reload) so the in-memory tab/session
 /// state survives — `PetFocusBridge` in the main window calls `openTab`.
 ///
-/// Only the pet panel calls this. A `codeg://` OS deep link cannot: the emit
+/// Only the pet panel calls this. A `yoyocode://` OS deep link cannot: the emit
 /// reaches only webviews that have *already* registered a JS listener, which
 /// on a cold start is none of them — see `deep_link::PENDING_FOCUS` for the
 /// handoff that path uses instead.

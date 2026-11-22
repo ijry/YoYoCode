@@ -135,7 +135,7 @@ fn roster_line(entry: &AssistantRosterEntry, with_description: bool) -> String {
 pub fn roster_for_schema(roster: &[AssistantRosterEntry]) -> String {
     if roster.is_empty() {
         return " No assistants were configured when this session started; use this only \
-                with an id taken from a `codeg://assistant/<number>` link in the user's message."
+                with an id taken from a `yoyocode://assistant/<number>` link in the user's message."
             .to_string();
     }
     let lines: Vec<String> = roster.iter().map(|e| roster_line(e, true)).collect();

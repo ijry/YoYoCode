@@ -42,7 +42,7 @@ const remarkPlugins = [
   remarkReasoningBreaks,
 ]
 
-// The same links survive as in MessageResponse: `codeg://` references keep
+// The same links survive as in MessageResponse: `yoyocode://` (legacy `codeg://`) references keep
 // their href through sanitize (rehype-allow-codeg), which would otherwise leave
 // "@Codex [blocked]", and relative local links keep theirs through harden —
 // without that `./a.md` would leave harden as `/a.md` and a bare `a.md` would

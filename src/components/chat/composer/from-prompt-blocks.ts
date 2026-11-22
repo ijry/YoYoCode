@@ -20,7 +20,8 @@ import type { ReferenceAttrs } from "./types"
  *   segment (`restoreBlocksIntoEditor` → `textToSeededInlineContent`), so a
  *   queue-edit shows the same badges the sender composed; this function stays
  *   text-level and kind-agnostic.
- * - `resource_link` blocks whose uri is a composer scheme (`file:` / `codeg:`)
+ * - `resource_link` blocks whose uri is a composer scheme (`file:` /
+ *   `yoyocode:`, legacy `codeg:`)
  *   → reference badge segments. `docToPromptBlocks` no longer emits file
  *   resource_links (files stay inline above), but this branch still restores any
  *   composer-scheme resource_link the host appended out of band (e.g. an embedded
@@ -122,7 +123,7 @@ export function blocksToRestoredDraft(
   return { segments, attachments }
 }
 
-// The reference uri grammar (file:/codeg: → ReferenceAttrs) now lives in
+// The reference uri grammar (file:/yoyocode:, legacy codeg: → ReferenceAttrs) now lives in
 // ./reference-uri, shared with transcript badge rendering. Re-exported here
 // under its historical name so existing importers (tests, queue-edit restore)
 // keep working.
