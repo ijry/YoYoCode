@@ -118,11 +118,13 @@ export interface TabItemInternal {
   isChat?: boolean
   /**
    * One-shot preferred config values (e.g. the model picked in the
-   * "continue in a new session" dialog) applied at this draft's connect time
-   * and then cleared. Internal-only and never persisted (drafts never reach
-   * `buildPersistItems`): cleared by `confirmDraftAgent` (an agent switch
-   * invalidates the old agent's values) and `bindConversationTab` (consumed
-   * once the conversation binds).
+   * "continue in a new session" dialog) applied at this draft's connect time.
+   * Internal-only and never persisted (drafts never reach
+   * `buildPersistItems`). Landing a value on an already-connected draft
+   * RECONNECTS it with the override (the lifecycle hook takes the field
+   * reactively); retained after bind so a later reconnect re-applies the
+   * model the conversation started with; cleared by `confirmDraftAgent` (an
+   * agent switch invalidates the old agent's values).
    */
   pendingPreferredConfigValues?: Record<string, string> | null
 }
@@ -2678,9 +2680,10 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
           title: formatConversationTitle(title) || tab.title,
           runtimeConversationId,
           agentTypeProvisional: false,
-          // The draft is bound: the one-shot values were consumed by the
-          // connect this binding follows.
-          pendingPreferredConfigValues: null,
+          // The one-shot values are RETAINED after bind: the connect this
+          // binding follows already applied them, and a later reconnect of
+          // this conversation should re-apply the model it started with.
+          // Cleared only by an agent switch (confirmDraftAgent).
           ...(folderId != null ? { folderId } : {}),
           ...(workingDir != null ? { workingDir } : {}),
         }

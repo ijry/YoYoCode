@@ -239,26 +239,24 @@ describe("useConnectionLifecycle one-shot preferred config values", () => {
     connFns.reset()
   })
 
-  function renderWithGetter(
-    getPreferredConfigValues: () => Record<string, string> | null
+  function renderWithValues(
+    preferredConfigValues: Record<string, string> | null
   ) {
     return renderHook(
-      (props: {
-        getPreferredConfigValues: () => Record<string, string> | null
-      }) =>
+      (props: { preferredConfigValues: Record<string, string> | null }) =>
         useConnectionLifecycle({
           contextKey: "ctx-1",
           agentType: "claude_code",
           isActive: true,
           workingDir: "/repo1",
-          getPreferredConfigValues: props.getPreferredConfigValues,
+          preferredConfigValues: props.preferredConfigValues,
         }),
-      { initialProps: { getPreferredConfigValues } }
+      { initialProps: { preferredConfigValues } }
     )
   }
 
-  it("hands the getter's values to connect as the fifth argument", () => {
-    renderWithGetter(() => ({ model: "dialog-model" }))
+  it("hands the values to connect as the fifth argument", () => {
+    renderWithValues({ model: "dialog-model" })
     expect(connFns.connect).toHaveBeenCalledTimes(1)
     expect(connFns.connect).toHaveBeenCalledWith(
       "claude_code",
@@ -269,8 +267,8 @@ describe("useConnectionLifecycle one-shot preferred config values", () => {
     )
   })
 
-  it("passes null when the getter reports nothing to pin", () => {
-    renderWithGetter(() => null)
+  it("passes null when nothing is pinned", () => {
+    renderWithValues(null)
     expect(connFns.connect).toHaveBeenCalledWith(
       "claude_code",
       "/repo1",
@@ -280,14 +278,26 @@ describe("useConnectionLifecycle one-shot preferred config values", () => {
     )
   })
 
-  it("reads the getter at connect time without re-firing connect", () => {
-    let pinned: Record<string, string> | null = { model: "first" }
-    const { rerender } = renderWithGetter(() => pinned)
+  it("reconnects with the new values when they land on a live tab", () => {
+    // A same-agent draft reuse never re-fires the effect through agent/
+    // workingDir — the REACTIVE value is what forces the reconnect, and the
+    // connect layer's dedup (override compared by reference) sees it as a
+    // changed request.
+    const picked = { model: "dialog-model" }
+    const { rerender } = renderWithValues(null)
     expect(connFns.connect).toHaveBeenCalledTimes(1)
-    // The getter is deliberately non-reactive: its return changing alone must
-    // never reconnect a live tab.
-    pinned = { model: "second" }
-    rerender({ getPreferredConfigValues: () => pinned })
-    expect(connFns.connect).toHaveBeenCalledTimes(1)
+    rerender({ preferredConfigValues: picked })
+    expect(connFns.connect).toHaveBeenCalledTimes(2)
+    expect(connFns.connect).toHaveBeenLastCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      picked
+    )
+    // The same reference again is a no-op (dedup handles it at the context
+    // layer; the effect itself doesn't re-fire for an unchanged dep).
+    rerender({ preferredConfigValues: picked })
+    expect(connFns.connect).toHaveBeenCalledTimes(2)
   })
 })

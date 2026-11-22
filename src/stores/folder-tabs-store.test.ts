@@ -951,9 +951,11 @@ describe("draft one-shot preferred config values", () => {
     useTabStore.getState().rawTabs.find((tab) => tab.id === tabId)
 
   it("lands on a newly created draft tab", () => {
-    const { tabId } = useTabStore.getState().openNewConversationTab(1, "/repo1", {
-      preferredConfigValues: { model: "dialog-model" },
-    })
+    const { tabId } = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", {
+        preferredConfigValues: { model: "dialog-model" },
+      })
     expect(draftByTabId(tabId)?.pendingPreferredConfigValues).toEqual({
       model: "dialog-model",
     })
@@ -961,7 +963,9 @@ describe("draft one-shot preferred config values", () => {
 
   it("lands on the reused per-group draft too", () => {
     const first = useTabStore.getState().openNewConversationTab(1, "/repo1")
-    expect(draftByTabId(first.tabId)?.pendingPreferredConfigValues).toBeUndefined()
+    expect(
+      draftByTabId(first.tabId)?.pendingPreferredConfigValues
+    ).toBeUndefined()
     useTabStore.getState().openNewConversationTab(1, "/repo1", {
       preferredConfigValues: { model: "dialog-model" },
     })
@@ -971,23 +975,29 @@ describe("draft one-shot preferred config values", () => {
   })
 
   it("clears when the user confirms a different agent on the draft", () => {
-    const { tabId } = useTabStore.getState().openNewConversationTab(1, "/repo1", {
-      preferredConfigValues: { model: "dialog-model" },
-    })
+    const { tabId } = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", {
+        preferredConfigValues: { model: "dialog-model" },
+      })
     useTabStore.getState().confirmDraftAgent(tabId, "codex")
     expect(draftByTabId(tabId)?.pendingPreferredConfigValues).toBeNull()
   })
 
-  it("clears once the draft binds to a conversation", () => {
-    const { tabId } = useTabStore.getState().openNewConversationTab(1, "/repo1", {
-      preferredConfigValues: { model: "dialog-model" },
+  it("retains the value after the draft binds to a conversation", () => {
+    // Binding follows the connect that applied the values; a later reconnect
+    // of this conversation must re-apply the model it started with. Only an
+    // agent switch (confirmDraftAgent) clears them.
+    const { tabId } = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", {
+        preferredConfigValues: { model: "dialog-model" },
+      })
+    useTabStore
+      .getState()
+      .bindConversationTab(tabId, 42, "claude_code", "Bound")
+    expect(draftByTabId(tabId)?.pendingPreferredConfigValues).toEqual({
+      model: "dialog-model",
     })
-    useTabStore.getState().bindConversationTab(
-      tabId,
-      42,
-      "claude_code",
-      "Bound"
-    )
-    expect(draftByTabId(tabId)?.pendingPreferredConfigValues).toBeNull()
   })
 })

@@ -701,14 +701,11 @@ const ConversationTabView = memo(function ConversationTabView({
       [tabId, groupId]
     ),
     // One-shot values the draft was opened with (the "continue in a new
-    // session" dialog's model pick): read non-reactively at connect time —
-    // see `UseConnectionLifecycleOptions.getPreferredConfigValues`.
-    getPreferredConfigValues: useCallback(
-      () =>
-        useTabStore.getState().rawTabs.find((tab) => tab.id === tabId)
-          ?.pendingPreferredConfigValues ?? null,
-      [tabId]
-    ),
+    // session" dialog's model pick), passed REACTIVELY: landing a value on an
+    // already-connected draft must reconnect it with the override. Read off
+    // the tab's own reactive selector (`ownTab` above) so the value is
+    // reference-stable while it means the same pick.
+    preferredConfigValues: ownTab?.pendingPreferredConfigValues ?? null,
   })
   const { status: connStatus, sessionId: connSessionId } = conn
   const messageQueue = useMessageQueue(
