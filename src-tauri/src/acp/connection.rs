@@ -4131,11 +4131,32 @@ fn zcode_provider_meta(
     })
 }
 
-fn rfc3339_to_millis(value: &Option<String>) -> Option<i64> {
-    value
-        .as_deref()
-        .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
-        .map(|time| time.timestamp_millis())
+/// One `account/usage_stats` deadline in either wire spelling: the RFC3339
+/// string bridge 0.88.x sent, or the epoch millis JSON number bridge 0.89+
+/// sends (its JS callers hand `new Date()`-style millis). Values under 10^12
+/// read as epoch seconds and scale up — both bridge writers are millis, but
+/// a future one in seconds must not become a 1970 date. Non-positive and
+/// unparseable values drop to `None`: a missing deadline degrades the row,
+/// while a poisoned one would fail the whole payload parse and silently
+/// hide the quota summary (the 0.89.0 regression this once was).
+fn wire_deadline_to_millis(value: &Option<serde_json::Value>) -> Option<i64> {
+    match value {
+        Some(serde_json::Value::String(text)) => chrono::DateTime::parse_from_rfc3339(text)
+            .ok()
+            .map(|time| time.timestamp_millis()),
+        Some(serde_json::Value::Number(number)) => {
+            let millis = number.as_f64()? as i64;
+            if millis <= 0 {
+                return None;
+            }
+            Some(if millis < 100_000_000_000 {
+                millis.saturating_mul(1000)
+            } else {
+                millis
+            })
+        }
+        _ => None,
+    }
 }
 
 fn derived_percent(used: Option<u64>, total: Option<u64>) -> f64 {
@@ -4177,7 +4198,7 @@ pub(crate) fn normalize_account_usage(value: serde_json::Value) -> PlanUsageRepo
                     used_units: window.used_units,
                     total_units: window.total_units,
                     unit: None,
-                    deadline_at: rfc3339_to_millis(&window.resets_at),
+                    deadline_at: wire_deadline_to_millis(&window.resets_at),
                     deadline_kind: Some(PlanUsageDeadlineKind::Expires),
                 })
                 .collect();
@@ -4208,7 +4229,7 @@ pub(crate) fn normalize_account_usage(value: serde_json::Value) -> PlanUsageRepo
                     used_units: None,
                     total_units: None,
                     unit: None,
-                    deadline_at: rfc3339_to_millis(&item.next_reset_time),
+                    deadline_at: wire_deadline_to_millis(&item.next_reset_time),
                     deadline_kind: Some(PlanUsageDeadlineKind::Resets),
                 })
                 .collect();
@@ -52969,6 +52990,70 @@ mod account_usage_tests {
             glm_entry.deadline_kind,
             Some(PlanUsageDeadlineKind::Resets)
         );
+    }
+
+    /// The zcode section zcode-acp 0.89+ answers with (captured verbatim from
+    /// a running 0.89.0 against a real Start Plan account): `resetsAt` is
+    /// epoch millis as a JSON NUMBER, not the RFC3339 string 0.88.x sent.
+    /// Typed `Option<String>` this once failed the WHOLE payload parse, the
+    /// empty report read as "unsupported", and the model picker silently
+    /// showed no quota summary at all — the regression this pins.
+    #[test]
+    fn normalizes_epoch_millis_deadlines_from_bridge_0_89() {
+        let report = normalize_account_usage(serde_json::json!({
+            "zcode": {
+                "kind": "success",
+                "planId": "zcode-v3-start-plan-wk-1120",
+                "planName": "ZCODE WEEKEND BUILD",
+                "windows": [{
+                    "key": "ent-zcode-v3-start-plan-wk-1120-1",
+                    "label": "ZCODE WEEKEND BUILD · GLM-5.3-Flash",
+                    "modelIds": ["glm-5.3-flash"],
+                    "usagePercent": 70.508148,
+                    "usedUnits": 352_540_740u64,
+                    "totalUnits": 500_000_000u64,
+                    "remainingUnits": 147_459_260u64,
+                    "resetsAt": 1_795_395_600_000i64,
+                    "oneTime": true
+                }]
+            },
+            "glm": {"kind": "unavailable"},
+            "opencode": {"kind": "not_configured"},
+            "ollama": {"kind": "not_configured"}
+        }));
+        assert_eq!(report.sections.len(), 1);
+        let zcode = &report.sections[0];
+        assert_eq!(zcode.id, "zcode");
+        assert_eq!(zcode.title, "ZCODE WEEKEND BUILD");
+        let entry = &zcode.entries[0];
+        assert_eq!(entry.label, "ZCODE WEEKEND BUILD · GLM-5.3-Flash");
+        assert!((entry.used_percent - 70.508148).abs() < 1e-6);
+        assert_eq!(entry.used_units, Some(352_540_740));
+        assert_eq!(entry.total_units, Some(500_000_000));
+        assert_eq!(entry.deadline_at, Some(1_795_395_600_000));
+        assert_eq!(entry.deadline_kind, Some(PlanUsageDeadlineKind::Expires));
+    }
+
+    /// A seconds-scale epoch value scales up instead of becoming a 1970 date,
+    /// and a non-positive or garbage deadline drops out without poisoning
+    /// the section.
+    #[test]
+    fn epoch_deadline_scale_and_garbage_edge_cases() {
+        let report = normalize_account_usage(serde_json::json!({
+            "zcode": {
+                "kind": "success",
+                "planName": "Start Plan",
+                "windows": [
+                    {"key": "s", "resetsAt": 1_795_395_600i64},
+                    {"key": "zero", "resetsAt": 0},
+                    {"key": "junk", "resetsAt": true}
+                ]
+            }
+        }));
+        let entries = &report.sections[0].entries;
+        assert_eq!(entries[0].deadline_at, Some(1_795_395_600_000));
+        assert_eq!(entries[1].deadline_at, None);
+        assert_eq!(entries[2].deadline_at, None);
     }
 
     #[test]

@@ -1755,7 +1755,13 @@ pub(crate) struct StartPlanWindowRaw {
     pub total_units: Option<u64>,
     pub remaining_units: Option<u64>,
     /// When the GRANTED quota expires ("valid until"), NOT a reset countdown.
-    pub resets_at: Option<String>,
+    /// The wire drifted across bridge releases: 0.88.x sent an RFC3339 string,
+    /// 0.89+ sends epoch millis as a JSON number. Typed as a raw value on
+    /// purpose — a strict `Option<String>` made the 0.89+ payload fail the
+    /// WHOLE `account/usage_stats` parse, and the empty report silently hid
+    /// the quota summary. `wire_deadline_to_millis` (connection.rs) accepts
+    /// both spellings.
+    pub resets_at: Option<serde_json::Value>,
     pub one_time: Option<bool>,
 }
 
@@ -1778,8 +1784,10 @@ pub(crate) struct GlmQuotaItemRaw {
     pub left_percent: Option<f64>,
     pub used_count: Option<u64>,
     pub total_count: Option<u64>,
-    /// When the periodic window resets (a countdown-style deadline).
-    pub next_reset_time: Option<String>,
+    /// When the periodic window resets (a countdown-style deadline). Same
+    /// wire drift as `StartPlanWindowRaw::resets_at` above — string (0.88.x)
+    /// or epoch millis number (0.89+).
+    pub next_reset_time: Option<serde_json::Value>,
 }
 
 /// What Grok says about ONE of its models, parsed from a session response's
