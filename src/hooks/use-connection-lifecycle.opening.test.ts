@@ -74,13 +74,23 @@ const conn = vi.hoisted(() => ({
   hasCachedSelectors: false,
 }))
 
+const connFns = vi.hoisted(() => {
+  const fns = {
+    connect: vi.fn().mockResolvedValue(undefined),
+    reset() {
+      fns.connect.mockClear()
+    },
+  }
+  return fns
+})
+
 vi.mock("@/hooks/use-connection", () => ({
   useConnection: () => ({
     status: conn.status,
     agentType: conn.agentType,
     selectorsReady: conn.selectorsReady,
     hasCachedSelectors: conn.hasCachedSelectors,
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: connFns.connect,
     disconnect: vi.fn().mockResolvedValue(undefined),
     sendPrompt: vi.fn().mockResolvedValue(undefined),
     setMode: vi.fn().mockResolvedValue(undefined),
@@ -220,5 +230,64 @@ describe("useConnectionLifecycle opening legs", () => {
     // The status-bar row is independent of the cache — the session itself is
     // still not up.
     expect(tasks.live()).toHaveLength(1)
+  })
+})
+
+describe("useConnectionLifecycle one-shot preferred config values", () => {
+  beforeEach(() => {
+    tasks.reset()
+    connFns.reset()
+  })
+
+  function renderWithGetter(
+    getPreferredConfigValues: () => Record<string, string> | null
+  ) {
+    return renderHook(
+      (props: {
+        getPreferredConfigValues: () => Record<string, string> | null
+      }) =>
+        useConnectionLifecycle({
+          contextKey: "ctx-1",
+          agentType: "claude_code",
+          isActive: true,
+          workingDir: "/repo1",
+          getPreferredConfigValues: props.getPreferredConfigValues,
+        }),
+      { initialProps: { getPreferredConfigValues } }
+    )
+  }
+
+  it("hands the getter's values to connect as the fifth argument", () => {
+    renderWithGetter(() => ({ model: "dialog-model" }))
+    expect(connFns.connect).toHaveBeenCalledTimes(1)
+    expect(connFns.connect).toHaveBeenCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      { model: "dialog-model" }
+    )
+  })
+
+  it("passes null when the getter reports nothing to pin", () => {
+    renderWithGetter(() => null)
+    expect(connFns.connect).toHaveBeenCalledWith(
+      "claude_code",
+      "/repo1",
+      undefined,
+      undefined,
+      null
+    )
+  })
+
+  it("reads the getter at connect time without re-firing connect", () => {
+    let pinned: Record<string, string> | null = { model: "first" }
+    const { rerender } = renderWithGetter(() => pinned)
+    expect(connFns.connect).toHaveBeenCalledTimes(1)
+    // The getter is deliberately non-reactive: its return changing alone must
+    // never reconnect a live tab.
+    pinned = { model: "second" }
+    rerender({ getPreferredConfigValues: () => pinned })
+    expect(connFns.connect).toHaveBeenCalledTimes(1)
   })
 })

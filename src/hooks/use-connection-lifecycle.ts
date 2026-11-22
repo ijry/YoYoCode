@@ -55,6 +55,14 @@ interface UseConnectionLifecycleOptions {
    * connection under the same contextKey.
    */
   isTransientUnmount?: () => boolean
+  /**
+   * Read at auto-connect time: one-shot preferred config values (e.g. the
+   * model a "continue in a new session" dialog pinned on the draft tab),
+   * merged over the agent's saved prefs by the connect layer. Deliberately
+   * NON-reactive — the getter is whatever the caller closes over when the
+   * effect fires; changing its return never re-fires connect.
+   */
+  getPreferredConfigValues?: () => Record<string, string> | null
 }
 
 export interface UseConnectionLifecycleReturn {
@@ -142,6 +150,7 @@ export function useConnectionLifecycle({
   conversationId,
   preparing = false,
   isTransientUnmount,
+  getPreferredConfigValues,
 }: UseConnectionLifecycleOptions): UseConnectionLifecycleReturn {
   const t = useTranslations("Folder.chat.connectionLifecycle")
   const { setActiveKey, releaseActiveKey, touchActivity } = useAcpActions()
@@ -252,6 +261,14 @@ export function useConnectionLifecycle({
     }
   }, [isActive, contextKey, setActiveKey, touchActivity])
 
+  // Read at fire time through the ref: the getter is deliberately not a
+  // dependency (see the option's doc) — its return changing alone must never
+  // reconnect a live tab.
+  const getPreferredConfigValuesRef = useRef(getPreferredConfigValues)
+  useEffect(() => {
+    getPreferredConfigValuesRef.current = getPreferredConfigValues
+  }, [getPreferredConfigValues])
+
   // Auto-connect when tab becomes active and workingDir is available.
   // Depends on isActive + workingDir + agentType so that connections wait
   // for folder info to load (workingDir transitions from undefined →
@@ -269,7 +286,8 @@ export function useConnectionLifecycle({
         agentType,
         workingDir,
         sessionIdRef.current,
-        conversationIdRef.current
+        conversationIdRef.current,
+        getPreferredConfigValuesRef.current?.() ?? null
       )
       .then(() => {
         if (!cancelled) {

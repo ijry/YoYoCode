@@ -700,6 +700,15 @@ const ConversationTabView = memo(function ConversationTabView({
       () => isReparentUnmount(useTabStore.getState(), tabId, groupId),
       [tabId, groupId]
     ),
+    // One-shot values the draft was opened with (the "continue in a new
+    // session" dialog's model pick): read non-reactively at connect time —
+    // see `UseConnectionLifecycleOptions.getPreferredConfigValues`.
+    getPreferredConfigValues: useCallback(
+      () =>
+        useTabStore.getState().rawTabs.find((tab) => tab.id === tabId)
+          ?.pendingPreferredConfigValues ?? null,
+      [tabId]
+    ),
   })
   const { status: connStatus, sessionId: connSessionId } = conn
   const messageQueue = useMessageQueue(
