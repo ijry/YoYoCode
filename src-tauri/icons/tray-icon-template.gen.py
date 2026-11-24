@@ -35,7 +35,7 @@ W_LOGICAL, H_LOGICAL = 52, 44
 SCALE = 4
 W, H = W_LOGICAL * SCALE, H_LOGICAL * SCALE
 
-TARGET_H = 40.0
+TARGET_H = 40.0 * 0.9
 
 # White-body detector. The gradient's maximum red channel is 104, so anything
 # with R >= 140 is antialiasing toward the white jellyfish.
