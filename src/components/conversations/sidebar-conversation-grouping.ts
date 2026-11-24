@@ -8,6 +8,7 @@ import {
   DEFAULT_SECTION_ORDER,
   normalizeSectionOrder,
   type SidebarRecentFilter,
+  type SidebarRecentGroupingMode,
   type SidebarSortMode,
   type SidebarSectionKey,
   type SidebarSectionOrder,
@@ -15,6 +16,14 @@ import {
 
 // 每个会话列表的默认根会话数，也是每次“查看更多”增加的条数。
 export const CONVERSATION_PAGE_SIZE = 5
+
+// How many conversations the "Recent" section shows before its "show more" row,
+// and how many each click adds. Recent deliberately re-lists what the Folders /
+// Chat sections already show, so an unbounded one pushes every section below it
+// off the screen — a page keeps it a glance-able "where was I" list. Lives here
+// (not in the list component) because `buildRows` needs it to tell an untouched
+// first page from an expanded one.
+export const RECENT_PAGE_SIZE = 10
 
 export function parseTimestamp(value: string): number {
   const timestamp = Date.parse(value)
@@ -90,11 +99,10 @@ export function compareByPinnedAtDesc(
 
 /**
  * Relative time label (e.g. "5m", "3h", "2d"). `now` is passed in rather than
- * read from `Date.now()` so a whole render tick shares one value: every
- * unchanged row then produces an identical label string and the card `memo`
- * stays hit. The list refreshes `now` once a minute (see
- * `SidebarConversationList`), bounding label staleness without making a single
- * status event re-render every card.
+ * read from `Date.now()` so every label reads the same instant: the list's
+ * shared once-a-minute clock (see `createSidebarRelativeClock`). Each label
+ * subscribes to that clock on its own and re-renders only when its formatted
+ * text changes, so neither a tick nor a status event re-renders every card.
  */
 export function formatRelative(iso: string, now: number): string {
   const ts = parseTimestamp(iso)
@@ -304,6 +312,59 @@ export function selectChatConversationsWithReuse(
   next.sort(compareByUpdatedAtDesc)
   return arraysShallowEqual(prev, next) ? prev : next
 }
+
+/**
+ * Which time group of the "Recent" section a conversation lands in when the
+ * section is grouped by time (see `recentGroupingMode` on {@link buildRows}).
+ *
+ * - A RUNNING conversation (`in_progress`, the same status the card spins on)
+ *   goes to "priorities" whatever its stamp says, so work under way sits on
+ *   top. A `pending_review` one has finished its turn and is dated like any
+ *   other.
+ * - Everything else is dated by `updated_at`, the stamp the section is ordered
+ *   and labelled by (see {@link selectRecentConversationsWithReuse}), so each
+ *   group is a contiguous run of the flat order.
+ * - Day boundaries are LOCAL midnights, built from calendar fields rather than
+ *   by subtracting 24 h multiples, so a DST change never shifts a boundary by
+ *   an hour. "previous7Days" / "previous30Days" cover the 7 / 30 calendar days
+ *   ending today (today and yesterday are claimed first).
+ */
+export function classifyRecentConversation(
+  conv: DbConversationSummary,
+  now: number
+): RecentTimeGroupId {
+  if (conv.status === "in_progress") return "priorities"
+  const ts = parseTimestamp(conv.updated_at || conv.created_at)
+  if (!ts) return "older"
+  const today = new Date(now)
+  const dayStart = (daysAgo: number) =>
+    new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - daysAgo
+    ).getTime()
+  if (ts >= dayStart(0)) return "today"
+  if (ts >= dayStart(1)) return "yesterday"
+  if (ts >= dayStart(6)) return "previous7Days"
+  if (ts >= dayStart(29)) return "previous30Days"
+  return "older"
+}
+
+/** Local midnight starting the calendar day `now` falls on. */
+export function localDayStart(now: number = Date.now()): number {
+  const d = new Date(now)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+/** Display order of the time groups; an empty group is omitted. */
+const RECENT_TIME_GROUP_ORDER: readonly RecentTimeGroupId[] = [
+  "priorities",
+  "today",
+  "yesterday",
+  "previous7Days",
+  "previous30Days",
+  "older",
+]
 
 /**
  * Select the flat "Recent" bucket: every conversation the sidebar can reach,
@@ -1012,6 +1073,47 @@ export interface ConversationMoreRow {
   canReset?: true
 }
 
+/** A time group of the "Recent" section (see
+ *  {@link classifyRecentConversation}). */
+export type RecentTimeGroupId =
+  | "priorities"
+  | "today"
+  | "yesterday"
+  | "previous7Days"
+  | "previous30Days"
+  | "older"
+
+/**
+ * The heading of one time group inside the "Recent" section, emitted only when
+ * the section is grouped by time and the group has rows on the current page.
+ * `count` is how many of the SHOWN rows the group holds; rows still behind the
+ * paging footer are not counted (the section header carries the total).
+ */
+export interface RecentTimeGroupRow {
+  kind: "recent-time-group"
+  groupId: RecentTimeGroupId
+  count: number
+}
+
+/**
+ * The paging footer of the "Recent" section. Recent re-lists every reachable
+ * conversation, so an untruncated one buries the sections below it; the list
+ * shows a page at a time and this row reveals the next one. Carries how many
+ * rows are still hidden so the label can say it.
+ *
+ * It is also where the list gets folded back up, which is why `remaining === 0`
+ * does NOT retire the row: once the section is past its first page the footer
+ * survives with `canReset` alone, as a pure "back to the first page" control.
+ * Retiring it there would take the only way out of a fully expanded list away
+ * exactly when the list is longest.
+ */
+export interface RecentMoreRow {
+  kind: "recent-more"
+  remaining: number
+  /** 仅在收起到默认页确实会隐藏根会话时设置。 */
+  canReset?: true
+}
+
 /**
  * A collapsible section heading. Four exist: "pinned" (always on top, shown only
  * when there are pinned conversations) plus the three user-reorderable ones —
@@ -1086,6 +1188,8 @@ export type SidebarRow =
   | FoldersEmptyRow
   | RecentEmptyRow
   | ConversationMoreRow
+  | RecentTimeGroupRow
+  | RecentMoreRow
   | SubsessionLoadingRow
 
 const MAX_RENDER_DEPTH = 32
@@ -1196,10 +1300,12 @@ function pushConversationRow(
  * linear row list for windowing by the one Virtualizer — pinned conversations
  * are ordinary conversation rows in the SAME array, never a separate list.
  *
- * Pure and deliberately **does not take `now`**: the per-minute `now` tick that
+ * Deliberately **does not take the minute clock**: the per-minute tick that
  * refreshes relative time labels must not rebuild this array (that would defeat
- * the Phase 1 memo chain). `timeLabel` stays computed at the row renderer from
- * the shared `now` against the row's `conversation`.
+ * the Phase 1 memo chain). The row renderer passes only the row's timestamp;
+ * each card's `SidebarRelativeTime` formats it against the shared clock. The
+ * one time input is `currentTime`, which only Recent's time groups read and
+ * whose caller passes the local day's start, so it changes once a day.
  *
  * Structure (top to bottom): the "Pinned" section (when present) is always
  * first; the "Folders", "Chat" and "Recent" sections follow in the order set by
@@ -1229,7 +1335,9 @@ function pushConversationRow(
  *   `showRecent` — it is the one section the user can switch off, and a
  *   permanently-visible header for a hidden section would defeat that. When
  *   shown it mirrors the Chat section: header always, then either a single
- *   `recent-empty` hint or its flat conversation rows. Its rows are tagged
+ *   `recent-empty` hint or its conversation rows — under time-group headings
+ *   (`recent-time-group`) unless `recentGroupingMode` is `"flat"`, see
+ *   {@link classifyRecentConversation}. Its rows are tagged
  *   `recent` because they intentionally duplicate rows already emitted by
  *   Folders / Chat (see {@link ConversationRow.recent}).
  */
@@ -1257,6 +1365,12 @@ export function buildRows(args: {
    *  matching the pre-Recent row model. The app passes it explicitly; its
    *  product default is ON. */
   showRecent?: boolean
+  /** How many Recent conversations to emit before stopping and appending a
+   *  {@link RecentMoreRow}. Optional — omitted means no limit (the historical
+   *  behavior, kept for tests). The app raises it a page at a time, and the
+   *  footer row carries `canReset` once it is past the first page so the list
+   *  can be folded back to {@link RECENT_PAGE_SIZE}. */
+  recentLimit?: number
   /** 各列表独立的根会话展示上限，未设置时使用 {@link CONVERSATION_PAGE_SIZE}。 */
   conversationLimits?: Partial<Record<ConversationListKey, number>>
   /** Vertical order of the Folders / Chat / Recent sections. The Pinned section
@@ -1309,6 +1423,15 @@ export function buildRows(args: {
    * omitted keeps every folder, as before.
    */
   hideEmptyFolders?: boolean
+  /**
+   * How the "Recent" section lays out its page: under time-group headings
+   * (`"time"`, the default) or as one flat `updated_at`-ordered run
+   * (`"flat"`). See {@link classifyRecentConversation}.
+   */
+  recentGroupingMode?: SidebarRecentGroupingMode
+  /** The instant the time groups are measured from; only its local calendar
+   *  day matters. Defaults to `Date.now()`. */
+  currentTime?: number
 }): SidebarRow[] {
   const {
     pinned,
@@ -1323,6 +1446,7 @@ export function buildRows(args: {
     recentConversations = EMPTY_CONVERSATIONS,
     recentExpanded = true,
     showRecent = false,
+    recentLimit,
     conversationLimits,
     sectionOrder = DEFAULT_SECTION_ORDER,
     conversationExpanded = EMPTY_EXPANDED,
@@ -1333,6 +1457,8 @@ export function buildRows(args: {
     layout,
     groupExpanded = EMPTY_GROUP_EXPANDED,
     hideEmptyFolders = false,
+    recentGroupingMode = "time",
+    currentTime = Date.now(),
   } = args
   const rows: SidebarRow[] = []
 
@@ -1530,7 +1656,72 @@ export function buildRows(args: {
       rows.push({ kind: "recent-empty" })
       return
     }
-    pushConversationList(recentConversations, "recent", 0)
+    // Recent re-lists everything the other sections already show, so it is
+    // paged the upstream way: time-grouped headings plus its own footer.
+    // The local `pushConversationList` (ConversationMoreRow) still paginates
+    // pinned / chats / folder lists; Recent uses RecentMoreRow instead.
+    const shown =
+      recentLimit == null
+        ? recentConversations
+        : recentConversations.slice(0, Math.max(0, recentLimit))
+
+    if (recentGroupingMode === "flat") {
+      for (const conv of shown) {
+        pushConversationRow(
+          rows,
+          conv,
+          0,
+          conversationExpanded,
+          childrenByParent,
+          childrenLoading,
+          true
+        )
+      }
+    } else {
+      // Grouped by time. `shown` is ordered by `updated_at`, so each date
+      // group is a contiguous run of it; only "priorities" pulls rows (the
+      // running ones) out of place, and only from the page being shown.
+      const buckets = new Map<RecentTimeGroupId, DbConversationSummary[]>()
+      for (const conv of shown) {
+        const gid = classifyRecentConversation(conv, currentTime)
+        const bucket = buckets.get(gid)
+        if (bucket) bucket.push(conv)
+        else buckets.set(gid, [conv])
+      }
+      for (const gid of RECENT_TIME_GROUP_ORDER) {
+        const bucket = buckets.get(gid)
+        if (!bucket) continue
+        rows.push({
+          kind: "recent-time-group",
+          groupId: gid,
+          count: bucket.length,
+        })
+        for (const conv of bucket) {
+          pushConversationRow(
+            rows,
+            conv,
+            0,
+            conversationExpanded,
+            childrenByParent,
+            childrenLoading,
+            true
+          )
+        }
+      }
+    }
+
+    const remaining = recentConversations.length - shown.length
+    // The gate is "more than a page is on screen", not "recentLimit is past a
+    // page": a raised limit outlives the conversations it revealed (delete them
+    // and the limit still reads 30), which would leave a reset button that
+    // changes nothing on click. `recentLimit == null` is the unpaged mode —
+    // nothing was ever collapsed, so there is nothing to restore.
+    const canReset = recentLimit != null && shown.length > RECENT_PAGE_SIZE
+    if (remaining > 0 || canReset) {
+      const row: RecentMoreRow = { kind: "recent-more", remaining }
+      if (canReset) row.canReset = true
+      rows.push(row)
+    }
   }
 
   // Normalized (not consumed raw) so a truncated / repeated / unknown-entry

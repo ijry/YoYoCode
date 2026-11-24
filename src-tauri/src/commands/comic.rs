@@ -2219,7 +2219,7 @@ pub async fn comic_init_project(
     title: String,
 ) -> Result<ComicOverview, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_init_project_core(&emitter, folder_id, &path, &title).await?;
     comic_overview_core(&db.conn, folder_id).await
 }
@@ -2242,7 +2242,7 @@ pub async fn comic_ingest_source(
     params: SourceIngest,
 ) -> Result<SourceReport, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_ingest_source_core(&emitter, folder_id, &path, params).await
 }
 
@@ -2302,7 +2302,7 @@ pub async fn comic_upsert_series(
     patch: SeriesPatch,
 ) -> Result<SeriesConfig, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_series_core(&emitter, folder_id, &path, patch).await
 }
 
@@ -2317,7 +2317,7 @@ pub async fn comic_set_provider(
     provider_name: Option<String>,
 ) -> Result<SeriesConfig, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_set_project_provider_core(
         &db.conn,
         &emitter,
@@ -2390,7 +2390,7 @@ pub async fn comic_upsert_episode(
     expected_meta: Option<EpisodeMeta>,
 ) -> Result<EpisodeMeta, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_episode_checked_core(
         &emitter,
         folder_id,
@@ -2413,7 +2413,7 @@ pub async fn comic_write_script(
     create_only: Option<bool>,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_write_script_checked_core(
         &emitter,
         folder_id,
@@ -2436,7 +2436,7 @@ pub async fn comic_replace_storyboard(
     expected_storyboard: Option<Storyboard>,
 ) -> Result<Storyboard, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_replace_storyboard_checked_core(
         &emitter,
         folder_id,
@@ -2458,7 +2458,7 @@ pub async fn comic_upsert_shot(
     shot: StoryShot,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_shot_core(&emitter, folder_id, &path, &episode, shot).await
 }
 
@@ -2473,7 +2473,7 @@ pub async fn comic_update_shot_fields(
     patch: ShotFieldsPatch,
 ) -> Result<Storyboard, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_update_shot_fields_core(&emitter, folder_id, &path, &episode, &shot, patch).await
 }
 
@@ -2488,7 +2488,7 @@ pub async fn comic_update_asset_text(
     patch: AssetTextPatch,
 ) -> Result<Value, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_update_asset_text_core(&emitter, folder_id, &path, &kind, &slug, patch).await
 }
 
@@ -2502,7 +2502,7 @@ pub async fn comic_delete_shot(
     shot: String,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_delete_shot_core(&emitter, folder_id, &path, &episode, &shot).await
 }
 
@@ -2516,7 +2516,7 @@ pub async fn comic_reorder_shots(
     order: Vec<String>,
 ) -> Result<Storyboard, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_reorder_shots_core(&emitter, folder_id, &path, &episode, order).await
 }
 
@@ -2529,7 +2529,7 @@ pub async fn comic_upsert_character(
     card: CharacterCard,
 ) -> Result<Value, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_character_core(&emitter, folder_id, &path, card).await
 }
 
@@ -2542,7 +2542,7 @@ pub async fn comic_upsert_scene(
     card: SceneCard,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_scene_core(&emitter, folder_id, &path, card).await
 }
 
@@ -2555,7 +2555,7 @@ pub async fn comic_upsert_prop(
     card: PropCard,
 ) -> Result<(), AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_upsert_prop_core(&emitter, folder_id, &path, card).await
 }
 
@@ -2581,7 +2581,7 @@ pub async fn comic_request_speech(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_request_speech_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         params,
@@ -2602,7 +2602,7 @@ pub async fn comic_set_shot_audio(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_set_shot_audio_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         ShotAudioParams {
@@ -2626,7 +2626,7 @@ pub async fn comic_request_video(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_request_video_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         params,
@@ -2648,7 +2648,7 @@ pub async fn comic_set_shot_video(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_set_shot_video_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         ShotVideoParams {
@@ -2673,7 +2673,7 @@ pub async fn comic_clear_shot_video(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_clear_shot_video_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         params,
@@ -2730,7 +2730,7 @@ pub async fn comic_compose_episode(
     let path = folder_path(&db.conn, folder_id).await?;
     comic_compose_episode_core(
         &db.conn,
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         folder_id,
         &path,
         params,
@@ -2760,7 +2760,7 @@ pub async fn comic_bind_candidate(
     candidate: String,
 ) -> Result<Value, AppCommandError> {
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_set_shot_image_core(&emitter, folder_id, &path, &episode, &shot, &candidate).await
 }
 
@@ -2783,7 +2783,7 @@ pub async fn comic_save_asset_image(
         .decode(image_base64.trim())
         .map_err(|e| AppCommandError::invalid_input(format!("image_base64: {e}")))?;
     let path = folder_path(&db.conn, folder_id).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     comic_save_asset_image_core(&emitter, folder_id, &path, &kind, &slug, &slot, bytes).await
 }
 

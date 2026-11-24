@@ -555,7 +555,7 @@ pub fn voice_stream_cancel_core(session_id: &str) -> VoiceStreamCancelResult {
 pub async fn voice_stream_prepare(
     app: tauri::AppHandle,
 ) -> Result<VoiceStreamStatus, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     voice_stream_prepare_core(&emitter).await
 }
 
@@ -564,7 +564,7 @@ pub async fn voice_stream_prepare(
 pub async fn voice_stream_start(
     app: tauri::AppHandle,
 ) -> Result<VoiceStreamStartResult, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     voice_stream_start_core(&emitter).await
 }
 
@@ -575,7 +575,7 @@ pub async fn voice_stream_chunk(
     session_id: String,
     pcm16_base64: String,
 ) -> Result<VoiceStreamChunkResult, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     voice_stream_chunk_core(&emitter, &session_id, &pcm16_base64).await
 }
 
@@ -585,7 +585,7 @@ pub async fn voice_stream_stop(
     app: tauri::AppHandle,
     session_id: String,
 ) -> Result<VoiceStreamFinal, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     voice_stream_stop_core(&emitter, &session_id).await
 }
 

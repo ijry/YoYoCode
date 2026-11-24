@@ -13,8 +13,10 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from "react"
 import { useTranslations } from "next-intl"
@@ -38,6 +40,7 @@ import {
   acpPrompt,
   acpSetMode,
   acpSetConfigOption,
+  acpSetComposerMode,
   acpGoalControl,
   acpCancel,
   acpRespondPermission,
@@ -83,6 +86,7 @@ import type {
   PlanApprovalAnswer,
   SessionConfigKindInfo,
   SessionConfigOptionInfo,
+  SessionConfigSelectOptionInfo,
   SessionFailureRecord,
   SessionModeStateInfo,
   SessionUsageUpdateInfo,
@@ -210,6 +214,11 @@ export interface ToolCallInfo {
    */
   images: ToolCallImage[]
 }
+
+type PermissionToolContext = Pick<
+  ToolCallInfo,
+  "tool_call_id" | "title" | "kind" | "raw_input" | "meta"
+>
 
 export interface PendingPermission {
   request_id: string
@@ -345,6 +354,20 @@ export interface ConnectionState {
    *  hosts → `false`. */
   messageQueueBackendDrain: boolean
   selectorsReady: boolean
+  /**
+   * The composer's pending mode pick on this connection (codeg#1179): a mode
+   * the user picked for a persisted conversation, which the tab applies at
+   * its next send. Recorded by the backend (`acp_set_composer_mode`), carried
+   * on the snapshot, cleared by the backend once the agent's mode reached it.
+   * Absent / `null` when there is none.
+   */
+  composerModeId?: string | null
+  /**
+   * True while a draft's first send is being admitted (`beginFirstSend` →
+   * `releaseFirstSend`): the surfaces disable the mode / option selectors so
+   * the prompt runs with exactly what was showing at submit.
+   */
+  selectorsLocked?: boolean
   sessionId: string | null
   modes: SessionModeStateInfo | null
   configOptions: SessionConfigOptionInfo[] | null
@@ -547,7 +570,7 @@ export interface ConnectionState {
    * out-of-turn stand-in. Cleared when the next prompting turn starts.
    * `null` when empty (the common case allocates nothing).
    */
-  outOfTurnToolCalls: ReadonlyMap<string, ToolCallInfo> | null
+  outOfTurnToolCalls: ReadonlyMap<string, PermissionToolContext> | null
   /**
    * Whether a turn has run on this connection: it has been `prompting` at
    * least once, or the snapshot it was hydrated from says one has (it is
@@ -850,6 +873,12 @@ type Action =
     }
   | { type: "MODE_CHANGED"; contextKey: string; modeId: string }
   | {
+      type: "COMPOSER_MODE_CHANGED"
+      contextKey: string
+      modeId: string | null
+    }
+  | { type: "SELECTORS_LOCKED"; contextKey: string; locked: boolean }
+  | {
       type: "CONFIG_OPTION_CHANGED"
       contextKey: string
       configId: string
@@ -877,6 +906,9 @@ type Action =
       message: string
       /** The agent's own words, as opposed to codeg's verdict. */
       fromAgent: boolean
+      /** `message` also streamed as reply text, which the line replaces
+       *  (`SessionFailureRecord.echoed_in_reply`). */
+      echoedInReply?: boolean
     }
   | {
       type: "CLAUDE_API_RETRY"
@@ -1340,7 +1372,7 @@ function fillStrippedEditInput(
 
 function mergePermissionToolCallWithLiveInfo(
   toolCall: unknown,
-  liveInfo: ToolCallInfo | null
+  liveInfo: PermissionToolContext | null
 ): unknown {
   if (!liveInfo) return toolCall
 
@@ -1406,7 +1438,7 @@ function mergePermissionToolCallWithLiveInfo(
 
 function mergePendingPermissionWithLiveInfo(
   pendingPermission: PendingPermission | null,
-  liveInfo: ToolCallInfo | null
+  liveInfo: PermissionToolContext | null
 ): PendingPermission | null {
   if (!pendingPermission || !liveInfo) return pendingPermission
   const permissionCallId = extractPermissionToolCallId(
@@ -1534,6 +1566,35 @@ function samePlanEntries(a: PlanEntryInfo[], b: PlanEntryInfo[]): boolean {
   return true
 }
 
+/**
+ * One select entry against another, everything rendered included: a model
+ * entry's `reasoning_efforts` sets the effort range on its row, and an agent
+ * can change it without touching anything else (a codex catalog refresh that
+ * gives an unselected model another level) — a push swallowed here would leave
+ * the row's range stale.
+ */
+function sameSelectEntry(
+  a: SessionConfigSelectOptionInfo,
+  b: SessionConfigSelectOptionInfo
+): boolean {
+  if (
+    a.value !== b.value ||
+    a.name !== b.name ||
+    a.description !== b.description
+  ) {
+    return false
+  }
+  const left = a.reasoning_efforts ?? null
+  const right = b.reasoning_efforts ?? null
+  if (left === right) return true
+  if (!left || !right) return false
+  return (
+    (left.recommended ?? null) === (right.recommended ?? null) &&
+    left.values.length === right.values.length &&
+    left.values.every((level, index) => level === right.values[index])
+  )
+}
+
 function sameConfigOptions(
   a: SessionConfigOptionInfo[] | null,
   b: SessionConfigOptionInfo[]
@@ -1580,13 +1641,7 @@ function sameConfigOptions(
     if (leftKind.groups.length !== rightKind.groups.length) return false
 
     for (let j = 0; j < leftKind.options.length; j += 1) {
-      const lo = leftKind.options[j]
-      const ro = rightKind.options[j]
-      if (
-        lo.value !== ro.value ||
-        lo.name !== ro.name ||
-        lo.description !== ro.description
-      ) {
+      if (!sameSelectEntry(leftKind.options[j], rightKind.options[j])) {
         return false
       }
     }
@@ -1597,15 +1652,7 @@ function sameConfigOptions(
       if (lg.group !== rg.group || lg.name !== rg.name) return false
       if (lg.options.length !== rg.options.length) return false
       for (let k = 0; k < lg.options.length; k += 1) {
-        const lgo = lg.options[k]
-        const rgo = rg.options[k]
-        if (
-          lgo.value !== rgo.value ||
-          lgo.name !== rgo.name ||
-          lgo.description !== rgo.description
-        ) {
-          return false
-        }
+        if (!sameSelectEntry(lg.options[k], rg.options[k])) return false
       }
     }
   }
@@ -1704,6 +1751,42 @@ function ensureLiveMessage(prev: LiveMessage | null): LiveMessage {
     content: [],
     startedAt: Date.now(),
   }
+}
+
+/**
+ * `content` without the failure account `message` a reply chunk told (see
+ * `SessionFailureRecord.echoed_in_reply`): its LAST occurrence in the last
+ * main-thread text block is cut out — anything the agent appended after it
+ * (Antigravity's citation notice) stays — and the block goes once nothing is
+ * left. Returned as is (same reference) when there is no such occurrence.
+ *
+ * The backend's `drop_echoed_failure_text` (`acp/session_state.rs`) is the
+ * same rule, so a snapshot and a watching client agree; keep them in step.
+ */
+export function dropEchoedFailureText(
+  content: LiveContentBlock[],
+  message: string
+): LiveContentBlock[] {
+  const account = message.trim()
+  if (!account) return content
+  let index = -1
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i]
+    if (block.type === "text" && block.parentToolUseId === undefined) {
+      index = i
+      break
+    }
+  }
+  if (index < 0) return content
+  const block = content[index] as Extract<LiveContentBlock, { type: "text" }>
+  const at = block.text.lastIndexOf(account)
+  if (at < 0) return content
+  const before = block.text.slice(0, at).trimEnd()
+  const after = block.text.slice(at + account.length).trimStart()
+  const rest = before && after ? `${before}\n\n${after}` : before || after
+  return rest
+    ? content.map((b, i) => (i === index ? { ...block, text: rest } : b))
+    : content.filter((_, i) => i !== index)
 }
 
 /** Shared empty `steeredMessageIds`, so a turn that steers nothing (almost all
@@ -1887,9 +1970,9 @@ const overlayFoldRefetchAt = new Map<number, number>()
 /** Upsert one out-of-turn tool-call info into the bounded registry,
  *  evicting the oldest entry past the cap. Returns a fresh map. */
 function recordOutOfTurnToolCall(
-  existing: ReadonlyMap<string, ToolCallInfo> | null,
-  info: ToolCallInfo
-): ReadonlyMap<string, ToolCallInfo> {
+  existing: ReadonlyMap<string, PermissionToolContext> | null,
+  info: PermissionToolContext
+): ReadonlyMap<string, PermissionToolContext> {
   const next = new Map(existing ?? [])
   next.delete(info.tool_call_id)
   next.set(info.tool_call_id, info)
@@ -2325,6 +2408,8 @@ function connectionsReducer(
         pendingUserMessage: action.patch.pendingUserMessage,
         promptCapabilities: mergedPromptCapabilities,
         selectorsReady: mergedSelectorsReady,
+        // Current state like `status`: the backend's recorded composer pick.
+        composerModeId: action.patch.composerModeId,
         supportsFork: mergedSupportsFork,
         messageQueueBackendDrain: mergedMessageQueueBackendDrain,
         hasPrompted: mergedHasPrompted,
@@ -2547,17 +2632,12 @@ function connectionsReducer(
       // the garbled-timeline bug), but its context is still recorded so a
       // background permission request can render command/diff details.
       if (conn.status !== "prompting") {
-        const info: ToolCallInfo = {
+        const info: PermissionToolContext = {
           tool_call_id: action.tool_call_id,
           title: action.title,
           kind: action.kind,
-          status: action.status,
-          content: action.content,
           raw_input: action.raw_input,
-          ...replaceLiveToolRawOutput(action.raw_output),
-          locations: action.locations,
           meta,
-          images: action.images ?? [],
         }
         const next = new Map(state)
         next.set(action.contextKey, {
@@ -2661,30 +2741,13 @@ function connectionsReducer(
       // flips back.
       if (conn.status !== "prompting") {
         const existing = conn.outOfTurnToolCalls?.get(action.tool_call_id)
-        const merged: ToolCallInfo = existing
-          ? {
-              ...existing,
-              title: action.title ?? existing.title,
-              status: action.status ?? existing.status,
-              content: action.content ?? existing.content,
-              raw_input: action.raw_input ?? existing.raw_input,
-              locations: action.locations ?? existing.locations,
-              meta: action.meta ?? existing.meta,
-              images: action.images !== null ? action.images : existing.images,
-            }
-          : {
-              tool_call_id: action.tool_call_id,
-              title: action.title ?? action.fallback_title,
-              kind: action.fallback_kind,
-              status: action.status ?? "pending",
-              content: action.content,
-              raw_input: action.raw_input,
-              raw_output_chunks: [],
-              raw_output_total_bytes: 0,
-              locations: action.locations,
-              meta: action.meta,
-              images: action.images ?? [],
-            }
+        const merged: PermissionToolContext = {
+          tool_call_id: action.tool_call_id,
+          title: action.title ?? existing?.title ?? action.fallback_title,
+          kind: existing?.kind ?? action.fallback_kind,
+          raw_input: action.raw_input ?? existing?.raw_input ?? null,
+          meta: action.meta ?? existing?.meta ?? null,
+        }
         const next = new Map(state)
         next.set(action.contextKey, {
           ...conn,
@@ -3132,6 +3195,24 @@ function connectionsReducer(
       return next
     }
 
+    case "COMPOSER_MODE_CHANGED": {
+      const conn = state.get(action.contextKey)
+      if (!conn) return state
+      if ((conn.composerModeId ?? null) === action.modeId) return state
+      const next = new Map(state)
+      next.set(action.contextKey, { ...conn, composerModeId: action.modeId })
+      return next
+    }
+
+    case "SELECTORS_LOCKED": {
+      const conn = state.get(action.contextKey)
+      if (!conn) return state
+      if ((conn.selectorsLocked ?? false) === action.locked) return state
+      const next = new Map(state)
+      next.set(action.contextKey, { ...conn, selectorsLocked: action.locked })
+      return next
+    }
+
     case "MODE_CHANGED": {
       const conn = state.get(action.contextKey)
       if (!conn?.modes) return state
@@ -3273,13 +3354,19 @@ function connectionsReducer(
           return state
         }
       }
+      // The account already streamed as reply text (Antigravity tells a dead
+      // executor as an ordinary reply chunk, and only its trajectory says it
+      // ended the turn): the line takes those words' place, as on reload.
+      const content = action.echoedInReply
+        ? dropEchoedFailureText(prev.content, message)
+        : prev.content
       const next = new Map(state)
       next.set(action.contextKey, {
         ...conn,
         liveMessage: {
           ...prev,
           content: [
-            ...prev.content.filter((block) => block.type !== "turn_error"),
+            ...content.filter((block) => block.type !== "turn_error"),
             {
               type: "turn_error" as const,
               message,
@@ -3607,7 +3694,7 @@ export interface AcpActionsValue {
    * reason and the agent process may still be alive. Callers that report a
    * restart to the user gate on it; fire-and-forget teardowns ignore it.
    */
-  disconnect(contextKey: string): Promise<boolean>
+  disconnect(contextKey: string, onlyIfIdle?: boolean): Promise<boolean>
   /**
    * Release a connection whose SURFACE went away on its own (a preview tab
    * replaced by the next single-click in the sidebar) — never a user-intent
@@ -3629,11 +3716,35 @@ export interface AcpActionsValue {
     }
   ): Promise<void>
   setMode(contextKey: string, modeId: string): Promise<void>
+  /**
+   * Apply a config option pick. `saveAsDefault` also records it as the
+   * new-conversation default — only an explicit pick in a DRAFT does that
+   * (codeg#1179); a pick in an existing conversation is persisted on its row
+   * by the backend and never touches the default.
+   */
   setConfigOption(
     contextKey: string,
     configId: string,
-    valueId: string
+    valueId: string,
+    opts?: { saveAsDefault?: boolean }
   ): Promise<void>
+  /**
+   * Record the composer's pending mode pick for a persisted conversation
+   * (optimistic; rolled back when the backend refuses or vetoes it).
+   * `initial` = a draft's one-time hand-over at its first send. Resolves to
+   * whether the backend applied it.
+   */
+  setComposerMode(
+    contextKey: string,
+    modeId: string | null,
+    opts?: { initial?: boolean }
+  ): Promise<boolean>
+  /** Lock the selectors at `contextKey` for a draft's first send. Returns
+   *  the token `releaseFirstSend` needs. */
+  beginFirstSend(contextKey: string): number
+  /** Release a first-send lock. Idempotent and token-specific: a stale token
+   *  never unlocks a newer attempt. */
+  releaseFirstSend(contextKey: string, token: number): void
   cancel(contextKey: string): Promise<void>
   respondPermission(
     contextKey: string,
@@ -3930,9 +4041,18 @@ type TurnFailurePart =
   | {
       kind: "verdict"
       title: string
+      /** The agent's own account behind the verdict, as the second line. */
+      description?: string
       evidence?: string
       /** Buttons of the verdict's own, for a failure no typed record explains. */
       actions?: NotifyAction[]
+      /**
+       * The verdict restates the warning the agent raised during the turn
+       * (`turn_failed_empty_hook`, whose message is that warning's text):
+       * it takes over that notice's notification instead of raising a second
+       * one, when this text is the one the notice told.
+       */
+      explainedBy?: string
     }
 
 /** A connect failure's notification key: one per surface. */
@@ -3955,6 +4075,9 @@ interface TurnFailureState {
   }
   /** codeg's verdict; `paired` once a typed account carries it. */
   verdict?: { key: string; evidence?: string; paired: boolean }
+  /** The last warning or error notice of the turn: its notification's key and
+   *  its headline, for a verdict that restates it (see `explainedBy`). */
+  lastNotice?: { key: string; title: string }
 }
 
 // ── Provider ──
@@ -4272,8 +4395,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // Set of refs (not callbacks) so unmount cleanup matches the original
   // registration even when caller-side handler identity changes per render.
   // Populated by the `useAcpEvent` hook; read by the primary `acp://event`
-  // listener and the buffered-events replay loop.
-  const eventSubscribersRef = useRef<Set<EventSubscriberRef>>(new Set())
+  // listener and the buffered-events replay loop. The set is created once as
+  // part of the context value (`eventSubscriberApi`), so the provider can hand
+  // it out without reading the ref during render.
+  const [eventSubscriberApi] = useState<AcpEventSubscriberApi>(() => ({
+    subscribers: new Set(),
+  }))
+  const eventSubscribersRef = useRef<Set<EventSubscriberRef>>(
+    eventSubscriberApi.subscribers
+  )
 
   // ── Notify helpers ──
 
@@ -4942,13 +5072,21 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           return
         }
-        const key = state.verdict?.key ?? newKey()
+        const notice = state.lastNotice
+        const key =
+          state.verdict?.key ??
+          (notice &&
+          part.explainedBy !== undefined &&
+          part.explainedBy.trimStart().startsWith(notice.title)
+            ? notice.key
+            : newKey())
         state.verdict = { key, evidence: part.evidence, paired: false }
         state.keys.add(key)
         notify({
           level: "error",
           key,
           title: part.title,
+          description: part.description,
           evidence: part.evidence,
           actions: part.actions,
         })
@@ -4996,6 +5134,21 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           state.verdict?.key === key ? state.verdict.evidence : undefined,
         actions,
       })
+    },
+    []
+  )
+
+  /** A warning or error notice told during the turn: remembered, so a verdict
+   *  that only restates it takes its notification over (see `explainedBy`). */
+  const noteTurnNotice = useCallback(
+    (connectionId: string, key: string, title: string) => {
+      const states = turnFailuresRef.current
+      let state = states.get(connectionId)
+      if (!state) {
+        state = { keys: new Set(), typedKeys: new Map() }
+        states.set(connectionId, state)
+      }
+      state.lastNotice = { key, title }
     },
     []
   )
@@ -5323,6 +5476,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // follow a plan or usage update.
         case "turn_failed_empty_metadata":
           return t("backendErrors.turnFailedEmptyMetadata", {
+            agent: agentLabel,
+          })
+        // One of the user's hooks blocked or stopped the turn, as the agent
+        // said in a notice (codex's "UserPromptSubmit hook blocked the
+        // prompt", …). This line leaves the agent's words out — it also goes
+        // to the OS notification, which never carries agent output — and they
+        // ride as the notification's second line (`rawAsDetail`).
+        case "turn_failed_empty_hook":
+          return t("backendErrors.turnFailedEmptyHook", {
             agent: agentLabel,
           })
         case "grok_model_switch_incompatible_agent":
@@ -5992,6 +6154,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             modeId: e.mode_id,
           })
           break
+        case "composer_mode_changed":
+          flushStreamingQueue(contextKey)
+          dispatch({
+            type: "COMPOSER_MODE_CHANGED",
+            contextKey,
+            modeId: e.mode_id ?? null,
+          })
+          break
         case "plan_update":
           flushStreamingQueue(contextKey)
           dispatch({
@@ -6033,6 +6203,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
                 own ||
                 tFailure(sessionFailureCategoryLabelKey(e.record.category)),
               fromAgent: own.length > 0,
+              echoedInReply:
+                own.length > 0 && e.record.echoed_in_reply === true,
             })
           }
           if (quiet || !failureConn) break
@@ -6109,6 +6281,16 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               : notice.title,
             description: notice.description,
           })
+          // An empty turn this notice accounts for ends on a verdict that
+          // restates it (`turn_failed_empty_hook`); that one takes this
+          // notification over rather than telling it twice.
+          if (notice.level !== "info") {
+            noteTurnNotice(
+              nc?.connectionId ?? contextKey,
+              notice.id,
+              notice.title
+            )
+          }
           break
         }
         case "plugin_load_failures": {
@@ -6312,7 +6494,17 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // code: the message is the agent's own), closes the turn with the
           // failure line (see `TURN_FAILED`). Store state, so even when
           // `quiet`; outside a turn the reducer ignores it.
-          if (isFailedTurnVerdict(e.code)) {
+          if (e.code === "turn_failed_empty_hook") {
+            // A hook stopped the turn before any reply, as the agent said:
+            // its words (the hook's reason included) close the turn, as a
+            // typed record's do.
+            dispatch({
+              type: "TURN_FAILED",
+              contextKey,
+              message: e.message,
+              fromAgent: true,
+            })
+          } else if (isFailedTurnVerdict(e.code)) {
             dispatch({
               type: "TURN_FAILED",
               contextKey,
@@ -6379,6 +6571,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             notifyTurnFailure(connKey, {
               kind: "verdict",
               title: text,
+              description: reason,
+              explainedBy:
+                e.code === "turn_failed_empty_hook" ? e.message : undefined,
               evidence,
               actions:
                 e.code === "turn_failed_auth_required" && signInAgentType
@@ -6571,6 +6766,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       enqueueStreamingAction,
       flushPendingToolCallUpdates,
       flushStreamingQueue,
+      noteTurnNotice,
       notifyTurnFailure,
       rememberResolvedIdentity,
       reportConfigOptionVerdict,
@@ -7103,6 +7299,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // "responding" with a dead Stop button. `false` means the backend has no
   // live connection under that id, which is exactly the condition to settle.
   useEffect(() => {
+    const pending = new Map<string, Set<string>>()
+    let disposed = false
     const timer = setInterval(() => {
       const currentActiveKey = storeRef.current.activeKey
       const currentOpenTabKeys = heldOpenKeys()
@@ -7123,13 +7321,26 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       if (currentActiveKey) consider(currentActiveKey)
       for (const contextKey of currentOpenTabKeys) consider(contextKey)
       for (const { contextKey, connectionId } of toTouch) {
-        void isConnectionLiveOnBackend(connectionId).then((live) => {
-          if (!live) markConnectionGone(contextKey, connectionId)
-        })
+        // A slow IPC must not leave another unresolved probe on every tick.
+        const contexts = pending.get(connectionId) ?? new Set<string>()
+        if (contexts.has(contextKey)) continue
+        contexts.add(contextKey)
+        pending.set(connectionId, contexts)
+        void isConnectionLiveOnBackend(connectionId)
+          .then((live) => {
+            if (!disposed && !live) markConnectionGone(contextKey, connectionId)
+          })
+          .finally(() => {
+            contexts.delete(contextKey)
+            if (contexts.size === 0) pending.delete(connectionId)
+          })
       }
     }, CONNECTION_KEEPALIVE_INTERVAL_MS)
 
-    return () => clearInterval(timer)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+    }
   }, [heldOpenKeys, isConnectionLiveOnBackend, markConnectionGone])
 
   // ── Idle sweep timer ──
@@ -7183,15 +7394,25 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       }
 
       for (const { contextKey, connectionId } of toDisconnect) {
-        acpDisconnect(connectionId).catch(() => {})
-        releaseConnectionRoute(connectionId, contextKey)
-        teardownAttachSubscription(contextKey)
-        lastActivityRef.current.delete(contextKey)
-        pendingUnmappedEventsRef.current.delete(connectionId)
-        // Reclaimed for idleness, not closed: the tab is still open and its
-        // Reconnect button must resume this session, not start a new one.
-        captureIdentityBeforeRemoval(contextKey)
-        dispatch({ type: "CONNECTION_REMOVED", contextKey })
+        void acpDisconnect(connectionId, true)
+          .catch((error: unknown) => isConnectionGoneError(error))
+          .then((released) => {
+            if (
+              released === false ||
+              storeRef.current.connections.get(contextKey)?.connectionId !==
+                connectionId
+            )
+              return
+            releaseConnectionRoute(connectionId, contextKey)
+            teardownAttachSubscription(contextKey)
+            lastActivityRef.current.delete(contextKey)
+            pendingUnmappedEventsRef.current.delete(connectionId)
+            // Reclaimed for idleness, not closed: the tab is still open and its
+            // Reconnect button must resume this session, not start a new one.
+            captureIdentityBeforeRemoval(contextKey)
+            dispatch({ type: "CONNECTION_REMOVED", contextKey })
+          })
+          .catch(() => {})
       }
     }, IDLE_SWEEP_INTERVAL_MS)
 
@@ -7249,7 +7470,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // its work settles — the same rule as a closed tab.
           if (conn && isConnectionBusy(conn)) busy = true
         }
-        if (owned && !busy) acpDisconnect(connectionId).catch(() => {})
+        if (owned && !busy) acpDisconnect(connectionId, true).catch(() => {})
       }
       for (const [, sub] of attachSubs) {
         try {
@@ -7781,9 +8002,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // need this gate, but the wait is a fast no-op once the initial
         // subscribe resolves.
         await waitForListenerReady()
-        // Ship the user's saved selector preferences (mode + per-config
-        // values, persisted per agentType in localStorage) up to the backend
-        // at connect time. The backend applies them on the freshly-attached
+        // Ship the new-conversation default (mode + per-config values,
+        // persisted per agentType in localStorage) up to the backend at
+        // connect time, with the conversation's id when it is an existing one:
+        // the backend then replays that conversation's OWN stored selection
+        // instead, and uses the default only for a draft or (once) a legacy
+        // conversation that never recorded one (codeg#1179).
+        //
+        // Previously: ship the user's saved selector preferences up to the
+        // backend at connect time. The backend applies them on the freshly-attached
         // session before emitting `session_modes` / `session_config_options`,
         // so by the time the frontend sees those events (or a snapshot frame
         // on the Subscribe-with-Snapshot attach), `current_mode_id` and
@@ -7806,7 +8033,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           workingDir,
           sessionId,
           savedPrefs.modeId,
-          configValues
+          configValues,
+          conversationId != null && conversationId > 0 ? conversationId : null
         )
 
         // If disconnect was requested while connect was in flight, tear down
@@ -8022,10 +8250,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       waitForListenerReady,
     ]
   )
-  connectRef.current = connect
 
   const disconnect = useCallback(
-    async (contextKey: string): Promise<boolean> => {
+    async (contextKey: string, onlyIfIdle = false): Promise<boolean> => {
       pendingConnectRequestsRef.current.delete(contextKey)
       // Whatever the surface does next — close, switch agent, reconnect — the
       // last attempt's failure no longer describes it.
@@ -8088,11 +8315,16 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       // the follow-up connect can re-attach to the process it believed it had
       // replaced. Report which happened and let the caller decide.
       let tornDown = true
-      await acpDisconnect(conn.connectionId).catch((error: unknown) => {
+      const released = await (
+        onlyIfIdle
+          ? acpDisconnect(conn.connectionId, true)
+          : acpDisconnect(conn.connectionId)
+      ).catch((error: unknown) => {
         if (isConnectionGoneError(error)) return
         console.warn("[Acp] backend teardown failed, releasing locally:", error)
         tornDown = false
       })
+      if (released === false) return false
       releaseConnectionRoute(conn.connectionId, contextKey)
       teardownAttachSubscription(contextKey)
       lastActivityRef.current.delete(contextKey)
@@ -8125,7 +8357,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       // acpDisconnects), and leaving one attached would leak its subscription
       // — the idle sweep skips viewers.
       if (conn && !conn.isViewer && isConnectionBusy(conn)) return
-      await disconnect(contextKey)
+      await disconnect(contextKey, true)
     },
     [disconnect]
   )
@@ -8279,7 +8511,13 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [connect, disconnect, resolveReconnectRequest, waitForConnectSettled]
   )
 
-  reconnectRef.current = reconnect
+  // Synced in a layout effect rather than during render. Every reader runs
+  // after the commit: `connectRef` from a connect() `finally` (async, so past
+  // any awaiting), `reconnectRef` from a toast's Retry click.
+  useLayoutEffect(() => {
+    connectRef.current = connect
+    reconnectRef.current = reconnect
+  })
 
   const dismissConfigStale = useCallback(
     (contextKey: string) => {
@@ -8343,6 +8581,35 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     teardownAttachSubscription,
   ])
 
+  // The newest setter still in flight per contextKey and selector. A
+  // setter's IPC returns once its command is enqueued on the connection, and
+  // the prompt goes through the same queue — so a prompt issued after the
+  // newest pick of every selector was enqueued runs with what the composer
+  // showed (codeg#1179). Only the NEWEST per selector is waited for: waiting
+  // for a superseded one too would hold the prompt until that stale request
+  // landed. Setters are issued at once, as before; the row records whatever
+  // the session ends up running with.
+  const inflightSettersRef = useRef(
+    new Map<string, Map<string, Promise<unknown>>>()
+  )
+  const trackSetter = useCallback(
+    <T,>(contextKey: string, selector: string, p: Promise<T>): Promise<T> => {
+      let bySelector = inflightSettersRef.current.get(contextKey)
+      if (!bySelector) {
+        bySelector = new Map()
+        inflightSettersRef.current.set(contextKey, bySelector)
+      }
+      const tracked = Promise.resolve(p).finally(() => {
+        const cur = inflightSettersRef.current.get(contextKey)
+        if (cur?.get(selector) === tracked) cur.delete(selector)
+        if (cur && cur.size === 0) inflightSettersRef.current.delete(contextKey)
+      })
+      bySelector.set(selector, tracked)
+      return tracked
+    },
+    []
+  )
+
   const sendPrompt = useCallback(
     async (
       contextKey: string,
@@ -8353,6 +8620,13 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         clientMessageId?: string | null
       }
     ) => {
+      // Cut-off taken synchronously: only the setters already in flight.
+      const pendingSetters = [
+        ...(inflightSettersRef.current.get(contextKey)?.values() ?? []),
+      ]
+      if (pendingSetters.length > 0) {
+        await Promise.allSettled(pendingSetters)
+      }
       const conn = storeRef.current.connections.get(contextKey)
       if (!conn) return
       lastActivityRef.current.set(contextKey, Date.now())
@@ -8378,24 +8652,39 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [markConnectionGone]
   )
 
-  const setMode = useCallback(async (contextKey: string, modeId: string) => {
-    const conn = storeRef.current.connections.get(contextKey)
-    if (!conn) return
-    // Persist user's mode selection to localStorage
-    const modes =
-      conn.modes ?? selectorsCache.get(conn.agentType)?.modes ?? null
-    if (modes) {
-      saveModePreference(conn.agentType, {
-        ...modes,
-        current_mode_id: modeId,
-      })
-    }
-    lastActivityRef.current.set(contextKey, Date.now())
-    await acpSetMode(conn.connectionId, modeId)
-  }, [])
+  // Persist the user's mode selection to localStorage as well (local
+  // customization): the draft surfaces still write the new-conversation
+  // default at pick time (codeg#1179), and trackSetter keeps this send's
+  // catch-up mode consistent with the connection.
+  const setMode = useCallback(
+    async (contextKey: string, modeId: string) => {
+      const conn = storeRef.current.connections.get(contextKey)
+      if (!conn) return
+      const modes =
+        conn.modes ?? selectorsCache.get(conn.agentType)?.modes ?? null
+      if (modes) {
+        saveModePreference(conn.agentType, {
+          ...modes,
+          current_mode_id: modeId,
+        })
+      }
+      lastActivityRef.current.set(contextKey, Date.now())
+      await trackSetter(
+        contextKey,
+        "mode",
+        acpSetMode(conn.connectionId, modeId)
+      )
+    },
+    [trackSetter]
+  )
 
   const setConfigOption = useCallback(
-    async (contextKey: string, configId: string, valueId: string) => {
+    async (
+      contextKey: string,
+      configId: string,
+      valueId: string,
+      opts?: { saveAsDefault?: boolean }
+    ) => {
       const conn = storeRef.current.connections.get(contextKey)
       if (!conn) return
       dispatch({
@@ -8404,11 +8693,80 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         configId,
         valueId,
       })
-      // Persist user selection to localStorage so the next `acp_connect`
-      // can ship it back to the backend as a preferred config value.
-      saveConfigPreference(conn.agentType, configId, valueId)
+      // Only an explicit pick in a draft becomes the new-conversation
+      // default; an existing conversation's pick is stored on its own row by
+      // the backend.
+      if (opts?.saveAsDefault) {
+        saveConfigPreference(conn.agentType, configId, valueId)
+      }
       lastActivityRef.current.set(contextKey, Date.now())
-      await acpSetConfigOption(conn.connectionId, configId, valueId)
+      await trackSetter(
+        contextKey,
+        `config:${configId}`,
+        acpSetConfigOption(conn.connectionId, configId, valueId)
+      )
+    },
+    [dispatch, trackSetter]
+  )
+
+  const setComposerMode = useCallback(
+    async (
+      contextKey: string,
+      modeId: string | null,
+      opts?: { initial?: boolean }
+    ): Promise<boolean> => {
+      const conn = storeRef.current.connections.get(contextKey)
+      if (!conn) return false
+      const previous = conn.composerModeId ?? null
+      dispatch({ type: "COMPOSER_MODE_CHANGED", contextKey, modeId })
+      lastActivityRef.current.set(contextKey, Date.now())
+      const rollback = () => {
+        const cur = storeRef.current.connections.get(contextKey)
+        if (
+          cur?.connectionId === conn.connectionId &&
+          (cur.composerModeId ?? null) === modeId
+        ) {
+          dispatch({
+            type: "COMPOSER_MODE_CHANGED",
+            contextKey,
+            modeId: previous,
+          })
+        }
+      }
+      try {
+        const applied = await acpSetComposerMode(
+          conn.connectionId,
+          modeId,
+          opts?.initial ?? false
+        )
+        if (!applied) rollback()
+        return applied
+      } catch (e) {
+        rollback()
+        throw e
+      }
+    },
+    [dispatch]
+  )
+
+  // First-send locks by contextKey (survives a canvas card replacement).
+  const firstSendTokenRef = useRef(new Map<string, number>())
+  const firstSendSeqRef = useRef(0)
+  const beginFirstSend = useCallback(
+    (contextKey: string) => {
+      firstSendSeqRef.current += 1
+      const token = firstSendSeqRef.current
+      firstSendTokenRef.current.set(contextKey, token)
+      dispatch({ type: "SELECTORS_LOCKED", contextKey, locked: true })
+      return token
+    },
+    [dispatch]
+  )
+  const releaseFirstSend = useCallback(
+    (contextKey: string, token: number) => {
+      if (firstSendTokenRef.current.get(contextKey) !== token) return
+      firstSendTokenRef.current.delete(contextKey)
+      dispatch({ type: "SELECTORS_LOCKED", contextKey, locked: false })
     },
     [dispatch]
   )
@@ -8686,6 +9044,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       sendPrompt,
       setMode,
       setConfigOption,
+      setComposerMode,
+      beginFirstSend,
+      releaseFirstSend,
       cancel,
       goalControl,
       respondPermission,
@@ -8708,6 +9069,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       registerSessionFailureActions,
     }),
     [
+      setComposerMode,
+      beginFirstSend,
+      releaseFirstSend,
       connect,
       disconnect,
       disconnectIfIdle,
@@ -8736,11 +9100,6 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       dismissSessionFailuresAction,
       registerSessionFailureActions,
     ]
-  )
-
-  const eventSubscriberApi = useMemo<AcpEventSubscriberApi>(
-    () => ({ subscribers: eventSubscribersRef.current }),
-    []
   )
 
   return (

@@ -30,6 +30,7 @@ import {
   useAppWorkspaceStore,
 } from "@/stores/app-workspace-store"
 import enMessages from "@/i18n/messages/en.json"
+import { RECENT_GROUPING_MODE_KEY } from "@/lib/sidebar-view-mode-storage"
 import {
   resetFolderTabsStore,
   useFolderTabsStore,
@@ -40,7 +41,12 @@ import {
 // FolderOpen lucide icon renders once per FolderHeader body → counts folder
 // re-renders. Both increment only when the owning memoized component does NOT
 // bail out, so they measure exactly the production memo path.
-const probes = vi.hoisted(() => ({ card: 0, folder: 0, root: 0 }))
+const probes = vi.hoisted(() => ({
+  card: 0,
+  folder: 0,
+  root: 0,
+  virtualizer: 0,
+}))
 
 // Mutable backing store the mocked tab-context hook reads from (workspace data
 // now lives in the real zustand store, seeded per test below). `tabs` is
@@ -124,6 +130,7 @@ vi.mock("virtua", () => ({
     onScroll?: (offset: number) => void
     ref?: Ref<unknown>
   }) => {
+    probes.virtualizer++
     virtuaCtl.onScroll = onScroll ?? null
     useImperativeHandle(ref, () => ({
       get scrollOffset() {
@@ -1329,13 +1336,15 @@ describe("SidebarConversationList — Recent section", () => {
   })
 
   describe("paging", () => {
-    // Pin the product page size independently of the implementation constant.
-    const PAGE = 5
+    // Recent now has its own page size (upstream RECENT_PAGE_SIZE); the
+    // canonical folder keeps the five-row list page size.
+    const PAGE = 10
+    const FOLDER_PAGE = 5
     const TOTAL = PAGE + 4
 
     // The canonical folder stays on its first page while Recent expands.
     const recentRowCount = () =>
-      document.querySelectorAll("[data-conversation-id]").length - PAGE
+      document.querySelectorAll("[data-conversation-id]").length - FOLDER_PAGE
     const footer = () =>
       document.querySelector('[data-conversation-list-footer="recent"]')!
     const buttonWithText = (text: string) =>
@@ -1348,11 +1357,11 @@ describe("SidebarConversationList — Recent section", () => {
       )
 
     const showMoreLabel = (count: number) =>
-      enMessages.Folder.sidebar.showMoreConversations.replace(
+      enMessages.Folder.sidebar.showMoreRecent.replace(
         "{count}",
         String(count)
       )
-    const resetLabel = enMessages.Folder.sidebar.resetConversationLimit.replace(
+    const resetLabel = enMessages.Folder.sidebar.resetRecentLimit.replace(
       "{count}",
       String(PAGE)
     )
@@ -1574,6 +1583,8 @@ describe("SidebarConversationList — per-list paging", () => {
     "{count}",
     "5"
   )
+  const recentShowMoreLabel = (count: number) =>
+    enMessages.Folder.sidebar.showMoreRecent.replace("{count}", String(count))
   const footer = (key: string) =>
     document.querySelector(`[data-conversation-list-footer="${key}"]`)!
   const moreButton = (key: string, remaining: number) =>
@@ -1658,14 +1669,22 @@ describe("SidebarConversationList — per-list paging", () => {
         <SidebarConversationList showCompleted showRecent sortMode="created" />
       </NextIntlClientProvider>
     )
-    expect(cards()).toHaveLength(25)
-    fireEvent.click(moreButton("folder-1", 7))
+    // Recent is paged at its own 10-row size, independently of the five-row
+    // pages used by folders / pinned / chats.
     expect(cards()).toHaveLength(30)
+    fireEvent.click(moreButton("folder-1", 7))
+    expect(cards()).toHaveLength(35)
     expect(moreButton("folder-1", 2)).toBeInTheDocument()
     for (const key of ["folder-2", "pinned", "chats"]) {
       expect(moreButton(key, 7)).toBeInTheDocument()
     }
-    expect(moreButton("recent", 31)).toBeInTheDocument()
+    expect(
+      within(footer("recent") as HTMLElement).getByRole("button", {
+        // Recent re-lists the 36 folder/chat conversations; the 12 pinned
+        // ones stay pinned-only, and the first 10 of the rest are on screen.
+        name: recentShowMoreLabel(48 - 12 - 10),
+      })
+    ).toBeInTheDocument()
     fireEvent.click(moreButton("pinned", 7))
     fireEvent.click(
       within(footer("folder-1") as HTMLElement).getByRole("button", {
@@ -1674,7 +1693,7 @@ describe("SidebarConversationList — per-list paging", () => {
     )
     expect(moreButton("pinned", 2)).toBeInTheDocument()
     expect(moreButton("folder-1", 7)).toBeInTheDocument()
-    expect(cards()).toHaveLength(30)
+    expect(cards()).toHaveLength(35)
   })
 
   it.each([
@@ -1759,6 +1778,46 @@ describe("SidebarConversationList — time labels", () => {
     store.activeTabId = null
     store.tabSpec = []
     useAppWorkspaceStore.setState({ folders, allFolders: folders })
+  })
+
+  it("updates changed time labels without re-rendering the list or cards", () => {
+    vi.useFakeTimers({ now: FIXED })
+    try {
+      const hour = 60 * MINUTE
+      const crossing = new Date(FIXED - 2 * hour + 90_000).toISOString()
+      const steady = new Date(FIXED - 48 * hour - 3 * hour).toISOString()
+      useAppWorkspaceStore.setState({
+        conversations: [
+          conv(41, 1, { created_at: crossing, updated_at: crossing }),
+          conv(42, 1, { created_at: steady, updated_at: steady }),
+        ],
+      })
+      const view = render(tree())
+      const rows = () =>
+        Array.from(
+          view.container.querySelectorAll("[data-conv-key]"),
+          (row) => row.textContent
+        )
+      const initial = rows()
+      expect(initial.join(" ")).toContain("conv-411h")
+      expect(initial.join(" ")).toContain("conv-422d")
+      const firstRenderCount = probes.virtualizer
+      const firstCardCount = probes.card
+
+      act(() => vi.advanceTimersByTime(MINUTE))
+      expect(rows()).toEqual(initial)
+      expect(probes.card).toBe(firstCardCount)
+      expect(probes.virtualizer).toBe(firstRenderCount)
+
+      act(() => vi.advanceTimersByTime(MINUTE))
+      expect(rows().join(" ")).toContain("conv-412h")
+      expect(rows().join(" ")).toContain("conv-422d")
+      expect(probes.card).toBe(firstCardCount)
+      expect(probes.virtualizer).toBe(firstRenderCount)
+      view.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("labels Chat rows with the last activity they are ordered by", () => {
@@ -2647,7 +2706,7 @@ describe("SidebarConversationList — continue in new session", () => {
     // The flow aborts BEFORE stopping or marking anything; the only honest
     // signal is a toast — silent nothing after a confirm is worse.
     continueFlow.runContinueInNewSession.mockResolvedValue(false)
-    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => {})
+    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => 0)
     try {
       const { getByRole, getByText } = render(tree())
       fireEvent.contextMenu(getByText("conv-11"))
@@ -2658,5 +2717,82 @@ describe("SidebarConversationList — continue in new session", () => {
     } finally {
       errorToast.mockRestore()
     }
+  })
+})
+
+describe("SidebarConversationList — Recent time grouping", () => {
+  const groups = () =>
+    Array.from(document.querySelectorAll("[data-recent-time-group]")).map(
+      (el) => el.getAttribute("data-recent-time-group")
+    )
+  const recent = () => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <SidebarConversationList showCompleted showRecent />
+    </NextIntlClientProvider>
+  )
+
+  beforeEach(() => {
+    localStorage.clear()
+    const folders = [folder(1, "Folder 1")]
+    useAppWorkspaceStore.setState({ folders, allFolders: folders })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    localStorage.clear()
+  })
+
+  it("groups by time by default and the header toggle flattens it", () => {
+    const now = new Date(2026, 10, 21, 12).getTime()
+    vi.useFakeTimers({ now })
+    useAppWorkspaceStore.setState({
+      conversations: [
+        conv(101, 1, {
+          status: "in_progress",
+          updated_at: new Date(now - MINUTE).toISOString(),
+        }),
+        conv(102, 1, {
+          status: "completed",
+          updated_at: new Date(2026, 10, 20, 12).toISOString(),
+        }),
+      ],
+    })
+    render(recent())
+    expect(groups()).toEqual(["priorities", "yesterday"])
+
+    fireEvent.click(
+      document.querySelector(
+        `[aria-label="${enMessages.Folder.sidebar.recentGroupingModeFlat}"]`
+      )!
+    )
+    expect(groups()).toEqual([])
+    expect(localStorage.getItem(RECENT_GROUPING_MODE_KEY)).toBe("flat")
+    expect(document.querySelector('[data-conversation-id="101"]')).toBeTruthy()
+    expect(document.querySelector('[data-conversation-id="102"]')).toBeTruthy()
+  })
+
+  it("restores a saved flat mode", () => {
+    localStorage.setItem(RECENT_GROUPING_MODE_KEY, "flat")
+    useAppWorkspaceStore.setState({ conversations: [conv(101, 1)] })
+    render(recent())
+    expect(groups()).toEqual([])
+  })
+
+  it("moves Today to Yesterday at local midnight with no data change", () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 21, 23, 59, 30).getTime() })
+    useAppWorkspaceStore.setState({
+      conversations: [
+        conv(101, 1, {
+          status: "completed",
+          updated_at: new Date(2026, 10, 21, 23).toISOString(),
+        }),
+      ],
+    })
+    render(recent())
+    expect(groups()).toEqual(["today"])
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(groups()).toEqual(["yesterday"])
   })
 })

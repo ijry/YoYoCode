@@ -11,10 +11,10 @@ import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
-  DeepSeekBuiltInCatalogNotice,
   DeepSeekModelListEditor,
   deepSeekAcceptsImages,
   deepseekReadsHarnessCatalog,
+  deepseekReadsProviderRoutes,
   deepSeekImageBudgetMode,
   pruneEmpty,
   rowsForPicks,
@@ -74,12 +74,17 @@ function catalog(
 async function renderEditor(
   next: DeepSeekModelCatalog,
   launchModel?: string,
-  endpoint?: { baseUrl: string; apiKey: string }
+  endpoint?: { baseUrl: string; apiKey: string },
+  version?: string
 ) {
   vi.mocked(loadDeepSeekModelCatalog).mockResolvedValue(next)
   render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <DeepSeekModelListEditor launchModel={launchModel} endpoint={endpoint} />
+      <DeepSeekModelListEditor
+        version={version}
+        launchModel={launchModel}
+        endpoint={endpoint}
+      />
     </NextIntlClientProvider>
   )
   // Settles on both branches: an unreadable document renders no editor at all.
@@ -92,36 +97,33 @@ const idField = (index: number) =>
   screen.getAllByLabelText("Model id")[index] as HTMLInputElement
 
 describe("deepseekReadsHarnessCatalog", () => {
-  it("is true only for releases before 0.10.0", () => {
+  it("is false only for 0.10.0 and 0.11.0, which ignore the catalog", () => {
     expect(deepseekReadsHarnessCatalog("0.9.0")).toBe(true)
     expect(deepseekReadsHarnessCatalog(" v0.9.0 ")).toBe(true)
     expect(deepseekReadsHarnessCatalog("0.6.3")).toBe(true)
     expect(deepseekReadsHarnessCatalog("0.10.0")).toBe(false)
     expect(deepseekReadsHarnessCatalog("0.11.0")).toBe(false)
-    expect(deepseekReadsHarnessCatalog("1.0.0")).toBe(false)
+    expect(deepseekReadsHarnessCatalog("0.11.9")).toBe(false)
+    expect(deepseekReadsHarnessCatalog("0.12.0")).toBe(true)
+    expect(deepseekReadsHarnessCatalog("v0.12.1")).toBe(true)
+    expect(deepseekReadsHarnessCatalog("1.0.0")).toBe(true)
   })
 
   it("treats a missing or unparseable version as the pinned release", () => {
-    expect(deepseekReadsHarnessCatalog(null)).toBe(false)
-    expect(deepseekReadsHarnessCatalog(undefined)).toBe(false)
-    expect(deepseekReadsHarnessCatalog("")).toBe(false)
-    expect(deepseekReadsHarnessCatalog("local")).toBe(false)
+    expect(deepseekReadsHarnessCatalog(null)).toBe(true)
+    expect(deepseekReadsHarnessCatalog(undefined)).toBe(true)
+    expect(deepseekReadsHarnessCatalog("")).toBe(true)
+    expect(deepseekReadsHarnessCatalog("local")).toBe(true)
   })
 })
 
-describe("DeepSeekBuiltInCatalogNotice", () => {
-  it("says the list is built in and offers no editor", () => {
-    vi.mocked(loadDeepSeekModelCatalog).mockClear()
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <DeepSeekBuiltInCatalogNotice />
-      </NextIntlClientProvider>
-    )
-    expect(
-      screen.getByText(enMessages.DeepSeekModelEditor.builtInCatalogNotice)
-    ).toBeTruthy()
-    expect(screen.queryByRole("button")).toBeNull()
-    expect(loadDeepSeekModelCatalog).not.toHaveBeenCalled()
+describe("deepseekReadsProviderRoutes", () => {
+  it("is true from 0.10.0 on, and for the pinned release", () => {
+    expect(deepseekReadsProviderRoutes("0.9.0")).toBe(false)
+    expect(deepseekReadsProviderRoutes("0.10.0")).toBe(true)
+    expect(deepseekReadsProviderRoutes("0.12.0")).toBe(true)
+    expect(deepseekReadsProviderRoutes(null)).toBe(true)
+    expect(deepseekReadsProviderRoutes("local")).toBe(true)
   })
 })
 
@@ -297,7 +299,16 @@ describe("DeepSeekModelListEditor", () => {
     await renderEditor(catalog())
     fireEvent.click(screen.getByRole("button", { name: /use agent defaults/i }))
     await waitFor(() =>
-      expect(updateDeepSeekModelCatalog).toHaveBeenCalledWith(null)
+      expect(updateDeepSeekModelCatalog).toHaveBeenCalledWith(null, undefined)
+    )
+  })
+
+  it("reads and writes for the release it is given", async () => {
+    await renderEditor(catalog(), undefined, undefined, "0.12.0")
+    expect(loadDeepSeekModelCatalog).toHaveBeenCalledWith("0.12.0")
+    fireEvent.click(screen.getByRole("button", { name: /use agent defaults/i }))
+    await waitFor(() =>
+      expect(updateDeepSeekModelCatalog).toHaveBeenCalledWith(null, "0.12.0")
     )
   })
 

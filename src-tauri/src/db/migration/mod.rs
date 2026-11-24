@@ -65,6 +65,8 @@ mod m20261107_000001_message_queue_schedule;
 mod m20261109_000001_model_switch;
 mod m20261112_000001_work_task_writeback_drafts;
 mod m20261114_000001_message_queue_hold;
+mod m20261116_000001_srn_web;
+mod m20261123_000001_conversation_selector_state;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -136,6 +138,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20261109_000001_model_switch::Migration),
             Box::new(m20261112_000001_work_task_writeback_drafts::Migration),
             Box::new(m20261114_000001_message_queue_hold::Migration),
+            Box::new(m20261116_000001_srn_web::Migration),
+            Box::new(m20261123_000001_conversation_selector_state::Migration),
         ]
     }
 }

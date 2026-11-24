@@ -18,12 +18,25 @@ Both `event.js` and `event.cjs` are patched; global, Webview, and Window listene
 all reach these functions. The transport, which registers through the core API,
 owns the same cleanup directly.
 
+An already-disposed returned unlisten can also share the listener's activation
+with its payload wrapper. Clear the business handler to a shared no-op when
+releasing the callback so retaining that unlisten does not retain subscriber
+captures. For `once`, snapshot the current handler before cleanup and then invoke
+the snapshot: this preserves the first event even when it arrives before the
+native registration response. Both ESM and CommonJS carry this release.
+
 The lockfile records the package patch hash. Run a frozen install and
 `src/lib/tauri-native-event-memory.test.ts` against the installed ESM/CommonJS
 package, plus `src/lib/transport/tauri-transport.test.ts`. They cover registration
 failure, cleanup racing the registration eval, repeated mounts, normal independent
 subscriptions, registry exceptions, and early `once` events. Run full TypeScript
 checking as well, including tests rather than just Next's production build.
+
+`src/lib/tauri-sdk-event-lifetime.test.ts` holds ordinary disposed and completed
+`once` unlisten functions while checking subscriber reachability against active
+and weak-only controls. It runs the installed ESM/CommonJS SDK unchanged in fresh
+Node processes; forced GC is confined to those isolated tests. This is a scoped
+callback ownership check, not a measurement of desktop retained bytes.
 
 Revisit this patch on upgrades to `@tauri-apps/api` or after upstream provides an
 equivalent callback lifetime fix. It does not change the Rust Tauri event plugin.
@@ -95,3 +108,31 @@ checks that actual component replacement and unmount abort every plugin request.
 Service tests exercise saturation, cancelled streaming prefixes, unmounts,
 coalescing, and the cache budgets. Remove or revisit this patch when upgrading
 Streamdown or after upstream provides an equivalent cancellation lifecycle.
+
+## Motion DOM 13.3.0 WAAPI finish handlers
+
+WebKit does not collect a Web Animations API animation once it has run, nor
+anything its event handlers reference (WebKit #329512, Motion #4034).
+`NativeAnimation`'s finish handler captures the element, the motion value and the
+caller's `onComplete`, so every accelerated Motion animation kept its element and
+the component's props alive after removal.
+
+The patch backports upstream `motiondivision/motion` commits `7ba5aaf` (release
+the handler when it runs, on `cancel()` and on a timeline handoff; reattach it in
+`play()`) and `bcfb146` (reattach it in `complete()` unless stopped, so a cancelled
+animation still completes and resolves `finished`). Upstream's `stop()` and
+`TransformAnimation` changes have no counterpart in 13.3.0: its `stop()` already
+detaches through `cancel()`, and the transform compositor class does not exist.
+Both the ESM `NativeAnimation.mjs`/`NativeAnimationWrapper.mjs` and the CommonJS
+`index.js` carry the change; the UMD bundles are not reachable through the
+package exports.
+
+`src/lib/motion-finish-handler-memory.test.ts` drives the installed ESM and
+CommonJS builds through `motion` with a stubbed WAAPI animation: finish, cancel,
+play, cancelled-then-completed, stopped-then-completed, timeline handoff and the
+wrapper. `src/app/pet-panel/_components/PetPanel.animation.test.tsx` checks the
+handler is released when a real `AnimatePresence` row exits. Neither measures
+retained bytes in WKWebView.
+
+Remove this patch when upgrading to Motion 14.10.0 or later, which contains both
+commits.

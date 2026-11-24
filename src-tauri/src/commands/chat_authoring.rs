@@ -527,6 +527,8 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             // No branch face on the authoring tool: the task branches from the
             // project folder's checkout, as it did before the choice existed.
             base_branch: None,
+            // Frozen by `work_task_service::create`.
+            agent_config_frozen: false,
         };
         let config = match serde_json::to_value(&config) {
             Ok(v) => v,
@@ -731,7 +733,7 @@ pub async fn set_chat_authoring_settings(
 ) -> Result<ChatAuthoringSettings, AppCommandError> {
     #[cfg(feature = "tauri-runtime")]
     {
-        let emitter = EventEmitter::Tauri(app);
+        let emitter = EventEmitter::from_app(&app);
         set_chat_authoring_settings_core(&db.conn, &config, &emitter, settings).await
     }
     #[cfg(not(feature = "tauri-runtime"))]

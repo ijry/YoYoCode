@@ -132,7 +132,8 @@ export function isValidDeepSeekBaseUrl(value: string): boolean {
  * The list those selectors choose FROM is a different thing. Through 0.9.0 it
  * lives in a different file — `llm-deepseek.models` in the harness settings
  * document, edited by the sibling `DeepSeekModelListEditor` under its own
- * section; since 0.10.0 it is built into the bridge and cannot be edited.
+ * section; 0.10.0 and 0.11.0 build it into the bridge and cannot edit it, and
+ * 0.12.0 lays that section over the built-in one again.
  *
  * Both fields here are plain per-agent env vars, read at spawn — a save reaches
  * sessions started after it, not the ones already running.
@@ -180,10 +181,8 @@ export function DeepSeekConfigPanel({
   const seeded = useRef({ apiKey: persistedKey, baseUrl: persistedBaseUrl })
   const dirty = useRef({ apiKey: false, baseUrl: false })
   useEffect(() => {
-    // Seeding state from a prop change is exactly what this rule warns about,
-    // and here it is the point: the fields mirror `agent.env` until the user
-    // types in them.
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // Seeding state from a prop change is the point here: the fields mirror
+    // `agent.env` until the user types in them.
     const last = seeded.current
     if (last.apiKey !== persistedKey) {
       last.apiKey = persistedKey
@@ -193,7 +192,6 @@ export function DeepSeekConfigPanel({
       last.baseUrl = persistedBaseUrl
       if (!dirty.current.baseUrl) setBaseUrl(persistedBaseUrl)
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [persistedKey, persistedBaseUrl])
 
   const baseUrlValid = isValidDeepSeekBaseUrl(baseUrl)

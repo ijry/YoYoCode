@@ -1,6 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
@@ -12,6 +20,7 @@ import {
   ClipboardPaste,
   Clock,
   Copy,
+  Lightbulb,
   MessageSquareText,
   Scissors,
   Send,
@@ -109,6 +118,7 @@ import {
   applyExpertReference,
   blankLineAfter,
   isComposerEmpty,
+  restampExpertNames,
   restampSkillPrefixes,
 } from "@/components/chat/composer/composer-commands"
 import { useComposerChromeFocus } from "@/components/chat/composer/use-composer-chrome-focus"
@@ -154,7 +164,9 @@ import { useComposerShortcuts } from "@/components/chat/composer/use-composer-sh
 export type ComposerInjectContent =
   | {
       text: string
-      skill?: { id: string; label: string }
+      /** `expertId`: an expert's own id, where `id` is the name the agent
+       *  sees it under (re-stamped when the agent changes). */
+      skill?: { id: string; label: string; expertId?: string }
       /**
        * How `text` lands in the composer.
        *
@@ -568,6 +580,7 @@ export function MessageInput({
   useEffect(() => {
     // navigator.clipboard is undefined at runtime in non-secure contexts even
     // though the DOM types claim it is always present, so guard with typeof.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only read after mount keeps static-export hydration consistent
     setClipboardReadSupported(
       typeof navigator !== "undefined" &&
         typeof navigator.clipboard?.readText === "function"
@@ -819,7 +832,13 @@ export function MessageInput({
                 id: payload.skill.id,
                 label: payload.skill.label,
                 uri: null,
-                meta: { invocationPrefix: skillPrefix, scope: "expert" },
+                meta: {
+                  invocationPrefix: skillPrefix,
+                  scope: "expert",
+                  ...(payload.skill.expertId
+                    ? { expertId: payload.skill.expertId }
+                    : {}),
+                },
               })
             }
           }
@@ -848,14 +867,20 @@ export function MessageInput({
   // carry no scope and stay `/`). rAF-deferred like the sibling editor-mutation
   // effects to stay off React's commit phase — the badge NodeView re-renders via
   // a synchronous flushSync().
+  // An expert's name goes with the agent too: a Harness plugin installed
+  // whole gives it as `superpowers:<id>` to one agent, as `<id>` to another.
+  const expertInvocation = menuShortcuts.expertInvocation
   useEffect(() => {
     if (!composerReady) return
     const raf = requestAnimationFrame(() => {
       const editor = editorRef.current?.getEditor()
-      if (editor) restampSkillPrefixes(editor, skillPrefix)
+      if (editor) {
+        restampSkillPrefixes(editor, skillPrefix)
+        restampExpertNames(editor, expertInvocation)
+      }
     })
     return () => cancelAnimationFrame(raf)
-  }, [skillPrefix, composerReady])
+  }, [skillPrefix, expertInvocation, composerReady])
 
   const handleComposerChange = useCallback(() => {
     // The history's own writes are not edits. They must not end navigation, and
@@ -1074,15 +1099,14 @@ export function MessageInput({
   // types and the filter narrows, the previously-highlighted index can point
   // past the end of the merged list (commands + experts), which would make
   // Enter/Tab a silent no-op. Clamp back to the last available row whenever
-  // the count changes.
-  useEffect(() => {
-    if (
-      slashAutocompleteCount > 0 &&
-      slashSelectedIndex >= slashAutocompleteCount
-    ) {
-      setSlashSelectedIndex(slashAutocompleteCount - 1)
-    }
-  }, [slashAutocompleteCount, slashSelectedIndex])
+  // the count changes. Adjusted during render so no frame (and no key handler)
+  // ever sees the out-of-range index.
+  if (
+    slashAutocompleteCount > 0 &&
+    slashSelectedIndex >= slashAutocompleteCount
+  ) {
+    setSlashSelectedIndex(slashAutocompleteCount - 1)
+  }
 
   // Keep the highlighted row visible inside the popup when keyboard navigation
   // pushes it past the scroll viewport. Without this the cursor silently runs
@@ -1614,7 +1638,10 @@ export function MessageInput({
     // doc — guarantees the wire text matches the current agent regardless of any
     // timing/ordering (Codex needs `$skill`, not the slash-command `/skill`).
     // Cheap: one small-doc walk, and no dispatch when nothing is stale.
-    if (editor) restampSkillPrefixes(editor, skillPrefix)
+    if (editor) {
+      restampSkillPrefixes(editor, skillPrefix)
+      restampExpertNames(editor, expertInvocation)
+    }
     // Inline badges + prose → text/resource_link blocks (file mentions become
     // first-class ResourceLinks; agent/session/commit/skill stay inline text;
     // embedded badges are dropped here and re-added below from the payload map).
@@ -1659,7 +1686,13 @@ export function MessageInput({
       displayProse ||
       `Attached ${attachments.length} attachment${attachments.length > 1 ? "s" : ""}`
     return { blocks, displayText }
-  }, [attachments, skillPrefix, imagePromptBlocks, embeddedPayloadsRef])
+  }, [
+    attachments,
+    skillPrefix,
+    expertInvocation,
+    imagePromptBlocks,
+    embeddedPayloadsRef,
+  ])
 
   // Clear the editor + attachments after a send / enqueue / save.
   const resetComposer = useCallback(() => {
@@ -1677,10 +1710,14 @@ export function MessageInput({
     buildDraft,
     draftStorageKey: effectiveDraftStorageKey,
   })
-  currentComposerRef.current = {
-    buildDraft,
-    draftStorageKey: effectiveDraftStorageKey,
-  }
+  // Only read after an await in the steer handler, so syncing it after commit
+  // is early enough.
+  useLayoutEffect(() => {
+    currentComposerRef.current = {
+      buildDraft,
+      draftStorageKey: effectiveDraftStorageKey,
+    }
+  })
 
   const handleSend = useCallback(() => {
     // The editor stays editable while `disabled` (the agent is busy) so the user
@@ -2015,6 +2052,13 @@ export function MessageInput({
     </DropdownMenuItem>
   ) : null
 
+  const handleUsePromptSuggestion = useCallback(() => {
+    const ed = editorRef.current
+    if (!ed || !offeredSuggestion) return
+    ed.setText(offeredSuggestion)
+    ed.focus()
+  }, [offeredSuggestion])
+
   const actionButtons = isEditingQueueItem ? (
     <div className="flex items-center gap-1">
       <Button
@@ -2211,6 +2255,22 @@ export function MessageInput({
     </div>
   ) : (
     <div className="flex items-center gap-1">
+      {/* The click twin of Tab for a keyboard without one (a phone reaching
+          the web build): fills the predicted follow-up prompt into the empty
+          composer, sending nothing. Gone as soon as the composer holds text,
+          the same moment the placeholder hint goes. */}
+      {offeredSuggestion && composerEmpty && (
+        <Button
+          onClick={handleUsePromptSuggestion}
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title={t("usePromptSuggestion")}
+          aria-label={t("usePromptSuggestion")}
+        >
+          <Lightbulb className="size-4" />
+        </Button>
+      )}
       <Button
         onClick={handleSend}
         disabled={disabled || !hasSendableContent}

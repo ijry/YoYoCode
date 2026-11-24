@@ -10,6 +10,7 @@ import {
 } from "react"
 import {
   Clapperboard,
+  DraftingCompass,
   Crosshair,
   Eye,
   FolderSync,
@@ -29,6 +30,7 @@ import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useAutomationsView } from "@/contexts/automations-view-context"
+import { useHarnessView } from "@/contexts/harness-view-context"
 import { useTasksView } from "@/contexts/tasks-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import {
@@ -40,6 +42,8 @@ import {
   SidebarConversationList,
   type SidebarConversationListHandle,
 } from "@/components/conversations/sidebar-conversation-list"
+import { HarnessUpdatesBadge } from "@/components/harness/harness-updates-badge"
+import { LabelWithHint } from "@/components/layout/label-with-hint"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -125,13 +129,14 @@ const RECENT_HIDDEN: ReadonlySet<SidebarSectionId> = new Set(["recent"])
 
 // Icon per optional nav row. The visibility checkboxes in the view-options menu
 // carry the same glyph as the row they switch, so that group reads as a mirror
-// of the nav block rather than three bare labels.
+// of the nav block rather than a column of bare labels.
 const NAV_ITEM_ICONS: Record<SidebarNavItemId, LucideIcon> = {
   automations: Zap,
   tasks: ListTodo,
   forge: LayoutTemplate,
   canvas: MapIcon,
   comic: Clapperboard,
+  harness: DraftingCompass,
 }
 
 /**
@@ -146,12 +151,15 @@ function SidebarNavButton({
   label,
   onClick,
   active,
+  hint,
   trailing,
 }: {
   icon: LucideIcon
   label: string
   onClick: () => void
   active?: boolean
+  /** Small text after the label: what the page holds. */
+  hint?: string
   trailing?: ReactNode
 }) {
   return (
@@ -169,7 +177,11 @@ function SidebarNavButton({
       )}
     >
       <Icon className="h-[0.875rem] w-[0.875rem] shrink-0 text-muted-foreground" />
-      <span className="truncate">{label}</span>
+      {hint ? (
+        <LabelWithHint label={label} hint={hint} />
+      ) : (
+        <span className="truncate">{label}</span>
+      )}
       {trailing}
     </button>
   )
@@ -196,6 +208,7 @@ export function Sidebar({
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
   const { attentionCount } = useTasksView()
+  const { updatesCount: harnessUpdates } = useHarnessView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const workspaceActions = useOptionalWorkspaceActions()
   const { activeFileTab } = useWorkspaceFileTabs()
@@ -621,7 +634,7 @@ export function Sidebar({
             "Navigation items" group — for a workspace that never uses one of
             them, this block is pure noise above the list. The routes stay
             reachable from the status bar's quick-actions menu either way.
-            All three close the mobile Drawer on the way out, like tapping a
+            They all close the mobile Drawer on the way out, like tapping a
             conversation card (handled by the list wrapper below) — otherwise the
             page they just opened stays hidden behind the sidebar. */}
         {isNavItemVisible(navItems, "automations") && (
@@ -705,6 +718,30 @@ export function Sidebar({
               openConversations()
               workspaceActions.openComicWorkbench(activeFolder.id)
             }}
+          />
+        )}
+        {isNavItemVisible(navItems, "harness") && (
+          <SidebarNavButton
+            icon={DraftingCompass}
+            label={t("harness")}
+            hint={t("harnessHint")}
+            active={routeId === "harness"}
+            onClick={() => {
+              if (isMobile) toggle()
+              // Opens on the section the page was last on: which one that is
+              // lives in HarnessViewProvider, not in the route.
+              setRoute("harness")
+            }}
+            trailing={
+              harnessUpdates > 0 ? (
+                // Updates waiting (not a failure): the To-dos chip's primary
+                // tint.
+                <HarnessUpdatesBadge
+                  count={harnessUpdates}
+                  className="ml-auto"
+                />
+              ) : null
+            }
           />
         )}
       </div>

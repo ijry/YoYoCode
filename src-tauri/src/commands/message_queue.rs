@@ -32,7 +32,7 @@ pub async fn message_queue_continue(
     owner_id: String, failed_attempt_id: String,
 ) -> Result<(), DbError> {
     let state = crate::db::service::message_queue_control_service::request_continue(&db.conn, &owner_id, &failed_attempt_id).await?;
-    emit_event(&EventEmitter::Tauri(app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
+    emit_event(&EventEmitter::from_app(&app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
     drain.notify(owner_id);
     Ok(())
 }
@@ -47,7 +47,7 @@ pub async fn message_queue_release_hold(
     owner_id: String,
 ) -> Result<(), DbError> {
     let state = crate::db::service::message_queue_control_service::release_hold(&db.conn, &owner_id).await?;
-    emit_event(&EventEmitter::Tauri(app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
+    emit_event(&EventEmitter::from_app(&app), crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, state);
     drain.notify(owner_id);
     Ok(())
 }
@@ -79,7 +79,7 @@ pub async fn message_queue_retry(
     message_queue_service::retry(&db.conn, &owner_id, &item_id).await?;
     let items = message_queue_service::list(&db.conn, &owner_id).await?;
     emit_event(
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         MESSAGE_QUEUE_CHANGED_EVENT,
         MessageQueueChange {
             owner_id: owner_id.clone(),
@@ -111,7 +111,7 @@ pub async fn message_queue_save(
     origin: String,
 ) -> Result<(), DbError> {
     let saved = message_queue_service::save(&db.conn, &owner_id, items).await?;
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     emit_event(
         &emitter,
         MESSAGE_QUEUE_CHANGED_EVENT,
@@ -143,7 +143,7 @@ pub async fn message_queue_enqueue(
     message_queue_service::enqueue(&db.conn, &owner_id, item, at).await?;
     let items = message_queue_service::list(&db.conn, &owner_id).await?;
     emit_event(
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         MESSAGE_QUEUE_CHANGED_EVENT,
         MessageQueueChange {
             owner_id: owner_id.clone(),
@@ -169,7 +169,7 @@ pub async fn message_queue_set_schedule(
     message_queue_service::set_schedule(&db.conn, &owner_id, &item_id, at).await?;
     let items = message_queue_service::list(&db.conn, &owner_id).await?;
     emit_event(
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         MESSAGE_QUEUE_CHANGED_EVENT,
         MessageQueueChange {
             owner_id: owner_id.clone(),
@@ -193,7 +193,7 @@ pub async fn message_queue_remove(
     message_queue_service::remove(&db.conn, &owner_id, &item_id).await?;
     let items = message_queue_service::list(&db.conn, &owner_id).await?;
     emit_event(
-        &EventEmitter::Tauri(app),
+        &EventEmitter::from_app(&app),
         MESSAGE_QUEUE_CHANGED_EVENT,
         MessageQueueChange {
             owner_id: owner_id.clone(),

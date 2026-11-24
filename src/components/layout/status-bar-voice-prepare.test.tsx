@@ -50,6 +50,7 @@ describe("StatusBarVoicePrepare", () => {
     emit({
       stage: "downloading_stream_model",
       percent: 42.6,
+      message: "",
     })
 
     const segment = document.querySelector("[data-voice-prepare]")
@@ -66,6 +67,7 @@ describe("StatusBarVoicePrepare", () => {
     emit({
       stage: "downloading_model",
       percent: -1,
+      message: "",
     })
 
     expect(document.querySelector("[data-voice-prepare]")).toHaveTextContent(
@@ -75,7 +77,7 @@ describe("StatusBarVoicePrepare", () => {
 
   it("names the extraction stage", () => {
     renderSegment()
-    emit({ stage: "extracting", percent: -1, receivedBytes: 0, totalBytes: 0 })
+    emit({ stage: "extracting", percent: -1, message: "" })
     expect(document.querySelector("[data-voice-prepare]")).toHaveTextContent(
       MI.voicePreparingExtracting
     )
@@ -86,11 +88,10 @@ describe("StatusBarVoicePrepare", () => {
     emit({
       stage: "loading_model",
       percent: -1,
-      receivedBytes: 0,
-      totalBytes: 0,
+      message: "",
     })
     expect(document.querySelector("[data-voice-prepare]")).not.toBeNull()
-    emit({ stage: "done", percent: 100, receivedBytes: 0, totalBytes: 0 })
+    emit({ stage: "done", percent: 100, message: "" })
     expect(document.querySelector("[data-voice-prepare]")).toBeNull()
   })
 

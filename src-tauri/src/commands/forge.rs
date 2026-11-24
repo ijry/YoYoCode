@@ -1489,6 +1489,9 @@ pub async fn create_forge_task(
         // brings its own (the review's base ref), and an issue starts from the
         // project folder's checkout.
         base_branch: None,
+        // Frozen by the service create path (an explicit agent verbatim, else
+        // the folder's task settings as they are now).
+        agent_config_frozen: false,
     };
     let task_draft = WorkTaskDraft {
         folder_id: draft.folder_id,
@@ -1790,6 +1793,9 @@ pub async fn create_forge_issues_task(
             .is_report()
             .then(|| crate::models::DELIVERABLE_REPORT.to_string()),
         base_branch: None,
+        // Frozen by the service create path (an explicit agent verbatim, else
+        // the folder's task settings as they are now).
+        agent_config_frozen: false,
     };
     let numbers: Vec<i64> = listed.iter().map(|item| item.number).collect();
     let task_draft = WorkTaskDraft {
@@ -2123,7 +2129,7 @@ pub async fn work_task_create_from_forge(
     db: tauri::State<'_, AppDatabase>,
     draft: ForgeTaskDraft,
 ) -> Result<ForgeCreateResult, AppCommandError> {
-    work_task_create_from_forge_core(&EventEmitter::Tauri(app), &db, draft).await
+    work_task_create_from_forge_core(&EventEmitter::from_app(&app), &db, draft).await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2133,7 +2139,7 @@ pub async fn work_task_create_from_forge_issues(
     db: tauri::State<'_, AppDatabase>,
     draft: ForgeIssuesTaskDraft,
 ) -> Result<ForgeIssuesCreateResult, AppCommandError> {
-    work_task_create_from_forge_issues_core(&EventEmitter::Tauri(app), &db, draft).await
+    work_task_create_from_forge_issues_core(&EventEmitter::from_app(&app), &db, draft).await
 }
 
 #[cfg(feature = "tauri-runtime")]

@@ -643,7 +643,7 @@ pub async fn voice_transcribe(
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn voice_ensure_ready(app: tauri::AppHandle) -> Result<VoiceStatus, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
+    let emitter = EventEmitter::from_app(&app);
     ensure_voice_ready_core(&emitter).await
 }
 

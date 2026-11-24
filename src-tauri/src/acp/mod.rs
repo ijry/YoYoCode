@@ -45,6 +45,7 @@ mod message_queue_admission_tests;
 #[cfg(test)]
 mod message_queue_execution_tests;
 pub mod minimax_code;
+pub(crate) mod npm_package;
 pub mod one_shot;
 pub mod opencode_catalog;
 pub(crate) mod opencode_config;
@@ -63,6 +64,7 @@ pub mod remote_registry;
 pub(crate) mod reported_usage;
 pub mod result_tool;
 pub mod scratch_dir;
+pub mod selection;
 pub mod service_error;
 pub mod session_info;
 pub mod session_title;

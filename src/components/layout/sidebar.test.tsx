@@ -9,12 +9,16 @@ import {
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { Ref } from "react"
+import { useEffect, type ReactNode, type Ref } from "react"
 
 import { Sidebar } from "./sidebar"
 // Type-only (erased at runtime, so it does not defeat the mock below): pins the
 // stub's imperative handle to the real component's contract.
 import type { SidebarConversationListHandle } from "@/components/conversations/sidebar-conversation-list"
+import {
+  HarnessViewProvider,
+  useHarnessView,
+} from "@/contexts/harness-view-context"
 import enMessages from "@/i18n/messages/en.json"
 import type { TagFilter } from "@/lib/conversation-tags"
 import {
@@ -56,6 +60,8 @@ const mockState = vi.hoisted(() => ({
   // Sidebar context fields the flyout-variant tests flip per case.
   sidebarOpen: true,
   flyoutOpen: false,
+  // The workbench route the sidebar is told it is on.
+  routeId: "conversations",
 }))
 
 // The conversation list is irrelevant here — stub it so the test exercises only
@@ -140,8 +146,8 @@ vi.mock("@/contexts/workspace-context", () => ({
 }))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({
-    routeId: "conversations",
-    isConversations: true,
+    routeId: mockState.routeId,
+    isConversations: mockState.routeId === "conversations",
     setRoute: spies.setRoute,
     openConversations: spies.openConversations,
   }),
@@ -157,10 +163,33 @@ vi.mock("@/hooks/use-appearance", () => ({
   useZoomLevel: () => ({ zoomLevel: 100, setZoomLevel: () => {} }),
 }))
 
-function renderSidebar() {
+/** Reports a number of available updates to the Harness provider, as the
+ *  update check will. */
+function HarnessUpdates({ count }: { count: number }) {
+  const { setUpdatesCount } = useHarnessView()
+  useEffect(() => setUpdatesCount(count), [count, setUpdatesCount])
+  return null
+}
+
+// Under the real Harness provider (unlike the contexts stubbed above, it talks
+// to no backend), so the row's badge is fed the way the app feeds it.
+function renderSidebar({ harnessUpdates = 0 } = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <Sidebar />
+      <HarnessViewProvider>
+        <HarnessUpdates count={harnessUpdates} />
+        <Sidebar />
+      </HarnessViewProvider>
+    </NextIntlClientProvider>
+  )
+}
+
+/** The flyout tests need the same real Harness provider: the sidebar's
+ *  navigation row now reads the updates count through `useHarnessView`. */
+function renderFlyout(children: ReactNode) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <HarnessViewProvider>{children}</HarnessViewProvider>
     </NextIntlClientProvider>
   )
 }
@@ -583,6 +612,171 @@ describe("Sidebar — Navigation item visibility", () => {
   })
 })
 
+describe("Sidebar — Harness row", () => {
+  beforeEach(() => {
+    localStorage.clear()
+    spies.setRoute.mockClear()
+    mockState.activeFolder = { id: 7, path: "/x" }
+    mockState.routeId = "conversations"
+  })
+
+  // The fixed rows carry their label as `title`; a count badge changes a row's
+  // accessible name but not that.
+  const NAV_ROWS = [
+    "New chat",
+    "Automations",
+    "To-dos",
+    "Repository panel",
+    "Infinite Canvas",
+    "Harness Engineering",
+  ]
+  const navRowTitles = () =>
+    screen
+      .getAllByRole("button")
+      .map((el) => el.getAttribute("title") ?? "")
+      .filter((title) => NAV_ROWS.includes(title))
+  const harnessRow = () => screen.getByRole("button", { name: /^Harness/ })
+
+  it("sits after Infinite Canvas, at the end of the nav block", () => {
+    renderSidebar()
+    expect(navRowTitles()).toEqual(NAV_ROWS)
+  })
+
+  it("opens the Harness route", () => {
+    renderSidebar()
+    fireEvent.click(harnessRow())
+    expect(spies.setRoute).toHaveBeenCalledWith("harness")
+  })
+
+  it("is marked current only while its route is on screen", () => {
+    const { unmount } = renderSidebar()
+    expect(harnessRow()).not.toHaveAttribute("aria-current")
+    unmount()
+
+    mockState.routeId = "harness"
+    renderSidebar()
+    expect(harnessRow()).toHaveAttribute("aria-current", "page")
+    // Control: marking follows the route, not the row that was added last.
+    expect(
+      screen.getByRole("button", { name: "Infinite Canvas" })
+    ).not.toHaveAttribute("aria-current")
+  })
+
+  it("carries no badge while nothing has an update", () => {
+    renderSidebar()
+    expect(harnessRow().textContent).toBe("Harness EngineeringSkills · MCP")
+  })
+
+  it("names what the page holds after its label", () => {
+    renderSidebar()
+    const hint = within(harnessRow()).getByText("Skills · MCP")
+    expect(hint.className).toContain("text-muted-foreground")
+    // The title stays the label alone: the rows are told apart by it.
+    expect(harnessRow()).toHaveAttribute("title", "Harness Engineering")
+  })
+
+  it("counts the available updates in a trailing badge", () => {
+    renderSidebar({ harnessUpdates: 3 })
+
+    // Read out as a sentence, not as a bare digit after the name…
+    const row = screen.getByRole("button", {
+      name: "Harness Engineering Skills · MCP 3 updates available",
+    })
+    // …and shown as the same chip the To-dos count uses.
+    const badge = within(row).getByTitle("3 updates available")
+    expect(within(badge).getByText("3")).toHaveAttribute("aria-hidden", "true")
+    expect(badge.className).toContain("bg-primary/10")
+    expect(badge.className).toContain("ml-auto")
+  })
+
+  it("says one update in the singular", () => {
+    renderSidebar({ harnessUpdates: 1 })
+    expect(
+      screen.getByRole("button", {
+        name: "Harness Engineering Skills · MCP 1 update available",
+      })
+    ).toBeTruthy()
+  })
+
+  it("is listed last among the navigation toggles, with its icon", async () => {
+    renderSidebar()
+    await openViewOptionsGroup("Navigation items")
+
+    // The submenu's own rows: the root menu behind it has a checkbox too.
+    const menus = screen.getAllByRole("menu")
+    const toggles = within(menus[menus.length - 1]).getAllByRole(
+      "menuitemcheckbox"
+    )
+    expect(toggles.map((el) => el.textContent)).toEqual([
+      "Automations",
+      "To-dos",
+      "Repository panel",
+      "Infinite Canvas",
+      "Comic Studio",
+      "Harness Engineering",
+    ])
+    const harness = toggles[toggles.length - 1]
+    expect(harness).toHaveAttribute("aria-checked", "true")
+    // The toggle mirrors the row it switches, glyph included.
+    expect(harness.querySelector("svg.lucide-drafting-compass")).not.toBeNull()
+    await userEvent.keyboard("{Escape}")
+  })
+
+  it("can be hidden and brought back, and remembers either", async () => {
+    renderSidebar()
+
+    await openViewOptionsGroup("Navigation items")
+    await userEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Harness Engineering" })
+    )
+    // Close before looking at the rows: an open Radix menu aria-hides the
+    // sidebar behind it.
+    await userEvent.keyboard("{Escape}")
+
+    expect(screen.queryByRole("button", { name: /^Harness/ })).toBeNull()
+    // Control: the row before it is still there.
+    expect(screen.getByRole("button", { name: "Infinite Canvas" })).toBeTruthy()
+    expect(
+      JSON.parse(localStorage.getItem("workspace:sidebar-nav-items") ?? "{}")
+    ).toEqual({ harness: false })
+
+    await openViewOptionsGroup("Navigation items")
+    await userEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Harness Engineering" })
+    )
+    await userEvent.keyboard("{Escape}")
+
+    expect(harnessRow()).toBeTruthy()
+    expect(
+      JSON.parse(localStorage.getItem("workspace:sidebar-nav-items") ?? "{}")
+    ).toEqual({ harness: true })
+  })
+
+  it("stays hidden for a user who hid it", () => {
+    localStorage.setItem(
+      "workspace:sidebar-nav-items",
+      JSON.stringify({ harness: false })
+    )
+    renderSidebar()
+
+    expect(screen.queryByRole("button", { name: /^Harness/ })).toBeNull()
+    expect(navRowTitles()).toEqual(NAV_ROWS.slice(0, -1))
+  })
+
+  it("shows up for a user whose stored choices predate it", () => {
+    // Written by a build that had no Harness row: only what was explicitly
+    // hidden is hidden.
+    localStorage.setItem(
+      "workspace:sidebar-nav-items",
+      JSON.stringify({ automations: false, canvas: true })
+    )
+    renderSidebar()
+
+    expect(harnessRow()).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Automations" })).toBeNull()
+  })
+})
+
 describe("Sidebar — Expand / collapse all groups", () => {
   beforeEach(() => {
     localStorage.clear()
@@ -763,11 +957,7 @@ describe("Sidebar — flyout variant", () => {
   it("renders the full sidebar as the hover preview when collapsed and open", () => {
     mockState.sidebarOpen = false
     mockState.flyoutOpen = true
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <Sidebar variant="flyout" flyoutOpen />
-      </NextIntlClientProvider>
-    )
+    renderFlyout(<Sidebar variant="flyout" flyoutOpen />)
 
     expect(document.querySelector("aside")).not.toBeNull()
   })
@@ -775,22 +965,14 @@ describe("Sidebar — flyout variant", () => {
   it("renders nothing while the sidebar is formally open", () => {
     mockState.sidebarOpen = true
     mockState.flyoutOpen = true
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <Sidebar variant="flyout" flyoutOpen />
-      </NextIntlClientProvider>
-    )
+    renderFlyout(<Sidebar variant="flyout" flyoutOpen />)
 
     expect(document.querySelector("aside")).toBeNull()
   })
 
   it("renders nothing while the hover preview is closed", () => {
     mockState.sidebarOpen = false
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <Sidebar variant="flyout" flyoutOpen={false} />
-      </NextIntlClientProvider>
-    )
+    renderFlyout(<Sidebar variant="flyout" flyoutOpen={false} />)
 
     expect(document.querySelector("aside")).toBeNull()
   })
@@ -798,11 +980,7 @@ describe("Sidebar — flyout variant", () => {
   it("keeps the panel variant collapsed to nothing", () => {
     mockState.sidebarOpen = false
     mockState.flyoutOpen = true
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <Sidebar />
-      </NextIntlClientProvider>
-    )
+    renderFlyout(<Sidebar />)
 
     // The in-panel instance still unmounts on collapse — the flyout is a
     // separate overlay instance, never a re-opened panel column.
