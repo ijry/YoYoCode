@@ -77,14 +77,9 @@ import {
   queuePendingSessionAttachments,
 } from "@/lib/session-attachment-events"
 import {
-  resolveRunningConnectionId,
   runContinueInNewSession,
   type ContinueDeps,
 } from "./continue-in-new-session"
-import {
-  ContinueInNewSessionDialog,
-  type ContinueSessionChoice,
-} from "./continue-in-new-session-dialog"
 import type {
   AgentType,
   ConversationStatus,
@@ -996,6 +991,7 @@ export function SidebarConversationList({
   ref?: Ref<SidebarConversationListHandle>
 }) {
   const t = useTranslations("Folder.sidebar")
+  const tCard = useTranslations("Folder.conversationCard")
   const tCommon = useTranslations("Folder.common")
   const tTags = useTranslations("ConversationTags")
   const tFolderDropdown = useTranslations("Folder.folderNameDropdown")
@@ -2447,17 +2443,10 @@ export function SidebarConversationList({
     [folderIndex, openNewConversationTab, openConversations]
   )
 
-  // "Continue in a new session" — the row's menu entry; the flow (stop a still
-  // running session, mark it completed, open a new conversation prefilled with
-  // an @-mention of it) lives in continue-in-new-session.ts behind these deps.
-  // The choice dialog is THIS list's (like move-to-folder): one instance for
-  // every row, so the card memo keeps bailing out. `running` is the open-time
-  // snapshot that relabels the confirm button inside the dialog.
+  // "Continue in a new session" — settle the old session and open a draft
+  // prefilled with an @-mention of it. Agent, model and prompt are all editable
+  // in the new-session UI itself, so no chooser dialog sits in front of it.
   const connectionStore = useOptionalConnectionStore()
-  const [continueConfirm, setContinueConfirm] = useState<{
-    conversation: DbConversationSummary
-    running: boolean
-  } | null>(null)
   const continueDeps = useMemo<ContinueDeps>(
     () => ({
       findTabForConversation: (conversation) =>
@@ -2494,34 +2483,27 @@ export function SidebarConversationList({
     }),
     [connectionStore, folderIndex, handleStatusChange, openNewConversationTab]
   )
-  const startContinue = useCallback(
-    (conversation: DbConversationSummary, choice: ContinueSessionChoice) => {
+  const handleContinueInNewSession = useCallback(
+    (conversation: DbConversationSummary) => {
       // Return to the conversations workbench FIRST, or the new tab lands
       // unseen beneath a workbench route overlay (every sibling opener pairs
       // the two calls for exactly that reason).
       openConversations()
-      void runContinueInNewSession(conversation, continueDeps, choice.promptText, {
-        agentType: choice.agentType,
-        preferredConfigValues: choice.preferredConfigValues,
-      }).then((started) => {
+      // The agent/model/prompt chooser was redundant: the new-session draft
+      // exposes all three (draft agent picker + settings picker + composer).
+      // Keep the old session's agent and the standard continuation prompt as
+      // defaults; everything stays editable in the opened draft.
+      void runContinueInNewSession(
+        conversation,
+        continueDeps,
+        tCard("continuePromptText")
+      ).then((started) => {
         // The flow aborts only when the folder is gone — say so instead of a
-        // silent nothing after a (possibly confirmed) click.
+        // silent nothing after a click.
         if (!started) toast.error(t("toasts.continueFolderMissing"))
       })
     },
-    [continueDeps, openConversations, t]
-  )
-  const handleContinueInNewSession = useCallback(
-    (conversation: DbConversationSummary) => {
-      // ALWAYS the dialog now: it is the agent/model/prompt chooser, with the
-      // running warning (and its confirm label) as an open-time snapshot.
-      setContinueConfirm({
-        conversation,
-        running:
-          resolveRunningConnectionId(conversation, continueDeps) != null,
-      })
-    },
-    [continueDeps]
+    [continueDeps, openConversations, t, tCard]
   )
 
   // "Import local sessions" now lives in a dedicated picker window (scan →
@@ -4013,25 +3995,6 @@ export function SidebarConversationList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* "Continue in a new session" — the agent/model/prompt chooser, one
-          instance for the whole list so the row handler stays memo-stable. */}
-      <ContinueInNewSessionDialog
-        conversation={continueConfirm?.conversation ?? null}
-        folderPath={
-          continueConfirm
-            ? (folderIndex.get(continueConfirm.conversation.folder_id)?.path ??
-              null)
-            : null
-        }
-        running={continueConfirm?.running ?? false}
-        onOpenChange={(open) => !open && setContinueConfirm(null)}
-        onConfirm={(choice) => {
-          const confirmed = continueConfirm
-          setContinueConfirm(null)
-          if (confirmed) startContinue(confirmed.conversation, choice)
-        }}
-      />
 
       {/* Naming a group up front, rather than dropping an "Untitled" band into
           the list and relying on a follow-up rename that an interrupted user

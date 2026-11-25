@@ -52,10 +52,10 @@ export function resolveRunningConnectionId(
   return conn?.status === "prompting" ? conn.connectionId : null
 }
 
-/** Caller's choices from the continue dialog: the agent to continue on
- *  (default: the old session's own) and the model pinned one-shot on the new
- *  draft (default: none — the agent's own defaults apply). The @-mention
- *  attachment always carries the OLD conversation, whatever the choice. */
+/** Optional one-shot overrides for the new draft: the agent to continue on
+ *  (default: the old session's own) and the model pinned one-shot (default:
+ *  none — the agent's own defaults apply). The @-mention attachment always
+ *  carries the OLD conversation, whatever the choice. */
 export interface ContinueOverrides {
   agentType?: string
   preferredConfigValues?: Record<string, string> | null
