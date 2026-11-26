@@ -191,6 +191,8 @@ import type {
   CloseRequestPayload,
   CloseWindowBehavior,
   SystemCloseBehaviorSettingsView,
+  TurnLimitContinuationMode,
+  TurnLimitContinuationSettings,
   SystemRenderingSettings,
   SystemAutostartSettings,
   SystemTerminalSettings,
@@ -2121,6 +2123,18 @@ export const CLOSE_REQUEST_EVENT = "app://close-request"
 
 export async function getSystemCloseBehaviorSettings(): Promise<SystemCloseBehaviorSettingsView> {
   return getTransport().call("get_system_close_behavior_settings")
+}
+
+export async function getTurnLimitContinuationSettings(): Promise<TurnLimitContinuationSettings> {
+  return getTransport().call("get_turn_limit_continuation_settings")
+}
+
+export async function updateTurnLimitContinuationSettings(
+  mode: TurnLimitContinuationMode
+): Promise<TurnLimitContinuationSettings> {
+  return getTransport().call("set_turn_limit_continuation_settings", {
+    settings: { mode },
+  })
 }
 
 export async function updateSystemCloseBehaviorSettings(

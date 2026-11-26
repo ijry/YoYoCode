@@ -43,6 +43,7 @@ import { usePlatform } from "@/hooks/use-platform"
 import { relaunchApp } from "@/lib/updater"
 import { toErrorMessage } from "@/lib/app-error"
 import { CloseBehaviorSettingsSection } from "@/components/settings/close-behavior-settings"
+import { TurnLimitContinuationSettingsSection } from "@/components/settings/turn-limit-continuation-settings"
 import { DesktopNotificationSettingsSection } from "@/components/settings/desktop-notification-settings"
 import { MentionPanelSettingsSection } from "@/components/settings/mention-panel-settings"
 import { NotificationSoundSettingsSection } from "@/components/settings/notification-sound-settings"
@@ -519,6 +520,8 @@ export function GeneralSettings() {
         <MentionPanelSettingsSection />
 
         <CloseBehaviorSettingsSection />
+
+        <TurnLimitContinuationSettingsSection />
 
         {/* "How Codeg gets my attention", adjacent on purpose: a banner in
             the OS notification centre, the window's own taskbar entry or Dock

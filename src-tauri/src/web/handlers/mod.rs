@@ -23,6 +23,7 @@ mod error;
 pub mod event_metrics;
 pub mod experts;
 pub mod feedback;
+pub mod turn_limit_continuation;
 pub mod files;
 pub mod folder_commands;
 pub mod folder_links;

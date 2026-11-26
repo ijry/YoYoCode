@@ -1942,6 +1942,15 @@
     "behaviorExit": "codeg 종료",
     "saveFailed": "닫기 동작 저장 실패: {message}"
   },
+  "TurnLimitContinuationSettings": {
+    "title": "When the session turn limit is hit",
+    "description": "Choose how the backend recovers when a provider rejects a turn for reaching the session turn limit.",
+    "optionOff": "Off",
+    "optionCompact": "Compact then continue (unverified)",
+    "optionNewSession": "Continue in a new session",
+    "compactWarning": "Note: compaction keeps the same session and may not reset the provider's turn counter.",
+    "saveFailed": "Failed to save setting: {message}"
+  },
   "CloseRequestDialog": {
     "askTitle": "codeg를 닫을까요?",
     "askDescription": "트레이에서 계속 실행해 에이전트와 터미널을 유지하거나, 완전히 종료할 수 있습니다.",

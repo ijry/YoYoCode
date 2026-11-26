@@ -56,6 +56,11 @@ pub struct AppState {
     /// the feedback settings command on save. Populated at startup by
     /// `apply_persisted_feedback_config`.
     pub feedback_config: crate::acp::feedback::FeedbackRuntimeConfig,
+    /// Hot-swappable "continue automatically on session turn limit" flag.
+    /// Read by the worker on every error; loaded from `app_metadata` at
+    /// startup and re-applied on settings save.
+    pub turn_limit_continuation_config:
+        crate::acp::turn_limit_continuation::TurnLimitContinuationRuntimeConfig,
     /// Hot-swappable ask-user-question (`ask_user_question`) enable flag. Shared
     /// with the `DelegationInjection` so MCP injection reads it, and updated by
     /// the question settings command on save. Populated at startup by
@@ -301,6 +306,8 @@ impl AppState {
             delegation_tokens,
             delegation_socket_path,
             feedback_config,
+            turn_limit_continuation_config:
+                crate::acp::turn_limit_continuation::TurnLimitContinuationRuntimeConfig::new(),
             question_config,
             session_info_config,
             chat_authoring_config,
@@ -313,4 +320,26 @@ impl AppState {
             cli_access,
         }
     }
+}
+
+/// Install the turn-limit continuation channel on `manager` and hand back the
+/// receiver + runtime flag. The caller spawns the worker on its own runtime
+/// (Tauri's `async_runtime` in the desktop app, `tokio` in server mode) with an
+/// `EventEmitter` appropriate to that runtime.
+pub fn install_turn_limit_continuation(
+    manager: &ConnectionManager,
+) -> (
+    crate::acp::turn_limit_continuation::TurnLimitContinuationRuntimeConfig,
+    tokio::sync::mpsc::UnboundedReceiver<
+        crate::acp::turn_limit_continuation::ContinuationRequest,
+    >,
+) {
+    use crate::acp::turn_limit_continuation::ContinuationInjection;
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    manager.install_turn_limit_continuation(ContinuationInjection::new(tx));
+    (
+        crate::acp::turn_limit_continuation::TurnLimitContinuationRuntimeConfig::new(),
+        rx,
+    )
 }

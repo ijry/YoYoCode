@@ -159,6 +159,50 @@ fn is_invalid_encrypted_content_error(value: &Value) -> bool {
             .is_some_and(|raw| is_invalid_encrypted_content_error(&raw))
 }
 
+/// The provider error code carried by an agent's error text, if any.
+///
+/// Deliberately as lenient as [`is_invalid_encrypted_content_error`] is about
+/// its one code: the raw text a provider wrote is not a strict service envelope
+/// (a gateway may drop `status`/`type` entirely), so only the shape that holds
+/// the code matters. Reads `error.code`, a gateway's
+/// `error.metadata.provider_error_code`, and a provider body embedded as a
+/// JSON string in `error.metadata.raw`. Returns `None` for non-JSON text, a
+/// missing/non-string code, or an empty code. This is what lets a turn-level
+/// error (e.g. `session_turn_limit_exceeded`) travel as a structured code on
+/// `AcpEvent::Error` instead of being buried in the message.
+pub(crate) fn agent_error_code(text: &str) -> Option<String> {
+    if let Ok(value) = serde_json::from_str::<Value>(text) {
+        if let Some(code) = agent_error_code_in_value(&value) {
+            return Some(code);
+        }
+    }
+    // An agent may prefix the envelope with its own sentence before the JSON
+    // body; read from the first object opening rather than dropping the code.
+    let start = text.find('{')?;
+    let value = serde_json::from_str::<Value>(&text[start..]).ok()?;
+    agent_error_code_in_value(&value)
+}
+
+fn agent_error_code_in_value(value: &Value) -> Option<String> {
+    let error = value.as_object()?.get("error")?;
+    if let Some(code) = error.get("code").and_then(Value::as_str) {
+        if !code.is_empty() {
+            return Some(code.to_string());
+        }
+    }
+    let metadata = error.get("metadata")?.as_object()?;
+    if let Some(code) = metadata.get("provider_error_code").and_then(Value::as_str) {
+        if !code.is_empty() {
+            return Some(code.to_string());
+        }
+    }
+    metadata
+        .get("raw")
+        .and_then(Value::as_str)
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        .and_then(|raw| agent_error_code_in_value(&raw))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,5 +531,34 @@ mod tests {
             Some("\u{85}")
         );
         assert_eq!(readable_service_error_message(&text("\u{FEFF}")), None);
+    }
+
+    #[test]
+    fn agent_error_code_reads_the_code_wherever_the_gateway_puts_it() {
+        let cases: &[(&str, Option<&str>)] = &[
+            (
+                r#"{"error":{"code":"session_turn_limit_exceeded","message":"100 turns","type":"invalid_request_error"}}"#,
+                Some("session_turn_limit_exceeded"),
+            ),
+            (
+                r#"{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"session_turn_limit_exceeded","message":"100 turns"}}"#,
+                Some("session_turn_limit_exceeded"),
+            ),
+            (
+                r#"{"error":{"metadata":{"provider_error_code":"session_turn_limit_exceeded"}}}"#,
+                Some("session_turn_limit_exceeded"),
+            ),
+            (
+                r#"{"error":{"metadata":{"raw":"{\"error\":{\"code\":\"session_turn_limit_exceeded\"}}"}}}"#,
+                Some("session_turn_limit_exceeded"),
+            ),
+            (r#"{"error":{"code":null}}"#, None),
+            (r#"{"error":{"code":""}}"#, None),
+            ("not JSON at all", None),
+            (r#"{"message":"no error object"}"#, None),
+        ];
+        for (text, want) in cases {
+            assert_eq!(agent_error_code(text).as_deref(), *want, "{text:?}");
+        }
     }
 }

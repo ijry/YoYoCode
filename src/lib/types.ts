@@ -4925,6 +4925,17 @@ export interface SystemAutostartSettings {
 export type CloseWindowBehavior = "ask" | "minimize" | "exit"
 
 /**
+ * What the backend does when a provider rejects a turn for exceeding the
+ * session's model turn limit. "compact" keeps the same session and is offered
+ * as unverified: compaction here has no way to reset a provider-side counter.
+ */
+export type TurnLimitContinuationMode = "off" | "compact" | "new_session"
+
+export interface TurnLimitContinuationSettings {
+  mode: TurnLimitContinuationMode
+}
+
+/**
  * What the settings UI reads: the stored preference plus a live platform
  * capability, same shape of pairing as {@link LogSettingsView}. `tray_available`
  * is never persisted — where the tray is unusable (Linux without one, failed

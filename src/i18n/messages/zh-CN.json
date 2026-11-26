@@ -1981,6 +1981,15 @@
     "behaviorExit": "退出 codeg",
     "saveFailed": "保存关闭行为失败：{message}"
   },
+  "TurnLimitContinuationSettings": {
+    "title": "达到会话轮次上限时",
+    "description": "当智能体因会话轮次上限被拒绝时，选择自动恢复方式。",
+    "optionOff": "关闭",
+    "optionCompact": "压缩上下文后继续（未验证）",
+    "optionNewSession": "在新会话中继续",
+    "compactWarning": "注意：压缩不会更换会话，可能不会重置服务商的轮次上限。",
+    "saveFailed": "保存设置失败：{message}"
+  },
   "CloseRequestDialog": {
     "askTitle": "要关闭 codeg 吗？",
     "askDescription": "codeg 可以最小化到托盘继续运行，智能体和终端保持活动；也可以完全退出。",

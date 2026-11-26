@@ -29,6 +29,7 @@ pub mod delegation;
 pub mod error;
 pub mod event_stream;
 pub mod feedback;
+pub mod turn_limit_continuation;
 pub mod file_system_runtime;
 pub mod fork;
 pub mod host_tools_policy;

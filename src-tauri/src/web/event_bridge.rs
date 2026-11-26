@@ -238,6 +238,12 @@ pub const CONVERSATION_CHANGED_EVENT: &str = "conversation://changed";
 /// (`{ "enabled": bool }`).
 pub const FEEDBACK_SETTINGS_CHANGED_EVENT: &str = "feedback-settings://changed";
 
+/// Global side-channel announcing the auto-continue-on-turn-limit flag. Same
+/// cross-window rationale as [`FEEDBACK_SETTINGS_CHANGED_EVENT`]. Payload:
+/// `TurnLimitContinuationSettings` (`{ "mode": "off" | "compact" | "new_session" }`).
+pub const TURN_LIMIT_CONTINUATION_SETTINGS_CHANGED_EVENT: &str =
+    "turn-limit-continuation-settings://changed";
+
 /// Global side-channel announcing an ask-user-question enable/disable. Same
 /// cross-window rationale as [`FEEDBACK_SETTINGS_CHANGED_EVENT`]: the settings UI
 /// runs in a separate window, so a conversation view learns the flag flipped

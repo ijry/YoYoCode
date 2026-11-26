@@ -452,6 +452,13 @@ pub struct ConnectionManager {
     /// init. `Arc<OnceLock>` so the inner `Self` cloned from `clone_ref` sees
     /// the install too — the lock is set once at startup and never mutated.
     delegation_injection: Arc<std::sync::OnceLock<crate::acp::connection::DelegationInjection>>,
+    /// Turn-limit continuation channel installed during bootstrap. When a
+    /// provider rejects a turn with `session_turn_limit_exceeded`, the
+    /// connection task sends a request here instead of trying to spawn a
+    /// session itself (it has no manager or database handle).
+    turn_limit_continuation_injection: Arc<
+        std::sync::OnceLock<crate::acp::turn_limit_continuation::ContinuationInjection>,
+    >,
     /// Chat-channel manager installed during bootstrap so live title writes
     /// can sync Telegram topic names without threading the manager through
     /// every `send_prompt_linked` caller. Optional in tests.
@@ -701,6 +708,7 @@ impl ConnectionManager {
             spawn_handshake_timeout: spawn_handshake_timeout_from_env(),
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
             delegation_injection: Arc::new(std::sync::OnceLock::new()),
+            turn_limit_continuation_injection: Arc::new(std::sync::OnceLock::new()),
             chat_channel: Arc::new(std::sync::OnceLock::new()),
             message_queue_drain: Arc::new(std::sync::OnceLock::new()),
             probe_locks: Arc::new(Mutex::new(HashMap::new())),
@@ -723,6 +731,7 @@ impl ConnectionManager {
             spawn_handshake_timeout: self.spawn_handshake_timeout,
             terminal_shell_config: self.terminal_shell_config.clone(),
             delegation_injection: self.delegation_injection.clone(),
+            turn_limit_continuation_injection: self.turn_limit_continuation_injection.clone(),
             chat_channel: self.chat_channel.clone(),
             message_queue_drain: self.message_queue_drain.clone(),
             probe_locks: self.probe_locks.clone(),
@@ -771,6 +780,20 @@ impl ConnectionManager {
         self.delegation_injection.get().cloned()
     }
 
+    /// Install the continuation channel exactly once during bootstrap.
+    pub fn install_turn_limit_continuation(
+        &self,
+        injection: crate::acp::turn_limit_continuation::ContinuationInjection,
+    ) {
+        let _ = self.turn_limit_continuation_injection.set(injection);
+    }
+
+    fn turn_limit_continuation_snapshot(
+        &self,
+    ) -> Option<crate::acp::turn_limit_continuation::ContinuationInjection> {
+        self.turn_limit_continuation_injection.get().cloned()
+    }
+
     /// Returns the shared terminal-shell setting consumed by ACP terminal
     /// runtimes. Keeping the handle shared makes saves apply immediately to
     /// connections that are already running.
@@ -791,6 +814,7 @@ impl ConnectionManager {
             spawn_handshake_timeout: timeout,
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
             delegation_injection: Arc::new(std::sync::OnceLock::new()),
+            turn_limit_continuation_injection: Arc::new(std::sync::OnceLock::new()),
             chat_channel: Arc::new(std::sync::OnceLock::new()),
             message_queue_drain: Arc::new(std::sync::OnceLock::new()),
             probe_locks: Arc::new(Mutex::new(HashMap::new())),
@@ -1078,6 +1102,7 @@ impl ConnectionManager {
             preferred_mode_id,
             preferred_config_values,
             self.delegation_snapshot(),
+            self.turn_limit_continuation_snapshot(),
             self.terminal_shell_config.clone(),
             cli_root,
             self.model_switch_journal.get().cloned(),

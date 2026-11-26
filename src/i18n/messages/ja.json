@@ -1942,6 +1942,15 @@
     "behaviorExit": "codeg を終了",
     "saveFailed": "閉じる動作の保存に失敗しました: {message}"
   },
+  "TurnLimitContinuationSettings": {
+    "title": "When the session turn limit is hit",
+    "description": "Choose how the backend recovers when a provider rejects a turn for reaching the session turn limit.",
+    "optionOff": "Off",
+    "optionCompact": "Compact then continue (unverified)",
+    "optionNewSession": "Continue in a new session",
+    "compactWarning": "Note: compaction keeps the same session and may not reset the provider's turn counter.",
+    "saveFailed": "Failed to save setting: {message}"
+  },
   "CloseRequestDialog": {
     "askTitle": "codeg を閉じますか？",
     "askDescription": "通知領域に常駐してエージェントとターミナルを動かし続けることも、完全に終了することもできます。",

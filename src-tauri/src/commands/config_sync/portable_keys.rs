@@ -31,6 +31,9 @@ pub const PORTABLE_PREFERENCE_KEYS: &[&str] = &[
     "feedback.enabled",
     "question.enabled",
     "session_info.enabled",
+    // The old `turn_limit_continuation.auto_continue.enabled` key is read only
+    // for one-time migration and deliberately not portable.
+    "turn_limit_continuation.auto_continue.mode",
     "chat_authoring.automations_enabled",
     "chat_authoring.work_tasks_enabled",
     // Chat channel behavior that carries no credential.

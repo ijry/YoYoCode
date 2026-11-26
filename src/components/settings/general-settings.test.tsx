@@ -48,6 +48,10 @@ vi.mock("@/lib/api", () => ({
     behavior: "ask" as const,
     tray_available: true,
   })),
+  getTurnLimitContinuationSettings: vi.fn(async () => ({
+    mode: "new_session" as const,
+  })),
+  updateTurnLimitContinuationSettings: vi.fn(async (mode: string) => ({ mode })),
   updateSystemCloseBehaviorSettings: vi.fn(async (behavior: string) => ({
     behavior,
     tray_available: true,

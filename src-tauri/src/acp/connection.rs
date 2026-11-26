@@ -2927,6 +2927,7 @@ pub async fn spawn_agent_connection(
     preferred_mode_id: Option<String>,
     preferred_config_values: BTreeMap<String, String>,
     delegation_injection: Option<DelegationInjection>,
+    continuation_injection: Option<crate::acp::turn_limit_continuation::ContinuationInjection>,
     terminal_shell_config: TerminalShellRuntimeConfig,
     cli_root: Option<crate::cli_run::RootSeed>,
     model_switch_journal: Option<crate::acp::model_switch::ModelSwitchJournal>,
@@ -3194,6 +3195,7 @@ pub async fn spawn_agent_connection(
             preferred_mode_id,
             preferred_config_values,
             delegation_injection,
+            continuation_injection,
             fs_policy,
             host_tools,
             claude_projects_dir,
@@ -9072,6 +9074,7 @@ async fn run_connection(
     preferred_mode_id: Option<String>,
     preferred_config_values: BTreeMap<String, String>,
     delegation_injection: Option<DelegationInjection>,
+    continuation_injection: Option<crate::acp::turn_limit_continuation::ContinuationInjection>,
     fs_policy: FsAccessPolicy,
     host_tools: HostToolsPolicy,
     // Where a Claude launch writes its transcripts (see `spawn_if_claude`).
@@ -10055,6 +10058,7 @@ async fn run_connection(
                                 &mcp_servers,
                                 &prompt_ledger,
                                 delegation_injection.as_ref(),
+                                continuation_injection.as_ref(),
                                 &stderr_tail,
                             )
                             .await;
@@ -10080,6 +10084,7 @@ async fn run_connection(
                                 &mcp_servers,
                                 &prompt_ledger,
                                 delegation_injection.as_ref(),
+                                
                                 &stderr_tail,
                             )
                             .await;
@@ -10362,6 +10367,7 @@ async fn run_connection(
                             &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
+                            continuation_injection.as_ref(),
                             &stderr_tail,
                         )
                         .await;
@@ -10383,6 +10389,7 @@ async fn run_connection(
                             &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
+                            
                             &stderr_tail,
                         )
                         .await
@@ -10624,6 +10631,7 @@ async fn run_connection(
                             &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
+                            continuation_injection.as_ref(),
                             &stderr_tail,
                         )
                         .await;
@@ -10647,6 +10655,7 @@ async fn run_connection(
                             &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
+                            
                             &stderr_tail,
                         )
                         .await
@@ -10739,6 +10748,7 @@ async fn run_connection(
                     &mcp_servers,
                     &prompt_ledger,
                     delegation_injection.as_ref(),
+                    continuation_injection.as_ref(),
                     &stderr_tail,
                 )
                 .await;
@@ -10760,6 +10770,7 @@ async fn run_connection(
                     &mcp_servers,
                     &prompt_ledger,
                     delegation_injection.as_ref(),
+                    
                     &stderr_tail,
                 )
                 .await
@@ -14300,6 +14311,7 @@ async fn handle_fork_or_exit(
         mcp_servers,
         prompt_ledger,
         delegation_injection,
+        None,
         stderr_tail,
     )
     .await;
@@ -15543,6 +15555,7 @@ async fn run_conversation_loop(
     // delegations on parent prompt cancel / non-success TurnComplete.
     // `None` for test paths that don't wire delegation.
     delegation_injection: Option<&DelegationInjection>,
+    continuation_injection: Option<&crate::acp::turn_limit_continuation::ContinuationInjection>,
     // Connection-scoped (like `prompt_ledger`): the agent's stderr ring buffer,
     // read at turn end to explain a silent `EndTurn`.
     stderr_tail: &Arc<StderrTail>,
@@ -16281,6 +16294,14 @@ async fn run_conversation_loop(
                                     // the record's, which carries the Sign in
                                     // button; this Error is the only report for
                                     // agents with no AIR.
+                                    let error_text = agent_error_text(&e);
+                                    // A provider's JSON error envelope carries a
+                                    // stable code (e.g. the 100-turn limit). Keep
+                                    // it on the event and let the manager-side
+                                    // worker act on it without re-parsing text.
+                                    let error_code = crate::acp::service_error::agent_error_code(
+                                        &error_text,
+                                    );
                                     let err_event = if auth_required {
                                         turn_failure_error_event(
                                             reason_str,
@@ -16294,14 +16315,9 @@ async fn run_conversation_loop(
                                             // can quote a local path, and this
                                             // string is rendered in the UI and
                                             // pushed over the WebSocket.
-                                            message: AcpError::protocol(agent_error_text(&e))
-                                                .to_string(),
+                                            message: AcpError::protocol(error_text).to_string(),
                                             agent_type: agent_type.to_string(),
-                                            // No stable code: the payload IS the
-                                            // agent's message, so the frontend's
-                                            // fallback arm (show it verbatim) is
-                                            // the right renderer.
-                                            code: None,
+                                            code: error_code.clone(),
                                             details: None,
                                             // The whole point: the connection
                                             // outlives this turn.
@@ -16310,6 +16326,46 @@ async fn run_conversation_loop(
                                     };
                                     if let Some(err_event) = err_event {
                                         emit_with_state(state, emitter, err_event).await;
+                                    }
+                                    // A provider turn-limit rejection leaves this
+                                    // session unable to continue. Hand it to the
+                                    // manager-side worker, which owns the database
+                                    // and can spawn a new session on the same model.
+                                    if error_code.as_deref()
+                                        == Some(crate::acp::turn_limit_continuation::TURN_LIMIT_EXCEEDED_CODE)
+                                    {
+                                        if let Some(injection) = continuation_injection {
+                                            let (conversation_id, folder_id, owner_label, cwd, selection) = {
+                                                let s = state.read().await;
+                                                (
+                                                    s.conversation_id,
+                                                    s.folder_id,
+                                                    s.owner_window_label.clone(),
+                                                    s.working_dir.as_ref().map(|p| p.to_string_lossy().into_owned()),
+                                                    crate::acp::selection::selection_snapshot(&s),
+                                                )
+                                            };
+                                            if let (Some(conversation_id), Some(folder_id)) =
+                                                (conversation_id, folder_id)
+                                            {
+                                                injection.try_send(
+                                                    crate::acp::turn_limit_continuation::ContinuationRequest {
+                                                        conversation_id,
+                                                        connection_id: conn_id.to_string(),
+                                                        agent_type,
+                                                        working_dir: cwd.unwrap_or_default(),
+                                                        folder_id,
+                                                        owner_window_label: owner_label,
+                                                        selection,
+                                                        emitter: emitter.clone(),
+                                                    },
+                                                );
+                                            } else {
+                                                tracing::warn!(
+                                                    "[turn-limit-continuation] session not bound to a conversation/folder; skipping"
+                                                );
+                                            }
+                                        }
                                     }
                                     // Not journaled (that is `end_turn` only),
                                     // but still recorded: the transcript's turn
@@ -38394,6 +38450,7 @@ mod tests {
                         None,
                         BTreeMap::new(),
                         None,
+                        None,
                         FsAccessPolicy::from_env(&cwd, agent_type, &BTreeMap::new()),
                         HostToolsPolicy::from_env(&BTreeMap::new()),
                         // Watched only for a Claude launch.
@@ -49248,6 +49305,7 @@ mod tests {
                             &[],
                             &ledger,
                             Some(&injection),
+                            None,
                             &stderr_tail,
                         )
                         .await?;
@@ -50415,6 +50473,7 @@ mod tests {
                             &[],
                             &ledger,
                             Some(&injection),
+                            None,
                             &stderr_tail,
                         )
                         .await?;
@@ -50668,6 +50727,7 @@ mod tests {
                             false,
                             &[],
                             &ledger,
+                            None,
                             None,
                             &stderr_tail,
                         )
@@ -50994,6 +51054,7 @@ mod tests {
                             true,
                             &mcp_servers,
                             &ledger,
+                            None,
                             None,
                             &stderr_tail,
                         )
@@ -51819,6 +51880,7 @@ mod tests {
                             false,
                             &[],
                             &ledger,
+                            None,
                             None,
                             &stderr_tail,
                         )
@@ -52765,6 +52827,7 @@ mod tests {
                         false,
                         &[],
                         &ledger,
+                        None,
                         None,
                         &stderr_tail,
                     )

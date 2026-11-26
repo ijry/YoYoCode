@@ -1942,6 +1942,15 @@
     "behaviorExit": "Quitter codeg",
     "saveFailed": "Échec de l'enregistrement du comportement de fermeture : {message}"
   },
+  "TurnLimitContinuationSettings": {
+    "title": "When the session turn limit is hit",
+    "description": "Choose how the backend recovers when a provider rejects a turn for reaching the session turn limit.",
+    "optionOff": "Off",
+    "optionCompact": "Compact then continue (unverified)",
+    "optionNewSession": "Continue in a new session",
+    "compactWarning": "Note: compaction keeps the same session and may not reset the provider's turn counter.",
+    "saveFailed": "Failed to save setting: {message}"
+  },
   "CloseRequestDialog": {
     "askTitle": "Fermer codeg ?",
     "askDescription": "codeg peut continuer à s'exécuter dans la zone de notification pour garder les agents et les terminaux actifs, ou quitter complètement.",

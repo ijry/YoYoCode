@@ -132,6 +132,14 @@ pub fn build_router_with_srn(
             post(handlers::feedback::set_feedback_settings),
         )
         .route(
+            "/get_turn_limit_continuation_settings",
+            post(handlers::turn_limit_continuation::get_turn_limit_continuation_settings),
+        )
+        .route(
+            "/set_turn_limit_continuation_settings",
+            post(handlers::turn_limit_continuation::set_turn_limit_continuation_settings),
+        )
+        .route(
             "/submit_session_feedback",
             post(handlers::feedback::submit_session_feedback),
         )

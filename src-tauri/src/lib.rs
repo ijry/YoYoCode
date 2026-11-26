@@ -130,6 +130,7 @@ mod tauri_app {
         custom_skills as custom_skills_commands,
         deepseek_settings as deepseek_settings_commands, delegation as delegation_commands,
         experts as experts_commands, feedback as feedback_commands, file_io, folder_commands,
+        turn_limit_continuation as turn_limit_commands,
         folder_links, local_command, office_tools as office_tools_commands, open_in,
         folders, logging as logging_commands, mcp as mcp_commands,
         model_provider as model_provider_commands, notification, pet as pet_commands, project_boot,
@@ -1301,6 +1302,26 @@ mod tauri_app {
                         effective_data_dir.clone(),
                     );
                     app.manage(broker.clone());
+                    // Turn-limit auto-continuation: install the channel before
+                    // any session can spawn. The worker is spawned on Tauri's
+                    // async runtime (setup runs outside tokio).
+                    let (turn_limit_config, turn_limit_rx) =
+                        crate::app_state::install_turn_limit_continuation(&cm_state);
+                    app.manage(turn_limit_config.clone());
+                    let db_for_continuation = db::AppDatabase {
+                        conn: db_conn.clone(),
+                    };
+                    let cm_for_continuation = cm_state.clone_ref();
+                    tauri::async_runtime::spawn(crate::acp::turn_limit_continuation::worker(
+                        turn_limit_rx,
+                        db_for_continuation,
+                        cm_for_continuation,
+                        effective_data_dir.clone(),
+                        app.state::<std::sync::Arc<crate::acp::InternalEventBus>>()
+                            .inner()
+                            .clone(),
+                        turn_limit_config.clone(),
+                    ));
                     app.manage(tokens.clone());
                     app.manage(feedback_config.clone());
                     app.manage(question_config.clone());
@@ -1321,6 +1342,7 @@ mod tauri_app {
                     let broker_for_init = broker.clone();
                     let db_for_init = db_conn.clone();
                     let feedback_for_init = feedback_config.clone();
+                    let turn_limit_for_init = turn_limit_config.clone();
                     let question_for_init = question_config.clone();
                     let session_info_for_init = session_info_config.clone();
                     let chat_authoring_for_init = chat_authoring_config.clone();
@@ -1335,6 +1357,11 @@ mod tauri_app {
                         crate::commands::feedback::apply_persisted_feedback_config(
                             &db_for_init,
                             &feedback_for_init,
+                        )
+                        .await;
+                        crate::commands::turn_limit_continuation::apply_persisted_config(
+                            &db_for_init,
+                            &turn_limit_for_init,
                         )
                         .await;
                         crate::commands::question::apply_persisted_question_config(
@@ -2299,6 +2326,8 @@ mod tauri_app {
                 crate::commands::mcp_service::set_codeg_mcp_tool_group,
                 feedback_commands::get_feedback_settings,
                 feedback_commands::set_feedback_settings,
+                turn_limit_commands::get_turn_limit_continuation_settings,
+                turn_limit_commands::set_turn_limit_continuation_settings,
                 feedback_commands::submit_session_feedback,
                 question_commands::get_question_settings,
                 question_commands::set_question_settings,

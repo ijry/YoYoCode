@@ -358,6 +358,8 @@ async fn async_main(
         codeg_lib::cli_run::wire::RuntimeKind::Server,
     );
     let cli_access = codeg_lib::cli_run::CliAccess::new(cli_runs.clone(), data_dir.clone());
+    let (turn_limit_config, turn_limit_rx) =
+        codeg_lib::app_state::install_turn_limit_continuation(&connection_manager);
     let (
         delegation_broker,
         delegation_tokens,
@@ -402,6 +404,7 @@ async fn async_main(
         delegation_tokens: delegation_tokens.clone(),
         delegation_socket_path: delegation_socket_path.clone(),
         feedback_config: feedback_config.clone(),
+        turn_limit_continuation_config: turn_limit_config.clone(),
         question_config: question_config.clone(),
         session_info_config: session_info_config.clone(),
         chat_authoring_config: chat_authoring_config.clone(),
@@ -413,6 +416,14 @@ async fn async_main(
         cli_runs,
         cli_access,
     });
+    tokio::spawn(codeg_lib::acp::turn_limit_continuation::worker(
+        turn_limit_rx,
+        codeg_lib::db::AppDatabase { conn: state.db.conn.clone() },
+        state.connection_manager.clone_ref(),
+        state.data_dir.clone(),
+        acp_event_bus.clone(),
+        turn_limit_config.clone(),
+    ));
     state
         .connection_manager
         .install_chat_channel(state.chat_channel_manager.clone_ref());
@@ -435,6 +446,11 @@ async fn async_main(
     codeg_lib::commands::feedback::apply_persisted_feedback_config(
         &state.db.conn,
         &feedback_config,
+    )
+    .await;
+    codeg_lib::commands::turn_limit_continuation::apply_persisted_config(
+        &state.db.conn,
+        &turn_limit_config,
     )
     .await;
     // Same for the ask-user-question enable flag.

@@ -1052,6 +1052,12 @@ pub(crate) async fn do_start_web_server_tauri(
             .state::<crate::acp::feedback::FeedbackRuntimeConfig>()
             .inner()
             .clone(),
+        // Same live handle the desktop worker reads, so HTTP settings target
+        // the same auto-continue flag.
+        turn_limit_continuation_config: app
+            .state::<crate::acp::turn_limit_continuation::TurnLimitContinuationRuntimeConfig>()
+            .inner()
+            .clone(),
         // Reuse the same ask-user-question config handle the desktop MCP
         // injection reads, so HTTP-side question settings target the same flag.
         question_config: app

@@ -1942,6 +1942,15 @@
     "behaviorExit": "結束 codeg",
     "saveFailed": "儲存關閉行為失敗：{message}"
   },
+  "TurnLimitContinuationSettings": {
+    "title": "達到工作階段輪次上限時",
+    "description": "當代理程式因工作階段輪次上限遭拒時，選擇自動復原方式。",
+    "optionOff": "關閉",
+    "optionCompact": "壓縮上下文後繼續（未驗證）",
+    "optionNewSession": "在新工作階段中繼續",
+    "compactWarning": "注意：壓縮不會更換工作階段，可能不會重設服務供應商的輪次上限。",
+    "saveFailed": "儲存設定失敗：{message}"
+  },
   "CloseRequestDialog": {
     "askTitle": "要關閉 codeg 嗎？",
     "askDescription": "codeg 可以最小化到系統匣繼續執行，讓智能體與終端機保持運作；也可以完全結束。",
