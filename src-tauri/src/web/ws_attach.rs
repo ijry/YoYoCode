@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use crate::acp::internal_bus::EventBusMetrics;
 use crate::acp::manager::ConnectionManager;
-use crate::acp::session_state::LiveSessionSnapshot;
+use crate::acp::session_state::{LiveSessionSnapshot, SessionState};
 use crate::acp::types::EventEnvelope;
 
 /// Maximum number of events delivered in a single `replay` response. Larger
@@ -132,7 +132,22 @@ pub async fn handle_attach(
         .await
         .ok_or(DetachReason::ConnectionGone)?;
 
-    let s = state_arc.read().await;
+    attach_session(state_arc, metrics, subscription_id, since_seq).await
+}
+
+/// Apply the attach decision to an already-resolved session state.
+///
+/// This is the transport-independent part of the attach protocol. The
+/// manager-backed WebSocket path delegates here, and other local transports
+/// can use the same snapshot/replay decision without duplicating the lock and
+/// subscription ordering rules.
+pub async fn attach_session(
+    state: Arc<tokio::sync::RwLock<SessionState>>,
+    metrics: &EventBusMetrics,
+    subscription_id: String,
+    since_seq: Option<u64>,
+) -> Result<AttachOutcome, DetachReason> {
+    let s = state.read().await;
 
     // Decide response shape. Order of checks matters:
     //   - explicit None → snapshot (fresh attach; client has no state yet)
@@ -144,7 +159,7 @@ pub async fn handle_attach(
     //   - cursor older than ring buffer → snapshot (only choice)
     let snapshot_msg = || ServerMsg::Snapshot {
         subscription_id: subscription_id.clone(),
-        connection_id: connection_id.clone(),
+        connection_id: s.connection_id.clone(),
         snapshot: Box::new(s.to_snapshot()),
         event_seq: s.event_seq,
     };
@@ -171,7 +186,7 @@ pub async fn handle_attach(
                     .fetch_add(event_count, Ordering::Relaxed);
                 ServerMsg::Replay {
                     subscription_id: subscription_id.clone(),
-                    connection_id: connection_id.clone(),
+                    connection_id: s.connection_id.clone(),
                     events,
                     high_water_seq,
                 }
