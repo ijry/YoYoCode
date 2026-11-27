@@ -33,11 +33,11 @@ import type { TurnLimitContinuationMode } from "@/lib/types"
 
 const MODE_IDS = ["off", "compact", "new_session"] as const
 
-const LABEL_KEYS: Record<TurnLimitContinuationMode, string> = {
+const LABEL_KEYS = {
   off: "optionOff",
   compact: "optionCompact",
   new_session: "optionNewSession",
-}
+} as const satisfies Record<TurnLimitContinuationMode, string>
 
 export function TurnLimitContinuationSettingsSection() {
   const t = useTranslations("TurnLimitContinuationSettings")
