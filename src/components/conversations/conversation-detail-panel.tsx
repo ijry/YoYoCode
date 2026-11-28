@@ -1,10 +1,10 @@
 "use client"
 
 import {
-  ASK_SELECTION_PARKED_EVENT,
-  consumeAskSelectionPrompts,
-  type AskSelectionParkedDetail,
-} from "@/lib/ask-selection-handoff"
+  WORKBENCH_TASK_PARKED_EVENT,
+  consumeWorkbenchTasks,
+  type WorkbenchTaskParkedDetail,
+} from "@/lib/workbench-task-handoff"
 
 import {
   shouldSeedConversation,
@@ -2308,10 +2308,11 @@ const ConversationTabView = memo(function ConversationTabView({
     ]
   )
 
-  // Comic workbench tasks still target this tab, including while it connects.
+  // Hand workbench tasks to this conversation's normal queue. The handoff
+  // also covers tasks submitted before this panel mounted.
   useEffect(() => {
     const drain = () => {
-      const prompts = consumeAskSelectionPrompts(tabId, {
+      const prompts = consumeWorkbenchTasks(tabId, {
         agentType: selectedAgent,
         folderId,
       })
@@ -2327,13 +2328,13 @@ const ConversationTabView = memo(function ConversationTabView({
     }
     drain()
     const onParked = (event: Event) => {
-      const detail = (event as CustomEvent<AskSelectionParkedDetail>).detail
+      const detail = (event as CustomEvent<WorkbenchTaskParkedDetail>).detail
       if (detail?.tabId !== tabId) return
       drain()
     }
-    window.addEventListener(ASK_SELECTION_PARKED_EVENT, onParked)
+    window.addEventListener(WORKBENCH_TASK_PARKED_EVENT, onParked)
     return () =>
-      window.removeEventListener(ASK_SELECTION_PARKED_EVENT, onParked)
+      window.removeEventListener(WORKBENCH_TASK_PARKED_EVENT, onParked)
   }, [folderId, mqEnqueue, selectedAgent, tabId])
 
   const canShowDetailErrorActions =

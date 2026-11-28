@@ -11,9 +11,9 @@ import type {
 import { useComicStore } from "@/stores/comic-store"
 import { resetTabStore, useTabStore } from "@/stores/tab-store"
 import {
-  consumeAskSelectionPrompts,
-  resetAskSelectionPromptsForTests,
-} from "@/lib/ask-selection-handoff"
+  consumeWorkbenchTasks,
+  resetWorkbenchTasksForTests,
+} from "@/lib/workbench-task-handoff"
 import type { ComicOverviewPayload } from "@/lib/comic"
 import messages from "@/i18n/messages/en.json"
 
@@ -101,7 +101,7 @@ const overview: ComicOverviewPayload = {
 beforeEach(() => {
   vi.clearAllMocks()
   resetTabStore()
-  resetAskSelectionPromptsForTests()
+  resetWorkbenchTasksForTests()
   mocks.activeFileTab = comicTab(7)
   mocks.overview.mockResolvedValue(overview)
   mocks.tasks.mockResolvedValue([])
@@ -343,7 +343,7 @@ describe("comic in the wide file workspace", () => {
     })
     fireEvent.click(adapt)
     expect(
-      consumeAskSelectionPrompts(tab.id, {
+      consumeWorkbenchTasks(tab.id, {
         folderId: 7,
         agentType: "codex",
       })

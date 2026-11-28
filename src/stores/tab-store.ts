@@ -1,4 +1,4 @@
-import { discardAskSelectionPrompts } from "@/lib/ask-selection-handoff"
+import { discardWorkbenchTasks } from "@/lib/workbench-task-handoff"
 import { useMemo } from "react"
 import {
   folderScope,
@@ -1789,7 +1789,7 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         closingTab.conversationId == null
           ? buildNewConversationDraftStorageKey(closingTab.id)
           : null
-      discardAskSelectionPrompts(closingTab.id)
+      discardWorkbenchTasks(closingTab.id)
       let draftKeyHandedOver = false
 
       if (useFolderTabsStore.getState().enabled && !next.some(isTabInScope)) {

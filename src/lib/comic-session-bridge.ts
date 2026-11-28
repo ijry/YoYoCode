@@ -1,9 +1,9 @@
 import type { TabItem } from "@/stores/tab-store"
-import { parkAskSelectionPrompt } from "@/lib/ask-selection-handoff"
+import { parkWorkbenchTask } from "@/lib/workbench-task-handoff"
 
 /** A workbench click is a user request for the current conversation, not a
- *  reason to open a second session. The existing handoff buffers requests for
- *  draft tabs and their normal message queue sends them when ready. */
+ *  reason to open a second session. The workbench handoff delivers the task to
+ *  that tab's panel, whose normal message queue sends it when ready. */
 export function requestComicConversationTask(
   tab: Pick<
     TabItem,
@@ -22,7 +22,7 @@ export function requestComicConversationTask(
   ) {
     return false
   }
-  parkAskSelectionPrompt(tab.id, {
+  parkWorkbenchTask(tab.id, {
     prompt: text.trim(),
     agentType: tab.agentType,
     folderId,

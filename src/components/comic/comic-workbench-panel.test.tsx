@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ComicWorkbenchPanel } from "./comic-workbench-panel"
 import { useComicStore } from "@/stores/comic-store"
 import {
-  consumeAskSelectionPrompts,
-  resetAskSelectionPromptsForTests,
-} from "@/lib/ask-selection-handoff"
+  consumeWorkbenchTasks,
+  resetWorkbenchTasksForTests,
+} from "@/lib/workbench-task-handoff"
 import type { ComicOverviewPayload } from "@/lib/comic"
 import messages from "@/i18n/messages/en.json"
 
@@ -134,7 +134,7 @@ function renderPanel() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  resetAskSelectionPromptsForTests()
+  resetWorkbenchTasksForTests()
   mocks.activeFolderId = 7
   mocks.tab = {
     id: "current-conversation",
@@ -218,7 +218,7 @@ describe("comic workbench next to the existing conversation", () => {
       screen.getByRole("button", { name: "Adapt source into episodes" })
     )
     expect(
-      consumeAskSelectionPrompts("current-conversation", {
+      consumeWorkbenchTasks("current-conversation", {
         folderId: 7,
         agentType: "codex",
       })
@@ -243,7 +243,7 @@ describe("comic workbench next to the existing conversation", () => {
     expect(generate).toBeDisabled()
     await waitFor(() => expect(generate).toBeEnabled())
     fireEvent.click(generate)
-    const prompt = consumeAskSelectionPrompts("current-conversation", {
+    const prompt = consumeWorkbenchTasks("current-conversation", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -266,7 +266,7 @@ describe("comic workbench next to the existing conversation", () => {
     fireEvent.click(
       screen.getByRole("button", { name: messages.Comic.qaSaveConversation })
     )
-    const prompt = consumeAskSelectionPrompts("current-conversation", {
+    const prompt = consumeWorkbenchTasks("current-conversation", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -299,7 +299,7 @@ describe("comic workbench next to the existing conversation", () => {
     fireEvent.click(
       screen.getByRole("button", { name: messages.Comic.qaOriginal })
     )
-    const prompt = consumeAskSelectionPrompts("current-conversation", {
+    const prompt = consumeWorkbenchTasks("current-conversation", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -334,7 +334,7 @@ describe("comic workbench next to the existing conversation", () => {
       screen.getByRole("button", { name: "Adapt source into episodes" })
     )
     expect(
-      consumeAskSelectionPrompts("new-current", {
+      consumeWorkbenchTasks("new-current", {
         folderId: 7,
         agentType: "claude_code",
       })
@@ -349,7 +349,7 @@ describe("comic workbench next to the existing conversation", () => {
       screen.getByRole("button", { name: "Adapt source into episodes" })
     )
     expect(
-      consumeAskSelectionPrompts("other-project", {
+      consumeWorkbenchTasks("other-project", {
         folderId: 8,
         agentType: "codex",
       })
@@ -380,7 +380,7 @@ describe("comic workbench next to the existing conversation", () => {
         name: "Generate speech for this episode",
       })
     )
-    const prompt = consumeAskSelectionPrompts("current-conversation", {
+    const prompt = consumeWorkbenchTasks("current-conversation", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -416,7 +416,7 @@ describe("comic workbench next to the existing conversation", () => {
       screen.getByRole("button", { name: "Compose this episode" })
     )
     expect(
-      consumeAskSelectionPrompts("current-conversation", {
+      consumeWorkbenchTasks("current-conversation", {
         folderId: 7,
         agentType: "codex",
       })[0]
@@ -433,7 +433,7 @@ describe("comic workbench next to the existing conversation", () => {
         name: "Generate videos for this episode",
       })
     )
-    const prompt = consumeAskSelectionPrompts("current-conversation", {
+    const prompt = consumeWorkbenchTasks("current-conversation", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -450,7 +450,7 @@ describe("comic workbench next to the existing conversation", () => {
       screen.getByRole("button", { name: "Generate videos for this episode" })
     ).toBeDisabled()
     expect(
-      consumeAskSelectionPrompts("current-conversation", {
+      consumeWorkbenchTasks("current-conversation", {
         folderId: 7,
         agentType: "codex",
       })

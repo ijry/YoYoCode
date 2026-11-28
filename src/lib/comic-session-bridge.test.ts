@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import {
-  consumeAskSelectionPrompts,
-  resetAskSelectionPromptsForTests,
-} from "./ask-selection-handoff"
+  consumeWorkbenchTasks,
+  resetWorkbenchTasksForTests,
+} from "./workbench-task-handoff"
 import { requestComicConversationTask } from "./comic-session-bridge"
 
 const tab = {
@@ -15,7 +15,7 @@ const tab = {
   isPinned: false,
 }
 
-beforeEach(resetAskSelectionPromptsForTests)
+beforeEach(resetWorkbenchTasksForTests)
 
 describe("comic actions in the current conversation", () => {
   it("queues to the current draft without requiring a database conversation", () => {
@@ -23,7 +23,7 @@ describe("comic actions in the current conversation", () => {
       true
     )
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "codex",
       })
@@ -34,19 +34,19 @@ describe("comic actions in the current conversation", () => {
     requestComicConversationTask(tab, 7, "First")
     requestComicConversationTask(tab, 7, "Second")
     expect(
-      consumeAskSelectionPrompts("other-tab", {
+      consumeWorkbenchTasks("other-tab", {
         folderId: 7,
         agentType: "codex",
       })
     ).toEqual([])
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "codex",
       })
     ).toEqual(["First", "Second"])
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "codex",
       })
@@ -61,7 +61,7 @@ describe("comic actions in the current conversation", () => {
     ).toBe(false)
     expect(requestComicConversationTask(tab, 7, " ")).toBe(false)
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "codex",
       })
@@ -71,19 +71,19 @@ describe("comic actions in the current conversation", () => {
   it("holds an instruction while a tab's folder or agent identity differs", () => {
     requestComicConversationTask(tab, 7, "Generate")
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 8,
         agentType: "codex",
       })
     ).toEqual([])
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "claude_code",
       })
     ).toEqual([])
     expect(
-      consumeAskSelectionPrompts("current-tab", {
+      consumeWorkbenchTasks("current-tab", {
         folderId: 7,
         agentType: "codex",
       })

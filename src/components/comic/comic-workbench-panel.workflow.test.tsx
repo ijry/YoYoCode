@@ -10,9 +10,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ComicWorkbenchPanel } from "./comic-workbench-panel"
 import { useComicStore } from "@/stores/comic-store"
 import {
-  consumeAskSelectionPrompts,
-  resetAskSelectionPromptsForTests,
-} from "@/lib/ask-selection-handoff"
+  consumeWorkbenchTasks,
+  resetWorkbenchTasksForTests,
+} from "@/lib/workbench-task-handoff"
 import type { ComicOverviewPayload, EpisodeMetaInput } from "@/lib/comic"
 
 const mocks = vi.hoisted(() => ({
@@ -82,7 +82,7 @@ function enterNewEpisode(title: string, script: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  resetAskSelectionPromptsForTests()
+  resetWorkbenchTasksForTests()
   mocks.tab = {
     id: "current",
     kind: "conversation",
@@ -198,7 +198,7 @@ describe("comic original series workflow", () => {
     ).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "storyboardMore" })).toBeEnabled()
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
   })
 
@@ -405,7 +405,7 @@ describe("comic original series workflow", () => {
     enterNewEpisode("Second", "Second")
     await screen.findByDisplayValue("Second")
     fireEvent.click(screen.getByRole("button", { name: "qaOriginal" }))
-    const prompt = consumeAskSelectionPrompts("current", {
+    const prompt = consumeWorkbenchTasks("current", {
       folderId: 7,
       agentType: "codex",
     })[0]
@@ -422,7 +422,7 @@ describe("comic original series workflow", () => {
     expect(screen.getByText("scriptSaveBeforeAI")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "qaOriginal" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     fireEvent.click(screen.getByRole("button", { name: "save" }))
     await waitFor(() =>
@@ -432,7 +432,7 @@ describe("comic original series workflow", () => {
     expect(screen.queryByText("scriptSaveBeforeAI")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "qaOriginal" }))
     expect(
-      consumeAskSelectionPrompts("current", {
+      consumeWorkbenchTasks("current", {
         folderId: 7,
         agentType: "codex",
       })[0]
@@ -444,11 +444,11 @@ describe("comic original series workflow", () => {
     enterNewEpisode("Pilot", "Saved script")
     await screen.findByDisplayValue("Saved script")
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     fireEvent.click(screen.getByRole("button", { name: "storyboardGenerate" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual(['qaStoryboardPrompt {"episode":"ep001"}'])
     expect(mocks.replaceStoryboard).not.toHaveBeenCalled()
   })
@@ -505,13 +505,13 @@ describe("comic original series workflow", () => {
       within(confirmation).getByText(/storyboardRegenerateConfirm/)
     ).toBeInTheDocument()
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     fireEvent.click(
       within(confirmation).getByRole("button", { name: "cancel" })
     )
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     fireEvent.click(screen.getByRole("button", { name: "storyboardGenerate" }))
     fireEvent.click(
@@ -520,7 +520,7 @@ describe("comic original series workflow", () => {
       })
     )
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toHaveLength(1)
   })
 
@@ -528,11 +528,11 @@ describe("comic original series workflow", () => {
     openPanel()
     await screen.findByText("originalSourceHint")
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     fireEvent.click(screen.getByRole("button", { name: "qaSaveConversation" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual(["qaSaveConversationPrompt"])
     act(() =>
       useComicStore.getState().setResourceDraft(7, "episodes/ep009/script", {
@@ -546,7 +546,7 @@ describe("comic original series workflow", () => {
     expect(screen.getByText("scriptSaveBeforeAI")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "qaSaveConversation" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
   })
 
@@ -566,7 +566,7 @@ describe("comic original series workflow", () => {
       expect(screen.getByText("comicManualOnlyHint")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "addShot" })).toBeEnabled()
       expect(
-        consumeAskSelectionPrompts("current", {
+        consumeWorkbenchTasks("current", {
           folderId: 7,
           agentType: agentType as "codex",
         })
@@ -581,12 +581,12 @@ describe("comic original series workflow", () => {
     mocks.tab = { ...mocks.tab, folderId: 8 }
     fireEvent.click(screen.getByRole("button", { name: "storyboardGenerate" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "codex" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "codex" })
     ).toEqual([])
     mocks.tab = { ...mocks.tab, folderId: 7, agentType: "cline" }
     fireEvent.click(screen.getByRole("button", { name: "storyboardGenerate" }))
     expect(
-      consumeAskSelectionPrompts("current", { folderId: 7, agentType: "cline" })
+      consumeWorkbenchTasks("current", { folderId: 7, agentType: "cline" })
     ).toEqual([])
   })
 
