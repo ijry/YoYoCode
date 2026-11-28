@@ -13,7 +13,10 @@ import type { McpInventory } from "./types"
  * backend sends, for the moments before one has been read.
  */
 export const DEFAULT_KEY_PATTERN = "^[A-Za-z0-9_-]{1,64}$"
-export const DEFAULT_RESERVED_KEYS: readonly string[] = ["codeg-mcp"]
+export const DEFAULT_RESERVED_KEYS: readonly string[] = [
+  "yoyocode-mcp",
+  "codeg-mcp",
+]
 
 export interface McpKeyRules {
   pattern: RegExp

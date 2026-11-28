@@ -533,6 +533,14 @@ describe("ConversationDetailPanel send-path hardening", () => {
       /canFlushClientQueue\(\s*dbConversationId != null,\s*conn\.messageQueueBackendDrain,\s*messageQueue\.backendDrain\s*\)/
     )
     expect(effectWithDeps).toContain("conn.messageQueueBackendDrain,")
+    expect(effectWithDeps).toMatch(
+      /queueSteerInFlight,\s+editInFlight,\s+\]\)$/
+    )
+    // An edited message between its rewind and its send holds it the same
+    // way (`handleEditUserTurn`): nothing else may take the cut session's
+    // first turn, so the timer re-checks the ref too.
+    expect(effectWithDeps).toContain("if (editInFlight) return")
+    expect(effectWithDeps).toContain("if (editInFlightRef.current) return")
 
     const steerStart = source.indexOf("const handleQueueSteer = useCallback")
     expect(steerStart).toBeGreaterThan(-1)
@@ -574,7 +582,7 @@ describe("ConversationDetailPanel send-path hardening", () => {
     const guardIdx = source.indexOf("shouldRejectDuplicateCreate(")
     // The CALL site (assignment), not the function definition earlier in the file.
     const optimisticIdx = source.indexOf(
-      "const optimisticTurn = buildOptimisticUserTurnFromDraft("
+      "const builtTurn = buildOptimisticUserTurnFromDraft("
     )
     expect(guardIdx).toBeGreaterThan(-1)
     expect(optimisticIdx).toBeGreaterThan(guardIdx)

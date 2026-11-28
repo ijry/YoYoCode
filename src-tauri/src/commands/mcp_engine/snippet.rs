@@ -18,7 +18,7 @@ use crate::acp::opencode_config;
 use super::dialect::{normalize_type, read_string_list, read_string_map};
 use super::model::{
     codes, is_valid_new_key, McpDefinition, McpIssue, McpSnippet, McpSnippetFormat,
-    McpSnippetServer, McpTransport, RESERVED_KEY,
+    McpSnippetServer, McpTransport,
 };
 
 const URL_KEYS: [&str; 3] = ["url", "httpUrl", "serverUrl"];
@@ -43,7 +43,7 @@ fn looks_like_server(value: &Value) -> bool {
 fn read_loose(key: Option<&str>, value: &Value) -> McpSnippetServer {
     let mut problems = Vec::new();
     if let Some(key) = key {
-        if key == RESERVED_KEY {
+        if super::model::is_reserved_key(key) {
             problems.push(McpIssue::new(codes::KEY_RESERVED).field("key"));
         } else if !is_valid_new_key(key) {
             problems.push(McpIssue::new(codes::KEY_INVALID).field("key"));

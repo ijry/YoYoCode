@@ -29,6 +29,11 @@ vi.mock("@/components/canvas/canvas-page", () => ({
   CanvasPage: () => <div>PAGE canvas</div>,
   CanvasPageTitle: () => <div>TITLE canvas</div>,
 }))
+vi.mock("@/components/personal-agent/personal-agent-page", () => ({
+  PersonalAgentPage: () => <div>PAGE personalAgent</div>,
+  PersonalAgentPageTitle: () => <div>TITLE personalAgent</div>,
+  PersonalAgentChromeActions: () => <div>ACTIONS personalAgent</div>,
+}))
 vi.mock("@/components/harness/harness-chrome-actions", () => ({
   HarnessChromeActions: () => <div>ACTIONS harness</div>,
 }))
@@ -51,6 +56,7 @@ import {
 } from "./workbench-content"
 
 const FULL_PAGE_ROUTES: WorkbenchRouteId[] = [
+  "personalAgent",
   "automations",
   "tasks",
   "forge",
@@ -148,7 +154,8 @@ describe("workbench route registry", () => {
     // each: an id with no page would be a row that opens a blank screen.
     renderWorkbench([...SIDEBAR_NAV_ITEM_IDS])
 
-    for (const id of SIDEBAR_NAV_ITEM_IDS) {
+    // Comic opens a file workspace tab rather than a full-page route.
+    for (const id of SIDEBAR_NAV_ITEM_IDS.filter((id) => id !== "comic")) {
       fireEvent.click(screen.getByText(`go ${id}`))
       expect(screen.getByTestId("page").textContent).toBe(`PAGE ${id}`)
       expect(screen.getByTestId("strip").textContent).toBe(`TITLE ${id}`)

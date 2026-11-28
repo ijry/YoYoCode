@@ -1017,6 +1017,59 @@ describe("buildRows", () => {
   })
 })
 
+describe("buildRows — the personal assistants", () => {
+  const base = {
+    pinned: [],
+    pinnedExpanded: true,
+    orderedFolderIds: [10],
+    byFolder: new Map([[10, [conv(1, 10)]]]),
+    folderExpanded: { 10: true },
+    folderTotalCounts: new Map([[10, 1]]),
+    foldersExpanded: true,
+    chatConversations: [],
+    chatsExpanded: true,
+  }
+
+  it("draws their section first, its one row of them under its header, above the folders", () => {
+    const rows = buildRows({
+      ...base,
+      assistants: { expanded: true, count: 3 },
+    })
+    expect(rows[0]).toEqual({
+      kind: "section",
+      section: "assistants",
+      expanded: true,
+      count: 3,
+    })
+    expect(rows[1]).toEqual({ kind: "assistants" })
+    expect(rows[2]).toMatchObject({ kind: "section", section: "folders" })
+  })
+
+  it("keeps only the header of a folded section, and follows the order the owner set", () => {
+    const rows = buildRows({
+      ...base,
+      assistants: { expanded: false, count: 3 },
+      sectionOrder: ["folders", "chats", "assistants", "recent"],
+    })
+    const heads = rows
+      .filter((r) => r.kind === "section")
+      .map((r) => (r.kind === "section" ? r.section : null))
+    expect(heads).toEqual(["folders", "chats", "assistants"])
+    expect(rows.some((r) => r.kind === "assistants")).toBe(false)
+  })
+
+  it("draws none without them (the row model from before)", () => {
+    const rows = buildRows(base)
+    expect(
+      rows.some(
+        (r) =>
+          r.kind === "assistants" ||
+          (r.kind === "section" && r.section === "assistants")
+      )
+    ).toBe(false)
+  })
+})
+
 describe("buildRows — Recent section", () => {
   const baseArgs = {
     pinned: [] as DbConversationSummary[],
@@ -1121,7 +1174,7 @@ describe("buildRows — Recent section", () => {
   })
 })
 
-describe.each(["pinned", "chats", "recent", "folder-10"] as const)(
+describe.each(["pinned", "chats", "folder-10"] as const)(
   "buildRows 分页：%s",
   (listKey) => {
     const many = Array.from({ length: 13 }, (_, i) => conv(i + 1, 10))
@@ -1139,7 +1192,7 @@ describe.each(["pinned", "chats", "recent", "folder-10"] as const)(
         foldersExpanded: true,
         chatConversations: listKey === "chats" ? conversations : [],
         chatsExpanded: true,
-        recentConversations: listKey === "recent" ? conversations : [],
+        recentConversations: [],
         showRecent: true,
         ...overrides,
       })
@@ -1187,7 +1240,7 @@ describe.each(["pinned", "chats", "recent", "folder-10"] as const)(
     })
 
     it("其他列表的上限不会扩大当前列表", () => {
-      const otherKey = listKey === "recent" ? "pinned" : "recent"
+      const otherKey = "recent"
       const rows = pageRows(many, {
         conversationLimits: { [otherKey]: 15 },
       })

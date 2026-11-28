@@ -902,9 +902,9 @@ describe("MCP — a new server", () => {
     )
 
     await user.clear(name)
-    await user.type(name, "codeg-mcp")
+    await user.type(name, "yoyocode-mcp")
     expect(editor).toHaveTextContent(
-      "codeg-mcp is the name of Codeg's built-in server."
+      "yoyocode-mcp is the name of Codeg's built-in server."
     )
     await user.click(
       within(editor).getByRole("button", { name: "Review changes" })
@@ -1378,7 +1378,7 @@ describe("MCP — remove and rename", () => {
     const user = userEvent.setup()
     files = inventory([
       agent("claude_code", [
-        entry("codeg-mcp", stdio(), {
+        entry("yoyocode-mcp", stdio(), {
           reserved: true,
           read_only: true,
           problems: [{ code: "reserved_key" }],
@@ -1386,7 +1386,7 @@ describe("MCP — remove and rename", () => {
       ]),
     ])
     render(<Harness />)
-    const detail = await openServer(user, "codeg-mcp")
+    const detail = await openServer(user, "yoyocode-mcp")
     expect(within(detail).getByRole("button", { name: "Edit" })).toBeDisabled()
     expect(
       within(detail).getByRole("button", { name: "Rename" })
@@ -1410,7 +1410,7 @@ describe("MCP — paste", () => {
           problems: [],
         },
         {
-          key: "codeg-mcp",
+          key: "yoyocode-mcp",
           definition: {
             type: "sse",
             url: "https://e.test/sse",
@@ -1769,7 +1769,7 @@ describe("MCP — by agent", () => {
     expect(page).toHaveTextContent("did not declare SSE")
     // The SSE server is on, and skipped in its sessions.
     expect(page).toHaveTextContent("Skipped in sessions")
-    expect(page).toHaveTextContent("codeg-mcp (built in)")
+    expect(page).toHaveTextContent("yoyocode-mcp (built in)")
     await user.click(
       within(page).getByRole("button", { name: "Open Settings" })
     )

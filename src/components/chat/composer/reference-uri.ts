@@ -1,3 +1,5 @@
+import type { JSONContent } from "@tiptap/core"
+
 import { ALL_AGENT_TYPES, type AgentType } from "@/lib/types"
 import { randomUUID } from "@/lib/utils"
 
@@ -24,6 +26,7 @@ const ASSISTANT_URI = new RegExp(
 )
 const SESSION_URI = new RegExp(`^${SCHEME_ALT}://session/(.+)$`, "i")
 const COMMIT_URI = new RegExp(`^${SCHEME_ALT}://commit/.*@(.+)$`, "i")
+const BOT_URI = new RegExp(`^${SCHEME_ALT}://bot/([0-9a-z_-]{1,64})$`)
 // command / skill / expert tokens, surfaced as badges in transcript user messages
 // (message/user-message-segments.ts). The label arrives with the literal `/`·`$`
 // prefix, which the skill branch strips so the badge reads the bare name.
@@ -144,6 +147,21 @@ export function parseCodegReferenceUri(
     }
   }
 
+  const bot = uri.match(BOT_URI)
+  if (bot) {
+    const uid = bot[1]
+    return {
+      refType: "assistant",
+      id: uid,
+      // The link text is `@name`, as for an agent: strip a single leading `@`.
+      // The label is the name the sender saw; the badge draws the current
+      // face and name from the roster by uid.
+      label: (label || uid).replace(/^@/, "") || uid,
+      uri,
+      meta: { botUid: uid },
+    }
+  }
+
   const assistant = uri.match(ASSISTANT_URI)
   if (assistant) {
     const id = assistant[1]
@@ -249,4 +267,27 @@ function fileBaseName(uri: string): string {
   } catch {
     return last
   }
+}
+
+/** Drop embedded-attachment reference badges from a draft document before it is
+ *  persisted: their bytes live only in the in-memory `embeddedPayloadsRef` map
+ *  (never serialized into the draft), so a restored badge would send nothing.
+ *  Identified purely by the unambiguous `codeg://embedded/…` display uri (no map
+ *  needed) — a real `file://` attachment is never matched. Stripping at save
+ *  keeps the live badge visible this session but matches the pre-existing
+ *  behavior where out-of-band pasted bytes don't survive a draft round-trip. */
+export function stripEmbeddedReferences(doc: JSONContent): JSONContent {
+  if (!doc.content) return doc
+  const content: JSONContent[] = []
+  for (const child of doc.content) {
+    if (
+      child.type === "reference" &&
+      typeof child.attrs?.uri === "string" &&
+      isEmbeddedReferenceUri(child.attrs.uri)
+    ) {
+      continue
+    }
+    content.push(stripEmbeddedReferences(child))
+  }
+  return { ...doc, content }
 }

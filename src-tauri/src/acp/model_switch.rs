@@ -474,6 +474,7 @@ mod tests {
                     value: "vendor/B".into(),
                     name: "Model B".into(),
                     description: None,
+                    reasoning_efforts: None,
                 }],
             }),
         }

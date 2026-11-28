@@ -1345,7 +1345,7 @@ fn the_result_is_kept_in_the_harness_cache_outside_the_backup() {
 #[test]
 fn both_runtimes_start_the_check() {
     let desktop = include_str!("../../lib.rs");
-    let server = include_str!("../../bin/codeg_server.rs");
+    let server = include_str!("../../bin/yoyocode_server.rs");
     assert!(desktop.contains("crate::harness::updates::build("));
     assert!(desktop.contains("spawn(crate::harness::updates::run(checker))"));
     assert!(server.contains("codeg_lib::harness::updates::build("));

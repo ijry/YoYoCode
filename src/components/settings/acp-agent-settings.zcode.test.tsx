@@ -100,10 +100,8 @@ async function renderPanel(env: Record<string, string>) {
 }
 
 function envTextbox(): HTMLTextAreaElement {
-  const label = screen.getByText("Environment Variables", {
-    selector: "label",
-  })
-  return within(label.parentElement as HTMLElement).getByRole(
+  const label = screen.getByRole("heading", { name: "Environment Variables" })
+  return within(label.closest("section") as HTMLElement).getByRole(
     "textbox"
   ) as HTMLTextAreaElement
 }

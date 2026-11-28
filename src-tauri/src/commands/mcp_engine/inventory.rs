@@ -41,7 +41,7 @@ pub(crate) fn to_entry(
     if raw.legacy {
         problems.push(McpIssue::new(codes::LEGACY_LOCATION));
     }
-    let reserved = raw.key == RESERVED_KEY;
+    let reserved = super::model::is_reserved_key(&raw.key);
     if reserved {
         problems.push(McpIssue::new(codes::RESERVED_KEY));
     }
@@ -193,7 +193,7 @@ pub(crate) fn inventory(ctx: &EngineCtx, installed: &BTreeMap<McpAppType, bool>)
             .filter(|app| ctx.paths_of(**app).is_some())
             .map(|app| scan_agent(ctx, *app, installed.get(app).copied()))
             .collect(),
-        reserved_keys: vec![RESERVED_KEY.to_string()],
+        reserved_keys: vec![RESERVED_KEY.to_string(), super::model::LEGACY_RESERVED_KEY.to_string()],
         key_pattern: KEY_PATTERN.to_string(),
     }
 }

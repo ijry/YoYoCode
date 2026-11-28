@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it } from "vitest"
 const script = fileURLToPath(
   new URL("../../src-tauri/scripts/prepare-sidecars.mjs", import.meta.url)
 )
-const bins = ["codeg-mcp", "codeg-computer-helper", "codeg-cli"]
+const bins = ["yoyocode-mcp", "codeg-computer-helper", "yoyo-cli"]
 const roots: string[] = []
 
 afterEach(() => {

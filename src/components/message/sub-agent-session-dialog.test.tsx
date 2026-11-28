@@ -206,6 +206,7 @@ function makeConnState(overrides: Partial<ConnectionState>): ConnectionState {
     promptCapabilities: { image: false, audio: false, embedded_context: false },
     supportsFork: false,
     messageQueueBackendDrain: false,
+    supportsRewind: false,
     selectorsReady: true,
     sessionId: null,
     modes: null,
@@ -283,6 +284,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -309,6 +311,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -331,6 +334,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -355,6 +359,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -382,6 +387,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -406,6 +412,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -430,6 +437,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -448,6 +456,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -473,7 +482,12 @@ describe("SubAgentSessionDialog", () => {
         onOpenChange={() => {}}
         childConversationId={99}
         childConnectionId="c1"
-        identity={{ agentType: null, assistantId: null, assistantName: null }}
+        identity={{
+          agentType: null,
+          assistantId: null,
+          assistantName: null,
+          botUid: null,
+        }}
       />
     )
     const list = screen.getByTestId("message-list-view")
@@ -488,7 +502,12 @@ describe("SubAgentSessionDialog", () => {
         onOpenChange={() => {}}
         childConversationId={99}
         childConnectionId={null}
-        identity={{ agentType: null, assistantId: null, assistantName: null }}
+        identity={{
+          agentType: null,
+          assistantId: null,
+          assistantName: null,
+          botUid: null,
+        }}
       />
     )
     const list = screen.getByTestId("message-list-view")
@@ -507,6 +526,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -536,6 +556,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -562,6 +583,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -583,6 +605,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
         kickoffTask="check the failing tests"
       />
@@ -617,6 +640,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -646,6 +670,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -684,6 +709,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -722,6 +748,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -749,6 +776,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -773,6 +801,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -808,6 +837,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -833,6 +863,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -867,6 +898,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -885,6 +917,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -905,6 +938,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: 3,
           assistantName: "Reviewer",
+          botUid: null,
         }}
       />
     )
@@ -926,6 +960,7 @@ describe("SubAgentSessionDialog", () => {
         agentType: "codex" as const,
         assistantId: null,
         assistantName: null,
+        botUid: null,
       },
     }
     const { unmount } = renderWithIntl(<SubAgentSessionDialog {...props} />)
@@ -962,6 +997,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )
@@ -995,6 +1031,7 @@ describe("SubAgentSessionDialog", () => {
           agentType: "codex",
           assistantId: null,
           assistantName: null,
+          botUid: null,
         }}
       />
     )

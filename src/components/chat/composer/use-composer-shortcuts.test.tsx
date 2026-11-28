@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   folderId: 7 as number | null,
   openWorkbench: vi.fn(),
   openSettings: vi.fn().mockResolvedValue(undefined),
+  openHarness: vi.fn(),
   warning: vi.fn(),
   info: vi.fn(),
   call: vi.fn(),
@@ -25,6 +26,9 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({
   openSettingsWindow: state.openSettings,
   quickMessagesList: async () => [],
+}))
+vi.mock("@/hooks/use-open-harness", () => ({
+  useOpenHarness: () => ({ available: true, openHarness: state.openHarness }),
 }))
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call: state.call }),
@@ -136,13 +140,16 @@ describe("composer comic shortcut", () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it("uses expert settings when the bundled comic skill is not linked", async () => {
+  it("opens the expert skill pack when the bundled comic skill is not linked", async () => {
     state.enabledIds.clear()
     const { shortcuts, comic, editorRef } = await mount()
     act(() => shortcuts.insertOffice(comic))
     expect(editorRef.current?.getText()).toBe("")
     state.warning.mock.calls[0][1].action.onClick()
-    expect(state.openSettings).toHaveBeenCalledExactlyOnceWith("experts")
+    expect(state.openHarness).toHaveBeenCalledExactlyOnceWith({
+      section: "packs",
+      tab: "experts",
+    })
     expect(state.openWorkbench).not.toHaveBeenCalled()
   })
 

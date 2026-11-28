@@ -275,14 +275,16 @@ describe("the renamed scheme parses like the legacy one", () => {
       ...parseCodegReferenceUri("codeg://assistant/3", "@Code Reviewer"),
       uri: "yoyocode://assistant/3",
     })
-    expect(
-      parseCodegReferenceUri("yoyocode://session/214", "")
-    ).toMatchObject({ refType: "session", id: "214" })
+    expect(parseCodegReferenceUri("yoyocode://session/214", "")).toMatchObject({
+      refType: "session",
+      id: "214",
+    })
     expect(
       parseCodegReferenceUri("yoyocode://commit/r%2Frepo@abc1234def5678", "")
     ).toMatchObject({ refType: "commit", meta: { shortHash: "abc1234" } })
-    expect(parseCodegReferenceUri("yoyocode://skill/deploy", "$deploy"))
-      .toMatchObject({ refType: "skill", id: "deploy" })
+    expect(
+      parseCodegReferenceUri("yoyocode://skill/deploy", "$deploy")
+    ).toMatchObject({ refType: "skill", id: "deploy" })
   })
 
   it("rejects the same shapes the legacy scheme rejects", () => {
@@ -292,8 +294,9 @@ describe("the renamed scheme parses like the legacy one", () => {
   })
 
   it("is case-insensitive on the scheme", () => {
-    expect(parseCodegReferenceUri("YoYoCode://agent/codex", "@Codex"))
-      .toMatchObject({ refType: "agent", id: "codex" })
+    expect(
+      parseCodegReferenceUri("YoYoCode://agent/codex", "@Codex")
+    ).toMatchObject({ refType: "agent", id: "codex" })
   })
 
   it("mints embedded uris with the new prefix and reads both", () => {
@@ -309,8 +312,21 @@ describe("the renamed scheme parses like the legacy one", () => {
     expect(refOfEmbeddedReferenceUri("codeg://embedded/https%3A%2F%2Fx")).toBe(
       "https://x"
     )
-    expect(refOfEmbeddedReferenceUri("yoyocode://embedded/https%3A%2F%2Fx")).toBe(
-      "https://x"
-    )
+    expect(
+      refOfEmbeddedReferenceUri("yoyocode://embedded/https%3A%2F%2Fx")
+    ).toBe("https://x")
+  })
+})
+
+describe("personal assistant reference schemes", () => {
+  it.each(["yoyocode", "codeg"])("reads %s bot references", (scheme) => {
+    expect(
+      parseCodegReferenceUri(`${scheme}://bot/dev-1`, "@Dev")
+    ).toMatchObject({
+      refType: "assistant",
+      id: "dev-1",
+      label: "Dev",
+      meta: { botUid: "dev-1" },
+    })
   })
 })

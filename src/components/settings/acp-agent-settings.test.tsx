@@ -935,7 +935,7 @@ describe("buildVersionCheck", () => {
       })
     )
     expect(check?.status).toBe("fail")
-    expect(check?.message).toContain("OpenCode 1.x is no longer supported")
+    expect(check?.message).toContain("OpenCode 1.x is unsupported")
     expect(check?.fixes.map((fix) => fix.kind)).toEqual([
       "upgrade_binary",
       "uninstall_binary",
@@ -1312,7 +1312,7 @@ describe("unreviewed latest release in Version Status", () => {
       release
     )
     expect(unreadable?.status).toBe("warn")
-    expect(unreadable?.message).toContain("Local version is not comparable")
+    expect(unreadable?.message).toContain("Local version not comparable")
     expect(unreadable?.footerFixes?.[0].kind).toBe("upgrade_latest")
 
     // Not installed: offered beside Custom install, Install stays primary.

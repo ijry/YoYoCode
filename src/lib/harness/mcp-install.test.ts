@@ -144,6 +144,7 @@ describe("the install input", () => {
     let input = setValue(initialInput(current), "env.NOTES_TOKEN", "t")
     expect(keyProblemOf(current, "")).toBe("empty")
     expect(keyProblemOf(current, "codeg-mcp")).toBe("reserved")
+    expect(keyProblemOf(current, "yoyocode-mcp")).toBe("reserved")
     expect(keyProblemOf(current, "has space")).toBe("invalid")
     input = setInstallKey(current, input, "other")
     expect(installBlockersOf(current, input, null)).toEqual([

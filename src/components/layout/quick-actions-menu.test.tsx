@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => {
     listRemoteWorkspaceConnections: vi.fn(() => Promise.resolve(connections)),
     setRoute: vi.fn(),
     openConversations: vi.fn(),
+    openComicWorkbench: vi.fn(),
     openBrowserTab: vi.fn(() => "browser:new"),
     toastError: vi.fn(),
   }
@@ -75,9 +76,13 @@ vi.mock("@/contexts/workbench-route-context", () => ({
   }),
 }))
 
+vi.mock("@/contexts/active-folder-context", () => ({
+  useActiveFolder: () => ({ activeFolder: { id: 7 } }),
+}))
 vi.mock("@/contexts/workspace-context", () => ({
   useOptionalWorkspaceActions: () => ({
     openBrowserTab: mocks.openBrowserTab,
+    openComicWorkbench: mocks.openComicWorkbench,
   }),
 }))
 
@@ -189,6 +194,8 @@ const AUTOMATIONS_ROW = /^Automations/
 const FORGE_ROW = "Repository panel"
 // The Harness row's label is followed by what the page holds.
 const HARNESS_ROW = "Harness EngineeringSkills · MCP"
+// The personal agent's row carries a "Beta" capsule after its label.
+const PA_ROW = "Personal agentBeta"
 
 beforeEach(() => {
   desktop = true
@@ -213,7 +220,12 @@ describe("Quick actions, in the status bar's account menu", () => {
     expect(trigger).toHaveAccessibleDescription("Quick actions")
     expect(screen.queryByRole("button", { name: "Quick actions" })).toBeNull()
     const rows = topRows()
-    expect(rows[0]).toBe("Automations2")
+    expect(rows[0]).toBe(PA_ROW)
+    expect(
+      screen
+        .getByRole("menuitem", { name: /^Personal agent/ })
+        .querySelector("[data-beta-badge]")
+    ).not.toBeNull()
     expect(rows[rows.length - 1]).toBe("Sign in to SRN")
   })
 
@@ -222,10 +234,12 @@ describe("Quick actions, in the status bar's account menu", () => {
     expect(layout()).toEqual([
       "head",
       "—",
+      PA_ROW,
       "Automations2",
       "To-dos",
       FORGE_ROW,
       "Infinite Canvas",
+      "Comic Studio",
       HARNESS_ROW,
       "—",
       "Open project",
@@ -416,10 +430,12 @@ describe("Quick actions, in the status bar's account menu", () => {
     expect(layout()).toEqual([
       "head",
       "—",
+      PA_ROW,
       "Automations2",
       "To-dos",
       FORGE_ROW,
       "Infinite Canvas",
+      "Comic Studio",
       HARNESS_ROW,
       "—",
       "Open project",
@@ -445,10 +461,12 @@ describe("Quick actions, in the status bar's account menu", () => {
     remoteWindow = true
     await mountAndOpen()
     expect(topRows()).toEqual([
+      PA_ROW,
       "Automations2",
       "To-dos",
       FORGE_ROW,
       "Infinite Canvas",
+      "Comic Studio",
       HARNESS_ROW,
       "Open project",
       "Open remote workspace",
@@ -521,6 +539,10 @@ describe("Quick actions, in the status bar's account menu", () => {
     await reopen()
     await clickItem(/^Harness Engineering/)
     expect(mocks.setRoute).toHaveBeenCalledWith("harness")
+
+    await reopen()
+    await clickItem(/^Personal agent/)
+    expect(mocks.setRoute).toHaveBeenCalledWith("personalAgent")
 
     await reopen()
     await clickItem("Show pet")
@@ -695,4 +717,11 @@ describe("Quick actions, in the status bar's account menu", () => {
       expect(screen.queryByRole("menu")).toBeNull()
     }
   })
+})
+
+it("opens the comic workbench for the active project", async () => {
+  await mountAndOpen()
+  await clickItem("Comic Studio")
+  expect(mocks.openConversations).toHaveBeenCalled()
+  expect(mocks.openComicWorkbench).toHaveBeenCalledWith(7)
 })

@@ -35,7 +35,7 @@ use super::json_doc::OPENCODE_LEGACY_FLAG;
 use super::model::{
     codes, is_valid_new_key, McpAgentResult, McpAgentStatus, McpApplyOutcome, McpApplyRequest,
     McpApplyResult, McpConfigFormat, McpFileWrite, McpIssue, McpOp, McpOpAction, McpOpEffect,
-    McpOpIssue, McpOpResult, RESERVED_KEY,
+    McpOpIssue, McpOpResult,
 };
 use super::plugin_gate;
 use super::store::{decode, open_store, read_view, DuplicateKey, EntryStore};
@@ -163,7 +163,7 @@ fn run_ops(
                 effect,
             });
         };
-        if key == RESERVED_KEY {
+        if super::model::is_reserved_key(key) {
             work.issues.push(issue(codes::KEY_RESERVED));
             continue;
         }
@@ -355,7 +355,7 @@ fn run_ops(
             }
             McpOpAction::Rename { new_key } => {
                 let new_key = new_key.as_str();
-                if new_key == RESERVED_KEY {
+                if super::model::is_reserved_key(new_key) {
                     work.issues
                         .push(issue(codes::KEY_RESERVED).field("new_key"));
                     continue;

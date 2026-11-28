@@ -8781,7 +8781,7 @@ async fn hermes_setup_argvs() -> (Vec<String>, Vec<String>) {
         // Unreachable: Hermes is always an Npx distribution. Fall through to
         // the npx guidance with the same pinned spec so a future match-arm
         // change can't resurrect a stale recipe.
-        _ => "hermes-agent@0.23.3",
+        _ => "hermes-agent@0.23.4",
     };
     (
         hermes_npx_argv(package, &["acp", "--setup"]),
@@ -12807,27 +12807,51 @@ pub async fn acp_set_composer_mode(
 
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
+#[allow(clippy::too_many_arguments)]
 pub async fn acp_prompt(
     connection_id: String,
     blocks: Vec<PromptInputBlock>,
     folder_id: Option<i32>,
     conversation_id: Option<i32>,
     client_message_id: Option<String>,
+    // An edited message: cut the session back to just before the message it
+    // replaces, in the same step (see `crate::acp::rewind`).
+    rewind: Option<crate::acp::rewind::RewindTarget>,
     db: State<'_, crate::db::AppDatabase>,
     manager: State<'_, ConnectionManager>,
 ) -> Result<(), AcpError> {
-    manager
-        .send_prompt_linked_with_message_id(
-            &db,
-            &connection_id,
-            blocks,
-            folder_id,
-            conversation_id,
-            None,
-            client_message_id,
-        )
-        .await
-        .map(|_| ())
+    match rewind {
+        Some(rewind) => {
+            manager
+                .send_prompt_linked_rewinding(
+                    &db,
+                    &connection_id,
+                    blocks,
+                    folder_id,
+                    conversation_id,
+                    client_message_id,
+                    rewind,
+                )
+                .await?
+        }
+        None => {
+            manager
+                .send_prompt_linked_with_message_id(
+                    &db,
+                    &connection_id,
+                    blocks,
+                    folder_id,
+                    conversation_id,
+                    None,
+                    client_message_id,
+                )
+                .await?
+        }
+    };
+    // A person typed this in a codeg window: a dispatch they write in is
+    // theirs from now on.
+    crate::personal_agent::note_owner_prompt(&connection_id, conversation_id);
+    Ok(())
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -12935,6 +12959,19 @@ pub async fn acp_cancel(
     db: State<'_, AppDatabase>,
     manager: State<'_, ConnectionManager>,
 ) -> Result<(), AcpError> {
+    // A personal agent's handed-out work: the owner stopping it (D2),
+    // through to its end even if this call is dropped.
+    let conn = connection_id.clone();
+    let stopped = crate::commands::personal_agent::on_own_task(async move {
+        crate::personal_agent::stop::note_owner_cancel(&conn)
+            .await
+            .map_err(crate::app_error::AppCommandError::task_execution_failed)
+    })
+    .await
+    .map_err(|e| AcpError::protocol(e.message))?;
+    if stopped {
+        return Ok(());
+    }
     manager.cancel(&db.conn, &connection_id, true).await
 }
 
@@ -21879,7 +21916,7 @@ wire_api = "chat"
     // version is also the recorded fallback when detection comes up empty.
     #[test]
     fn hermes_custom_version_spec_keeps_lifecycle_scripts_and_records_its_version() {
-        let spec = build_npm_install_spec("hermes-agent@0.23.3", Some("0.24.0")).unwrap();
+        let spec = build_npm_install_spec("hermes-agent@0.23.4", Some("0.24.0")).unwrap();
         assert_eq!(spec, "hermes-agent@0.24.0");
         assert!(npm_package_requires_scripts(&spec));
         assert!(npm_package_bootstraps_runtime(&spec));
@@ -23710,7 +23747,7 @@ wire_api = "chat"
     fn installs_name_the_packages_whose_scripts_npm_must_run() {
         for (specs, name) in [
             (
-                &["hermes-agent@0.23.3", "hermes-agent@0.24.0", "hermes-agent"][..],
+                &["hermes-agent@0.23.4", "hermes-agent@0.24.0", "hermes-agent"][..],
                 "hermes-agent",
             ),
             (
@@ -23741,14 +23778,14 @@ wire_api = "chat"
         // Grok's postinstall downloads nothing and leaves no runtime to check.
         assert!(!npm_package_bootstraps_runtime("@xai-official/grok@1.0.92"));
         assert_eq!(
-            hermes_npx_argv("hermes-agent@0.23.3", &["acp", "--setup"]),
+            hermes_npx_argv("hermes-agent@0.23.4", &["acp", "--setup"]),
             [
                 "npx",
                 "-y",
                 "--ignore-scripts=false",
                 "--allow-scripts=hermes-agent",
                 "--package",
-                "hermes-agent@0.23.3",
+                "hermes-agent@0.23.4",
                 "hermes",
                 "acp",
                 "--setup",
@@ -23775,7 +23812,7 @@ wire_api = "chat"
                     .expect("npx recipe must pin via --package");
                 assert_eq!(
                     argv.get(pkg_idx + 1).map(String::as_str),
-                    Some("hermes-agent@0.23.3")
+                    Some("hermes-agent@0.23.4")
                 );
                 assert_eq!(argv.get(pkg_idx + 2).map(String::as_str), Some("hermes"));
             } else {
@@ -24387,7 +24424,7 @@ model = "gpt"
             )
         };
 
-        let annotated = annotate_npm_bootstrap_failure("hermes-agent@0.23.3", download());
+        let annotated = annotate_npm_bootstrap_failure("hermes-agent@0.23.4", download());
         let text = annotated.to_string();
         assert!(text.contains("fetch failed"), "keeps the original error");
         assert!(text.contains("HTTP(S)_PROXY"), "adds the proxy hint");
@@ -24405,7 +24442,7 @@ model = "gpt"
 
         // A hermes failure that isn't a download stays untouched.
         let permissions = annotate_npm_bootstrap_failure(
-            "hermes-agent@0.23.3",
+            "hermes-agent@0.23.4",
             AcpError::Protocol("failed to install npm package globally: EACCES".to_string()),
         );
         assert!(!permissions.to_string().contains("HTTP(S)_PROXY"));

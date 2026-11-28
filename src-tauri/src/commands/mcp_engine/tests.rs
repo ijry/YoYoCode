@@ -316,7 +316,7 @@ fn every_agent_is_listed_with_its_file_and_its_ways() {
         &BTreeMap::from([(McpAppType::ClaudeCode, true), (McpAppType::Codex, false)]),
     );
     assert_eq!(listed.agents.len(), all_apps().len());
-    assert_eq!(listed.reserved_keys, ["codeg-mcp"]);
+    assert_eq!(listed.reserved_keys, ["yoyocode-mcp", "codeg-mcp"]);
     assert_eq!(listed.key_pattern, KEY_PATTERN);
 
     let claude = sandbox.agent(McpAppType::ClaudeCode);
@@ -3173,4 +3173,12 @@ async fn results_and_the_inventory_are_shaped_for_the_page() {
             }]
         })
     );
+}
+
+#[test]
+fn snippet_reserves_current_and_legacy_companions() {
+    for key in ["yoyocode-mcp", "codeg-mcp"] {
+        let result = super::snippet::parse_snippet(&format!(r#"{{"mcpServers":{{"{key}":{{"command":"npx"}}}}}}"#));
+        assert!(result.servers[0].problems.iter().any(|p| p.code == "key_reserved"));
+    }
 }

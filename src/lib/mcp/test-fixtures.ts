@@ -70,7 +70,7 @@ export function entry(
     enabled: true,
     fingerprint: definition ? fingerprintOf(definition) : null,
     read_only: false,
-    reserved: key === "codeg-mcp",
+    reserved: key === "codeg-mcp" || key === "yoyocode-mcp",
     legacy: false,
     problems: [],
     ...overrides,
@@ -163,7 +163,7 @@ export function agent(
 export function inventory(agents: McpAgentInventory[]): McpInventory {
   return {
     agents,
-    reserved_keys: ["codeg-mcp"],
+    reserved_keys: ["codeg-mcp", "yoyocode-mcp"],
     key_pattern: "^[A-Za-z0-9_-]{1,64}$",
   }
 }

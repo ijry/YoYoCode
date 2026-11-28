@@ -15,7 +15,12 @@ use crate::commands::mcp::McpAppType;
 
 /// The built-in companion's name. Sessions get it from codeg itself, so no
 /// agent's config may define a server under it.
-pub const RESERVED_KEY: &str = "codeg-mcp";
+pub const RESERVED_KEY: &str = "yoyocode-mcp";
+pub const LEGACY_RESERVED_KEY: &str = "codeg-mcp";
+
+pub fn is_reserved_key(key: &str) -> bool {
+    matches!(key, RESERVED_KEY | LEGACY_RESERVED_KEY)
+}
 
 /// What a NEW server name must match: agents such as Claude Code build tool
 /// names out of it. Names already on disk are listed and edited as they are.

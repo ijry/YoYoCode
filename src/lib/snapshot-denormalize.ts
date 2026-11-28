@@ -1,6 +1,7 @@
 import { stripKimiMcpOAuth } from "@/lib/kimi-mcp-oauth"
 import type {
   ActiveDelegationState,
+  AskDelegate,
   AsyncTaskRecord,
   BackgroundOutstandingTask,
   AvailableCommandInfo,
@@ -74,6 +75,8 @@ export interface SnapshotPatch {
    *  so a client attaching mid-turn re-renders the plan-approval card. `null`
    *  when no approval is pending. */
   pendingPlanApproval: PendingPlanApprovalState | null
+  /** What the dispatching assistant answers here for the owner (7.3.1). */
+  askDelegate?: AskDelegate | null
   /** In-flight user prompt carried by the snapshot, so a client attaching
    *  mid-turn can synthesize the user turn (Bug-2 / cross-client viewing).
    *  `null` when no turn is in flight. */
@@ -87,6 +90,7 @@ export interface SnapshotPatch {
    *  field's doc on `LiveSessionSnapshot`). `false` = older host, frontend
    *  flush stays on. */
   messageQueueBackendDrain: boolean
+  supportsRewind: boolean
   /** Whether the running session is on stale (launch-time) config — recovered
    *  from the snapshot so a reconnect/refresh/new tile sees the banner state
    *  that the one-shot `session_config_stale` event won't replay. */
@@ -160,7 +164,10 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     usage: wire.usage,
     promptSuggestion: wire.prompt_suggestion ?? null,
     remoteControl: wire.remote_control
-      ? { session_url: wire.remote_control.session_url ?? null }
+      ? {
+          session_url: wire.remote_control.session_url ?? null,
+          ...(wire.remote_control.at_startup ? { at_startup: true } : {}),
+        }
       : null,
     liveMessage: wire.live_message
       ? denormalizeLiveMessage(wire.live_message, toolMap)
@@ -184,6 +191,7 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     pendingAskQuestion: wire.pending_question ?? null,
     // The snapshot shape already matches PendingPlanApprovalState; pass through.
     pendingPlanApproval: wire.pending_plan_approval ?? null,
+    askDelegate: wire.ask_delegate ?? null,
     pendingUserMessage: wire.pending_user_message
       ? {
           messageId: wire.pending_user_message.message_id,
@@ -199,6 +207,7 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
      *  auto-flush. When true the frontend flush must stay off: the host is the
      *  only drainer, and two drainers would race the same head. */
     messageQueueBackendDrain: wire.message_queue_backend_drain ?? false,
+    supportsRewind: wire.rewind_supported ?? false,
     configStale: wire.config_stale ?? false,
     configStaleKind: wire.config_stale_kind ?? null,
     backgroundOutstanding: wire.background_outstanding ?? 0,
