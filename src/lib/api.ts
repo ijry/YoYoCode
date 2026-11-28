@@ -4093,6 +4093,11 @@ export async function messageQueueReleaseHold(ownerId: string): Promise<void> {
   return getTransport().call("message_queue_release_hold", { ownerId })
 }
 
+// Pause automatic queue delivery until the user explicitly releases the hold.
+export async function messageQueuePause(ownerId: string): Promise<void> {
+  return getTransport().call("message_queue_pause", { ownerId })
+}
+
 // Send ONE queued item right now at the user's explicit request — the manual
 // override for a held queue. Fire-and-forget like retry: the worker owns the
 // delivery and broadcasts the row's state, so a failure lands on the row.

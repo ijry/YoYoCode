@@ -5243,11 +5243,13 @@ export interface MessageQueueState {
   failed_attempt_id: string | null
   error: string | null
   /**
-   * Why the queue is holding back from auto-draining despite being `"open"`.
+   * Why automatic delivery is held, independently of the error-recovery status.
    * `"manual_stop"` = the user stopped the running turn with items still
    * queued: rows wait for an explicit send (or the release button), and a
    * composer send goes straight to the session instead of joining the tail.
-   * The next turn that completes successfully clears it. `null` = normal.
+   * The next turn that completes successfully clears `"manual_stop"`.
+   * `"manual_pause"` persists until explicit resume, even after a successful
+   * direct or single-row send. `null` = no manual delivery hold.
    */
   hold: string | null
   revision: number

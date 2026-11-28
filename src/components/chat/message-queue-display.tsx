@@ -49,16 +49,20 @@ interface MessageQueueDisplayProps {
   queue: QueuedMessage[]
   queueControl?: MessageQueueState | null
   onContinue?: () => Promise<void> | void
-  /** Lift the user-stop hold (`queueControl.hold`) so the queue drains again.
+  /** Lift a user-stop or manual-pause hold so the queue can drain again.
    *  Present only on hosts with the hold command; the banner renders when it
    *  can be acted on. */
   onReleaseHold?: () => Promise<void> | void
+  /** Pause automatic delivery until the user explicitly resumes it. */
+  manualQueuePause?: boolean
+  onPauseQueue?: () => Promise<void> | void
   /**
    * True while a turn is in flight for this session. A user-stop hold parks
    * the queue but is not a live problem: once a fresh prompt is sent the
    * conversation itself shows the running turn, so the hold notice is as
    * stale as the error-pause banner is during `resuming`. The hold and the
-   * queue rows are untouched — only the notice is hidden.
+   * queue rows are untouched — only the notice is hidden. An explicit manual
+   * pause always keeps its resume control visible, even while running.
    */
   sessionRunning?: boolean
   /**
@@ -107,6 +111,8 @@ interface MessageQueueDisplayProps {
 
 interface QueueItemProps {
   item: QueuedMessage
+  /** The exact folded group value registered with Reorder.Group. */
+  reorderValue: FoldedQueueGroup<QueuedMessage>
   index: number
   isEditing: boolean
   onEdit: (id: string) => void
@@ -140,6 +146,7 @@ interface QueueItemProps {
 
 function QueueItem({
   item,
+  reorderValue,
   index,
   isEditing,
   onEdit,
@@ -197,7 +204,7 @@ function QueueItem({
   return (
     <Reorder.Item
       as="div"
-      value={item}
+      value={reorderValue}
       dragListener={false}
       dragControls={dragControls}
       className={cn(
@@ -340,6 +347,8 @@ export function MessageQueueDisplay({
   queueControl,
   onContinue,
   onReleaseHold,
+  manualQueuePause = false,
+  onPauseQueue,
   sessionRunning = false,
   onSendNow,
   onQueuePlusOne,
@@ -386,11 +395,14 @@ export function MessageQueueDisplay({
     queueControl.status !== "open" &&
     queueControl.status !== "resuming" &&
     !noticeDismissed
-  // A user-stop hold: the queue is "open" but parked. The rows gain a manual
-  // send; the notice is a client-local interruption, not a gate (the same
-  // shape as dismissedFailure below for an error pause).
+  // An explicit manual pause is independent of error recovery. Unlike a
+  // temporary user-stop notice, it must always retain a visible resume control
+  // (including after the last row is sent or while a recovery turn runs).
+  const manuallyPaused = queueControl?.hold === "manual_pause"
   const holdKey =
-    queueControl?.status === "open" ? (queueControl.hold ?? null) : null
+    manuallyPaused || queueControl?.status === "open"
+      ? (queueControl?.hold ?? null)
+      : null
   const held = holdKey != null
   // Dismissing only hides the notice: the queue stays parked until a turn
   // succeeds or the user resumes, so no parked row is silently sent. A NEW
@@ -403,13 +415,33 @@ export function MessageQueueDisplay({
   // turn; announcing "the queue is holding" over it is the same stale notice
   // the error banner used to leave behind (see `resuming` above). The hold
   // and the rows' manual sends are untouched — only the notice is hidden.
-  const showHeldNotice = held && !sessionRunning && dismissedHold !== holdKey
+  const showHeldNotice =
+    manuallyPaused || (held && !sessionRunning && dismissedHold !== holdKey)
+  const canPauseQueue =
+    manualQueuePause &&
+    Boolean(onPauseQueue) &&
+    queue.length > 0 &&
+    queueControl?.status === "open" &&
+    queueControl.hold == null
+  const [pausing, setPausing] = useState(false)
+  const pausingRef = useRef(false)
+  const handlePauseQueue = useCallback(async () => {
+    if (!onPauseQueue || pausingRef.current) return
+    pausingRef.current = true
+    setPausing(true)
+    try {
+      await onPauseQueue()
+    } finally {
+      pausingRef.current = false
+      setPausing(false)
+    }
+  }, [onPauseQueue])
   // An error pause gets the same manual override as a user-stop hold: each
   // PENDING row can be sent on its own, and that exact prompt lifts the
   // pause. Raw status, not `paused` — dismissing the notice must not take
   // away the rows' way out of the pause.
   const errorPaused = queueControl?.status === "paused"
-  const manualSend = held || errorPaused
+  const manualSend = (held && queueControl?.status === "open") || errorPaused
   const resumeRunning =
     continuing || queueControl?.status === "resume_requested"
   const continueTask = async () => {
@@ -540,18 +572,32 @@ export function MessageQueueDisplay({
 
   return (
     <div className="max-h-40 overflow-y-auto pb-1">
+      {canPauseQueue && (
+        <button
+          type="button"
+          className="mb-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary disabled:opacity-50"
+          disabled={pausing}
+          onClick={() => void handlePauseQueue()}
+        >
+          {t(pausing ? "pausingQueue" : "pauseQueue")}
+        </button>
+      )}
       {showHeldNotice && (
         <div className="relative mb-1 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setDismissedHold(holdKey)}
-            className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
-            aria-label={t("dismissNotice")}
-            title={t("dismissNotice")}
-          >
-            <X className="h-3 w-3" />
-          </button>
-          <p className="pr-5">{t("heldNotice")}</p>
+          {!manuallyPaused && (
+            <button
+              type="button"
+              onClick={() => setDismissedHold(holdKey)}
+              className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
+              aria-label={t("dismissNotice")}
+              title={t("dismissNotice")}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          <p className="pr-5">
+            {t(manuallyPaused ? "manualPauseNotice" : "heldNotice")}
+          </p>
           {onReleaseHold && (
             <button
               type="button"
@@ -609,6 +655,7 @@ export function MessageQueueDisplay({
             <QueueItem
               key={group.item.id}
               item={group.item}
+              reorderValue={group}
               index={index}
               count={group.copies.length}
               onPlusOne={
@@ -633,7 +680,7 @@ export function MessageQueueDisplay({
               steering={steeringId !== null}
               onSteerStart={handleSteerStart}
               onSendNow={manualSend ? onSendNow : undefined}
-              resumeOnSend={errorPaused}
+              resumeOnSend={errorPaused && !manuallyPaused}
               sendNowId={sendNowId}
               onSendNowStart={handleSendNowStart}
             />

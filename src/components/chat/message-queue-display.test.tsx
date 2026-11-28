@@ -13,6 +13,67 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import enMessages from "@/i18n/messages/en.json"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
+import type { MessageQueueState } from "@/lib/types"
+
+// jsdom has no layout to drag against. Register the actual Reorder.Item values,
+// then simulate a group reorder with Motion's values-membership contract. A
+// QueueItem passing its message instead of its group cannot be reordered.
+vi.mock("motion/react", async () => {
+  const React = await import("react")
+  const Registry = React.createContext<((value: unknown) => () => void) | null>(
+    null
+  )
+  const Group = ({
+    values,
+    onReorder,
+    children,
+  }: {
+    values: unknown[]
+    onReorder: (next: unknown[]) => void
+    children: React.ReactNode
+  }) => {
+    const items = React.useRef<unknown[]>([])
+    const register = React.useCallback((value: unknown) => {
+      items.current.push(value)
+      return () => {
+        items.current = items.current.filter((item) => item !== value)
+      }
+    }, [])
+    return React.createElement(
+      Registry.Provider,
+      { value: register },
+      React.createElement(
+        "div",
+        {
+          "data-testid": "message-queue-reorder-group",
+          onClick: (event: React.MouseEvent<HTMLDivElement>) => {
+            if (event.target !== event.currentTarget) return
+            const registered = values.filter((value) =>
+              items.current.includes(value)
+            )
+            if (registered.length > 1) onReorder([...registered].reverse())
+          },
+        },
+        children
+      )
+    )
+  }
+  const Item = ({
+    value,
+    children,
+  }: {
+    value: unknown
+    children: React.ReactNode
+  }) => {
+    const register = React.useContext(Registry)
+    React.useLayoutEffect(() => register?.(value), [register, value])
+    return React.createElement("div", null, children)
+  }
+  return {
+    Reorder: { Group, Item },
+    useDragControls: () => ({ start: vi.fn() }),
+  }
+})
 
 import { MessageQueueDisplay } from "./message-queue-display"
 
@@ -50,7 +111,7 @@ function itemWithAttachment(id: string, text: string): QueuedMessage {
 function renderDisplay(
   props: Partial<React.ComponentProps<typeof MessageQueueDisplay>> = {}
 ) {
-  return render(
+  const display = (next: typeof props) => (
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <MessageQueueDisplay
         queue={[item("q1", "use pnpm"), item("q2", "run the tests")]}
@@ -58,13 +119,157 @@ function renderDisplay(
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         editingItemId={null}
-        {...props}
+        {...next}
       />
     </NextIntlClientProvider>
   )
+  const view = render(display(props))
+  return {
+    ...view,
+    rerenderDisplay: (next: typeof props) =>
+      view.rerender(display({ ...props, ...next })),
+  }
+}
+
+function queueState(patch: Partial<MessageQueueState> = {}): MessageQueueState {
+  return {
+    owner_id: "42",
+    status: "open",
+    failed_attempt_id: null,
+    active_attempt_id: null,
+    error: null,
+    hold: null,
+    revision: 1,
+    ...patch,
+  }
 }
 
 afterEach(cleanup)
+
+describe("MessageQueueDisplay manual pause", () => {
+  it("pauses automatically delivered rows and keeps single-row sending separate from resume", async () => {
+    const onPauseQueue = vi.fn(async () => {})
+    const onReleaseHold = vi.fn(async () => {})
+    const onSendNow = vi.fn(async () => {})
+    const view = renderDisplay({
+      queueControl: queueState(),
+      manualQueuePause: true,
+      onPauseQueue,
+      onReleaseHold,
+      onSendNow,
+    })
+    await userEvent.click(screen.getByRole("button", { name: TQ.pauseQueue }))
+    expect(onPauseQueue).toHaveBeenCalledTimes(1)
+
+    view.rerenderDisplay({
+      queueControl: queueState({ hold: "manual_pause", revision: 2 }),
+    })
+    expect(
+      screen.queryByRole("button", { name: TQ.pauseQueue })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(TQ.manualPauseNotice)).toBeInTheDocument()
+    await userEvent.click(screen.getAllByTitle(TQ.sendNow)[1])
+    expect(onSendNow).toHaveBeenCalledWith("q2")
+    expect(onReleaseHold).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("button", { name: TQ.resumeQueue })
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: TQ.resumeQueue }))
+    expect(onReleaseHold).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { manualQueuePause: false, queueControl: queueState() },
+    { manualQueuePause: true, queueControl: null },
+    {
+      manualQueuePause: true,
+      queueControl: queueState({ hold: "manual_stop" }),
+    },
+    { manualQueuePause: true, queueControl: queueState({ status: "paused" }) },
+    { manualQueuePause: true, queueControl: queueState(), queue: [] },
+  ])("does not offer an unsupported or inapplicable pause: %j", (props) => {
+    renderDisplay({ onPauseQueue: vi.fn(), ...props })
+    expect(
+      screen.queryByRole("button", { name: TQ.pauseQueue })
+    ).not.toBeInTheDocument()
+  })
+
+  it.each(["open", "paused", "resuming", "resume_requested"] as const)(
+    "keeps explicit resume accessible when manually held, empty and running (%s)",
+    async (status) => {
+      const onReleaseHold = vi.fn(async () => {})
+      renderDisplay({
+        queue: [],
+        queueControl: queueState({ status, hold: "manual_pause" }),
+        sessionRunning: true,
+        onReleaseHold,
+      })
+      expect(screen.getByText(TQ.manualPauseNotice)).toBeInTheDocument()
+      // Manual pause is persistent, unlike the dismissible user-stop notice.
+      const resume = screen.getByRole("button", { name: TQ.resumeQueue })
+      await userEvent.click(resume)
+      expect(onReleaseHold).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByRole("button", { name: TQ.resumeQueue })
+      ).toBeInTheDocument()
+    }
+  )
+
+  it("does not lose resume when the error notice is dismissed", async () => {
+    renderDisplay({
+      queueControl: queueState({
+        status: "paused",
+        hold: "manual_pause",
+        error: "quota error",
+      }),
+      onReleaseHold: vi.fn(),
+    })
+    await userEvent.click(
+      screen.getByRole("button", { name: TQ.dismissNotice })
+    )
+    expect(
+      screen.getByRole("button", { name: TQ.resumeQueue })
+    ).toBeInTheDocument()
+  })
+
+  it("refuses repeated pause clicks while the host request is pending", async () => {
+    let resolve!: () => void
+    const onPauseQueue = vi.fn(
+      () =>
+        new Promise<void>((done) => {
+          resolve = done
+        })
+    )
+    renderDisplay({
+      queueControl: queueState(),
+      manualQueuePause: true,
+      onPauseQueue,
+    })
+    const button = screen.getByRole("button", { name: TQ.pauseQueue })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    expect(onPauseQueue).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: TQ.pausingQueue })).toBeDisabled()
+    await act(async () => resolve())
+    expect(screen.getByRole("button", { name: TQ.pauseQueue })).toBeEnabled()
+  })
+})
+
+describe("MessageQueueDisplay reorder", () => {
+  it("expands reordered folded groups back to the real queue", () => {
+    const onReorder = vi.fn()
+    renderDisplay({
+      queue: [item("q1", "same"), item("q2", "other"), item("q3", "same")],
+      onReorder,
+    })
+    fireEvent.click(screen.getByTestId("message-queue-reorder-group"))
+    expect(onReorder).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "q2" }),
+      expect.objectContaining({ id: "q1" }),
+      expect.objectContaining({ id: "q3" }),
+    ])
+  })
+})
 
 describe("MessageQueueDisplay click-to-insert", () => {
   it("shows the unfinished-task control even when no queue rows remain", async () => {

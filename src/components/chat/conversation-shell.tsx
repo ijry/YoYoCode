@@ -124,6 +124,9 @@ interface ConversationShellProps {
   /** Lift the user-stop hold so the queue drains again (see
    *  `ChatInputProps.onQueueReleaseHold`). */
   onQueueReleaseHold?: () => Promise<void> | void
+  /** Host capability and explicit control for persistent auto-send pause. */
+  manualQueuePause?: boolean
+  onQueuePause?: () => Promise<void> | void
   /** Send ONE queued row immediately at the user's request (see
    *  `ChatInputProps.onQueueSendNow`). */
   onQueueSendNow?: (id: string) => Promise<void> | void
@@ -235,6 +238,8 @@ export function ConversationShell({
   queueControl,
   onQueueContinue,
   onQueueReleaseHold,
+  manualQueuePause,
+  onQueuePause,
   onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
@@ -371,6 +376,8 @@ export function ConversationShell({
               queueControl={queueControl}
               onQueueContinue={onQueueContinue}
               onQueueReleaseHold={onQueueReleaseHold}
+              manualQueuePause={manualQueuePause}
+              onQueuePause={onQueuePause}
               onQueueSendNow={onQueueSendNow}
               onEnqueue={onEnqueue}
               onEnqueueScheduled={onEnqueueScheduled}

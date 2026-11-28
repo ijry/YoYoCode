@@ -24,7 +24,7 @@ pub struct SaveMessageQueueParams {
 }
 
 pub async fn message_queue_capabilities() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true }))
+    Json(serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true }))
 }
 
 #[derive(Deserialize)]
@@ -49,6 +49,26 @@ pub async fn message_queue_continue(
 ) -> Result<Json<()>, AppCommandError> {
     let control = crate::db::service::message_queue_control_service::request_continue(&state.db.conn, &params.owner_id, &params.failed_attempt_id).await.map_err(AppCommandError::from)?;
     emit_event(&state.emitter, crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT, control);
+    state.message_queue_drain.notify(params.owner_id);
+    Ok(Json(()))
+}
+
+/// Pause automatic queue delivery until the user explicitly resumes it.
+pub async fn message_queue_pause(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<ReleaseHoldParams>,
+) -> Result<Json<()>, AppCommandError> {
+    let control = crate::db::service::message_queue_control_service::pause_queue(
+        &state.db.conn,
+        &params.owner_id,
+    )
+    .await
+    .map_err(AppCommandError::from)?;
+    emit_event(
+        &state.emitter,
+        crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT,
+        control,
+    );
     state.message_queue_drain.notify(params.owner_id);
     Ok(Json(()))
 }

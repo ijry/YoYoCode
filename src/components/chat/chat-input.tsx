@@ -59,6 +59,9 @@ interface ChatInputProps {
   /** Lift the user-stop hold so the queue drains again (see
    *  `MessageQueueDisplayProps.onReleaseHold`). */
   onQueueReleaseHold?: () => Promise<void> | void
+  /** Host capability and explicit control for persistent auto-send pause. */
+  manualQueuePause?: boolean
+  onQueuePause?: () => Promise<void> | void
   /** Send ONE queued row immediately at the user's request — the manual
    *  override for a held queue AND for an error pause, where the chosen row
    *  itself resumes the session (see `MessageQueueDisplayProps.onSendNow`). */
@@ -160,6 +163,8 @@ export const ChatInput = memo(function ChatInput({
   queueControl,
   onQueueContinue,
   onQueueReleaseHold,
+  manualQueuePause,
+  onQueuePause,
   onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
@@ -238,6 +243,8 @@ export const ChatInput = memo(function ChatInput({
             sessionRunning={isPrompting}
             onContinue={onQueueContinue}
             onReleaseHold={onQueueReleaseHold}
+            manualQueuePause={manualQueuePause}
+            onPauseQueue={onQueuePause}
             onSendNow={onQueueSendNow}
             onReorder={onQueueReorder}
             onEdit={onQueueEdit}

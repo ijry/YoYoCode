@@ -16,7 +16,7 @@ use crate::web::event_bridge::{
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub fn message_queue_capabilities() -> serde_json::Value {
-    serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true })
+    serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true })
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -37,7 +37,27 @@ pub async fn message_queue_continue(
     Ok(())
 }
 
-/// Lift the user-stop hold (`hold = 'manual_stop'`) so the queue drains again.
+/// Pause automatic queue delivery until the user explicitly resumes it.
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_pause(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+) -> Result<(), DbError> {
+    let state =
+        crate::db::service::message_queue_control_service::pause_queue(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::from_app(&app),
+        crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT,
+        state,
+    );
+    drain.notify(owner_id);
+    Ok(())
+}
+
+/// Lift a user-stop or explicit manual-pause hold so the queue can drain again.
 /// The drainer wakes on the notify; a held owner simply stops returning
 /// `Waiting` once `can_drain` sees `hold IS NULL`.
 #[cfg(feature = "tauri-runtime")]

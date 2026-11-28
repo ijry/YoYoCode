@@ -5,6 +5,8 @@ export interface MessageQueueCapabilities {
   pause_recovery?: boolean
   /** Atomic enqueue/set-schedule/remove APIs exist (one-off timed sends). */
   scheduled_send?: boolean
+  /** The host persists a manual automatic-send pause. */
+  manual_queue_pause?: boolean
 }
 
 /** Missing-command is a legacy host; offline/auth errors are not permission

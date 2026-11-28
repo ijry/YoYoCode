@@ -2552,6 +2552,14 @@ const ConversationTabView = memo(function ConversationTabView({
       showActiveFlow={showActiveFlow}
       queue={msgQueue}
       queueControl={messageQueue.control}
+      manualQueuePause={messageQueue.manualQueuePause}
+      onQueuePause={async () => {
+        try {
+          await messageQueue.pauseQueue()
+        } catch (error) {
+          toast.error(toErrorMessage(error))
+        }
+      }}
       onQueueContinue={async () => {
         try {
           await messageQueue.continueTask()

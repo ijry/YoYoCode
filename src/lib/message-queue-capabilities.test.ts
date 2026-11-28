@@ -8,9 +8,15 @@ function transport(call: Transport["call"]): Transport {
 
 describe("host message queue capabilities", () => {
   it("detects the host drainer without an ACP connection or a snapshot", async () => {
-    const host = transport(vi.fn().mockResolvedValue({ backend_drain: true }))
+    const host = transport(
+      vi.fn().mockResolvedValue({
+        backend_drain: true,
+        manual_queue_pause: true,
+      })
+    )
     expect(await readMessageQueueCapabilities(host)).toEqual({
       backend_drain: true,
+      manual_queue_pause: true,
     })
   })
 

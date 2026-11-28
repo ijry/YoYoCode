@@ -16,6 +16,7 @@ import {
   messageQueueState,
   messageQueueContinue,
   messageQueueReleaseHold,
+  messageQueuePause,
   messageQueueSendNow,
   messageQueueEnqueue,
   messageQueueSetSchedule,
@@ -67,9 +68,13 @@ export interface UseMessageQueueReturn {
   backendDrain: boolean | null
   /** True only when the host accepts the atomic schedule/enqueue/remove APIs. */
   scheduledSend: boolean
+  /** True when the host persists an explicit automatic-send pause. */
+  manualQueuePause: boolean
   control: MessageQueueState | null
   continueTask: () => Promise<void>
-  /** Lift the user-stop hold so the queue drains again. */
+  /** Persist a manual pause until the user explicitly releases it. */
+  pauseQueue: () => Promise<void>
+  /** Lift a user-stop or manual-pause hold so the queue can drain again. */
   releaseHold: () => Promise<void>
   /** Send ONE queued row immediately at the user's request (held-queue override). */
   sendNow: (id: string) => Promise<void>
@@ -199,6 +204,8 @@ export function useMessageQueue(
   const backendDrainRef = useRef<boolean | null>(ownerId ? null : false)
   const [scheduledSend, setScheduledSend] = useState(false)
   const scheduledSendRef = useRef(false)
+  const [manualQueuePause, setManualQueuePause] = useState(false)
+  const manualQueuePauseRef = useRef(false)
   const queueRevision = useRef(0)
   const persistChain = useRef<Promise<void>>(Promise.resolve())
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
@@ -292,10 +299,16 @@ export function useMessageQueue(
         setBackendDrain(false)
         scheduledSendRef.current = false
         setScheduledSend(false)
+        manualQueuePauseRef.current = false
+        setManualQueuePause(false)
         return
       }
       backendDrainRef.current = null
       setBackendDrain(null)
+      // A different/offline host must re-confirm support before this control
+      // can act. Do not carry a previous host's capability into the new probe.
+      manualQueuePauseRef.current = false
+      setManualQueuePause(false)
       try {
         const capabilities = await readMessageQueueCapabilities(getTransport())
         if (cancelled) return
@@ -305,6 +318,10 @@ export function useMessageQueue(
           capabilities.backend_drain && capabilities.scheduled_send === true
         scheduledSendRef.current = canSchedule
         setScheduledSend(canSchedule)
+        const canPause =
+          capabilities.backend_drain && capabilities.manual_queue_pause === true
+        manualQueuePauseRef.current = canPause
+        setManualQueuePause(canPause)
         if (capabilities.pause_recovery) {
           const next = await messageQueueState(ownerId)
           if (
@@ -613,6 +630,23 @@ export function useMessageQueue(
     }
   }, [])
 
+  // Pause automatic delivery until the user explicitly releases the hold.
+  // The backend owns the state, so refresh it after the command just like the
+  // existing release path.
+  const pauseQueue = useCallback(async () => {
+    const owner = ownerIdRef.current
+    if (!owner || !manualQueuePauseRef.current) return
+    await messageQueuePause(owner)
+    const next = await messageQueueState(owner)
+    if (
+      ownerIdRef.current === owner &&
+      next.revision >= (controlRef.current?.revision ?? -1)
+    ) {
+      controlRef.current = next
+      setControl(next)
+    }
+  }, [])
+
   // Both held-queue overrides follow the same shape as `continueTask`: fire
   // the backend action, then re-read the barrier state once so the banner and
   // the send buttons reflect the new revision without waiting for a sweep.
@@ -711,10 +745,12 @@ export function useMessageQueue(
     queue,
     control,
     continueTask,
+    pauseQueue,
     releaseHold,
     sendNow,
     backendDrain,
     scheduledSend,
+    manualQueuePause,
     enqueue,
     enqueueScheduled,
     scheduleItem,

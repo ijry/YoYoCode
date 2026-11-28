@@ -2083,6 +2083,7 @@ pub fn build_router_with_srn(
         )
         .route("/message_queue_state", post(handlers::message_queue::message_queue_state))
         .route("/message_queue_continue", post(handlers::message_queue::message_queue_continue))
+        .route("/message_queue_pause", post(handlers::message_queue::message_queue_pause))
         .route(
             "/message_queue_release_hold",
             post(handlers::message_queue::message_queue_release_hold),

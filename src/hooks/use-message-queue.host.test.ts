@@ -10,6 +10,7 @@ const wire = vi.hoisted(() => ({
   state: vi.fn(),
   continue: vi.fn(),
   releaseHold: vi.fn(),
+  pause: vi.fn(),
   sendNow: vi.fn(),
   stateListener: null as null | ((payload: unknown) => void),
   listener: null as null | ((payload: unknown) => void),
@@ -25,6 +26,7 @@ vi.mock("@/lib/api", () => ({
   messageQueueState: wire.state,
   messageQueueContinue: wire.continue,
   messageQueueReleaseHold: wire.releaseHold,
+  messageQueuePause: wire.pause,
   messageQueueSendNow: wire.sendNow,
 }))
 vi.mock("@/lib/platform", () => ({
@@ -78,6 +80,7 @@ beforeEach(() => {
   })
   wire.continue.mockReset().mockResolvedValue(undefined)
   wire.releaseHold.mockReset().mockResolvedValue(undefined)
+  wire.pause.mockReset().mockResolvedValue(undefined)
   wire.sendNow.mockReset().mockResolvedValue(undefined)
   wire.stateListener = null
   wire.listener = null
@@ -125,6 +128,64 @@ describe("owned queues never race the host drainer", () => {
       })
     )
     expect(result.current.control?.status).toBe("resuming")
+  })
+
+  it("hides manual pause and refuses the command while probing a new host", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+      manual_queue_pause: true,
+    })
+    const { result, rerender } = renderHook(
+      ({ owner }) => useMessageQueue(owner),
+      { initialProps: { owner: "42" } }
+    )
+    await waitFor(() => expect(result.current.manualQueuePause).toBe(true))
+    wire.capabilities.mockReturnValue(new Promise(() => {}))
+    rerender({ owner: "43" })
+    expect(result.current.manualQueuePause).toBe(false)
+    await act(async () => result.current.pauseQueue())
+    expect(wire.pause).not.toHaveBeenCalled()
+  })
+
+  it("fails closed for manual pause on reconnect until the host confirms support", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      manual_queue_pause: true,
+    })
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() => expect(result.current.manualQueuePause).toBe(true))
+    wire.capabilities.mockRejectedValue(new Error("offline"))
+    await act(async () => wire.ready?.())
+    expect(result.current.manualQueuePause).toBe(false)
+    await act(async () => result.current.pauseQueue())
+    expect(wire.pause).not.toHaveBeenCalled()
+  })
+
+  it("pauses automatic delivery and keeps the pause after a state refresh", async () => {
+    wire.capabilities.mockResolvedValue({
+      backend_drain: true,
+      pause_recovery: true,
+      manual_queue_pause: true,
+    })
+    let revision = 0
+    wire.state.mockImplementation(async () => ({
+      owner_id: "42",
+      status: "open",
+      active_attempt_id: null,
+      failed_attempt_id: null,
+      error: null,
+      hold: revision === 0 ? null : "manual_pause",
+      revision,
+    }))
+    const { result } = renderHook(() => useMessageQueue("42"))
+    await waitFor(() => expect(result.current.manualQueuePause).toBe(true))
+
+    revision = 1
+    await act(async () => result.current.pauseQueue())
+    expect(wire.pause).toHaveBeenCalledWith("42")
+    expect(result.current.control?.hold).toBe("manual_pause")
+    expect(result.current.manualQueuePause).toBe(true)
   })
 
   it("releases a user-stop hold and adopts the newer barrier state", async () => {

@@ -478,6 +478,55 @@ async fn release_hold_clears_the_park_and_conflicts_without_one() {
 }
 
 #[tokio::test]
+async fn manual_pause_blocks_automatic_claims_until_explicit_release() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save_one(&db.conn, "B").await;
+
+    let paused = pause_queue(&db.conn, "42").await.unwrap();
+    assert_eq!(paused.status, "open");
+    assert_eq!(paused.hold.as_deref(), Some(HOLD_MANUAL_PAUSE));
+    assert!(!can_drain(&db.conn, "42").await.unwrap());
+    assert!(
+        message_queue_service::claim_next(&db.conn, "42", "claim-B")
+            .await
+            .unwrap()
+            .is_none(),
+        "manual pause must block the autonomous drainer"
+    );
+
+    let resumed = release_hold(&db.conn, "42").await.unwrap();
+    assert!(resumed.hold.is_none());
+    assert!(
+        message_queue_service::claim_next(&db.conn, "42", "claim-B")
+            .await
+            .unwrap()
+            .is_some(),
+        "explicit resume must unblock the autonomous drainer"
+    );
+}
+
+#[tokio::test]
+async fn manual_pause_survives_a_successful_turn_until_released() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    let attempt = begin(&db.conn, None).await;
+    save_one(&db.conn, "B").await;
+    pause_queue(&db.conn, "42").await.unwrap();
+
+    let state = complete_attempt(&db.conn, &completed(&attempt, true, false))
+        .await
+        .unwrap();
+    assert_eq!(state.status, "open");
+    assert_eq!(state.hold.as_deref(), Some(HOLD_MANUAL_PAUSE));
+    assert!(
+        message_queue_service::claim_next(&db.conn, "42", "claim-B")
+            .await
+            .unwrap()
+            .is_none(),
+        "a successful explicit send must not resume the remaining queue"
+    );
+}
+
+#[tokio::test]
 async fn unfinished_attempts_remain_paused_across_host_restart() {
     let db = test_helpers::fresh_in_memory_db().await;
     let attempt = begin(&db.conn, None).await;

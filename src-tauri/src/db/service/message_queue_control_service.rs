@@ -16,16 +16,19 @@ pub struct MessageQueueState {
     pub active_attempt_id: Option<String>,
     pub failed_attempt_id: Option<String>,
     pub error: Option<String>,
-    /// Why the queue is holding back from auto-draining despite being
-    /// `"open"`. `"manual_stop"` = the user stopped the running turn; the
-    /// drain skips the owner until a later turn completes successfully or the
-    /// user releases the hold explicitly. `None` = normal draining.
+    /// Why automatic delivery is held, independently of error recovery.
+    /// `"manual_stop"` clears after a successful turn or explicit release;
+    /// `"manual_pause"` survives every turn until the user explicitly resumes.
+    /// `None` = no manual delivery hold.
     pub hold: Option<String>,
     pub revision: i64,
 }
 
 /// The hold value written on a user stop.
 pub const HOLD_MANUAL_STOP: &str = "manual_stop";
+/// The user explicitly paused automatic queue delivery. Unlike manual_stop,
+/// this hold survives successful explicit sends until released.
+pub const HOLD_MANUAL_PAUSE: &str = "manual_pause";
 
 /// 队首消息算不算一条「继续」指令（报错自动放行的判定，见 `complete_attempt`）。
 ///
@@ -263,12 +266,11 @@ pub async fn complete_attempt(
         ],
     ))
     .await?;
-    // Hold bookkeeping: a USER stop (not an automated cancel, not a recovery)
-    // on a still-non-empty queue parks the drain on `"open"` until the next
-    // successful turn or an explicit release; any successful turn lifts it.
-    // Every other outcome leaves the previous hold untouched (paused blocks
-    // the drain on its own).
-    let hold = if completion.success {
+    // Explicit manual pause survives every turn outcome. A user-stop hold
+    // still clears on success; a user cancellation with pending rows sets it.
+    let hold = if state.hold.as_deref() == Some(HOLD_MANUAL_PAUSE) {
+        state.hold.clone()
+    } else if completion.success {
         None
     } else if completion.user_cancelled && recovery_of.is_none() {
         let pending = txn
@@ -291,7 +293,9 @@ pub async fn complete_attempt(
     // 时不落 paused：那条队列消息就是用户的恢复决定 —— 和「继续未完成任务」按钮
     // 表达的是同一个意图，只是用的是自己的话。保持 open 让 drainer 把它发出去；
     // 它出队后如果再次报错，队首就是普通消息，队列照旧停下来等人。
+    // 显式手动暂停优先于队首「继续」指令，不能由报错自动清除。
     let auto_resumed = !open
+        && hold.as_deref() != Some(HOLD_MANUAL_PAUSE)
         && result_status == "failed"
         && next_pending_is_continue(&txn, &completion.owner_id)
             .await
@@ -342,9 +346,44 @@ pub async fn request_continue(
     get_state(conn, owner).await
 }
 
-/// Lift a user-stop hold back to normal draining. CAS on `hold IS NOT NULL`
-/// so a double click (or a racing client) conflicts instead of double-bumping
-/// the revision; the caller wakes the drain on success.
+/// Pause automatic queue delivery for an owner. The operation is idempotent
+/// when the queue is already manually paused, but never silently replaces a
+/// different hold reason.
+pub async fn pause_queue(
+    conn: &DatabaseConnection,
+    owner: &str,
+) -> Result<MessageQueueState, DbError> {
+    let txn = write_transaction(conn).await?;
+    let current = state_on(&txn, owner).await?;
+    if current.hold.as_deref() == Some(HOLD_MANUAL_PAUSE) {
+        txn.commit().await?;
+        return Ok(current);
+    }
+    if current.hold.is_some() {
+        return Err(DbError::Conflict("queue is already holding".into()));
+    }
+
+    let now = Utc::now().to_rfc3339();
+    txn.execute(statement(
+        "INSERT INTO message_queue_state (owner_id,status,active_attempt_id,failed_attempt_id,error,hold,revision,updated_at) VALUES (?,?,?,?,?,?,1,?) ON CONFLICT(owner_id) DO UPDATE SET hold=excluded.hold,revision=message_queue_state.revision+1,updated_at=excluded.updated_at",
+        vec![
+            owner.into(),
+            current.status.clone().into(),
+            current.active_attempt_id.clone().into(),
+            current.failed_attempt_id.clone().into(),
+            current.error.clone().into(),
+            HOLD_MANUAL_PAUSE.into(),
+            now.into(),
+        ],
+    ))
+    .await?;
+    let result = state_on(&txn, owner).await?;
+    txn.commit().await?;
+    Ok(result)
+}
+
+/// Lift a user-stop or manual-pause hold. Error recovery remains independent.
+/// CAS on `hold IS NOT NULL` refuses racing releases; the caller wakes the drain.
 pub async fn release_hold(
     conn: &DatabaseConnection,
     owner: &str,
