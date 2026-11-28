@@ -1,9 +1,7 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import {
-  chmodSync,
   cpSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -129,66 +127,10 @@ for (const [label, job] of [
         resolve(exported.SHERPA_ONNX_ARCHIVE_DIR)
       )
 
-      // The merged macOS release job cross-builds the other architecture on
-      // the same runner, so its cache must carry BOTH archives and the
-      // download must fetch any that are missing. The test-rust job only
-      // builds for its host, so the extra archive is release-desktop-only.
-      if (target === "aarch64-apple-darwin" && label === "desktop release") {
-        const extraName = "sherpa-onnx-v2.0.1-osx-x64-static-lib.tar.bz2"
-        assert.equal(exported.SHERPA_EXTRA_ARCHIVE_NAME, extraName)
-        assert.match(exported.SHERPA_CACHE_KEY, new RegExp(extraName))
-        writeFileSync(join(archiveDir, extraName), "cached native library")
-        const downloadStep = job.steps.find(
-          (entry) =>
-            entry.name === "Download sherpa-onnx native archive on cache miss"
-        )
-        assert.ok(downloadStep)
-        const downloads = join(dir, "downloads")
-        mkdirSync(join(dir, "curl-bin"), { recursive: true })
-        writeFileSync(
-          join(dir, "curl-bin/curl"),
-          [
-            "#!/bin/bash",
-            "for ((i=1; i<=$#; i++)); do",
-            '  if [[ "${!i}" == "-o" ]]; then',
-            '    dest="${!((i+1))}"',
-            '    url="${!((i+2))}"',
-            '    name="$(basename "$url")"',
-            '    mkdir -p "$(dirname "$dest")"',
-            '    cp "' + downloads.replaceAll("\\", "/") + '/$name" "$dest"',
-            "    exit 0",
-            "  fi",
-            "done",
-            "exit 1",
-          ].join("\n")
-        )
-        chmodSync(join(dir, "curl-bin/curl"), 0o755)
-        mkdirSync(downloads, { recursive: true })
-        for (const name of [archiveName, extraName]) {
-          writeFileSync(join(downloads, name), `downloaded ${name}`)
-        }
-        const downloadScript = downloadStep.run.replaceAll(
-          "${{ matrix.target }}",
-          target
-        )
-        const env = { ...exported }
-        delete env.__proto__
-        run("bash", ["-e", "-o", "pipefail", "-c", downloadScript], dir, {
-          ...env,
-          PATH: `${join(dir, "curl-bin")}:${process.env.PATH}`,
-        })
-        for (const name of [archiveName, extraName]) {
-          const expected =
-            existsSync(join(archiveDir, name)) &&
-            readFileSync(join(archiveDir, name), "utf8") !==
-              `downloaded ${name}`
-              ? "cached native library"
-              : `downloaded ${name}`
-          assert.equal(
-            readFileSync(join(exported.SHERPA_ONNX_ARCHIVE_DIR, name), "utf8"),
-            expected
-          )
-        }
+      // Each desktop matrix job builds one architecture and caches its archive.
+      if (label === "desktop release") {
+        assert.equal(exported.SHERPA_EXTRA_ARCHIVE_NAME, "")
+        assert.equal(exported.SHERPA_CACHE_KEY, archiveName)
       }
     }
   })
@@ -376,31 +318,19 @@ test("macOS release declares microphone use and signs the main app for audio inp
   }
 })
 
-test("macOS release builds arm64 natively and x64 by cross-compiling on one runner", () => {
+test("macOS release builds each architecture in its own Intel runner job", () => {
   const appleEntries = desktop.strategy.matrix.include.filter((entry) =>
     entry.target.includes("apple-darwin")
   )
-  assert.equal(
-    appleEntries.length,
-    1,
-    "one macOS job: a second macOS runner is what GitHub kept cancelling"
-  )
-  assert.equal(appleEntries[0].target, "aarch64-apple-darwin")
-  // macos-latest (arm64) sat starved for hours on 2026-11-19/20 while the
-  // Intel pool stayed available (otools ships macos-15-intel natively): run
-  // on Intel, where x64 is native and arm64 becomes the cross build. Both
-  // cross envs ride every rust step so the job is host-agnostic.
-  assert.equal(appleEntries[0].runner, "macos-15-intel")
-
+  assert.deepEqual(appleEntries.map((entry) => entry.target).sort(), [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+  ])
+  for (const entry of appleEntries) assert.equal(entry.runner, "macos-15-intel")
   const toolchain = desktop.steps.find(
     (entry) => entry.name === "Install Rust stable"
   )
-  assert.match(
-    toolchain.with.targets,
-    /aarch64-apple-darwin,x86_64-apple-darwin/,
-    "the cross target must be installed alongside the native one"
-  )
-
+  assert.equal(toolchain.with.targets, "${{ matrix.target }}")
   const buildPasses = desktop.steps.filter(
     (entry) =>
       entry.uses === "tauri-apps/tauri-action@v0.6.1" &&
@@ -408,12 +338,13 @@ test("macOS release builds arm64 natively and x64 by cross-compiling on one runn
         "--config src-tauri/macos/tauri.release.conf.json"
       )
   )
-  assert.deepEqual(
-    buildPasses.map((entry) => entry.with.args.match(/--target\s+(\S+)/)?.[1]),
-    ["aarch64-apple-darwin", "x86_64-apple-darwin"],
-    "arm64 builds first, then x64, both on the same runner"
-  )
-  for (const pass of buildPasses) {
+  assert.equal(buildPasses.length, appleEntries.length)
+  for (const entry of appleEntries) {
+    const pass = buildPasses.find(
+      (step) => step.if === `matrix.target == '${entry.target}'`
+    )
+    assert.ok(pass, `a build pass for ${entry.target}`)
+    assert.ok(pass.with.args.includes(`--target ${entry.target} `))
     assert.equal(pass.env.CODEG_SKIP_SIDECAR, "1")
     assert.equal(pass.env.CC_aarch64_apple_darwin, "clang")
     assert.equal(pass.env.CXX_aarch64_apple_darwin, "clang++")
@@ -423,46 +354,23 @@ test("macOS release builds arm64 natively and x64 by cross-compiling on one runn
 })
 
 test("macOS release stages sidecars at their configured bundle source paths", (t) => {
-  const armStage = desktop.steps.find(
+  const step = desktop.steps.find(
     (entry) => entry.name === "Stage signed macOS sidecars"
   )
-  const crossStage = desktop.steps.find(
-    (entry) => entry.name === "Stage signed macOS x64 sidecars"
-  )
-  assert.ok(armStage, "native arm64 sidecars are staged and signed")
-  assert.ok(crossStage, "cross x64 sidecars are staged and signed")
+  assert.ok(step)
+  assert.equal(step.if, "contains(matrix.target, 'apple-darwin')")
+  assert.equal(step.env.BUILD_TARGET, "${{ matrix.target }}")
   const macosBuilds = desktop.steps.filter((entry) =>
     entry.name?.startsWith("Build, sign, and upload to draft release (macOS")
   )
   const configPath = macosBuilds[0].with.args.match(/--config\s+(\S+)/)[1]
   const { bundle } = JSON.parse(readFileSync(join(root, configPath), "utf8"))
-
-  // arm64: the shared stage step copies the matrix-target binaries; x64: the
-  // cross stage step first cross-builds them, then copies and signs.
-  const stages = [
-    { step: armStage, target: "aarch64-apple-darwin", prepare: null },
-    {
-      step: crossStage,
-      target: "x86_64-apple-darwin",
-      prepare: "pnpm tauri:prepare-sidecars --target x86_64-apple-darwin",
-    },
-  ]
-  for (const { step, target, prepare } of stages) {
+  for (const target of ["aarch64-apple-darwin", "x86_64-apple-darwin"]) {
     const dir = scratch(t)
     const bins = join(dir, "src-tauri/binaries")
     mkdirSync(bins, { recursive: true })
     for (const name of ["yoyocode-mcp", "codeg-computer-helper", "yoyo-cli"]) {
       writeFileSync(join(bins, `${name}-${target}`), `${target}:${name}`)
-    }
-    if (prepare) {
-      assert.match(step.run, /cross_target="x86_64-apple-darwin"/)
-      assert.match(
-        step.run,
-        /pnpm tauri:prepare-sidecars --target "\$cross_target"/
-      )
-      // The cross compiler env rides the step env, not the run script.
-      assert.equal(step.env.CC_x86_64_apple_darwin, "clang")
-      assert.equal(step.env.CXX_x86_64_apple_darwin, "clang++")
     }
     // Only replace the unavailable macOS signing/inspection binaries and the
     // pnpm runner (the scratch dir has no manifest). Run the actual workflow
@@ -489,12 +397,6 @@ test("macOS release stages sidecars at their configured bundle source paths", (t
       "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyocode-mcp",
       "--force --options runtime --sign - src-tauri/binaries/macos-release/yoyo-cli",
     ])
-    if (prepare) {
-      assert.deepEqual(
-        readFileSync(join(dir, "pnpm.log"), "utf8").trim().split(/\r?\n/),
-        ["tauri:prepare-sidecars --target x86_64-apple-darwin"]
-      )
-    }
   }
 })
 
@@ -503,11 +405,9 @@ test("macOS bundle gate verifies every architecture, including x64 purity", () =
     (entry) => entry.name === "Verify macOS bundle (ad-hoc)"
   )
   assert.ok(gate)
-  // Both bundles are checked, each against its own target triple.
-  assert.match(
-    gate.run,
-    /for gate_target in aarch64-apple-darwin x86_64-apple-darwin/
-  )
+  // Every matrix job checks the bundle it built against its own target.
+  assert.equal(gate.if, "contains(matrix.target, 'apple-darwin')")
+  assert.ok(gate.run.includes("for gate_target in ${{ matrix.target }}; do"))
   // Cross-compiled builds prove the executable carries only x86_64 code.
   assert.match(gate.run, /lipo -archs "\$app\/Contents\/MacOS\/\$BIN"/)
   assert.match(gate.run, /x86_64-apple-darwin\)\s+want_arch="x86_64"/)
