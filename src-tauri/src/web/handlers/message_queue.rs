@@ -24,7 +24,7 @@ pub struct SaveMessageQueueParams {
 }
 
 pub async fn message_queue_capabilities() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true }))
+    Json(serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true, "item_pause": true }))
 }
 
 #[derive(Deserialize)]
@@ -199,6 +199,42 @@ pub struct ScheduleQueueParams {
     pub owner_id: String,
     pub item_id: String,
     pub scheduled_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PauseQueueItemParams {
+    pub owner_id: String,
+    pub item_id: String,
+    pub paused: bool,
+}
+
+pub async fn message_queue_set_paused(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<PauseQueueItemParams>,
+) -> Result<Json<Vec<MessageQueueItem>>, AppCommandError> {
+    message_queue_service::set_paused(
+        &state.db.conn,
+        &params.owner_id,
+        &params.item_id,
+        params.paused,
+    )
+    .await
+    .map_err(AppCommandError::from)?;
+    let items = message_queue_service::list(&state.db.conn, &params.owner_id)
+        .await
+        .map_err(AppCommandError::from)?;
+    emit_event(
+        &state.emitter,
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: params.owner_id.clone(),
+            origin: "backend-item-pause".into(),
+            items: items.clone(),
+        },
+    );
+    state.message_queue_drain.notify(params.owner_id);
+    Ok(Json(items))
 }
 
 pub async fn message_queue_set_schedule(

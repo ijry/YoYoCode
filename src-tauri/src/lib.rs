@@ -2617,6 +2617,7 @@ mod tauri_app {
                 message_queue_commands::message_queue_save,
                 message_queue_commands::message_queue_enqueue,
                 message_queue_commands::message_queue_set_schedule,
+                message_queue_commands::message_queue_set_paused,
                 message_queue_commands::message_queue_remove,
                 automation_commands::automation_list,
                 automation_commands::automation_get,

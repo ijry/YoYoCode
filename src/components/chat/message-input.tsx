@@ -151,7 +151,10 @@ import type { ReferenceAttrs } from "@/components/chat/composer/types"
 import type { Editor, JSONContent } from "@tiptap/core"
 import { useReferenceSearch } from "@/components/chat/composer/use-reference-search"
 import { useComposerMentionLabels } from "@/components/chat/composer/use-composer-mention-labels"
-import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
+import {
+  ComposerAddMenu,
+  type QueueControls,
+} from "@/components/chat/composer/composer-add-menu"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
 import { ComposerScreenshotButton } from "@/components/chat/composer/composer-screenshot-button"
 import { ComposerVoiceButton } from "@/components/chat/composer/composer-voice-button"
@@ -194,6 +197,7 @@ export type ComposerInjectContent =
     }
 
 interface MessageInputProps {
+  queueControls?: QueueControls
   onSend: (draft: PromptDraft, modeId?: string | null) => void
   placeholder?: string
   defaultPath?: string
@@ -370,6 +374,7 @@ export function MessageInput({
   showActiveFlow = false,
   onEnqueue,
   onEnqueueScheduled,
+  queueControls,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -2475,6 +2480,7 @@ export function MessageInput({
                 <div className="flex min-w-0 items-end gap-1">
                   <ComposerAddMenu
                     disabled={disabled}
+                    queueControls={queueControls}
                     attachments={attach}
                     shortcuts={menuShortcuts}
                     slashCommands={slashCommands}

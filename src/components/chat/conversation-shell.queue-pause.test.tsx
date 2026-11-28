@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, expect, it, vi } from "vitest"
@@ -8,7 +8,16 @@ import type { MessageQueueState } from "@/lib/types"
 
 // Keep the actual shell, ChatInput and queue display. The editor and unrelated
 // status strips do not participate in queue pause/resume.
-vi.mock("@/components/chat/message-input", () => ({ MessageInput: () => null }))
+vi.mock("@/components/chat/message-input", async () => {
+  const { ComposerAddMenu } = await import("./composer/composer-add-menu")
+  return {
+    MessageInput: ({
+      queueControls,
+    }: {
+      queueControls?: import("./composer/composer-add-menu").QueueControls
+    }) => <ComposerAddMenu queueControls={queueControls} />,
+  }
+})
 vi.mock("@/components/chat/composer-status-strips", () => ({
   ComposerStatusStrips: () => null,
 }))
@@ -76,15 +85,31 @@ it("exposes pause and single-row send through the conversation shell, even while
   )
   const view = render(display(control))
   const t = enMessages.Folder.chat.messageQueue
-  await userEvent.click(screen.getByRole("button", { name: t.pauseQueue }))
+  expect(
+    screen.queryByRole("button", { name: t.pauseQueue })
+  ).not.toBeInTheDocument()
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: enMessages.Folder.chat.messageInput.addActions,
+    })
+  )
+  await userEvent.hover(screen.getByRole("menuitem", { name: t.queueControls }))
+  fireEvent.click(await screen.findByRole("menuitem", { name: t.pauseQueue }))
   expect(onQueuePause).toHaveBeenCalledTimes(1)
 
   const held = { ...control, hold: "manual_pause", revision: 2 }
   view.rerender(display(held))
+  await userEvent.keyboard("{Escape}{Escape}")
   await userEvent.click(screen.getByTitle(t.sendNow))
   expect(onQueueSendNow).toHaveBeenCalledWith("q1")
   expect(onQueueReleaseHold).not.toHaveBeenCalled()
   view.rerender(display(held, true))
-  await userEvent.click(screen.getByRole("button", { name: t.resumeQueue }))
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: enMessages.Folder.chat.messageInput.addActions,
+    })
+  )
+  await userEvent.hover(screen.getByRole("menuitem", { name: t.queueControls }))
+  fireEvent.click(await screen.findByRole("menuitem", { name: t.resumeQueue }))
   expect(onQueueReleaseHold).toHaveBeenCalledTimes(1)
 })

@@ -7640,7 +7640,7 @@ export interface PersistedQueueItem {
   draft_json: string
   mode_id: string | null
   adopt_send_time_mode: boolean
-  delivery_state?: "claimed" | "sending" | "failed" | "uncertain"
+  delivery_state?: "claimed" | "sending" | "failed" | "uncertain" | "paused"
   last_error?: string | null
   /** RFC 3339 one-off schedule instant; absent on ordinary items. */
   scheduled_at?: string | null

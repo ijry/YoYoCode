@@ -16,7 +16,7 @@ use crate::web::event_bridge::{
 #[cfg(feature = "tauri-runtime")]
 #[tauri::command]
 pub fn message_queue_capabilities() -> serde_json::Value {
-    serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true })
+    serde_json::json!({ "backend_drain": true, "pause_recovery": true, "scheduled_send": true, "manual_queue_pause": true, "item_pause": true })
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -168,6 +168,31 @@ pub async fn message_queue_enqueue(
         MessageQueueChange {
             owner_id: owner_id.clone(),
             origin,
+            items: items.clone(),
+        },
+    );
+    drain.notify(owner_id);
+    Ok(items)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn message_queue_set_paused(
+    db: tauri::State<'_, AppDatabase>,
+    app: tauri::AppHandle,
+    drain: tauri::State<'_, DrainHandle>,
+    owner_id: String,
+    item_id: String,
+    paused: bool,
+) -> Result<Vec<MessageQueueItem>, DbError> {
+    message_queue_service::set_paused(&db.conn, &owner_id, &item_id, paused).await?;
+    let items = message_queue_service::list(&db.conn, &owner_id).await?;
+    emit_event(
+        &EventEmitter::from_app(&app),
+        MESSAGE_QUEUE_CHANGED_EVENT,
+        MessageQueueChange {
+            owner_id: owner_id.clone(),
+            origin: "backend-item-pause".into(),
             items: items.clone(),
         },
     );

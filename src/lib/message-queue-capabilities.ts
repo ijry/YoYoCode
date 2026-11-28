@@ -7,6 +7,8 @@ export interface MessageQueueCapabilities {
   scheduled_send?: boolean
   /** The host persists a manual automatic-send pause. */
   manual_queue_pause?: boolean
+  /** Atomic per-message pause/resume is supported. */
+  item_pause?: boolean
 }
 
 /** Missing-command is a legacy host; offline/auth errors are not permission

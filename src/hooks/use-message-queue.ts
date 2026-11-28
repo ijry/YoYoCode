@@ -17,6 +17,7 @@ import {
   messageQueueContinue,
   messageQueueReleaseHold,
   messageQueuePause,
+  messageQueueSetPaused,
   messageQueueSendNow,
   messageQueueEnqueue,
   messageQueueSetSchedule,
@@ -70,6 +71,8 @@ export interface UseMessageQueueReturn {
   scheduledSend: boolean
   /** True when the host persists an explicit automatic-send pause. */
   manualQueuePause: boolean
+  itemPause: boolean
+  pauseItem: (id: string, paused: boolean) => Promise<void>
   control: MessageQueueState | null
   continueTask: () => Promise<void>
   /** Persist a manual pause until the user explicitly releases it. */
@@ -204,6 +207,8 @@ export function useMessageQueue(
   const backendDrainRef = useRef<boolean | null>(ownerId ? null : false)
   const [scheduledSend, setScheduledSend] = useState(false)
   const scheduledSendRef = useRef(false)
+  const [itemPause, setItemPause] = useState(false)
+  const itemPauseRef = useRef(false)
   const [manualQueuePause, setManualQueuePause] = useState(false)
   const manualQueuePauseRef = useRef(false)
   const queueRevision = useRef(0)
@@ -299,6 +304,8 @@ export function useMessageQueue(
         setBackendDrain(false)
         scheduledSendRef.current = false
         setScheduledSend(false)
+        itemPauseRef.current = false
+        setItemPause(false)
         manualQueuePauseRef.current = false
         setManualQueuePause(false)
         return
@@ -307,6 +314,8 @@ export function useMessageQueue(
       setBackendDrain(null)
       // A different/offline host must re-confirm support before this control
       // can act. Do not carry a previous host's capability into the new probe.
+      itemPauseRef.current = false
+      setItemPause(false)
       manualQueuePauseRef.current = false
       setManualQueuePause(false)
       try {
@@ -318,6 +327,10 @@ export function useMessageQueue(
           capabilities.backend_drain && capabilities.scheduled_send === true
         scheduledSendRef.current = canSchedule
         setScheduledSend(canSchedule)
+        const canPauseItem =
+          capabilities.backend_drain && capabilities.item_pause === true
+        itemPauseRef.current = canPauseItem
+        setItemPause(canPauseItem)
         const canPause =
           capabilities.backend_drain && capabilities.manual_queue_pause === true
         manualQueuePauseRef.current = canPause
@@ -378,7 +391,6 @@ export function useMessageQueue(
     prevOwnerRef.current = ownerId
     // Clear the old owner's authoritative queue before starting the new read;
     // otherwise parked-draft hydration can persist it into the wrong session.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (prev && prev !== ownerId) commit([])
     ownerHydratedRef.current = false
     let cancelled = false
@@ -725,6 +737,21 @@ export function useMessageQueue(
     [adoptServerItems, requireScheduleCapability]
   )
 
+  const pauseItem = useCallback(
+    async (id: string, paused: boolean) => {
+      const owner = ownerIdRef.current
+      if (!owner || !itemPauseRef.current) {
+        throw new Error("message pause is not available on this host")
+      }
+      const revision = queueRevision.current
+      const items = await messageQueueSetPaused(owner, id, paused)
+      if (ownerIdRef.current !== owner || revision !== queueRevision.current)
+        return
+      adoptServerItems(items)
+    },
+    [adoptServerItems]
+  )
+
   const removeItem = useCallback(
     async (id: string) => {
       if (!scheduledSendRef.current) {
@@ -751,6 +778,8 @@ export function useMessageQueue(
     backendDrain,
     scheduledSend,
     manualQueuePause,
+    itemPause,
+    pauseItem,
     enqueue,
     enqueueScheduled,
     scheduleItem,

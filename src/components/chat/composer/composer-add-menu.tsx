@@ -12,6 +12,9 @@ import {
   MessageSquareText,
   Paperclip,
   Plus,
+  Pause,
+  Play,
+  ListOrdered,
   Search,
   Sparkles,
   Upload,
@@ -31,6 +34,8 @@ import { DropdownRadioItemContent } from "@/components/chat/dropdown-radio-item-
 import { rankByTextMatch } from "@/lib/fuzzy-text-match"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { toErrorMessage } from "@/lib/app-error"
 import type { AvailableCommandInfo } from "@/lib/types"
 
 import {
@@ -48,7 +53,15 @@ const SUBMENU_STYLE = {
   maxHeight: "min(32rem, var(--radix-dropdown-menu-content-available-height))",
 } as const
 
+export interface QueueControls {
+  canPause: boolean
+  held: boolean
+  onPause?: () => Promise<void> | void
+  onResume?: () => Promise<void> | void
+}
+
 export interface ComposerAddMenuProps {
+  queueControls?: QueueControls
   disabled?: boolean
   /** File/image attachment entries. Omit to drop the attach section entirely
    *  (a surface whose target can't receive files). */
@@ -90,8 +103,29 @@ export function ComposerAddMenu({
   onAddFeedback,
   feedbackAddDisabled,
   triggerClassName,
+  queueControls,
 }: ComposerAddMenuProps) {
-  const shortcuts = attachOnly ? null : shortcutsProp
+  const tq = useTranslations("Folder.chat.messageQueue")
+  const [queueBusy, setQueueBusy] = useState(false)
+  const queueBusyRef = useRef(false)
+  const toggleQueue = async () => {
+    if (queueBusyRef.current || !queueControls) return
+    const action = queueControls.held
+      ? queueControls.onResume
+      : queueControls.onPause
+    if (!action || (!queueControls.held && !queueControls.canPause)) return
+    queueBusyRef.current = true
+    setQueueBusy(true)
+    try {
+      await action()
+    } catch (error) {
+      toast.error(toErrorMessage(error))
+    } finally {
+      queueBusyRef.current = false
+      setQueueBusy(false)
+    }
+  }
+  const shortcuts = attachOnly || disabled ? null : shortcutsProp
   const t = useTranslations("Folder.chat.messageInput")
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashSearch, setSlashSearch] = useState("")
@@ -136,7 +170,7 @@ export function ComposerAddMenu({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          disabled={disabled}
+          disabled={disabled && !queueControls}
           variant="ghost"
           // `icon-sm` (32px): the same square as the composer's send button.
           size="icon-sm"
@@ -148,7 +182,7 @@ export function ComposerAddMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="min-w-56 w-auto">
-        {attachments ? (
+        {attachments && !disabled ? (
           attachments.showNativePaperclip ? (
             <DropdownMenuItem
               onClick={() => {
@@ -225,9 +259,38 @@ export function ComposerAddMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
+        {queueControls && !attachOnly && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ListOrdered className="size-4" />
+              {tq("queueControls")}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                disabled={
+                  queueBusy ||
+                  (queueControls.held
+                    ? !queueControls.onResume
+                    : !queueControls.canPause || !queueControls.onPause)
+                }
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void toggleQueue()
+                }}
+              >
+                {queueControls.held ? (
+                  <Play className="size-4" />
+                ) : (
+                  <Pause className="size-4" />
+                )}
+                {tq(queueControls.held ? "resumeQueue" : "pauseQueue")}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         {onAddFeedback && !attachOnly && (
           <DropdownMenuItem
-            disabled={feedbackAddDisabled}
+            disabled={disabled || feedbackAddDisabled}
             onClick={onAddFeedback}
             title={
               feedbackAddDisabled ? t("liveFeedbackDisabledHint") : undefined

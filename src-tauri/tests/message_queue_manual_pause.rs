@@ -242,3 +242,78 @@ async fn existing_user_stop_hold_still_clears_on_success_and_is_not_silently_rep
     assert!(state.hold.is_none());
     assert!(control::can_drain(&db.conn, "42").await.unwrap());
 }
+
+#[tokio::test]
+async fn item_pause_skips_only_that_row_and_survives_edits_and_queue_resume() {
+    let db = test_helpers::fresh_in_memory_db().await;
+    save(&db.conn, &[("a", "first"), ("b", "second")]).await;
+    queue::set_paused(&db.conn, "42", "a", true).await.unwrap();
+    save(&db.conn, &[("a", "edited"), ("b", "second")]).await;
+    assert_eq!(
+        queue::list(&db.conn, "42").await.unwrap()[0]
+            .delivery_state
+            .as_deref(),
+        Some("paused")
+    );
+    control::pause_queue(&db.conn, "42").await.unwrap();
+    control::release_hold(&db.conn, "42").await.unwrap();
+    assert_eq!(queue::pending_owners(&db.conn).await.unwrap(), ["42"]);
+    let next = queue::claim_next(&db.conn, "42", "claim-b")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(next.item.id, "b");
+    assert!(queue::set_paused(&db.conn, "42", "b", true).await.is_err());
+    queue::acknowledge(&db.conn, &next).await.unwrap();
+    assert!(queue::claim_next(&db.conn, "42", "none")
+        .await
+        .unwrap()
+        .is_none());
+    queue::set_paused(&db.conn, "42", "a", false).await.unwrap();
+    assert_eq!(
+        queue::claim_next(&db.conn, "42", "claim-a")
+            .await
+            .unwrap()
+            .unwrap()
+            .item
+            .id,
+        "a"
+    );
+}
+
+#[tokio::test]
+async fn paused_scheduled_item_survives_restart_and_can_be_rescheduled_or_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = test_helpers::fresh_disk_db(dir.path()).await;
+    save(&db.conn, &[("a", "scheduled"), ("b", "later")]).await;
+    let at = chrono::Utc::now() + chrono::Duration::hours(1);
+    queue::set_schedule(&db.conn, "42", "a", Some(at))
+        .await
+        .unwrap();
+    queue::set_paused(&db.conn, "42", "a", true).await.unwrap();
+    assert!(queue::next_schedule(&db.conn).await.unwrap().is_none());
+    db.conn.close().await.unwrap();
+    let conn = Database::connect(format!(
+        "sqlite:{}?mode=rw",
+        dir.path().join("source.db").to_string_lossy()
+    ))
+    .await
+    .unwrap();
+    queue::recover_abandoned_claims(&conn).await.unwrap();
+    let items = queue::list(&conn, "42").await.unwrap();
+    assert_eq!(items[0].delivery_state.as_deref(), Some("paused"));
+    assert_eq!(items[0].scheduled_at, Some(at));
+    assert!(queue::set_paused(&conn, "other-owner", "a", false)
+        .await
+        .is_err());
+    queue::set_schedule(&conn, "42", "a", None).await.unwrap();
+    assert_eq!(
+        queue::list(&conn, "42").await.unwrap()[0]
+            .delivery_state
+            .as_deref(),
+        Some("paused")
+    );
+    queue::remove(&conn, "42", "a").await.unwrap();
+    assert!(queue::set_paused(&conn, "42", "a", false).await.is_err());
+    assert_eq!(queue::list(&conn, "42").await.unwrap().len(), 1);
+}

@@ -127,6 +127,7 @@ interface ConversationShellProps {
   /** Host capability and explicit control for persistent auto-send pause. */
   manualQueuePause?: boolean
   onQueuePause?: () => Promise<void> | void
+  onQueuePauseItem?: (id: string, paused: boolean) => Promise<void> | void
   /** Send ONE queued row immediately at the user's request (see
    *  `ChatInputProps.onQueueSendNow`). */
   onQueueSendNow?: (id: string) => Promise<void> | void
@@ -240,6 +241,7 @@ export function ConversationShell({
   onQueueReleaseHold,
   manualQueuePause,
   onQueuePause,
+  onQueuePauseItem,
   onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
@@ -378,6 +380,7 @@ export function ConversationShell({
               onQueueReleaseHold={onQueueReleaseHold}
               manualQueuePause={manualQueuePause}
               onQueuePause={onQueuePause}
+              onQueuePauseItem={onQueuePauseItem}
               onQueueSendNow={onQueueSendNow}
               onEnqueue={onEnqueue}
               onEnqueueScheduled={onEnqueueScheduled}

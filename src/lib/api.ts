@@ -4987,9 +4987,20 @@ export async function messageQueuePause(ownerId: string): Promise<void> {
   return getTransport().call("message_queue_pause", { ownerId })
 }
 
-// Send ONE queued item right now at the user's explicit request — the manual
-// override for a held queue. Fire-and-forget like retry: the worker owns the
-// delivery and broadcasts the row's state, so a failure lands on the row.
+// Pause or resume one queued message without changing the queue hold.
+export async function messageQueueSetPaused(
+  ownerId: string,
+  itemId: string,
+  paused: boolean
+): Promise<PersistedQueueItem[]> {
+  return getTransport().call("message_queue_set_paused", {
+    ownerId,
+    itemId,
+    paused,
+  })
+}
+
+// Send one pending row now, overriding a queue-wide hold.
 export async function messageQueueSendNow(
   ownerId: string,
   itemId: string

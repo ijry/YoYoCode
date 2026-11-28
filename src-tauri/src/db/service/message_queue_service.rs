@@ -25,6 +25,7 @@ pub struct QueueItemInput {
 }
 
 const PENDING: &str = "pending";
+const PAUSED: &str = "paused";
 const CLAIMED: &str = "claimed";
 const SENDING: &str = "sending";
 const SUBMITTED: &str = "submitted";
@@ -148,7 +149,9 @@ pub async fn save(
             active.sort_order = Set(position);
             active.updated_at = Set(now);
             if changed {
-                active.delivery_state = Set(PENDING.into());
+                if row.delivery_state != PAUSED {
+                    active.delivery_state = Set(PENDING.into());
+                }
                 active.claim_token = Set(None);
                 active.last_error = Set(None);
             }
@@ -211,8 +214,9 @@ pub async fn claim_next(
     let head = message_queue_item::Entity::find()
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
         .filter(
-            message_queue_item::Column::DeliveryState.is_not_in([SUBMITTED, REMOVED]),
+            message_queue_item::Column::DeliveryState.is_not_in([SUBMITTED, REMOVED, PAUSED]),
         )
+        // Individually paused rows are transparent to automatic delivery.
         // A pending message whose schedule has not arrived is transparent:
         // the head skips it so ordinary messages keep flowing. Failed,
         // uncertain and in-flight items still block the queue until resolved.
@@ -454,7 +458,7 @@ pub async fn pending_owners(conn: &DatabaseConnection) -> Result<Vec<String>, Db
               AND NOT EXISTS (
                   SELECT 1 FROM message_queue_item h
                   WHERE h.owner_id = m.owner_id
-                    AND h.delivery_state NOT IN ('submitted', 'removed')
+                    AND h.delivery_state NOT IN ('submitted', 'removed', 'paused')
                     AND NOT (h.delivery_state = 'pending'
                              AND h.scheduled_at IS NOT NULL AND h.scheduled_at > ?)
                     AND (h.sort_order < m.sort_order
@@ -532,13 +536,14 @@ pub async fn enqueue(
             ));
         }
         Some(row) => {
+            let paused = row.delivery_state == PAUSED;
             let mut active: message_queue_item::ActiveModel = row.into();
             active.draft_json = Set(item.draft_json);
             active.mode_id = Set(item.mode_id);
             active.adopt_send_time_mode = Set(item.adopt_send_time_mode);
             active.scheduled_at = Set(scheduled_at);
             active.sort_order = Set(tail + 1);
-            active.delivery_state = Set(PENDING.into());
+            active.delivery_state = Set(if paused { PAUSED } else { PENDING }.into());
             active.claim_token = Set(None);
             active.last_error = Set(None);
             active.updated_at = Set(now);
@@ -568,8 +573,8 @@ pub async fn enqueue(
     Ok(())
 }
 
-/// Move one pending item between ordinary and scheduled, keeping its id,
-/// body, attachments and mode. Anything not pending (in flight, failed,
+/// Move one pending or paused item between ordinary and scheduled, keeping its id,
+/// body, attachments, mode and pause. Other states (in flight, failed,
 /// uncertain, settled or removed) is rejected so the time can never change
 /// behind a live claim; `Some(past)` is rejected outright.
 pub async fn set_schedule(
@@ -595,13 +600,45 @@ pub async fn set_schedule(
         )
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
         .filter(message_queue_item::Column::ItemUid.eq(item_id))
-        .filter(message_queue_item::Column::DeliveryState.eq(PENDING))
+        .filter(message_queue_item::Column::DeliveryState.is_in([PENDING, PAUSED]))
         .exec(&txn)
         .await?;
     txn.commit().await?;
     if updated.rows_affected != 1 {
         return Err(DbError::Conflict(
-            "only a pending queue item can be rescheduled".into(),
+            "only a pending or paused queue item can be rescheduled".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Atomically pause/resume one editable row. Claimed rows cannot be changed;
+/// automatic claims skip paused rows without changing the queue-wide hold.
+pub async fn set_paused(
+    conn: &DatabaseConnection,
+    owner_id: &str,
+    item_id: &str,
+    paused: bool,
+) -> Result<(), DbError> {
+    let txn = write_transaction(conn).await?;
+    let updated = message_queue_item::Entity::update_many()
+        .col_expr(
+            message_queue_item::Column::DeliveryState,
+            sea_orm::sea_query::Expr::value(if paused { PAUSED } else { PENDING }),
+        )
+        .col_expr(
+            message_queue_item::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(Utc::now()),
+        )
+        .filter(message_queue_item::Column::OwnerId.eq(owner_id))
+        .filter(message_queue_item::Column::ItemUid.eq(item_id))
+        .filter(message_queue_item::Column::DeliveryState.is_in([PENDING, PAUSED]))
+        .exec(&txn)
+        .await?;
+    txn.commit().await?;
+    if updated.rows_affected != 1 {
+        return Err(DbError::Conflict(
+            "only a pending or paused queue item can change its pause".into(),
         ));
     }
     Ok(())
@@ -640,14 +677,14 @@ pub async fn remove(
         .filter(message_queue_item::Column::OwnerId.eq(owner_id))
         .filter(message_queue_item::Column::ItemUid.eq(item_id))
         .filter(
-            message_queue_item::Column::DeliveryState.is_in([PENDING, FAILED, UNCERTAIN]),
+            message_queue_item::Column::DeliveryState.is_in([PENDING, PAUSED, FAILED, UNCERTAIN]),
         )
         .exec(&txn)
         .await?;
     txn.commit().await?;
     if updated.rows_affected != 1 {
         return Err(DbError::Conflict(
-            "only a pending, failed or uncertain queue item can be removed".into(),
+            "only a pending, paused, failed or uncertain queue item can be removed".into(),
         ));
     }
     Ok(())

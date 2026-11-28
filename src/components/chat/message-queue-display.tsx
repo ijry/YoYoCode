@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -14,6 +13,8 @@ import {
   Clock,
   GripVertical,
   Pencil,
+  Pause,
+  Play,
   RotateCcw,
   Send,
   X,
@@ -53,16 +54,13 @@ interface MessageQueueDisplayProps {
    *  Present only on hosts with the hold command; the banner renders when it
    *  can be acted on. */
   onReleaseHold?: () => Promise<void> | void
-  /** Pause automatic delivery until the user explicitly resumes it. */
-  manualQueuePause?: boolean
-  onPauseQueue?: () => Promise<void> | void
+  onPauseItem?: (id: string, paused: boolean) => Promise<void> | void
   /**
    * True while a turn is in flight for this session. A user-stop hold parks
    * the queue but is not a live problem: once a fresh prompt is sent the
    * conversation itself shows the running turn, so the hold notice is as
    * stale as the error-pause banner is during `resuming`. The hold and the
-   * queue rows are untouched — only the notice is hidden. An explicit manual
-   * pause always keeps its resume control visible, even while running.
+   * queue rows are untouched — only the notice is hidden.
    */
   sessionRunning?: boolean
   /**
@@ -126,6 +124,7 @@ interface QueueItemProps {
   steerChannel: "native" | "pull"
   /** Whether an insert from ANY row is in flight — every row's button is
    *  disabled for the duration, so two rows can't race the one channel. */
+  onPauseItem?: (id: string, paused: boolean) => Promise<void> | void
   steering: boolean
   onSteerStart: (id: string) => Promise<void>
   onScheduleOpen: (id: string) => void
@@ -157,6 +156,7 @@ function QueueItem({
   steerChannel,
   steering,
   onSteerStart,
+  onPauseItem,
   onScheduleOpen,
   onSendNow,
   resumeOnSend,
@@ -167,6 +167,22 @@ function QueueItem({
 }: QueueItemProps) {
   const t = useTranslations("Folder.chat.messageQueue")
   const dragControls = useDragControls()
+  const [pausing, setPausing] = useState(false)
+  const pausingRef = useRef(false)
+  const itemPaused = item.deliveryState === "paused"
+  const handlePause = async () => {
+    if (!onPauseItem || pausingRef.current) return
+    pausingRef.current = true
+    setPausing(true)
+    try {
+      await onPauseItem(item.id, !itemPaused)
+    } catch (error) {
+      toast.error(toErrorMessage(error))
+    } finally {
+      pausingRef.current = false
+      setPausing(false)
+    }
+  }
 
   // Which rows may offer the insert at all. Two rows can't, and offering a
   // click that provably does nothing is worse than offering none:
@@ -182,6 +198,7 @@ function QueueItem({
     item.deliveryState === "claimed" || item.deliveryState === "sending"
   const canSteer =
     !claimed &&
+    !itemPaused &&
     Boolean(onSteerItem) &&
     !isEditing &&
     (steerChannel === "native" || !draftRidesBlocks(item.draft))
@@ -210,7 +227,8 @@ function QueueItem({
       className={cn(
         "flex items-center gap-1 rounded-md border px-1.5 py-1 text-3xs leading-none select-none [text-box-trim:both] [text-box-edge:cap_alphabetic]",
         "bg-muted/40 border-border/70",
-        isEditing && "border-primary/50 bg-primary/5"
+        isEditing && "border-primary/50 bg-primary/5",
+        itemPaused && "border-primary/30 bg-primary/5"
       )}
     >
       <button
@@ -263,6 +281,27 @@ function QueueItem({
           +1
         </button>
       )}
+      {onPauseItem &&
+        !isEditing &&
+        (item.deliveryState == null || itemPaused) && (
+          <button
+            type="button"
+            onClick={() => void handlePause()}
+            disabled={pausing}
+            title={t(itemPaused ? "resumeItem" : "pauseItem")}
+            aria-label={t(itemPaused ? "resumeItem" : "pauseItem")}
+            className={cn(
+              "shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground disabled:opacity-50",
+              itemPaused && "text-primary"
+            )}
+          >
+            {itemPaused ? (
+              <Play className="h-2.5 w-2.5" />
+            ) : (
+              <Pause className="h-2.5 w-2.5" />
+            )}
+          </button>
+        )}
       {onScheduleItem &&
         !claimed &&
         !isEditing &&
@@ -347,8 +386,7 @@ export function MessageQueueDisplay({
   queueControl,
   onContinue,
   onReleaseHold,
-  manualQueuePause = false,
-  onPauseQueue,
+  onPauseItem,
   sessionRunning = false,
   onSendNow,
   onQueuePlusOne,
@@ -395,9 +433,8 @@ export function MessageQueueDisplay({
     queueControl.status !== "open" &&
     queueControl.status !== "resuming" &&
     !noticeDismissed
-  // An explicit manual pause is independent of error recovery. Unlike a
-  // temporary user-stop notice, it must always retain a visible resume control
-  // (including after the last row is sent or while a recovery turn runs).
+  // Whole-queue manual pause is controlled through the composer + menu.
+  // Keep it independent of error recovery and user-stop notices.
   const manuallyPaused = queueControl?.hold === "manual_pause"
   const holdKey =
     manuallyPaused || queueControl?.status === "open"
@@ -408,34 +445,17 @@ export function MessageQueueDisplay({
   // succeeds or the user resumes, so no parked row is silently sent. A NEW
   // hold — one that appears after hold cleared — raises it again.
   const [dismissedHold, setDismissedHold] = useState<string | null>(null)
-  useEffect(() => {
-    if (holdKey == null) setDismissedHold(null)
-  }, [holdKey])
+  const [previousHoldKey, setPreviousHoldKey] = useState(holdKey)
+  if (previousHoldKey !== holdKey) {
+    setPreviousHoldKey(holdKey)
+    setDismissedHold(null)
+  }
   // Once a fresh prompt is admitted the conversation itself shows the running
   // turn; announcing "the queue is holding" over it is the same stale notice
   // the error banner used to leave behind (see `resuming` above). The hold
   // and the rows' manual sends are untouched — only the notice is hidden.
   const showHeldNotice =
-    manuallyPaused || (held && !sessionRunning && dismissedHold !== holdKey)
-  const canPauseQueue =
-    manualQueuePause &&
-    Boolean(onPauseQueue) &&
-    queue.length > 0 &&
-    queueControl?.status === "open" &&
-    queueControl.hold == null
-  const [pausing, setPausing] = useState(false)
-  const pausingRef = useRef(false)
-  const handlePauseQueue = useCallback(async () => {
-    if (!onPauseQueue || pausingRef.current) return
-    pausingRef.current = true
-    setPausing(true)
-    try {
-      await onPauseQueue()
-    } finally {
-      pausingRef.current = false
-      setPausing(false)
-    }
-  }, [onPauseQueue])
+    !manuallyPaused && held && !sessionRunning && dismissedHold !== holdKey
   // An error pause gets the same manual override as a user-stop hold: each
   // PENDING row can be sent on its own, and that exact prompt lifts the
   // pause. Raw status, not `paused` — dismissing the notice must not take
@@ -572,32 +592,18 @@ export function MessageQueueDisplay({
 
   return (
     <div className="max-h-40 overflow-y-auto pb-1">
-      {canPauseQueue && (
-        <button
-          type="button"
-          className="mb-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary disabled:opacity-50"
-          disabled={pausing}
-          onClick={() => void handlePauseQueue()}
-        >
-          {t(pausing ? "pausingQueue" : "pauseQueue")}
-        </button>
-      )}
       {showHeldNotice && (
         <div className="relative mb-1 rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
-          {!manuallyPaused && (
-            <button
-              type="button"
-              onClick={() => setDismissedHold(holdKey)}
-              className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
-              aria-label={t("dismissNotice")}
-              title={t("dismissNotice")}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-          <p className="pr-5">
-            {t(manuallyPaused ? "manualPauseNotice" : "heldNotice")}
-          </p>
+          <button
+            type="button"
+            onClick={() => setDismissedHold(holdKey)}
+            className="absolute right-1 top-1 rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground"
+            aria-label={t("dismissNotice")}
+            title={t("dismissNotice")}
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <p className="pr-5">{t("heldNotice")}</p>
           {onReleaseHold && (
             <button
               type="button"
@@ -675,6 +681,7 @@ export function MessageQueueDisplay({
                     queue.find((entry) => entry.id === id)?.scheduledAt ?? null,
                 })
               }
+              onPauseItem={onPauseItem}
               onSteerItem={onSteerItem}
               steerChannel={steerChannel}
               steering={steeringId !== null}

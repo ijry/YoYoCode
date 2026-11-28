@@ -2876,6 +2876,9 @@ const ConversationTabView = memo(function ConversationTabView({
       queue={msgQueue}
       queueControl={messageQueue.control}
       manualQueuePause={messageQueue.manualQueuePause}
+      onQueuePauseItem={
+        messageQueue.itemPause ? messageQueue.pauseItem : undefined
+      }
       onQueuePause={async () => {
         try {
           await messageQueue.pauseQueue()

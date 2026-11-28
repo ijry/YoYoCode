@@ -62,6 +62,7 @@ interface ChatInputProps {
   /** Host capability and explicit control for persistent auto-send pause. */
   manualQueuePause?: boolean
   onQueuePause?: () => Promise<void> | void
+  onQueuePauseItem?: (id: string, paused: boolean) => Promise<void> | void
   /** Send ONE queued row immediately at the user's request — the manual
    *  override for a held queue AND for an error pause, where the chosen row
    *  itself resumes the session (see `MessageQueueDisplayProps.onSendNow`). */
@@ -165,6 +166,7 @@ export const ChatInput = memo(function ChatInput({
   onQueueReleaseHold,
   manualQueuePause,
   onQueuePause,
+  onQueuePauseItem,
   onQueueSendNow,
   onEnqueue,
   onEnqueueScheduled,
@@ -243,8 +245,7 @@ export const ChatInput = memo(function ChatInput({
             sessionRunning={isPrompting}
             onContinue={onQueueContinue}
             onReleaseHold={onQueueReleaseHold}
-            manualQueuePause={manualQueuePause}
-            onPauseQueue={onQueuePause}
+            onPauseItem={onQueuePauseItem}
             onSendNow={onQueueSendNow}
             onReorder={onQueueReorder}
             onEdit={onQueueEdit}
@@ -258,6 +259,19 @@ export const ChatInput = memo(function ChatInput({
           />
         )}
       <MessageInput
+        queueControls={
+          manualQueuePause
+            ? {
+                canPause:
+                  Boolean(queue?.length) &&
+                  queueControl?.status === "open" &&
+                  queueControl.hold == null,
+                held: queueControl?.hold != null,
+                onPause: onQueuePause,
+                onResume: onQueueReleaseHold,
+              }
+            : undefined
+        }
         onSend={onSend}
         promptCapabilities={promptCapabilities}
         onFocus={onFocus}

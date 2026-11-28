@@ -11,6 +11,7 @@ const wire = vi.hoisted(() => ({
   continue: vi.fn(),
   releaseHold: vi.fn(),
   pause: vi.fn(),
+  pauseItem: vi.fn(),
   sendNow: vi.fn(),
   stateListener: null as null | ((payload: unknown) => void),
   listener: null as null | ((payload: unknown) => void),
@@ -27,6 +28,7 @@ vi.mock("@/lib/api", () => ({
   messageQueueContinue: wire.continue,
   messageQueueReleaseHold: wire.releaseHold,
   messageQueuePause: wire.pause,
+  messageQueueSetPaused: wire.pauseItem,
   messageQueueSendNow: wire.sendNow,
 }))
 vi.mock("@/lib/platform", () => ({
@@ -80,6 +82,7 @@ beforeEach(() => {
   })
   wire.continue.mockReset().mockResolvedValue(undefined)
   wire.releaseHold.mockReset().mockResolvedValue(undefined)
+  wire.pauseItem.mockReset().mockResolvedValue([])
   wire.pause.mockReset().mockResolvedValue(undefined)
   wire.sendNow.mockReset().mockResolvedValue(undefined)
   wire.stateListener = null
@@ -637,4 +640,24 @@ describe("owned queues never race the host drainer", () => {
     await act(async () => finish(null))
     expect(result.current.queue).toEqual([])
   })
+})
+
+it("persists per-message pause and adopts it without pausing the whole queue", async () => {
+  wire.capabilities.mockResolvedValue({ backend_drain: true, item_pause: true })
+  wire.list.mockResolvedValue([item("a"), item("b")])
+  wire.pauseItem.mockResolvedValue([item("a", "paused"), item("b")])
+  const { result } = renderHook(() => useMessageQueue("42"))
+  await waitFor(() => expect(result.current.queue).toHaveLength(2))
+  await waitFor(() => expect(result.current.itemPause).toBe(true))
+  await act(async () => result.current.pauseItem("a", true))
+  expect(wire.pauseItem).toHaveBeenCalledExactlyOnceWith("42", "a", true)
+  expect(result.current.queue[0].deliveryState).toBe("paused")
+  expect(result.current.queue[1].deliveryState).toBeUndefined()
+  expect(wire.pause).not.toHaveBeenCalled()
+  wire.capabilities.mockRejectedValue(new Error("offline"))
+  await act(async () => wire.ready?.())
+  expect(result.current.itemPause).toBe(false)
+  await expect(result.current.pauseItem("a", false)).rejects.toThrow(
+    "not available"
+  )
 })

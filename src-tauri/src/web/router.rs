@@ -2369,6 +2369,10 @@ pub fn build_router_with_srn(
             post(handlers::message_queue::message_queue_enqueue),
         )
         .route(
+            "/message_queue_set_paused",
+            post(handlers::message_queue::message_queue_set_paused),
+        )
+        .route(
             "/message_queue_set_schedule",
             post(handlers::message_queue::message_queue_set_schedule),
         )

@@ -146,112 +146,82 @@ function queueState(patch: Partial<MessageQueueState> = {}): MessageQueueState {
 
 afterEach(cleanup)
 
+describe("MessageQueueDisplay item pause", () => {
+  it("pauses only the chosen row and offers resume on that row", async () => {
+    const onPauseItem = vi.fn(async () => {})
+    const view = renderDisplay({ onPauseItem })
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Pause this message" })[1]
+    )
+    expect(onPauseItem).toHaveBeenCalledWith("q2", true)
+    view.rerenderDisplay({
+      queue: [
+        item("q1", "use pnpm"),
+        { ...item("q2", "run tests"), deliveryState: "paused" },
+      ],
+    })
+    await userEvent.click(
+      screen.getByRole("button", { name: "Resume this message" })
+    )
+    expect(onPauseItem).toHaveBeenLastCalledWith("q2", false)
+    expect(
+      screen.queryByRole("button", { name: TQ.pauseQueue })
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe("MessageQueueDisplay manual pause", () => {
-  it("pauses automatically delivered rows and keeps single-row sending separate from resume", async () => {
-    const onPauseQueue = vi.fn(async () => {})
+  it("keeps single-row sending without a standalone queue control", async () => {
     const onReleaseHold = vi.fn(async () => {})
     const onSendNow = vi.fn(async () => {})
-    const view = renderDisplay({
-      queueControl: queueState(),
-      manualQueuePause: true,
-      onPauseQueue,
+    renderDisplay({
+      queueControl: queueState({ hold: "manual_pause" }),
       onReleaseHold,
       onSendNow,
     })
-    await userEvent.click(screen.getByRole("button", { name: TQ.pauseQueue }))
-    expect(onPauseQueue).toHaveBeenCalledTimes(1)
-
-    view.rerenderDisplay({
-      queueControl: queueState({ hold: "manual_pause", revision: 2 }),
-    })
     expect(
       screen.queryByRole("button", { name: TQ.pauseQueue })
     ).not.toBeInTheDocument()
-    expect(screen.getByText(TQ.manualPauseNotice)).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: TQ.resumeQueue })
+    ).not.toBeInTheDocument()
     await userEvent.click(screen.getAllByTitle(TQ.sendNow)[1])
     expect(onSendNow).toHaveBeenCalledWith("q2")
     expect(onReleaseHold).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole("button", { name: TQ.resumeQueue })
-    ).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("button", { name: TQ.resumeQueue }))
-    expect(onReleaseHold).toHaveBeenCalledTimes(1)
   })
 
-  it.each([
-    { manualQueuePause: false, queueControl: queueState() },
-    { manualQueuePause: true, queueControl: null },
-    {
-      manualQueuePause: true,
-      queueControl: queueState({ hold: "manual_stop" }),
-    },
-    { manualQueuePause: true, queueControl: queueState({ status: "paused" }) },
-    { manualQueuePause: true, queueControl: queueState(), queue: [] },
-  ])("does not offer an unsupported or inapplicable pause: %j", (props) => {
-    renderDisplay({ onPauseQueue: vi.fn(), ...props })
+  it("does not pause claimed, failed, uncertain or editing rows", () => {
+    renderDisplay({
+      queue: [
+        { ...item("a", "a"), deliveryState: "claimed" },
+        { ...item("b", "b"), deliveryState: "failed" },
+        { ...item("c", "c"), deliveryState: "uncertain" },
+        item("d", "d"),
+      ],
+      editingItemId: "d",
+      onPauseItem: vi.fn(),
+    })
     expect(
-      screen.queryByRole("button", { name: TQ.pauseQueue })
+      screen.queryByRole("button", { name: TQ.pauseItem })
     ).not.toBeInTheDocument()
   })
 
-  it.each(["open", "paused", "resuming", "resume_requested"] as const)(
-    "keeps explicit resume accessible when manually held, empty and running (%s)",
-    async (status) => {
-      const onReleaseHold = vi.fn(async () => {})
-      renderDisplay({
-        queue: [],
-        queueControl: queueState({ status, hold: "manual_pause" }),
-        sessionRunning: true,
-        onReleaseHold,
-      })
-      expect(screen.getByText(TQ.manualPauseNotice)).toBeInTheDocument()
-      // Manual pause is persistent, unlike the dismissible user-stop notice.
-      const resume = screen.getByRole("button", { name: TQ.resumeQueue })
-      await userEvent.click(resume)
-      expect(onReleaseHold).toHaveBeenCalledTimes(1)
-      expect(
-        screen.getByRole("button", { name: TQ.resumeQueue })
-      ).toBeInTheDocument()
-    }
-  )
-
-  it("does not lose resume when the error notice is dismissed", async () => {
-    renderDisplay({
-      queueControl: queueState({
-        status: "paused",
-        hold: "manual_pause",
-        error: "quota error",
-      }),
-      onReleaseHold: vi.fn(),
-    })
-    await userEvent.click(
-      screen.getByRole("button", { name: TQ.dismissNotice })
-    )
-    expect(
-      screen.getByRole("button", { name: TQ.resumeQueue })
-    ).toBeInTheDocument()
-  })
-
-  it("refuses repeated pause clicks while the host request is pending", async () => {
+  it("locks repeated clicks until the item pause settles", async () => {
     let resolve!: () => void
-    const onPauseQueue = vi.fn(
+    const onPauseItem = vi.fn(
       () =>
         new Promise<void>((done) => {
           resolve = done
         })
     )
-    renderDisplay({
-      queueControl: queueState(),
-      manualQueuePause: true,
-      onPauseQueue,
-    })
-    const button = screen.getByRole("button", { name: TQ.pauseQueue })
+    renderDisplay({ onPauseItem })
+    const button = screen.getAllByRole("button", { name: TQ.pauseItem })[0]
     fireEvent.click(button)
     fireEvent.click(button)
-    expect(onPauseQueue).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole("button", { name: TQ.pausingQueue })).toBeDisabled()
+    expect(onPauseItem).toHaveBeenCalledExactlyOnceWith("q1", true)
+    expect(button).toBeDisabled()
     await act(async () => resolve())
-    expect(screen.getByRole("button", { name: TQ.pauseQueue })).toBeEnabled()
+    expect(button).toBeEnabled()
   })
 })
 
