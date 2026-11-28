@@ -394,8 +394,20 @@ const ConversationTabView = memo(function ConversationTabView({
   // conversation's own stored selection. Seeding it from the per-agent
   // default would import another conversation's mode at the next send.
   const [modeId, setModeId] = useState<string | null>(() =>
-    conversationId != null ? null : getSavedModeId(agentType)
+    conversationId != null || ownTab?.continuationSourceId != null
+      ? null
+      : getSavedModeId(agentType)
   )
+  // A reused draft may already have a per-agent default cached locally. Reset
+  // with the source identity, before children render, rather than in an effect.
+  const continuationSourceId = ownTab?.continuationSourceId ?? null
+  const [modeSourceId, setModeSourceId] = useState(continuationSourceId)
+  if (modeSourceId !== continuationSourceId) {
+    setModeSourceId(continuationSourceId)
+    if (conversationId == null && continuationSourceId != null) {
+      setModeId(null)
+    }
+  }
   const [sendSignal, setSendSignal] = useState(0)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [usableAgentCount, setUsableAgentCount] = useState(0)
@@ -753,6 +765,7 @@ const ConversationTabView = memo(function ConversationTabView({
     // the tab's own reactive selector (`ownTab` above) so the value is
     // reference-stable while it means the same pick.
     preferredConfigValues: ownTab?.pendingPreferredConfigValues ?? null,
+    continuationSourceId: ownTab?.continuationSourceId ?? undefined,
   })
   const { status: connStatus, sessionId: connSessionId } = conn
   const messageQueue = useMessageQueue(
@@ -1489,7 +1502,8 @@ const ConversationTabView = memo(function ConversationTabView({
             const res = await createChatConversation(
               selectedAgent,
               title,
-              chatExistingDir
+              chatExistingDir,
+              sendOwnTab?.continuationSourceId
             )
             newConversationId = res.conversationId
             sendFolderId = res.folderId
@@ -1524,7 +1538,9 @@ const ConversationTabView = memo(function ConversationTabView({
             newConversationId = await createConversation(
               folderId,
               selectedAgent,
-              title
+              title,
+              useTabStore.getState().rawTabs.find((tab) => tab.id === tabId)
+                ?.continuationSourceId
             )
             dbConvIdRef.current = newConversationId
             handOverDraftMode()

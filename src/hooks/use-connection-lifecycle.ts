@@ -71,6 +71,7 @@ interface UseConnectionLifecycleOptions {
    * with the switch.
    */
   preferredConfigValues?: Record<string, string> | null
+  continuationSourceId?: number
 }
 
 export interface UseConnectionLifecycleReturn {
@@ -177,6 +178,7 @@ export function useConnectionLifecycle({
   preparing = false,
   isTransientUnmount,
   preferredConfigValues,
+  continuationSourceId,
 }: UseConnectionLifecycleOptions): UseConnectionLifecycleReturn {
   const t = useTranslations("Folder.chat.connectionLifecycle")
   const { setActiveKey, releaseActiveKey, touchActivity } = useAcpActions()
@@ -306,7 +308,10 @@ export function useConnectionLifecycle({
         workingDir,
         sessionIdRef.current,
         conversationIdRef.current,
-        preferredConfigValues ?? null
+        preferredConfigValues ?? null,
+        ...(continuationSourceId != null
+          ? ([continuationSourceId] as const)
+          : [])
       )
       .then(() => {
         if (!cancelled) {
@@ -328,7 +333,13 @@ export function useConnectionLifecycle({
     return () => {
       cancelled = true
     }
-  }, [isActive, workingDir, agentType, preferredConfigValues])
+  }, [
+    isActive,
+    workingDir,
+    agentType,
+    preferredConfigValues,
+    continuationSourceId,
+  ])
 
   // Status-bar task for the two legs that precede a usable session:
   //   "preparing"  — the caller is resolving what to connect to (see `preparing`)

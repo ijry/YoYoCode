@@ -81,6 +81,7 @@ pub struct AcpConnectParams {
     /// clients omit it and fall back to the session-id lookup.
     #[serde(default)]
     pub conversation_id: Option<i32>,
+    pub continuation: Option<acp_commands::ContinuationConnectSelection>,
 }
 
 pub async fn acp_connect(
@@ -106,6 +107,19 @@ pub async fn acp_connect(
         .await
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
 
+    let preferences = acp_commands::resolve_draft_connect_preferences(
+        &db.conn,
+        params.agent_type,
+        if params.conversation_id.is_none() && params.session_id.is_none() {
+            params.continuation
+        } else {
+            None
+        },
+        params.preferred_mode_id,
+        params.preferred_config_values.unwrap_or_default(),
+    )
+    .await
+    .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
     let emitter = state.emitter.clone();
     let connection_id = acp_commands::spawn_with_conversation_selection(
         manager,
@@ -117,8 +131,8 @@ pub async fn acp_connect(
         "web".to_string(),
         emitter,
         params.conversation_id,
-        params.preferred_mode_id,
-        params.preferred_config_values.unwrap_or_default(),
+        preferences.composer_mode_id.or(preferences.mode_id),
+        preferences.config_values,
     )
     .await
     .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;

@@ -127,6 +127,9 @@ export interface TabItemInternal {
    * agent switch invalidates the old agent's values).
    */
   pendingPreferredConfigValues?: Record<string, string> | null
+  /** Source is copied on first create; retained after bind to keep connect
+   * request identity stable. Bound reconnects always use their own DB id. */
+  continuationSourceId?: number | null
 }
 
 export type TabItem = TabItemInternal
@@ -303,6 +306,7 @@ export interface TabStoreState {
        *  `TabItemInternal.pendingPreferredConfigValues`). Omitted leaves any
        *  existing value alone; present (even null) overwrites it. */
       preferredConfigValues?: Record<string, string> | null
+      continuationSourceId?: number | null
       /** Move THIS unbound draft to the folder (the composer's folder picker)
        *  rather than resolving the target group's draft. Matters while tabs
        *  follow the folder, where the target folder may have a draft of its
@@ -318,6 +322,7 @@ export interface TabStoreState {
     retargetTabId?: string
     /** See `openNewConversationTab`'s `preferredConfigValues`. */
     preferredConfigValues?: Record<string, string> | null
+    continuationSourceId?: number | null
   }) => OpenedDraftTarget
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: AgentType) => void
@@ -610,6 +615,7 @@ function sameDerivedTab(a: TabItemInternal, b: TabItemInternal): boolean {
     a.workingDir === b.workingDir &&
     a.status === b.status &&
     a.agentTypeProvisional === b.agentTypeProvisional &&
+    a.continuationSourceId === b.continuationSourceId &&
     a.isChat === b.isChat
   )
 }
@@ -794,6 +800,7 @@ function sanitizeGroupViews(value: unknown): Record<string, GroupView> {
  * drafts omit `workingDir`: their scratch dir is recreated eagerly on focus.
  */
 interface PersistedDraft {
+  continuationSourceId?: number
   id: string
   group: string
   index: number
@@ -821,6 +828,11 @@ function sanitizeDrafts(value: unknown): PersistedDraft[] {
       group: e.group,
       index,
       folderId: e.folderId,
+      ...(typeof e.continuationSourceId === "number" &&
+      Number.isSafeInteger(e.continuationSourceId) &&
+      e.continuationSourceId > 0
+        ? { continuationSourceId: e.continuationSourceId }
+        : {}),
       ...(e.isChat === true ? { isChat: true } : {}),
       ...(typeof e.workingDir === "string" && e.workingDir.length > 0
         ? { workingDir: e.workingDir }
@@ -928,6 +940,9 @@ function persistGroupState() {
       group,
       index,
       folderId: tab.folderId,
+      ...(tab.continuationSourceId != null
+        ? { continuationSourceId: tab.continuationSourceId }
+        : {}),
       ...(tab.isChat === true ? { isChat: true } : {}),
       // Chat drafts get a fresh scratch dir on focus; persisting the old one
       // would point the connection at a directory the GC may have removed.
@@ -1014,6 +1029,7 @@ function mergeRestoredDrafts(restored: TabItemInternal[]): {
       kind: "conversation",
       folderId: draft.folderId,
       conversationId: null,
+      continuationSourceId: draft.continuationSourceId ?? null,
       agentType: resolved.agentType,
       title: runtime.labels.newConversation,
       isPinned: true,
@@ -2285,6 +2301,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         ...(options?.preferredConfigValues !== undefined
           ? { preferredConfigValues: options.preferredConfigValues }
           : {}),
+        ...(options?.continuationSourceId !== undefined
+          ? { continuationSourceId: options.continuationSourceId }
+          : {}),
       })
     }
     // Read before any folder scope switch: "inherit from active" means the
@@ -2352,6 +2371,7 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         isPinned: true,
         workingDir,
         agentTypeProvisional: provisional,
+        continuationSourceId: options?.continuationSourceId ?? null,
         ...(options?.preferredConfigValues !== undefined
           ? { pendingPreferredConfigValues: options.preferredConfigValues }
           : {}),
@@ -2419,14 +2439,24 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     runtime.activateConversationPane()
     // The reused draft got its agent/folder/workingDir settled by the branches
     // above; the one-shot values ride along regardless of which branch ran.
-    if (options?.preferredConfigValues !== undefined) {
+    if (
+      options?.preferredConfigValues !== undefined ||
+      options?.continuationSourceId !== undefined
+    ) {
       set({
         rawTabs: get().rawTabs.map((tab) =>
           tab.id === existingTab.id
             ? {
                 ...tab,
-                pendingPreferredConfigValues:
-                  options.preferredConfigValues ?? null,
+                ...(options?.preferredConfigValues !== undefined
+                  ? {
+                      pendingPreferredConfigValues:
+                        options.preferredConfigValues,
+                    }
+                  : {}),
+                ...(options?.continuationSourceId !== undefined
+                  ? { continuationSourceId: options.continuationSourceId }
+                  : {}),
               }
             : tab
         ),
@@ -2565,15 +2595,25 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
 
     // Same one-shot semantics as openNewConversationTab's reuse path: whatever
     // branch settled this draft, an explicit value lands on it.
-    if (options?.preferredConfigValues !== undefined) {
+    if (
+      options?.preferredConfigValues !== undefined ||
+      options?.continuationSourceId !== undefined
+    ) {
       const patchedId = existingTab ? existingTab.id : tabId
       set({
         rawTabs: get().rawTabs.map((tab) =>
           tab.id === patchedId
             ? {
                 ...tab,
-                pendingPreferredConfigValues:
-                  options.preferredConfigValues ?? null,
+                ...(options?.preferredConfigValues !== undefined
+                  ? {
+                      pendingPreferredConfigValues:
+                        options.preferredConfigValues,
+                    }
+                  : {}),
+                ...(options?.continuationSourceId !== undefined
+                  ? { continuationSourceId: options.continuationSourceId }
+                  : {}),
               }
             : tab
         ),

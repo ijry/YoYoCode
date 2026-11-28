@@ -2604,10 +2604,17 @@ export function SidebarConversationList({
         void handleStatusChange(conversationId, "completed")
       },
       getFolderPath: (folderId) => folderIndex.get(folderId)?.path ?? null,
-      openNewConversation: (folderId, path, agentType, preferredConfigValues) =>
+      openNewConversation: (
+        folderId,
+        path,
+        agentType,
+        preferredConfigValues,
+        continuationSourceId
+      ) =>
         openNewConversationTab(folderId, path, {
           forceAgent: agentType as AgentType,
           preferredConfigValues,
+          continuationSourceId,
         }).tabId,
       queuePrefill: (tabId, conversation, promptText) =>
         queuePendingSessionAttachments(tabId, [

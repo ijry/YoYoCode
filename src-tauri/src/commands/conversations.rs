@@ -2487,6 +2487,17 @@ pub async fn create_conversation_core(
     agent_type: AgentType,
     title: Option<String>,
 ) -> Result<i32, AppCommandError> {
+    create_conversation_with_continuation_core(conn, folder_id, agent_type, title, None).await
+}
+
+/// Shared desktop/web/automatic continuation creation, before any dispatch.
+pub async fn create_conversation_with_continuation_core(
+    conn: &sea_orm::DatabaseConnection,
+    folder_id: i32,
+    agent_type: AgentType,
+    title: Option<String>,
+    continuation_source_id: Option<i32>,
+) -> Result<i32, AppCommandError> {
     let git_branch = if let Some(folder) = folder_service::get_folder_by_id(conn, folder_id)
         .await
         .map_err(AppCommandError::from)?
@@ -2496,10 +2507,40 @@ pub async fn create_conversation_core(
         None
     };
 
-    let model = conversation_service::create(conn, folder_id, agent_type, title, git_branch)
-        .await
-        .map_err(AppCommandError::from)?;
+    let model = match continuation_source_id {
+        Some(source_id) => {
+            conversation_service::create_continuation(
+                conn, source_id, folder_id, agent_type, title, git_branch,
+            )
+            .await
+        }
+        None => conversation_service::create(conn, folder_id, agent_type, title, git_branch).await,
+    }
+    .map_err(AppCommandError::from)?;
     Ok(model.id)
+}
+
+/// Publish a continuation's committed execution barriers to all clients.
+/// Queue contents are loaded when the newly bound conversation mounts.
+pub async fn emit_continuation_queue_states(
+    emitter: &EventEmitter,
+    conn: &sea_orm::DatabaseConnection,
+    source_id: Option<i32>,
+    target_id: i32,
+) {
+    let Some(source_id) = source_id else { return };
+    for id in [source_id, target_id] {
+        match crate::db::service::message_queue_control_service::get_state(conn, &id.to_string())
+            .await
+        {
+            Ok(state) => crate::web::event_bridge::emit_event(
+                emitter,
+                crate::web::event_bridge::MESSAGE_QUEUE_STATE_EVENT,
+                state,
+            ),
+            Err(error) => tracing::warn!(%error, id, "could not publish continuation queue state"),
+        }
+    }
 }
 
 /// [`create_conversation_core`] for the conversation a check of a message
@@ -2539,9 +2580,19 @@ pub async fn create_conversation(
     folder_id: i32,
     agent_type: AgentType,
     title: Option<String>,
+    continuation_source_id: Option<i32>,
 ) -> Result<i32, AppCommandError> {
-    let id = create_conversation_core(&db.conn, folder_id, agent_type, title).await?;
-    emit_conversation_upsert(&EventEmitter::from_app(&app), &db.conn, id).await;
+    let id = create_conversation_with_continuation_core(
+        &db.conn,
+        folder_id,
+        agent_type,
+        title,
+        continuation_source_id,
+    )
+    .await?;
+    let emitter = EventEmitter::from_app(&app);
+    emit_conversation_upsert(&emitter, &db.conn, id).await;
+    emit_continuation_queue_states(&emitter, &db.conn, continuation_source_id, id).await;
     Ok(id)
 }
 
@@ -2906,7 +2957,28 @@ pub async fn create_chat_conversation_core(
     title: Option<String>,
     existing_dir: Option<&str>,
 ) -> Result<CreateChatConversationResult, AppCommandError> {
-    create_chat_conversation_inner(conn, data_dir, agent_type, title, existing_dir, None).await
+    create_chat_conversation_inner(conn, data_dir, agent_type, title, existing_dir, None, None)
+        .await
+}
+
+pub async fn create_chat_continuation_core(
+    conn: &sea_orm::DatabaseConnection,
+    data_dir: &std::path::Path,
+    agent_type: AgentType,
+    title: Option<String>,
+    existing_dir: Option<&str>,
+    source_id: Option<i32>,
+) -> Result<CreateChatConversationResult, AppCommandError> {
+    create_chat_conversation_inner(
+        conn,
+        data_dir,
+        agent_type,
+        title,
+        existing_dir,
+        None,
+        source_id,
+    )
+    .await
 }
 
 /// [`create_chat_conversation_core`] for the conversation a check of a
@@ -2927,6 +2999,7 @@ pub async fn create_chat_check_conversation_core(
         title,
         None,
         Some(checked_conversation_id),
+        None,
     )
     .await
 }
@@ -2938,6 +3011,7 @@ async fn create_chat_conversation_inner(
     title: Option<String>,
     existing_dir: Option<&str>,
     check_of: Option<i32>,
+    continuation_source_id: Option<i32>,
 ) -> Result<CreateChatConversationResult, AppCommandError> {
     let path = match existing_dir {
         Some(dir) => {
@@ -2963,7 +3037,17 @@ async fn create_chat_conversation_inner(
             conversation_service::create_check(conn, checked, folder.id, agent_type, title, None)
                 .await
         }
-        None => conversation_service::create_chat(conn, folder.id, agent_type, title, None).await,
+        None => match continuation_source_id {
+            Some(source_id) => {
+                conversation_service::create_continuation(
+                    conn, source_id, folder.id, agent_type, title, None,
+                )
+                .await
+            }
+            None => {
+                conversation_service::create_chat(conn, folder.id, agent_type, title, None).await
+            }
+        },
     };
     let model =
         match created {
@@ -2994,6 +3078,7 @@ pub async fn create_chat_conversation(
     agent_type: AgentType,
     title: Option<String>,
     existing_dir: Option<String>,
+    continuation_source_id: Option<i32>,
 ) -> Result<CreateChatConversationResult, AppCommandError> {
     use tauri::Manager;
     let data_dir = app
@@ -3001,15 +3086,24 @@ pub async fn create_chat_conversation(
         .app_data_dir()
         .map(|p| crate::paths::resolve_effective_data_dir(&p))
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let result = create_chat_conversation_core(
+    let result = create_chat_continuation_core(
         &db.conn,
         &data_dir,
         agent_type,
         title,
         existing_dir.as_deref(),
+        continuation_source_id,
     )
     .await?;
-    emit_conversation_upsert(&EventEmitter::from_app(&app), &db.conn, result.conversation_id).await;
+    let emitter = EventEmitter::from_app(&app);
+    emit_conversation_upsert(&emitter, &db.conn, result.conversation_id).await;
+    emit_continuation_queue_states(
+        &emitter,
+        &db.conn,
+        continuation_source_id,
+        result.conversation_id,
+    )
+    .await;
     Ok(result)
 }
 
@@ -4665,6 +4759,57 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn chat_continuation_uses_its_own_folder_and_copies_the_queue() {
+        let db = fresh_in_memory_db().await;
+        let data_dir = tempfile::tempdir().unwrap();
+        let old =
+            create_chat_conversation_core(&db.conn, data_dir.path(), AgentType::Codex, None, None)
+                .await
+                .unwrap();
+        crate::db::service::message_queue_service::save(
+            &db.conn,
+            &old.conversation_id.to_string(),
+            vec![crate::db::service::message_queue_service::QueueItemInput {
+                id: "queued".into(),
+                draft_json: "{}".into(),
+                mode_id: None,
+                adopt_send_time_mode: false,
+            }],
+        )
+        .await
+        .unwrap();
+        let next = create_chat_continuation_core(
+            &db.conn,
+            data_dir.path(),
+            AgentType::Codex,
+            None,
+            None,
+            Some(old.conversation_id),
+        )
+        .await
+        .unwrap();
+        assert_ne!(next.folder_id, old.folder_id);
+        assert_ne!(next.folder.path, old.folder.path);
+        assert_eq!(
+            crate::db::service::message_queue_service::list(
+                &db.conn,
+                &next.conversation_id.to_string()
+            )
+            .await
+            .unwrap()
+            .len(),
+            1
+        );
+        assert_eq!(
+            conversation_service::get_by_id(&db.conn, next.conversation_id)
+                .await
+                .unwrap()
+                .kind,
+            conversation::ConversationKind::Chat
+        );
     }
 
     #[tokio::test]

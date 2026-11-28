@@ -73,7 +73,8 @@ describe("runContinueInNewSession", () => {
       1,
       "/p/1",
       "claude_code",
-      null
+      null,
+      42
     )
     expect(deps.queuePrefill).toHaveBeenCalledWith(
       "new-tab-1",
@@ -95,7 +96,8 @@ describe("runContinueInNewSession", () => {
       1,
       "/p/1",
       "codex",
-      null
+      null,
+      42
     )
     expect(deps.queuePrefill).toHaveBeenCalledWith(
       "new-tab-1",
@@ -115,7 +117,8 @@ describe("runContinueInNewSession", () => {
       1,
       "/p/1",
       "claude_code",
-      preferredConfigValues
+      preferredConfigValues,
+      42
     )
   })
 

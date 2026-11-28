@@ -166,41 +166,81 @@ fn is_invalid_encrypted_content_error(value: &Value) -> bool {
 /// (a gateway may drop `status`/`type` entirely), so only the shape that holds
 /// the code matters. Reads `error.code`, a gateway's
 /// `error.metadata.provider_error_code`, and a provider body embedded as a
-/// JSON string in `error.metadata.raw`. Returns `None` for non-JSON text, a
-/// missing/non-string code, or an empty code. This is what lets a turn-level
+/// JSON string in `error.metadata.raw`, including ACP message/data wrappers.
+/// Also recognizes the exact limit advice when an adapter unwraps its message.
+/// Other non-JSON text, missing/non-string codes and empty codes return `None`. This is what lets a turn-level
 /// error (e.g. `session_turn_limit_exceeded`) travel as a structured code on
 /// `AcpEvent::Error` instead of being buried in the message.
 pub(crate) fn agent_error_code(text: &str) -> Option<String> {
-    if let Ok(value) = serde_json::from_str::<Value>(text) {
-        if let Some(code) = agent_error_code_in_value(&value) {
-            return Some(code);
-        }
-    }
-    // An agent may prefix the envelope with its own sentence before the JSON
-    // body; read from the first object opening rather than dropping the code.
-    let start = text.find('{')?;
-    let value = serde_json::from_str::<Value>(&text[start..]).ok()?;
-    agent_error_code_in_value(&value)
+    agent_error_code_in_text(text, 8)
 }
 
-fn agent_error_code_in_value(value: &Value) -> Option<String> {
-    let error = value.as_object()?.get("error")?;
+fn agent_error_code_in_text(text: &str, remaining: usize) -> Option<String> {
+    if remaining == 0 {
+        return None;
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(text) {
+        return agent_error_code_in_value(&value, remaining - 1);
+    }
+    // ACP's Display can prefix the body and append another JSON value.
+    // Read one value, not the whole suffix, so metadata cannot hide the code.
+    if let Some(start) = text.find('{') {
+        if let Some(Ok(value)) = serde_json::Deserializer::from_str(&text[start..])
+            .into_iter::<Value>()
+            .next()
+        {
+            return agent_error_code_in_value(&value, remaining - 1);
+        }
+    }
+    // Newer adapters replace the envelope with error.message. Recognize only
+    // this provider's specific bilingual limit advice, never /compact alone.
+    let has_turn_count = |prefix: &str, suffix: &str| {
+        text.split_once(prefix)
+            .and_then(|(_, rest)| rest.split_once(suffix))
+            .is_some_and(|(count, _)| count.parse::<u64>().is_ok_and(|count| count > 0))
+    };
+    (text.contains("/compact")
+        && text.contains("/new")
+        && (has_turn_count("This conversation has reached ", " model turns.")
+            || has_turn_count("当前会话模型已回复 ", " 轮，达到上限。")))
+    .then(|| "session_turn_limit_exceeded".to_string())
+}
+
+fn agent_error_code_in_value(value: &Value, remaining: usize) -> Option<String> {
+    if remaining == 0 {
+        return None;
+    }
+    if let Some(text) = value.as_str() {
+        return agent_error_code_in_text(text, remaining - 1);
+    }
+    let error = value.get("error").unwrap_or(value);
     if let Some(code) = error.get("code").and_then(Value::as_str) {
         if !code.is_empty() {
             return Some(code.to_string());
         }
     }
-    let metadata = error.get("metadata")?.as_object()?;
-    if let Some(code) = metadata.get("provider_error_code").and_then(Value::as_str) {
-        if !code.is_empty() {
-            return Some(code.to_string());
+    if let Some(metadata) = error.get("metadata") {
+        if let Some(code) = metadata.get("provider_error_code").and_then(Value::as_str) {
+            if !code.is_empty() {
+                return Some(code.to_string());
+            }
+        }
+        if let Some(code) = metadata
+            .get("raw")
+            .and_then(|raw| agent_error_code_in_value(raw, remaining - 1))
+        {
+            return Some(code);
         }
     }
-    metadata
-        .get("raw")
-        .and_then(Value::as_str)
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-        .and_then(|raw| agent_error_code_in_value(&raw))
+    // Only follow error carriers, never arbitrary fields that could hold a
+    // quoted error from an unrelated tool result or user message.
+    ["error", "message", "data", "details"]
+        .into_iter()
+        .find_map(|key| {
+            value
+                .get(key)
+                .and_then(|nested| agent_error_code_in_value(nested, remaining - 1))
+        })
 }
 
 #[cfg(test)]
@@ -531,6 +571,50 @@ mod tests {
             Some("\u{85}")
         );
         assert_eq!(readable_service_error_message(&text("\u{FEFF}")), None);
+    }
+
+    #[test]
+    fn agent_error_code_recognizes_the_message_after_the_adapter_unwraps_it() {
+        for message in [
+            "This conversation has reached 100 model turns. Run /compact to continue with a summarized context, or /new to start a new session.",
+            "当前会话模型已回复 100 轮，达到上限。Codex 请输入 /compact 压缩上下文后继续，或输入 /new 新开会话；其他客户端请新建对话。",
+        ] {
+            assert_eq!(agent_error_code(message).as_deref(), Some("session_turn_limit_exceeded"));
+            let wrapped = json!({"message": message}).to_string();
+            assert_eq!(agent_error_code(&wrapped).as_deref(), Some("session_turn_limit_exceeded"));
+            assert_eq!(agent_error_code(&json!({"toolResult": message}).to_string()), None);
+        }
+        for unrelated in [
+            "Run /compact to reduce context usage.",
+            "This conversation has reached a rate limit. Run /compact or /new.",
+            "The request exceeded the context window.",
+        ] {
+            assert_eq!(agent_error_code(unrelated), None);
+        }
+    }
+
+    #[test]
+    fn agent_error_code_reads_acp_wrapped_provider_errors() {
+        let body = json!({"error": {
+            "code": "session_turn_limit_exceeded",
+            "message": "This conversation has reached 100 model turns. Run /compact to continue.",
+            "type": "invalid_request_error",
+        }})
+        .to_string();
+        let cases = [
+            json!({"message": body}).to_string(),
+            json!({"data": body}).to_string(),
+            json!({"error": {"message": body}}).to_string(),
+            json!(body).to_string(),
+            format!("Internal error: {body}: {{\"requestId\":\"test\"}}"),
+        ];
+        for text in cases {
+            assert_eq!(
+                agent_error_code(&text).as_deref(),
+                Some("session_turn_limit_exceeded"),
+                "{text:?}"
+            );
+        }
     }
 
     #[test]

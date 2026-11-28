@@ -146,7 +146,10 @@ vi.mock("@/lib/advertised-commands-store", () => ({
 
 vi.mock("@/lib/selector-prefs-storage", () => ({
   getSavedPrefsForConnect: () => ({ modeId: undefined, configValues: {} }),
-  mergeConnectConfigValues: (saved: Record<string, string> | null, override: Record<string, string> | null) =>
+  mergeConnectConfigValues: (
+    saved: Record<string, string> | null,
+    override: Record<string, string> | null
+  ) =>
     override && Object.keys(override).length > 0
       ? { ...saved, ...override }
       : (saved ?? null),
@@ -11055,5 +11058,35 @@ describe("modeOptionsPointedAt (#1309)", () => {
     expect(next[1]).toBe(options[1])
     expect(modeOptionsPointedAt(options, "default")).toBe(options)
     expect(modeOptionsPointedAt(options, "plan")).toBe(options)
+  })
+})
+
+describe("continuation draft connection selection", () => {
+  it("forwards the source and explicit overrides without binding to the old conversation", async () => {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(
+        TAB,
+        "claude_code",
+        "/tmp/x",
+        undefined,
+        undefined,
+        { effort: "high" },
+        42
+      )
+    })
+    expect(h.acpConnect).toHaveBeenLastCalledWith(
+      "claude_code",
+      "/tmp/x",
+      undefined,
+      expect.toSatisfy(
+        (value: unknown) => value == null || typeof value === "string"
+      ),
+      expect.anything(),
+      null,
+      { sourceId: 42, configOverrides: { effort: "high" } }
+    )
+    expect(h.acpFindConnectionForConversation).not.toHaveBeenCalled()
   })
 })

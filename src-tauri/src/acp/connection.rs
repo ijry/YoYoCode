@@ -16660,45 +16660,9 @@ async fn run_conversation_loop(
                                     if let Some(err_event) = err_event {
                                         emit_with_state(state, emitter, err_event).await;
                                     }
-                                    // A provider turn-limit rejection leaves this
-                                    // session unable to continue. Hand it to the
-                                    // manager-side worker, which owns the database
-                                    // and can spawn a new session on the same model.
-                                    if error_code.as_deref()
-                                        == Some(crate::acp::turn_limit_continuation::TURN_LIMIT_EXCEEDED_CODE)
-                                    {
-                                        if let Some(injection) = continuation_injection {
-                                            let (conversation_id, folder_id, owner_label, cwd, selection) = {
-                                                let s = state.read().await;
-                                                (
-                                                    s.conversation_id,
-                                                    s.folder_id,
-                                                    s.owner_window_label.clone(),
-                                                    s.working_dir.as_ref().map(|p| p.to_string_lossy().into_owned()),
-                                                    crate::acp::selection::selection_snapshot(&s),
-                                                )
-                                            };
-                                            if let (Some(conversation_id), Some(folder_id)) =
-                                                (conversation_id, folder_id)
-                                            {
-                                                injection.try_send(
-                                                    crate::acp::turn_limit_continuation::ContinuationRequest {
-                                                        conversation_id,
-                                                        connection_id: conn_id.to_string(),
-                                                        agent_type,
-                                                        working_dir: cwd.unwrap_or_default(),
-                                                        folder_id,
-                                                        owner_window_label: owner_label,
-                                                        selection,
-                                                        emitter: emitter.clone(),
-                                                    },
-                                                );
-                                            } else {
-                                                tracing::warn!(
-                                                    "[turn-limit-continuation] session not bound to a conversation/folder; skipping"
-                                                );
-                                            }
-                                        }
+                                    if let Some(injection) = continuation_injection {
+                                        let s = state.read().await;
+                                        injection.try_send_for_error(error_code.as_deref(), &s, emitter);
                                     }
                                     // Not journaled (that is `end_turn` only),
                                     // but still recorded: the transcript's turn
@@ -16794,6 +16758,13 @@ async fn run_conversation_loop(
                                     AcpEvent::SessionFailure { record: record.clone() },
                                 )
                                 .await;
+                            }
+                            // A provider rejection can be a successful ACP
+                            // response carrying an AIR terminal failure, not
+                            // an RPC Err. Include update-channel failures too.
+                            if let Some(injection) = continuation_injection {
+                                let s = state.read().await;
+                                injection.try_send_for_failures(&s, emitter);
                             }
                             let reason = codebuddy_stop_reason(
                                 agent_type,

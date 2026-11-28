@@ -12730,6 +12730,41 @@ mod connect_selection_tests {
     }
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinuationConnectSelection {
+    pub source_id: i32,
+    #[serde(default)]
+    pub config_overrides: BTreeMap<String, String>,
+}
+
+/// Existing conversations always replay themselves, never the former source.
+pub async fn resolve_draft_connect_preferences(
+    db: &sea_orm::DatabaseConnection,
+    agent_type: AgentType,
+    continuation: Option<ContinuationConnectSelection>,
+    mode_id: Option<String>,
+    config_values: BTreeMap<String, String>,
+) -> Result<crate::models::ConversationSelection, AcpError> {
+    let fallback = crate::models::ConversationSelection {
+        mode_id,
+        config_values,
+        ..Default::default()
+    };
+    match continuation {
+        Some(source) => crate::db::service::conversation_service::selection_for_continuation_draft(
+            db,
+            source.source_id,
+            agent_type,
+            fallback,
+            source.config_overrides,
+        )
+        .await
+        .map_err(|e| AcpError::protocol(format!("read continuation selection: {e}"))),
+        None => Ok(fallback),
+    }
+}
+
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 #[allow(clippy::too_many_arguments)]
@@ -12740,6 +12775,7 @@ pub async fn acp_connect(
     preferred_mode_id: Option<String>,
     preferred_config_values: Option<BTreeMap<String, String>>,
     conversation_id: Option<i32>,
+    continuation: Option<ContinuationConnectSelection>,
     manager: State<'_, ConnectionManager>,
     db: State<'_, AppDatabase>,
     app_handle: tauri::AppHandle,
@@ -12763,6 +12799,18 @@ pub async fn acp_connect(
     // can prompt the user to install it from Agent Settings.
     verify_agent_installed(agent_type).await?;
 
+    let preferences = resolve_draft_connect_preferences(
+        &db.conn,
+        agent_type,
+        if conversation_id.is_none() && session_id.is_none() {
+            continuation
+        } else {
+            None
+        },
+        preferred_mode_id,
+        preferred_config_values.unwrap_or_default(),
+    )
+    .await?;
     let emitter = EventEmitter::from_app(&app_handle);
     let spawned = spawn_and_bind_conversation_selection(
         &manager,
@@ -12774,8 +12822,8 @@ pub async fn acp_connect(
         window.label().to_string(),
         emitter,
         conversation_id,
-        preferred_mode_id,
-        preferred_config_values.unwrap_or_default(),
+        preferences.composer_mode_id.or(preferences.mode_id),
+        preferences.config_values,
     )
     .await?;
     if let Err(e) = spawned.bound {

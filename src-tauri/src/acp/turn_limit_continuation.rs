@@ -3,7 +3,8 @@
 //!
 //! The provider error is a JSON envelope whose `error.code` is
 //! `session_turn_limit_exceeded`. `connection.rs` extracts that code onto the
-//! `AcpEvent::Error` and hands a [`ContinuationRequest`] to this module through
+//! `AcpEvent::Error` or reads it from a terminal AIR failure, then hands a
+//! [`ContinuationRequest`] to this module through
 //! [`ContinuationInjection`]. The worker here does what the UI's "continue in
 //! a new session" button does, but without a client: settle the old row,
 //! create a fresh session with the OLD selector state (so the model is the
@@ -113,6 +114,62 @@ impl ContinuationInjection {
         Self { tx }
     }
 
+    /// Both rejected RPCs and AIR failures delivered in successful responses
+    /// must enter the same backend-owned recovery path.
+    pub(crate) fn try_send_for_error(
+        &self,
+        code: Option<&str>,
+        state: &SessionState,
+        emitter: &EventEmitter,
+    ) {
+        if code != Some(TURN_LIMIT_EXCEEDED_CODE) {
+            return;
+        }
+        let (Some(conversation_id), Some(folder_id)) = (state.conversation_id, state.folder_id)
+        else {
+            tracing::warn!(
+                "[turn-limit-continuation] session not bound to a conversation/folder; skipping"
+            );
+            return;
+        };
+        self.try_send(ContinuationRequest {
+            conversation_id,
+            connection_id: state.connection_id.clone(),
+            agent_type: state.agent_type,
+            working_dir: state
+                .working_dir
+                .as_ref()
+                .map(|path| path.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            folder_id,
+            owner_window_label: state.owner_window_label.clone(),
+            selection: crate::acp::selection::selection_snapshot(state),
+            emitter: emitter.clone(),
+        });
+    }
+
+    /// Terminal failures may arrive in response metadata OR on the update
+    /// channel. The live state merges both and settles old failures when the
+    /// next user turn starts, so inspect only its unresolved terminal records.
+    pub(crate) fn try_send_for_failures(&self, state: &SessionState, emitter: &EventEmitter) {
+        let code = state
+            .session_failures
+            .values()
+            .filter(|record| record.severity == "error" && !record.resolved)
+            .find_map(|record| {
+                record
+                    .details
+                    .as_deref()
+                    .and_then(crate::acp::service_error::agent_error_code)
+                    .filter(|code| code == TURN_LIMIT_EXCEEDED_CODE)
+                    .or_else(|| {
+                        crate::acp::service_error::agent_error_code(&record.title)
+                            .filter(|code| code == TURN_LIMIT_EXCEEDED_CODE)
+                    })
+            });
+        self.try_send_for_error(code.as_deref(), state, emitter);
+    }
+
     /// Never block the error path: the event must still be emitted and the
     /// turn recorded even when the worker is gone.
     pub fn try_send(&self, request: ContinuationRequest) {
@@ -212,6 +269,13 @@ async fn wait_for_compaction_turn(
                                 };
                             }
                             AcpEvent::Error { terminal: true, .. } => {
+                                return CompactTurnOutcome::Failed;
+                            }
+                            // AIR adapters report a failed compact with an
+                            // error record followed by a disguised end_turn.
+                            AcpEvent::SessionFailure { record }
+                                if record.severity == "error" && !record.resolved =>
+                            {
                                 return CompactTurnOutcome::Failed;
                             }
                             AcpEvent::StatusChanged {
@@ -380,39 +444,63 @@ async fn handle_continuation(
         },
     );
 
-    let title = conversation_service::get_by_id(&db.conn, request.conversation_id)
+    let old = conversation_service::get_by_id(&db.conn, request.conversation_id)
         .await
-        .map_err(|e| AcpError::protocol(format!("read old conversation: {e}")))?
+        .map_err(|e| AcpError::protocol(format!("read old conversation: {e}")))?;
+    let title = old
         .title
         .unwrap_or_else(|| format!("session {}", request.conversation_id));
-    let new_id = crate::commands::conversations::create_conversation_core(
-        &db.conn,
-        request.folder_id,
-        request.agent_type,
-        Some(title.clone()),
-    )
-    .await
-    .map_err(|e| AcpError::protocol(format!("create continuation conversation: {e}")))?;
-    crate::commands::conversations::emit_conversation_upsert(
+    let (new_id, folder_id, working_dir) =
+        if old.kind == crate::db::entities::conversation::ConversationKind::Chat {
+            // Each chat continuation owns a fresh hidden folder, just like a
+            // manually continued chat, never a second row in the old scratch dir.
+            let created = crate::commands::conversations::create_chat_continuation_core(
+                &db.conn,
+                data_dir,
+                request.agent_type,
+                Some(title.clone()),
+                None,
+                Some(request.conversation_id),
+            )
+            .await
+            .map_err(|e| AcpError::protocol(format!("create chat continuation: {e}")))?;
+            (
+                created.conversation_id,
+                created.folder_id,
+                created.folder.path,
+            )
+        } else {
+            let id = crate::commands::conversations::create_conversation_with_continuation_core(
+                &db.conn,
+                request.folder_id,
+                request.agent_type,
+                Some(title.clone()),
+                Some(request.conversation_id),
+            )
+            .await
+            .map_err(|e| AcpError::protocol(format!("create continuation conversation: {e}")))?;
+            (id, request.folder_id, request.working_dir.clone())
+        };
+    crate::commands::conversations::emit_conversation_upsert(&request.emitter, &db.conn, new_id)
+        .await;
+
+    crate::commands::conversations::emit_continuation_queue_states(
         &request.emitter,
         &db.conn,
+        Some(request.conversation_id),
         new_id,
     )
     .await;
 
-    let runtime_env = crate::commands::acp::build_session_runtime_env(
-        db,
-        request.agent_type,
-        None,
-        data_dir,
-    )
-    .await?;
+    let runtime_env =
+        crate::commands::acp::build_session_runtime_env(db, request.agent_type, None, data_dir)
+            .await?;
     crate::commands::acp::verify_agent_installed(request.agent_type).await?;
     let spawned = crate::commands::acp::spawn_and_bind_conversation_selection(
         manager,
         &db.conn,
         request.agent_type,
-        Some(request.working_dir.clone()),
+        Some(working_dir),
         None, // a fresh session: resuming the old one would just hit the limit again
         runtime_env,
         request.owner_window_label.clone(),
@@ -459,7 +547,7 @@ async fn handle_continuation(
             vec![PromptInputBlock::Text {
                 text: build_continuation_prompt(&title, request.conversation_id),
             }],
-            Some(request.folder_id),
+            Some(folder_id),
             Some(new_id),
             None,
         )
@@ -476,6 +564,129 @@ async fn handle_continuation(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn failed_state() -> SessionState {
+        let mut state = SessionState::new(
+            "conn-limit".into(),
+            AgentType::Codex,
+            Some(PathBuf::from("project")),
+            "main".into(),
+            Some(7),
+        );
+        state.conversation_id = Some(42);
+        state.current_mode = Some("plan".into());
+        state
+    }
+
+    fn failure_record() -> crate::acp::types::SessionFailureRecord {
+        serde_json::from_value(serde_json::json!({
+            "id": "turn:error", "revision": 1, "category": "request",
+            "severity": "error", "title": "This conversation has reached 100 model turns.",
+            "details": r#"{"error":{"code":"session_turn_limit_exceeded","type":"invalid_request_error"}}"#,
+        })).unwrap()
+    }
+
+    #[test]
+    fn terminal_session_failure_requests_recovery_with_the_live_selection() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let injection = ContinuationInjection::new(tx);
+        let mut state = failed_state();
+        let record = failure_record();
+        state.session_failures.insert(record.id.clone(), record);
+        injection.try_send_for_failures(&state, &EventEmitter::Noop);
+        let request = rx
+            .try_recv()
+            .expect("terminal AIR failures must reach the recovery worker");
+        assert_eq!(request.conversation_id, 42);
+        assert_eq!(request.folder_id, 7);
+        assert_eq!(request.connection_id, "conn-limit");
+        assert_eq!(request.agent_type, AgentType::Codex);
+        assert_eq!(request.selection.mode_id.as_deref(), Some("plan"));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn retry_warnings_resolved_failures_and_other_errors_do_not_recover() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let injection = ContinuationInjection::new(tx);
+        let mut warning = failure_record();
+        warning.severity = "warning".into();
+        let mut resolved = failure_record();
+        resolved.resolved = true;
+        let mut other = failure_record();
+        other.details = Some(r#"{"error":{"code":"rate_limit_exceeded"}}"#.into());
+        for record in [warning, resolved, other] {
+            let mut state = failed_state();
+            state.session_failures.insert(record.id.clone(), record);
+            injection.try_send_for_failures(&state, &EventEmitter::Noop);
+            assert!(rx.try_recv().is_err());
+        }
+    }
+
+    #[test]
+    fn turn_limit_in_a_failure_title_also_requests_recovery() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let injection = ContinuationInjection::new(tx);
+        let mut state = failed_state();
+        let mut record = failure_record();
+        record.title = record.details.take().unwrap();
+        state.session_failures.insert(record.id.clone(), record);
+        injection.try_send_for_failures(&state, &EventEmitter::Noop);
+        assert_eq!(rx.try_recv().unwrap().conversation_id, 42);
+    }
+
+    #[test]
+    fn an_adapter_normalized_failure_also_requests_recovery() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let injection = ContinuationInjection::new(tx);
+        let mut state = failed_state();
+        let mut record = failure_record();
+        record.title = "This conversation has reached 100 model turns. Run /compact to continue with a summarized context, or /new to start a new session.".into();
+        record.details = None;
+        state.session_failures.insert(record.id.clone(), record);
+        injection.try_send_for_failures(&state, &EventEmitter::Noop);
+        assert_eq!(rx.try_recv().unwrap().conversation_id, 42);
+    }
+
+    #[test]
+    fn an_unbound_session_does_not_request_recovery() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let injection = ContinuationInjection::new(tx);
+        let mut state = failed_state();
+        state.conversation_id = None;
+        injection.try_send_for_error(Some(TURN_LIMIT_EXCEEDED_CODE), &state, &EventEmitter::Noop);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn a_compaction_failure_is_not_a_successful_end_turn() {
+        let (tx, mut rx) = broadcast::channel(8);
+        let state = Arc::new(RwLock::new(failed_state()));
+        for (seq, payload) in [
+            AcpEvent::SessionFailure {
+                record: failure_record(),
+            },
+            AcpEvent::TurnComplete {
+                session_id: "session".into(),
+                stop_reason: "end_turn".into(),
+                agent_type: "codex".into(),
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            tx.send(Arc::new(EventEnvelope {
+                seq: seq as u64 + 11,
+                connection_id: "conn-limit".into(),
+                payload,
+            }))
+            .unwrap();
+        }
+        assert!(matches!(
+            wait_for_compaction_turn(&mut rx, &state, "conn-limit", 10).await,
+            CompactTurnOutcome::Failed
+        ));
+    }
 
     #[test]
     fn continuation_prompt_links_the_old_session_and_says_to_continue() {

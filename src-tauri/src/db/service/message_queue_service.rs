@@ -68,6 +68,98 @@ pub async fn list(
     list_on(conn, owner_id).await
 }
 
+/// Snapshot a continuation's queue inside the SAME transaction that creates
+/// its conversation. New identities prevent old claims/stale saves from
+/// settling copied items. In-flight deliveries are uncertain, never retried
+/// automatically. Source items stay intact, but its queue is held to prevent
+/// both copies from automatically dispatching the same pending work.
+pub(crate) async fn copy_for_continuation_on(
+    txn: &DatabaseTransaction,
+    source_owner: &str,
+    target_owner: &str,
+) -> Result<(), DbError> {
+    if source_owner == target_owner {
+        return Err(DbError::Validation(
+            "continuation must use a new queue owner".into(),
+        ));
+    }
+    let occupied = txn.query_one(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "SELECT 1 FROM message_queue_item WHERE owner_id=? UNION ALL SELECT 1 FROM message_queue_state WHERE owner_id=? LIMIT 1",
+        vec![target_owner.into(), target_owner.into()],
+    )).await?;
+    if occupied.is_some() {
+        return Err(DbError::Conflict(
+            "continuation queue already exists".into(),
+        ));
+    }
+    let rows = message_queue_item::Entity::find()
+        .filter(message_queue_item::Column::OwnerId.eq(source_owner))
+        .filter(message_queue_item::Column::DeliveryState.is_not_in([SUBMITTED, REMOVED]))
+        .order_by_asc(message_queue_item::Column::SortOrder)
+        .order_by_asc(message_queue_item::Column::Id)
+        .all(txn)
+        .await?;
+    let now = Utc::now();
+    for row in rows {
+        let in_flight = matches!(row.delivery_state.as_str(), CLAIMED | SENDING);
+        message_queue_item::ActiveModel {
+            id: NotSet,
+            owner_id: Set(target_owner.into()),
+            item_uid: Set(uuid::Uuid::new_v4().to_string()),
+            draft_json: Set(row.draft_json),
+            mode_id: Set(row.mode_id),
+            adopt_send_time_mode: Set(row.adopt_send_time_mode),
+            scheduled_at: Set(row.scheduled_at),
+            sort_order: Set(row.sort_order),
+            delivery_state: Set(if in_flight {
+                UNCERTAIN.into()
+            } else {
+                row.delivery_state
+            }),
+            claim_token: Set(None),
+            last_error: Set(if in_flight {
+                Some(
+                    "Delivery in the previous session is unconfirmed; review before retrying"
+                        .into(),
+                )
+            } else {
+                row.last_error
+            }),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(txn)
+        .await?;
+    }
+    use super::message_queue_control_service as control;
+    let source = control::get_state(txn, source_owner).await?;
+    // Error/recovery pauses cannot carry their old failed-attempt credentials.
+    // Preserve their safety as a manual pause instead. An ordinary open queue
+    // gets a stop barrier until the initial continuation prompt succeeds, so
+    // the drainer cannot race that prompt (even before a connection exists).
+    let hold =
+        if source.status != "open" || source.hold.as_deref() == Some(control::HOLD_MANUAL_PAUSE) {
+            control::HOLD_MANUAL_PAUSE
+        } else {
+            control::HOLD_MANUAL_STOP
+        };
+    txn.execute(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO message_queue_state (owner_id,status,hold,revision,updated_at) VALUES (?,'open',?,1,?)",
+        vec![target_owner.into(), hold.into(), now.to_rfc3339().into()],
+    )).await?;
+    // Keep the source as a recoverable copy, not a second live dispatcher.
+    // Do not disturb its active attempt: a late completion must still settle
+    // against the original credentials and must not clear this manual pause.
+    txn.execute(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO message_queue_state (owner_id,status,hold,revision,updated_at) VALUES (?,'open',?,1,?) ON CONFLICT(owner_id) DO UPDATE SET status=CASE WHEN message_queue_state.status='resume_requested' THEN 'paused' ELSE message_queue_state.status END,hold=excluded.hold,revision=message_queue_state.revision+1,updated_at=excluded.updated_at WHERE message_queue_state.hold IS NOT 'manual_pause' OR message_queue_state.status='resume_requested'",
+        vec![source_owner.into(), control::HOLD_MANUAL_PAUSE.into(), now.to_rfc3339().into()],
+    )).await?;
+    Ok(())
+}
+
 /// Take SQLite's writer lock before reading the queue. A deferred transaction
 /// that reads first races another writer when promoted; the harmless UPDATE
 /// reserves the writer without changing any item or its timestamps.
@@ -883,3 +975,7 @@ mod tests {
         assert_eq!(list(&db.conn, "42").await.unwrap()[0].id, "a");
     }
 }
+
+#[cfg(test)]
+#[path = "message_queue_continuation_tests.rs"]
+mod continuation_tests;

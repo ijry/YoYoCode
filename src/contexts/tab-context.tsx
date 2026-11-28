@@ -274,6 +274,8 @@ export interface TabContextValue {
       folderDefaultAgent?: TabItem["agentType"] | null
       targetGroup?: string
       forceAgent?: TabItem["agentType"]
+      preferredConfigValues?: Record<string, string> | null
+      continuationSourceId?: number | null
       /** See the tab store's `openNewConversationTab`. */
       retargetTabId?: string
     }

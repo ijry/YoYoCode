@@ -317,6 +317,11 @@ export async function getSidebarData(): Promise<SidebarData> {
 
 // ACP commands
 
+export interface ContinuationConnectSelection {
+  sourceId: number
+  configOverrides: Record<string, string>
+}
+
 export async function acpConnect(
   agentType: AgentType,
   workingDir?: string,
@@ -326,7 +331,8 @@ export async function acpConnect(
   /** The existing conversation this connect opens (a real row id). Its own
    *  stored selection then wins over the preferences above, which are only
    *  the new-conversation default (codeg#1179). */
-  conversationId?: number | null
+  conversationId?: number | null,
+  continuation?: ContinuationConnectSelection
 ): Promise<string> {
   return getTransport().call("acp_connect", {
     agentType,
@@ -335,6 +341,7 @@ export async function acpConnect(
     preferredModeId: preferredModeId ?? null,
     preferredConfigValues: preferredConfigValues ?? null,
     conversationId: conversationId ?? null,
+    ...(continuation ? { continuation } : {}),
   })
 }
 
@@ -4696,12 +4703,14 @@ export async function createHyperframesProject(params: {
 export async function createConversation(
   folderId: number,
   agentType: AgentType,
-  title?: string
+  title?: string,
+  continuationSourceId?: number | null
 ): Promise<number> {
   return getTransport().call("create_conversation", {
     folderId,
     agentType,
     title: title ?? null,
+    ...(continuationSourceId != null ? { continuationSourceId } : {}),
   })
 }
 
@@ -4773,12 +4782,14 @@ export async function createChatConversation(
   title?: string,
   // Reuse a scratch dir already minted by `createChatDir` (eager connect) so the
   // ACP cwd never moves across the first send; omit to let the backend mint one.
-  existingDir?: string
+  existingDir?: string,
+  continuationSourceId?: number | null
 ): Promise<CreateChatConversationResult> {
   return getTransport().call("create_chat_conversation", {
     agentType,
     title: title ?? null,
     existingDir: existingDir ?? null,
+    ...(continuationSourceId != null ? { continuationSourceId } : {}),
   })
 }
 

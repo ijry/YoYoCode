@@ -10,10 +10,12 @@ use crate::db::entities::conversation::ConversationKind;
 use crate::db::entities::{conversation, folder};
 use crate::db::error::DbError;
 use crate::db::service::conversation_tag_service;
-use crate::models::{AgentType, AssistantRunSnapshot, ConversationSelection, DbConversationSummary};
+use crate::models::{
+    AgentType, AssistantRunSnapshot, ConversationSelection, DbConversationSummary,
+};
 
-pub async fn create(
-    conn: &DatabaseConnection,
+pub async fn create<C: sea_orm::ConnectionTrait>(
+    conn: &C,
     folder_id: i32,
     agent_type: AgentType,
     title: Option<String>,
@@ -32,12 +34,91 @@ pub async fn create(
     .await
 }
 
+/// Resolve a draft's selection without binding it to the source conversation.
+/// Per-agent defaults must not overwrite the old conversation's model/mode;
+/// only explicit one-shot draft picks override the inherited configuration.
+pub async fn selection_for_continuation_draft(
+    conn: &DatabaseConnection,
+    source_id: i32,
+    agent_type: AgentType,
+    fallback: ConversationSelection,
+    overrides: std::collections::BTreeMap<String, String>,
+) -> Result<ConversationSelection, DbError> {
+    let source = conversation::Entity::find_by_id(source_id)
+        .filter(conversation::Column::DeletedAt.is_null())
+        .one(conn)
+        .await?
+        .ok_or_else(|| DbError::NotFound(format!("continuation source {source_id}")))?;
+    if serde_json::to_value(agent_type)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .as_deref()
+        != Some(source.agent_type.as_str())
+    {
+        return Ok(fallback);
+    }
+    let mut selection =
+        ConversationSelection::parse(source.selector_state.as_deref()).unwrap_or(fallback);
+    selection.config_values.extend(overrides);
+    Ok(selection)
+}
+
+/// Create a fresh continuation and its queue/control snapshot atomically.
+/// Selector choices are portable only within the same agent; execution ids,
+/// history, parent/delegation links and completion status are never inherited.
+pub async fn create_continuation(
+    conn: &DatabaseConnection,
+    source_id: i32,
+    folder_id: i32,
+    agent_type: AgentType,
+    title: Option<String>,
+    git_branch: Option<String>,
+) -> Result<conversation::Model, DbError> {
+    use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
+    let txn = conn.begin().await?;
+    // Reserve SQLite's writer before reading the source snapshot.
+    txn.execute(Statement::from_string(
+        DbBackend::Sqlite,
+        "UPDATE message_queue_item SET id=id WHERE id=-1".to_owned(),
+    ))
+    .await?;
+    let source = conversation::Entity::find_by_id(source_id)
+        .filter(conversation::Column::DeletedAt.is_null())
+        .one(&txn)
+        .await?
+        .ok_or_else(|| DbError::NotFound(format!("continuation source {source_id}")))?;
+    let chat = folder::Entity::find_by_id(folder_id)
+        .one(&txn)
+        .await?
+        .is_some_and(|folder| folder.kind == folder::FolderKind::Chat);
+    let created = if chat {
+        create_chat(&txn, folder_id, agent_type, title, git_branch).await?
+    } else {
+        create(&txn, folder_id, agent_type, title, git_branch).await?
+    };
+    let mut target = created;
+    if target.agent_type == source.agent_type {
+        let mut active: conversation::ActiveModel = target.into();
+        active.selector_state = Set(source.selector_state);
+        active.model = Set(source.model);
+        target = active.update(&txn).await?;
+    }
+    super::message_queue_service::copy_for_continuation_on(
+        &txn,
+        &source_id.to_string(),
+        &target.id.to_string(),
+    )
+    .await?;
+    txn.commit().await?;
+    Ok(target)
+}
+
 /// Mirror of [`create`] for folderless chat-mode conversations: identical row
 /// shape but `kind = 'chat'`, so the sidebar routes the row to its flat "Chat"
 /// section. Callers must pair it with the hidden chat folder created in the
 /// same flow (`create_chat_conversation_core`).
-pub async fn create_chat(
-    conn: &DatabaseConnection,
+pub async fn create_chat<C: sea_orm::ConnectionTrait>(
+    conn: &C,
     folder_id: i32,
     agent_type: AgentType,
     title: Option<String>,
@@ -241,8 +322,8 @@ pub async fn create_ask(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn create_inner(
-    conn: &DatabaseConnection,
+async fn create_inner<C: sea_orm::ConnectionTrait>(
+    conn: &C,
     folder_id: i32,
     agent_type: AgentType,
     title: Option<String>,
@@ -4780,3 +4861,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "conversation_continuation_tests.rs"]
+mod continuation_tests;

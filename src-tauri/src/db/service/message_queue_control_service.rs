@@ -161,8 +161,8 @@ async fn state_on<C: ConnectionTrait>(conn: &C, owner: &str) -> Result<MessageQu
     }
 }
 
-pub async fn get_state(
-    conn: &DatabaseConnection,
+pub async fn get_state<C: ConnectionTrait>(
+    conn: &C,
     owner: &str,
 ) -> Result<MessageQueueState, DbError> {
     state_on(conn, owner).await

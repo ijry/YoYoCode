@@ -646,6 +646,7 @@ type ConnectRequest = {
    *  persisted per-agent values at connect time. Compared by REFERENCE in
    *  `sameConnectRequest` — callers pass stable objects (store state). */
   preferredConfigValuesOverride?: Record<string, string> | null
+  continuationSourceId?: number
 }
 
 function sameConnectRequest(a: ConnectRequest, b: ConnectRequest) {
@@ -653,6 +654,7 @@ function sameConnectRequest(a: ConnectRequest, b: ConnectRequest) {
     a.agentType === b.agentType &&
     (a.workingDir ?? null) === (b.workingDir ?? null) &&
     (a.sessionId ?? null) === (b.sessionId ?? null) &&
+    (a.continuationSourceId ?? null) === (b.continuationSourceId ?? null) &&
     (a.preferredConfigValuesOverride ?? null) ===
       (b.preferredConfigValuesOverride ?? null)
   )
@@ -3835,7 +3837,8 @@ export interface AcpActionsValue {
     conversationId?: number,
     /** One-shot preferred config values (see `ConnectRequest`), merged over
      *  the agent's saved prefs at connect time. */
-    preferredConfigValuesOverride?: Record<string, string> | null
+    preferredConfigValuesOverride?: Record<string, string> | null,
+    continuationSourceId?: number
   ): Promise<void>
   /**
    * Release the connection for `contextKey`. The LOCAL entry always goes away
@@ -7973,7 +7976,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       workingDir?: string,
       sessionId?: string,
       conversationId?: number,
-      preferredConfigValuesOverride?: Record<string, string> | null
+      preferredConfigValuesOverride?: Record<string, string> | null,
+      continuationSourceId?: number
     ) => {
       const request: ConnectRequest = {
         agentType,
@@ -7981,6 +7985,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         sessionId,
         conversationId,
         preferredConfigValuesOverride,
+        continuationSourceId,
       }
       // Remember BEFORE the in-flight early return and before the preflight can
       // throw: a connect that never produced a store entry is precisely when
@@ -8353,7 +8358,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           sessionId,
           savedPrefs.modeId,
           configValues,
-          conversationId != null && conversationId > 0 ? conversationId : null
+          conversationId != null && conversationId > 0 ? conversationId : null,
+          ...(request.continuationSourceId != null
+            ? ([
+                {
+                  sourceId: request.continuationSourceId,
+                  configOverrides: request.preferredConfigValuesOverride ?? {},
+                },
+              ] as const)
+            : [])
         )
 
         // If disconnect was requested while connect was in flight, tear down

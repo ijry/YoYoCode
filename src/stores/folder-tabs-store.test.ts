@@ -1001,3 +1001,82 @@ describe("draft one-shot preferred config values", () => {
     })
   })
 })
+
+describe("continuation source on draft tabs", () => {
+  it("keeps the source on new and reused drafts without changing connect identity at binding", () => {
+    const store = () => useTabStore.getState()
+    const first = store().openNewConversationTab(1, "/repo1", {
+      continuationSourceId: 42,
+    })
+    expect(
+      store().rawTabs.find((tab) => tab.id === first.tabId)
+    ).toHaveProperty("continuationSourceId", 42)
+
+    const reused = store().openNewConversationTab(1, "/repo1", {
+      continuationSourceId: 43,
+    })
+    expect(reused.tabId).toBe(first.tabId)
+    expect(
+      store().rawTabs.find((tab) => tab.id === reused.tabId)
+    ).toHaveProperty("continuationSourceId", 43)
+
+    store().bindConversationTab(reused.tabId, 99, "claude_code", "continued")
+    expect(
+      store().rawTabs.find((tab) => tab.id === reused.tabId)
+    ).toHaveProperty("continuationSourceId", 43)
+  })
+})
+
+describe("continuation draft recovery", () => {
+  it("persists the source id so restarting an unsent continuation cannot lose the queue copy", async () => {
+    vi.mocked(api.listOpenedTabs).mockResolvedValue({ version: 1, items: [] })
+    useTabStore.setState({ tabsHydrated: true })
+    await useTabStore.getState().refetchTabs()
+    const { tabId } = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", {
+        continuationSourceId: 42,
+      })
+    await Promise.resolve()
+    const blob = localStorage.getItem("workspace:tab-groups:v1")!
+    expect(
+      JSON.parse(blob).drafts.find(
+        (draft: { id: string }) => draft.id === tabId
+      )
+    ).toHaveProperty("continuationSourceId", 42)
+    resetTabStore()
+    localStorage.setItem("workspace:tab-groups:v1", blob)
+    resetTabStore()
+    vi.mocked(api.listOpenedTabs).mockResolvedValue({ version: 1, items: [] })
+    const stop = useTabStore.getState().hydrate()
+    await vi.waitFor(() => {
+      expect(
+        useTabStore.getState().rawTabs.find((tab) => tab.id === tabId)
+      ).toHaveProperty("continuationSourceId", 42)
+    })
+    stop()
+  })
+})
+
+describe("chat continuation drafts", () => {
+  it("preserves the source when a chat folder opens or reuses a folderless draft", () => {
+    useAppWorkspaceStore.setState((state) => ({
+      allFolders: state.allFolders.map((folder) =>
+        folder.id === 1 ? { ...folder, kind: "chat" as const } : folder
+      ),
+    }))
+    const first = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", { continuationSourceId: 42 })
+    expect(
+      useTabStore.getState().rawTabs.find((tab) => tab.id === first.tabId)
+    ).toMatchObject({ isChat: true, continuationSourceId: 42 })
+    const reused = useTabStore
+      .getState()
+      .openNewConversationTab(1, "/repo1", { continuationSourceId: 43 })
+    expect(reused.tabId).toBe(first.tabId)
+    expect(
+      useTabStore.getState().rawTabs.find((tab) => tab.id === reused.tabId)
+    ).toMatchObject({ continuationSourceId: 43 })
+  })
+})

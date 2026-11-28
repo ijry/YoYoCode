@@ -27,7 +27,8 @@ export interface ContinueDeps {
     folderId: number,
     path: string,
     agentType: string,
-    preferredConfigValues: Record<string, string> | null
+    preferredConfigValues: Record<string, string> | null,
+    continuationSourceId: number
   ): string
   queuePrefill(
     tabId: string,
@@ -93,7 +94,8 @@ export async function runContinueInNewSession(
     conversation.folder_id,
     folderPath,
     options?.agentType ?? conversation.agent_type,
-    options?.preferredConfigValues ?? null
+    options?.preferredConfigValues ?? null,
+    conversation.id
   )
   deps.queuePrefill(tabId, conversation, promptText)
   deps.flushPrefill(tabId)

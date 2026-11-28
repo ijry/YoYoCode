@@ -286,6 +286,7 @@ pub struct CreateConversationParams {
     pub folder_id: i32,
     pub agent_type: AgentType,
     pub title: Option<String>,
+    pub continuation_source_id: Option<i32>,
 }
 
 pub async fn create_conversation(
@@ -293,14 +294,22 @@ pub async fn create_conversation(
     Json(params): Json<CreateConversationParams>,
 ) -> Result<Json<i32>, AppCommandError> {
     let db = &state.db;
-    let result = conv_commands::create_conversation_core(
+    let result = conv_commands::create_conversation_with_continuation_core(
         &db.conn,
         params.folder_id,
         params.agent_type,
         params.title,
+        params.continuation_source_id,
     )
     .await?;
     conv_commands::emit_conversation_upsert(&state.emitter, &db.conn, result).await;
+    conv_commands::emit_continuation_queue_states(
+        &state.emitter,
+        &db.conn,
+        params.continuation_source_id,
+        result,
+    )
+    .await;
     Ok(Json(result))
 }
 
@@ -382,22 +391,31 @@ pub struct CreateChatConversationParams {
     /// Reuse an eagerly-created scratch dir (from `create_chat_dir`) instead of
     /// minting a new one, so the ACP cwd stays put across the first send.
     pub existing_dir: Option<String>,
+    pub continuation_source_id: Option<i32>,
 }
 
 pub async fn create_chat_conversation(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<CreateChatConversationParams>,
 ) -> Result<Json<conv_commands::CreateChatConversationResult>, AppCommandError> {
-    let result = conv_commands::create_chat_conversation_core(
+    let result = conv_commands::create_chat_continuation_core(
         &state.db.conn,
         &state.data_dir,
         params.agent_type,
         params.title,
         params.existing_dir.as_deref(),
+        params.continuation_source_id,
     )
     .await?;
     conv_commands::emit_conversation_upsert(&state.emitter, &state.db.conn, result.conversation_id)
         .await;
+    conv_commands::emit_continuation_queue_states(
+        &state.emitter,
+        &state.db.conn,
+        params.continuation_source_id,
+        result.conversation_id,
+    )
+    .await;
     Ok(Json(result))
 }
 
